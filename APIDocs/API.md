@@ -76,7 +76,69 @@
 }
 ```
 
-### 1.2 登出 / 吊销授权
+### 1.1 用户登录
+* **POST** `/auth/login`
+* **说明**: 提交教工账号与密码获取短效与长效授信。
+* **请求体 (Body)**:
+```json
+{
+  "username": "teacher_01",
+  "password": "secure_password123"
+}
+```
+* **响应负载**:
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "refresh_token": "def5020...",
+  "expires_in": 7200,
+  "token_type": "Bearer"
+}
+```
+
+### 1.2 用户注册
+* **POST** `/auth/register`
+* **说明**: 创建新的教师账户，无需鉴权。成功后直接返回用户信息，需再调用 `1.1 登录` 接口获取 Token。
+* **请求体 (Body)**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `username` | string | ✅ | 登录用教工号，唯一 |
+| `password` | string | ✅ | 登录密码（建议至少 8 位） |
+| `name` | string | 否 | 显示名称（默认：未命名教师）|
+| `department` | string | 否 | 所在院系（默认：空字符串） |
+
+```json
+{
+  "username": "teacher_02",
+  "password": "Secure@2026",
+  "name": "李老师",
+  "department": "数学系"
+}
+```
+* **响应负载** (HTTP 200):
+```json
+{
+  "user_id": "u_86e89852",
+  "name": "李老师",
+  "department": "数学系",
+  "preferences": {
+    "default_theme": "tech_blue"
+  }
+}
+```
+* **错误响应** (用户名已存在, HTTP 400):
+```json
+{
+  "code": 4001,
+  "message": "用户名已被占用",
+  "data": {
+    "details": [{ "field": "username", "issue": "already taken" }]
+  }
+}
+```
+
+### 1.3 登出 / 吊销授权
 * **POST** `/auth/logout`
 * **说明**: 使当前携带的 `access_token` 失效（后端加入缓存黑名单）。
 * **请求**: 无携带负载体。
