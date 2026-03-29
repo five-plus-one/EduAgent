@@ -44,7 +44,18 @@ export const login = async (username: string, password: string) => {
   return res.data?.data ?? res.data;
 };
 
-/** 1.2 Logout and revoke token */
+/** 1.2 Register a new teacher account */
+export const register = async (params: {
+  username: string;
+  password: string;
+  name?: string;
+  department?: string;
+}) => {
+  const res = await apiClient.post('/auth/register', params);
+  return res.data?.data ?? res.data;
+};
+
+/** 1.3 Logout and revoke token */
 export const logout = async () => {
   await apiClient.post('/auth/logout');
   localStorage.removeItem('access_token');
