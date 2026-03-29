@@ -1,31 +1,73 @@
 import { useState, useCallback } from 'react';
 
+export interface PPTElement {
+  element_id: string;
+  type: "text_block" | "image" | string;
+  position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | string;
+  content?: string[];
+  url?: string;
+  alt?: string;
+}
+
 export interface PPTPage {
   page_index: number;
-  type: string;
+  layout_type: "cover" | "standard" | "two_column" | "image_gallery" | string;
   title: string;
   speaker?: string;
-  bullets?: string[];
-  suggested_image_prompt?: string;
-  image_url?: string;
+  speaker_notes?: string;
+  elements: PPTElement[];
 }
 
 export function useCourseware(sessionId: string) {
   const [pages, setPages] = useState<PPTPage[]>([
     {
       page_index: 1,
-      type: "cover",
-      title: "牛顿第二定律探讨",
-      speaker: "王老师"
+      layout_type: "cover",
+      title: "力学模型溯源",
+      speaker: "王老师",
+      speaker_notes: "在这个阶段讲一下摩擦力的前置推导...",
+      elements: [
+        {
+          element_id: "txt_101",
+          type: "text_block",
+          position: "center",
+          content: [
+            "牛顿定律的边界情况",
+            "在非惯性系中如何看待科里奥利力"
+          ]
+        }
+      ]
     },
     {
       page_index: 2,
-      type: "content",
-      title: "核心公式推导",
-      bullets: ["F = ma", "动量守恒的关联"],
-      suggested_image_prompt: "物理实验室，牛顿摆...",
-      // Using a beautiful placeholder
-      image_url: "https://images.unsplash.com/photo-1549488344-1f9b8d2bd1f3?auto=format&fit=crop&q=80&w=800&h=400"
+      layout_type: "two_column",
+      title: "微观粒子的摩擦学表现",
+      speaker_notes: "引导学生通过右侧双图对比玻璃板和木板的光滑度极差。",
+      elements: [
+        {
+          element_id: "txt_201",
+          type: "text_block",
+          position: "left",
+          content: [
+            "接触面越粗糙，滚动阻力和附着力呈指数放大。",
+            "下面这是我们在高倍显微镜下的晶体解理面结构抓拍图，大家可以看到巨大的间隙沟壑："
+          ]
+        },
+        {
+          element_id: "img_202",
+          type: "image",
+          position: "right_top",
+          url: "https://images.unsplash.com/photo-1549488344-1f9b8d2bd1f3?auto=format&fit=crop&q=80&w=800&h=400",
+          alt: "玻璃解理面微观示意图"
+        },
+        {
+          "element_id": "img_203",
+          type: "image",
+          position: "right_bottom",
+          url: "https://images.unsplash.com/photo-1596496338006-03bf475fc605?auto=format&fit=crop&q=80&w=800&h=400",
+          alt: "木材切面微观示意图"
+        }
+      ]
     }
   ]);
   const [updatingPages, setUpdatingPages] = useState<Set<number>>(new Set());
@@ -73,7 +115,15 @@ export function useCourseware(sessionId: string) {
             return {
               ...p,
               title: `${p.title} (已调整)`,
-              bullets: p.bullets ? [...p.bullets, `🆕 ${instruction}`] : [`🆕 ${instruction}`]
+              elements: [
+                ...p.elements,
+                {
+                  element_id: `txt_new_${Date.now()}`,
+                  type: "text_block",
+                  position: "bottom",
+                  content: [`🆕 ${instruction}`]
+                }
+              ]
             };
         }
         return p;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Send, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
@@ -22,6 +22,34 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     }
   };
 
+  const renderElement = (el: any) => {
+    // Map JSON position (left, right_top) to CSS Module class (pos_left, pos_right_top)
+    const positionClass = styles[`pos_${el.position}`] || '';
+
+    if (el.type === 'image') {
+      return (
+        <div key={el.element_id} className={clsx(styles.imageWrapper, positionClass)}>
+          <img src={el.url} alt={el.alt || 'PPT Element'} className={styles.pptImage} />
+        </div>
+      );
+    }
+
+    if (el.type === 'text_block') {
+      return (
+        <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
+          {el.content && el.content.length > 1 ? (
+            <ul className={styles.contentList}>
+              {el.content.map((b: string, i: number) => <li key={i}>{b}</li>)}
+            </ul>
+          ) : (
+             el.content?.map((text: string, i: number) => <p key={i}>{text}</p>)
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div 
       className={clsx(styles.pptCard, 'glass-panel', isUpdating && styles.updating)}
@@ -33,27 +61,15 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         <h4>{page.title}</h4>
       </div>
       
-      {page.type === 'cover' ? (
-        <div className={styles.coverBody}>
-           <span className={styles.speaker}>主讲人: {page.speaker}</span>
-        </div>
-      ) : (
-        <div className={styles.contentBody}>
-          <ul className={styles.bulletList}>
-            {page.bullets?.map((b, i) => <li key={i}>{b}</li>)}
-          </ul>
-          
-          {page.image_url ? (
-            <div className={styles.imageWrapper}>
-              <img src={page.image_url} alt="PPT Illustration" className={styles.pptImage} />
-            </div>
-          ) : page.suggested_image_prompt && (
-            <div className={styles.imagePrompt}>
-              <ImageIcon size={14} /> 自动配图参考: {page.suggested_image_prompt}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Universal Grid/Flex Stage powered by layout_type */}
+      <div className={clsx(styles.stage, styles[`layout_${page.layout_type}`])}>
+        {page.speaker && page.layout_type === 'cover' && (
+           <p className={clsx(styles.textBlock, styles.pos_bottom)} style={{textAlign: 'center', opacity: 0.6}}>
+             主讲人: {page.speaker}
+           </p>
+        )}
+        {page.elements?.map(renderElement)}
+      </div>
 
       {/* Loading Skeleton Overlay for Targeted Modification */}
       {isUpdating && (
