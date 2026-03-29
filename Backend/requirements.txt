@@ -4,7 +4,7 @@ pydantic
 pydantic-settings
 sqlalchemy
 pyjwt
-passlib[bcrypt]
+bcrypt
 python-multipart
 langchain
 langchain-openai
