@@ -17,6 +17,10 @@ export default function Workspace() {
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const [selectionText, setSelectionText] = useState('');
+  const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
 
   const { messages, isSynthesizing, sendMessage } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
@@ -39,6 +43,34 @@ export default function Workspace() {
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  const handleSelection = () => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) {
+      const text = selection.toString().trim();
+      if (text) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+        setFloatPos({
+          top: rect.top - 48, // slightly above the selection
+          left: rect.left + rect.width / 2
+        });
+        setSelectionText(text);
+        return;
+      }
+    }
+    setSelectionText('');
+  };
+
+  const handleHighlightAsk = () => {
+    const brief = selectionText.length > 40 ? selectionText.substring(0, 40) + '...' : selectionText;
+    setInputText(`针对内容选段：“${brief}”\n我的修改意见是：`);
+    setSelectionText('');
+    window.getSelection()?.removeAllRanges();
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
   };
 
   return (
@@ -91,6 +123,7 @@ export default function Workspace() {
               <Paperclip size={20} />
             </button>
             <textarea 
+              ref={inputRef}
               className={styles.textarea} 
               placeholder="描述您的教学逻辑，或者选中右侧PPT指定修改..."
               value={inputText}
@@ -155,7 +188,7 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
-              <div className={styles.markdownWrapper}>
+              <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]} 
                   rehypePlugins={[rehypeRaw]}
@@ -164,6 +197,17 @@ export default function Workspace() {
                 </ReactMarkdown>
               </div>
             </div>
+            
+            {/* FLOATING ACTION BUTTON */}
+            {selectionText && (
+              <button 
+                className={clsx(styles.floatActionBtn, 'glass-panel')}
+                style={{ top: floatPos.top, left: floatPos.left }}
+                onClick={handleHighlightAsk}
+              >
+                ✨ 针对此划词发起修改
+              </button>
+            )}
           </Tabs.Content>
         </Tabs.Root>
       </section>
