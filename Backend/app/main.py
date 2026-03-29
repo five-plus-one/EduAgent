@@ -7,6 +7,7 @@ from app.api.v1.api import api_router
 from app.db.base_class import Base
 from app.db.session import engine
 from app.models.user import User
+from app.models.session import SessionContext, Message
 
 # Create tables
 Base.metadata.create_all(bind=engine)
