@@ -1,16 +1,31 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   MessageSquarePlus, 
   History, 
   Library, 
-  Settings, 
+  LogOut,
   UserCircle 
 } from 'lucide-react';
 import styles from './Sidebar.module.css';
 import { clsx } from 'clsx';
+import { useAppStore } from '../store/useAppStore';
+import { logout } from '../utils/api';
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+  const user = useAppStore((state) => state.user);
+  const clearUser = useAppStore((state) => state.clearUser);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // Server may already have invalidated token; proceed anyway
+    }
+    clearUser();
+    navigate('/login', { replace: true });
+  };
+
   return (
     <aside className={clsx(styles.sidebar, 'glass-panel')}>
       <div className={styles.header}>
@@ -55,14 +70,20 @@ export default function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
-        <button className={clsx('button-base', styles.profileBtn)}>
+        <div className={clsx('button-base', styles.profileBtn)}>
           <UserCircle size={24} />
           <div className={styles.profileInfo}>
-            <span className={styles.userName}>王老师</span>
-            <span className={styles.userRole}>物理系</span>
+            <span className={styles.userName}>{user?.name ?? '未命名教师'}</span>
+            <span className={styles.userRole}>{user?.department ?? ''}</span>
           </div>
-          <Settings size={16} className={styles.settingsIcon} />
-        </button>
+          <button 
+            className={styles.logoutBtn}
+            onClick={handleLogout}
+            title="退出登录"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
     </aside>
   );
