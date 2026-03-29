@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { iterateCoursewarePage } from '../utils/api';
 
 export interface PPTElement {
   element_id: string;
@@ -105,35 +106,24 @@ export function useCourseware(sessionId: string) {
 *注：本讲义由多模态AI教学智能体辅助生成并持续优化排版。*
 `);
 
-  const iteratePage = useCallback((pageIndex: number, instruction: string) => {
+  const iteratePage = useCallback(async (pageIndex: number, instruction: string) => {
     setUpdatingPages(prev => new Set(prev).add(pageIndex));
-    
-    // Mock API 3.4
-    setTimeout(() => {
-      setPages(prev => prev.map(p => {
-        if (p.page_index === pageIndex) {
-            return {
-              ...p,
-              title: `${p.title} (已调整)`,
-              elements: [
-                ...p.elements,
-                {
-                  element_id: `txt_new_${Date.now()}`,
-                  type: "text_block",
-                  position: "bottom",
-                  content: [`🆕 ${instruction}`]
-                }
-              ]
-            };
-        }
-        return p;
-      }));
+
+    try {
+      const updatedPage = await iterateCoursewarePage(sessionId, 'ppt', pageIndex, instruction);
+      if (updatedPage) {
+        setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, ...updatedPage } : p));
+      }
+    } catch {
+      // Silently revert on fail
+      console.error('Failed to iterate page', pageIndex);
+    } finally {
       setUpdatingPages(prev => {
         const next = new Set(prev);
         next.delete(pageIndex);
         return next;
       });
-    }, 2500);
+    }
   }, [sessionId]);
 
   return { pages, wordDoc, updatingPages, iteratePage };

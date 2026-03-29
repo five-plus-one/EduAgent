@@ -1,68 +1,265 @@
 import axios from 'axios';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
+// ==========================================
+// Core Setup
+// ==========================================
+
 export const API_BASE_URL = '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 });
 
-// Interceptor for attaching tokens (Mock logic for now)
+// Request Interceptor: attach Bearer token if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
-  if (token && config.url !== '/auth/login') {
+  if (token && !config.url?.includes('/auth/login')) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// API 0.1 Login
-export const login = async (username: string, password: string) => {
-  // If the backend isn't up, we mock the successful response format
-  try {
-    const res = await apiClient.post('/auth/login', { username, password });
-    return res.data;
-  } catch (error) {
-    console.warn("Backend not found, using mockup token.");
-    return {
-      access_token: 'mock_eyJhbGciOiJIUzI1...',
-      refresh_token: 'mock_def50200a...',
-      expires_in: 3600
-    };
+// Response Interceptor: handle 401 globally
+apiClient.interceptors.response.use(
+  (res) => res,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
   }
+);
+
+// ==========================================
+// Module 1: Auth & Preferences
+// ==========================================
+
+/** 1.1 Login and get access token */
+export const login = async (username: string, password: string) => {
+  const res = await apiClient.post('/auth/login', { username, password });
+  return res.data?.data ?? res.data;
 };
 
-// Helper for SSE streams based on API 1.2
+/** 1.2 Logout and revoke token */
+export const logout = async () => {
+  await apiClient.post('/auth/logout');
+  localStorage.removeItem('access_token');
+};
+
+/** 1.3 Get current user profile */
+export const getMe = async () => {
+  const res = await apiClient.get('/auth/me');
+  return res.data?.data ?? res.data;
+};
+
+/** 1.4 Update user preferences (partial) */
+export const updatePreferences = async (prefs: Record<string, unknown>) => {
+  const res = await apiClient.put('/auth/me/preferences', prefs);
+  return res.data?.data ?? res.data;
+};
+
+// ==========================================
+// Module 2: Session Lifecycle
+// ==========================================
+
+/** 2.1 Create a new session */
+export const createSession = async (courseName: string, targetAudience?: string, objective?: string) => {
+  const res = await apiClient.post('/sessions', { course_name: courseName, target_audience: targetAudience, objective });
+  return res.data?.data ?? res.data;
+};
+
+/** 2.2 List sessions (paginated) */
+export const listSessions = async (page = 1, size = 20, keyword?: string) => {
+  const res = await apiClient.get('/sessions', { params: { page, size, keyword } });
+  return res.data?.data ?? res.data;
+};
+
+/** 2.3 Get single session detail */
+export const getSession = async (sessionId: string) => {
+  const res = await apiClient.get(`/sessions/${sessionId}`);
+  return res.data?.data ?? res.data;
+};
+
+/** 2.4 Update session metadata */
+export const updateSession = async (sessionId: string, updates: Record<string, unknown>) => {
+  await apiClient.put(`/sessions/${sessionId}`, updates);
+};
+
+/** 2.5 Delete a session */
+export const deleteSession = async (sessionId: string) => {
+  await apiClient.delete(`/sessions/${sessionId}`);
+};
+
+// ==========================================
+// Module 3: Interaction & File References
+// ==========================================
+
+/** 3.1 Streaming text chat (SSE) */
 export const streamChatCompletion = async (
   sessionId: string,
   content: string,
-  onMessage: (chunk: string, isFinished: boolean, intent?: any) => void,
-  onError: (err: any) => void
+  onMessage: (chunk: string, isFinished: boolean, intent?: unknown) => void,
+  onError: (err: unknown) => void
 ) => {
   const token = localStorage.getItem('access_token');
-  
+
   await fetchEventSource(`${API_BASE_URL}/sessions/${sessionId}/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ content }),
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
-        onMessage(data.chunk || '', data.is_finished, data.extracted_intent);
-      } catch (e) {
-        console.error('Failed to parse SSE data', e);
+        onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
+      } catch {
+        console.error('Failed to parse SSE chunk', ev.data);
       }
     },
     onerror(err) {
       onError(err);
-      throw err; // Prevents retrying infinitely
-    }
+      throw err;
+    },
   });
 };
+
+/** 3.2 Audio/voice transcription */
+export const transcribeAudio = async (sessionId: string, audioBlob: Blob) => {
+  const form = new FormData();
+  form.append('audio_file', audioBlob, 'recording.webm');
+  const res = await apiClient.post(`/sessions/${sessionId}/audio-chat`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return (res.data?.data ?? res.data) as { text: string };
+};
+
+/** 3.3 Upload a reference file */
+export const uploadFile = async (sessionId: string, file: File, intentDesc?: string) => {
+  const form = new FormData();
+  form.append('file', file);
+  if (intentDesc) form.append('intent_desc', intentDesc);
+  const res = await apiClient.post(`/sessions/${sessionId}/files`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/** 3.4 Poll file parsing status */
+export const getFileStatus = async (sessionId: string, fileId: string) => {
+  const res = await apiClient.get(`/sessions/${sessionId}/files/${fileId}/status`);
+  return res.data?.data ?? res.data;
+};
+
+/** 3.5 Link RAG knowledge docs to this session */
+export const addReferences = async (sessionId: string, referenceIds: string[]) => {
+  await apiClient.post(`/sessions/${sessionId}/references`, { reference_ids: referenceIds });
+};
+
+/** 3.6 Update file intent description */
+export const updateFile = async (sessionId: string, fileId: string, intentDesc: string) => {
+  await apiClient.put(`/sessions/${sessionId}/files/${fileId}`, { intent_desc: intentDesc });
+};
+
+/** 3.7 Remove a file from session */
+export const deleteFile = async (sessionId: string, fileId: string) => {
+  await apiClient.delete(`/sessions/${sessionId}/files/${fileId}`);
+};
+
+// ==========================================
+// Module 4: Courseware Generation
+// ==========================================
+
+/** 4.1 Trigger courseware generation */
+export const generateCourseware = async (
+  sessionId: string,
+  selectedFileIds: string[],
+  mode: 'fast' | 'depth' = 'depth'
+) => {
+  const res = await apiClient.post(`/sessions/${sessionId}/generate`, {
+    selected_file_ids: selectedFileIds,
+    generation_mode: mode,
+  });
+  return res.data?.data ?? res.data;
+};
+
+/** 4.2 Poll generation task progress */
+export const getGenerationStatus = async (taskId: string) => {
+  const res = await apiClient.get(`/generate/tasks/${taskId}`);
+  return res.data?.data ?? res.data;
+};
+
+/** 4.3 Get slideshow preview data */
+export const getCoursewarePreview = async (sessionId: string) => {
+  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview`);
+  return res.data?.data ?? res.data;
+};
+
+/** 4.4 Submit a partial re-generation instruction */
+export const iterateCoursewarePage = async (
+  sessionId: string,
+  targetType: 'ppt' | 'word',
+  pageIndex: number,
+  instruction: string
+) => {
+  const res = await apiClient.post(`/sessions/${sessionId}/courseware/iterate`, {
+    target_type: targetType,
+    page_index: pageIndex,
+    instruction,
+  });
+  return res.data?.data ?? res.data;
+};
+
+// ==========================================
+// Module 5: Export
+// ==========================================
+
+/** 5.1 Trigger file export */
+export const triggerExport = async (sessionId: string) => {
+  const res = await apiClient.post(`/sessions/${sessionId}/export`);
+  return res.data?.data ?? res.data;
+};
+
+/** 5.2 Poll export task for download URLs */
+export const getExportStatus = async (exportTaskId: string) => {
+  const res = await apiClient.get(`/export/tasks/${exportTaskId}`);
+  return res.data?.data ?? res.data;
+};
+
+// ==========================================
+// Module 6: Knowledge Base (RAG Admin)
+// ==========================================
+
+/** 6.1 Upload a doc to RAG */
+export const uploadKnowledgeDoc = async (file: File, metadata: Record<string, unknown>) => {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('metadata', JSON.stringify(metadata));
+  const res = await apiClient.post('/knowledge-base/documents', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/** 6.2 List knowledge docs (paginated) */
+export const listKnowledgeDocs = async (page = 1, size = 20, status?: string, subject?: string) => {
+  const res = await apiClient.get('/knowledge-base/documents', { params: { page, size, status, subject } });
+  return res.data?.data ?? res.data;
+};
+
+/** 6.3 Update knowledge doc metadata */
+export const updateKnowledgeDoc = async (docId: string, metadata: Record<string, unknown>) => {
+  await apiClient.put(`/knowledge-base/documents/${docId}`, { metadata });
+};
+
+/** 6.4 Delete a knowledge doc from RAG */
+export const deleteKnowledgeDoc = async (docId: string) => {
+  await apiClient.delete(`/knowledge-base/documents/${docId}`);
+};
+

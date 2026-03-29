@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
-import { login } from '../utils/api';
+import { login, getMe } from '../utils/api';
 import { useAppStore } from '../store/useAppStore';
 import styles from './Login.module.css';
 
@@ -10,6 +10,7 @@ export default function Login() {
   const [username, setUsername] = useState('teacher_01');
   const [password, setPassword] = useState('123456');
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
   const setUser = useAppStore((state) => state.setUser);
 
@@ -18,25 +19,29 @@ export default function Login() {
     if (!username || !password) return;
 
     setLoading(true);
-    // Call 0.1 Login interface
-    const res = await login(username, password);
-    
-    if (res && res.access_token) {
-      localStorage.setItem('access_token', res.access_token);
-      
-      // Simulate user profile fetching after login
-      setTimeout(() => {
+    setErrorMsg('');
+    try {
+      const res = await login(username, password);
+
+      if (res?.access_token) {
+        localStorage.setItem('access_token', res.access_token);
+
+        // Fetch real user profile from /auth/me
+        const profile = await getMe();
         setUser({
-          id: 'u_1001',
-          name: '王老师',
-          department: '物理系'
+          id: profile.user_id ?? profile.id ?? 'u_unknown',
+          name: profile.name ?? profile.username ?? username,
+          department: profile.department ?? '',
         });
-        setLoading(false);
-        navigate('/'); // Redirect to Workspace (starts new session)
-      }, 1000);
-    } else {
+        navigate('/');
+      } else {
+        setErrorMsg('登录失败，请检查账号密码');
+      }
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { message?: string } } };
+      setErrorMsg(axiosErr.response?.data?.message ?? '网络错误，请稍后再试');
+    } finally {
       setLoading(false);
-      alert('登录失败，请检查账号密码');
     }
   };
 
@@ -94,6 +99,11 @@ export default function Login() {
             )}
             <div className={styles.btnGlow}></div>
           </button>
+          {errorMsg && (
+            <p style={{color:'hsl(340,80%,50%)', fontSize:'0.9rem', textAlign:'center', marginTop: '8px'}}>
+              ⚠️ {errorMsg}
+            </p>
+          )}
         </form>
         
         <div className={styles.loginFooter}>
