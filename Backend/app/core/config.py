@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     
     # LLM Settings
     OPENAI_API_BASE: str = "https://api.ai.five-plus-one.com/v1"
-    OPENAI_API_KEY: str = "sk-iKN0wRo2XmCG5MDWVhBMBIyIxmXQ94ftkExBaT2a3Sb3Y0LX"
+    OPENAI_API_KEY: str = ""  # 密钥已移除，通过本地 .env 文件提供
     LLM_MODEL: str = "doubao-seed-1-8-251228"
     EMBEDDING_MODEL: str = "text-embedding-3-large"
 
