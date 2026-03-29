@@ -8,6 +8,7 @@ import { useChatSession } from '../hooks/useChatSession';
 import MessageBubble from '../components/MessageBubble';
 import { useCourseware } from '../hooks/useCourseware';
 import PPTCard from '../components/PPTCard';
+import ReactMarkdown from 'react-markdown';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -153,9 +154,7 @@ export default function Workspace() {
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
               <div className={styles.markdownWrapper}>
-                {wordDoc.split('\n').map((line, i) => (
-                  <p key={i}>{line}</p>
-                ))}
+                <ReactMarkdown>{wordDoc}</ReactMarkdown>
               </div>
             </div>
           </Tabs.Content>

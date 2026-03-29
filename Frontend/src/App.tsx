@@ -3,6 +3,15 @@ import WorkspaceLayout from './layouts/WorkspaceLayout';
 import Workspace from './pages/Workspace';
 import KnowledgeBase from './pages/KnowledgeBase';
 import Login from './pages/Login';
+import { useAppStore } from './store/useAppStore';
+
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const user = useAppStore((state) => state.user);
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+}
 
 function App() {
   return (
@@ -10,9 +19,9 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         
-        {/* Protected Routes (assumes mock authentication passes for now) */}
-        <Route path="/" element={<Navigate to="/chat/new" replace />} />
-        <Route element={<WorkspaceLayout />}>
+        {/* Protected Routes */}
+        <Route path="/" element={<ProtectedRoute><Navigate to="/chat/new" replace /></ProtectedRoute>} />
+        <Route element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
           <Route path="chat/:sessionId" element={<Workspace />} />
           <Route path="knowledge" element={<KnowledgeBase />} />
         </Route>

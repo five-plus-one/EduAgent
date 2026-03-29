@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { login } from '../utils/api';
+import { useAppStore } from '../store/useAppStore';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -10,6 +11,7 @@ export default function Login() {
   const [password, setPassword] = useState('123456');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const setUser = useAppStore((state) => state.setUser);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,12 +23,17 @@ export default function Login() {
     
     if (res && res.access_token) {
       localStorage.setItem('access_token', res.access_token);
-      // Simulate fetch `/auth/me` and storing in global state etc here in future
       
+      // Simulate user profile fetching after login
       setTimeout(() => {
+        setUser({
+          id: 'u_1001',
+          name: '王老师',
+          department: '物理系'
+        });
         setLoading(false);
         navigate('/'); // Redirect to Workspace (starts new session)
-      }, 800);
+      }, 1000);
     } else {
       setLoading(false);
       alert('登录失败，请检查账号密码');
@@ -35,9 +42,15 @@ export default function Login() {
 
   return (
     <div className={styles.loginContainer}>
+      {/* Decorative blurred background shapes */}
+      <div className={styles.blob1}></div>
+      <div className={styles.blob2}></div>
+      
       <div className={clsx(styles.glassBox, 'glass-panel')}>
         <div className={styles.brandWrapper}>
-          <div className={styles.logoIcon}></div>
+          <div className={styles.logoIcon}>
+            <Sparkles size={28} color="white" />
+          </div>
           <h1 className={styles.brandTitle}>EduAgent</h1>
           <p className={styles.brandSubtitle}>多模态AI互动式教学智能体</p>
         </div>
@@ -75,17 +88,16 @@ export default function Login() {
             disabled={!username || !password || loading}
           >
             {loading ? (
-              <Loader2 className={styles.spinner} size={18} />
+              <span className={styles.btnContent}><Loader2 className={styles.spinner} size={18} /> 验证中...</span>
             ) : (
-              <>登录工作台 <ArrowRight size={16} /></>
+              <span className={styles.btnContent}>登录工作台 <ArrowRight size={16} /></span>
             )}
+            <div className={styles.btnGlow}></div>
           </button>
         </form>
         
         <div className={styles.loginFooter}>
-          <p>
-            没有账号？ <a href="#">联系系统管理员</a>
-          </p>
+          <p>没有账号？ <a href="#contact">联系系统管理员</a></p>
         </div>
       </div>
     </div>

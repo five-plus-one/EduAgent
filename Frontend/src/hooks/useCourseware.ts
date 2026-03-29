@@ -7,6 +7,7 @@ export interface PPTPage {
   speaker?: string;
   bullets?: string[];
   suggested_image_prompt?: string;
+  image_url?: string;
 }
 
 export function useCourseware(sessionId: string) {
@@ -22,7 +23,9 @@ export function useCourseware(sessionId: string) {
       type: "content",
       title: "核心公式推导",
       bullets: ["F = ma", "动量守恒的关联"],
-      suggested_image_prompt: "物理实验室，牛顿摆..."
+      suggested_image_prompt: "物理实验室，牛顿摆...",
+      // Using a beautiful placeholder
+      image_url: "https://images.unsplash.com/photo-1549488344-1f9b8d2bd1f3?auto=format&fit=crop&q=80&w=800&h=400"
     }
   ]);
   const [updatingPages, setUpdatingPages] = useState<Set<number>>(new Set());

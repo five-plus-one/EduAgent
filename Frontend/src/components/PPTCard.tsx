@@ -38,14 +38,20 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
            <span className={styles.speaker}>主讲人: {page.speaker}</span>
         </div>
       ) : (
-        <ul className={styles.bulletList}>
-          {page.bullets?.map((b, i) => <li key={i}>{b}</li>)}
-        </ul>
-      )}
-
-      {page.suggested_image_prompt && (
-        <div className={styles.imagePrompt}>
-          <ImageIcon size={14} /> 自动配图参考: {page.suggested_image_prompt}
+        <div className={styles.contentBody}>
+          <ul className={styles.bulletList}>
+            {page.bullets?.map((b, i) => <li key={i}>{b}</li>)}
+          </ul>
+          
+          {page.image_url ? (
+            <div className={styles.imageWrapper}>
+              <img src={page.image_url} alt="PPT Illustration" className={styles.pptImage} />
+            </div>
+          ) : page.suggested_image_prompt && (
+            <div className={styles.imagePrompt}>
+              <ImageIcon size={14} /> 自动配图参考: {page.suggested_image_prompt}
+            </div>
+          )}
         </div>
       )}
 
