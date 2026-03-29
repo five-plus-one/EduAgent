@@ -1,72 +1,140 @@
+# EduAgent v1.1  API 规范文档
 
-## 全局规范
+## 0. 全局架构与设计规范
 
+### 0.1 基础信息
 * **基础路径 (Base URL)**: `/api/v1`
-* **数据交换格式**: `application/json` (除文件上传外)
-* **鉴权方式**: 所有非 `/auth/login` 的请求，需在 Header 中携带 `Authorization: Bearer <access_token>`
-* **通用返回结构**:
+* **数据交换格式**: 请求体与响应体默认采用 `application/json` (除文件上传外)。
+* **鉴权方式**: 所有非公共接口需在 HTTP Header 中携带凭证：`Authorization: Bearer <access_token>`。
+
+### 0.2 统一响应结构
+所有 API 严格遵循一致的外层包裹格式：
 ```json
 {
-  "code": 200,
-  "message": "success",
-  "data": {} 
+  "code": 200,      // 业务状态码 (200: 成功, 其他: 失败)
+  "message": "ok",  // 提示信息
+  "data": {}        // 核心负载体
 }
 ```
-*(注：为保持文档简洁，以下接口说明中均省略外层的 `code` 和 `message`，仅展示 `data` 内部的核心结构体)*
+*(注：为保持说明简洁，下文各接口的响应结构中将省略 `code` 与 `message`，仅展示 `data` 内部的核心负载态设计)*
 
----
-
-## 模块零：基础用户与认证 (Auth)
-
-### 0.1 用户登录
-* **接口**: `POST /auth/login`
-* **说明**: 账号密码验证，获取访问凭证。
-* **请求**:
+### 0.3 统一分页规范 (Pagination)
+凡涉及列表查询的接口（如会话列表、知识库列表），均通用以下标准：
+* **入参 (Query Params)**:
+  * `page`: 当前所在页面号 (默认 1)
+  * `size`: 单页容纳条数 (默认 20，最高 100)
+* **响应结构 (以 data 为根节点)**:
 ```json
 {
-  "username": "teacher_01",
-  "password": "hashed_password"
-}
-```
-* **响应**:
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1...",
-  "refresh_token": "def50200a...",
-  "expires_in": 3600
+  "total": 150,       // 总条目数
+  "page": 1,          // 当前所在页码
+  "size": 20,         // 每页容量
+  "has_more": true,   // 是否还有更多数据
+  "items": [ ... ]    // 具体的数据列表
 }
 ```
 
-### 0.2 获取当前用户信息
-* **接口**: `GET /auth/me`
-* **说明**: 获取当前登录教师的基础信息和系统配置。
-* **响应**:
+### 0.4 标准化异常反馈 (Error Schema)
+当 HTTP Status Code 不为 `2xx` 时，系统启用增强型错误响应格式（特别针对 400 表单校验或业务权限阻断）：
 ```json
 {
-  "user_id": "u_1001",
-  "name": "王老师",
-  "department": "物理系",
-  "preferences": {
-    "default_theme": "tech_blue"
+  "code": 4001,
+  "message": "参数校验失败",
+  "data": {
+    "error_ref": "ERR-91A2D", 
+    "details": [
+      {
+        "field": "password",
+        "issue": "must be at least 8 characters long"
+      }
+    ]
   }
 }
 ```
 
 ---
 
-## 模块一：核心对话交互与意图理解 (Chat & Session)
+## 模块一：身份认证与偏好设置 (Auth & Preferences)
 
-### 1.1 创建教学设计会话
-* **接口**: `POST /sessions`
-* **说明**: 初始化一次备课任务的上下文。
-* **请求**: 
+### 1.1 用户登录
+* **POST** `/auth/login`
+* **说明**: 提交教工账号与密码获取短效与长效授信。
+* **请求体 (Body)**:
+```json
+{
+  "username": "teacher_01",
+  "password": "secure_password123"
+}
+```
+* **响应负载**:
+```json
+{
+  "access_token": "eyJhbGciOi...",
+  "refresh_token": "def5020...",
+  "expires_in": 7200,             // 秒级过期倒计时
+  "token_type": "Bearer"
+}
+```
+
+### 1.2 登出 / 吊销授权
+* **POST** `/auth/logout`
+* **说明**: 使当前携带的 `access_token` 失效（后端加入缓存黑名单）。
+* **请求**: 无携带负载体。
+* **响应负载**: `null`
+
+### 1.3 获取个人档案
+* **GET** `/auth/me`
+* **说明**: 拉取当前登录教工的基本面貌及全局个性化设置。
+* **响应负载**:
+```json
+{
+  "user_id": "u_1001",
+  "name": "王老师",
+  "department": "物理系",
+  "preferences": {
+    "theme": "dark",
+    "language": "zh-CN",
+    "default_ai_model": "doubao-seed-1-8-251228"
+  }
+}
+```
+
+### 1.4 更新个人偏好 (部分覆盖)
+* **PUT** `/auth/me/preferences`
+* **说明**: 更新系统偏好配置（支持全量或部分传递更新）。
+* **请求体 (Body)**:
+```json
+{
+  "theme": "glass_blue",
+  "default_ai_model": "doubao-seed-1-8-251228"
+}
+```
+* **响应负载**:
+```json
+{
+  "theme": "glass_blue",
+  "language": "zh-CN",
+  "default_ai_model": "doubao-seed-1-8-251228",
+  "updated_at": "2026-03-29T10:05:00Z"
+}
+```
+
+---
+
+## 模块二：会话生命周期管理 (Session LCM)
+
+### 2.1 创建新的备课会话
+* **POST** `/sessions`
+* **说明**: 开拓一个具有独立上下文的新备课或知识共创流。
+* **请求体**: 
 ```json
 {
   "course_name": "牛顿第二定律",
-  "target_audience": "大一新生"
+  "target_audience": "大一新生",
+  "objective": "强调公式推导与动量对应关系"
 }
 ```
-* **响应**:
+* **响应负载**:
 ```json
 {
   "session_id": "sess_8f9a2b",
@@ -74,59 +142,94 @@
 }
 ```
 
-### 1.2 发送文本消息 (流式交互)
-* **接口**: `POST /sessions/{session_id}/chat`
-* **说明**: 前端发送用户指令，后端通过 SSE (Server-Sent Events) 流式返回大模型的思考和回答。
-* **Headers**: `Accept: text/event-stream`
-* **请求**:
+### 2.2 查询历史会话列表
+* **GET** `/sessions`
+* **说明**: 获取当前用户拥有的教务会话记录列表。遵循全局分页标准。
+* **Query 参数**: `?page=1&size=20&keyword=物理`
+* **响应负载**:
 ```json
 {
-  "content": "我想做一份关于牛顿第二定律的课件，重点讲一下相对运动。"
+  "total": 35,
+  "page": 1,
+  "has_more": true,
+  "items": [
+    {
+      "session_id": "sess_8f9a2b",
+      "course_name": "牛顿第二定律",
+      "updated_at": "2026-03-29T14:30:00Z"
+    }
+  ]
 }
 ```
-* **响应 (SSE 事件流)**:
-```text
-data: {"chunk": "好", "is_finished": false}
-data: {"chunk": "的，", "is_finished": false}
-data: {"chunk": "关于牛顿第二定律...", "is_finished": false}
-data: {"chunk": "", "is_finished": true, "extracted_intent": {"core_topic": "牛顿第二定律", "key_point": "相对运动"}}
+
+### 2.3 获取单个会话详情与历史记录
+* **GET** `/sessions/{session_id}`
+* **说明**: 获取指定会话的全量配置信息以及其关联的聊天历史（Messages）。
+* **响应负载**:
+```json
+{
+  "session_id": "sess_8f9a2b",
+  "course_name": "牛顿第二定律",
+  "target_audience": "大一新生",
+  "messages": [
+    {"role": "user", "content": "我想做一份..."},
+    {"role": "assistant", "content": "好的..."}
+  ],
+  "associated_files": ["f_a1b2", "k_9901"]
+}
 ```
 
-### 1.3 语音输入转文本
-* **接口**: `POST /sessions/{session_id}/audio-chat`
-* **说明**: 上传录音，后端调用 ASR 转成文字后，直接返回文字内容（供前端展示并确认后再调用 1.2 接口）。
+### 2.4 修改会话元数据
+* **PUT** `/sessions/{session_id}`
+* **说明**: 对会话名称或目标进行重命名。
+* **请求体**: 
+```json
+{"course_name": "牛顿第二定律 (进阶版)"}
+```
+* **响应负载**: `null`
+
+### 2.5 废弃删除会话
+* **DELETE** `/sessions/{session_id}`
+* **说明**: 清除此条记录（物理删除或系统软归档）。
+* **响应负载**: `null`
+
+---
+
+## 模块三：上下文与资料挂载调度 (Interaction & Reference)
+
+### 3.1 文本对话式聊天 (流式)
+* **POST** `/sessions/{session_id}/chat`
+* **说明**: 前端向会话递送指令，并订阅返回的 SSE 事件流获取大语言模型的思考态与文本。
+* **Header**: `Accept: text/event-stream`
+* **请求体**: 
+```json
+{"content": "请把侧重点放在抛物线运动上。"}
+```
+* **响应流**: 标准 Server-Sent Events 流。
+
+### 3.2 语音输入转文本识别
+* **POST** `/sessions/{session_id}/audio-chat`
+* **说明**: 上传录音片段，调用后端大模型/ASR 引擎将其转换为文字，直接回传给前端（前端确认修改后再走文字流式 3.1）。
 * **Content-Type**: `multipart/form-data`
-* **请求**: `audio_file` (Blob/File)
-* **响应**:
+* **请求**: `audio_file` (Blob/File 流数据)
+* **响应负载**:
 ```json
 {
   "text": "我想做一份关于牛顿第二定律的课件..."
 }
 ```
 
----
-
-## 模块二：多模态参考资料处理 (Multimodal Files)
-
-### 2.1 上传参考文件并触发解析
-* **接口**: `POST /sessions/{session_id}/files`
-* **说明**: 异步上传文档或视频资料。
+### 3.3 资料文件上传 (独立会话内)
+* **POST** `/sessions/{session_id}/files`
+* **说明**: 上传独立文件的过程。
 * **Content-Type**: `multipart/form-data`
-* **请求**: 
-  * `file`: (文件对象)
-  * `intent_desc`: "参考这个PDF的第二章内容" (可选字符串)
-* **响应**:
-```json
-{
-  "file_id": "file_a1b2",
-  "status": "processing"
-}
-```
+* **请求栏**: `file`, `intent_desc` (可选，比如 "只引用前三页数据")。
+* **响应**: `{ "file_id": "f_a1b2", "status": "processing" }`
 
-### 2.2 查询文件解析状态
-* **接口**: `GET /sessions/{session_id}/files/{file_id}/status`
-* **说明**: 前端轮询此接口获取解析进度。
-* **响应**:
+### 3.4 查询资料解析状态
+* **GET** `/sessions/{session_id}/files/{file_id}/status`
+* **说明**: 上传后轮询进度，大文本可能需要几秒到十几秒向量化抽象。
+* **响应负载**:
 ```json
 {
   "status": "processing", 
@@ -136,25 +239,48 @@ data: {"chunk": "", "is_finished": true, "extracted_intent": {"core_topic": "牛
 ```
 *(注：status 枚举值为 `pending`, `processing`, `completed`, `failed`)*
 
----
-
-## 模块三：多模态课件生成与迭代 (Generation)
-
-### 3.1 触发课件生成
-* **接口**: `POST /sessions/{session_id}/generate`
-* **说明**: 对话完成后，根据已提取的意图和文件摘要，异步生成课件。
-* **响应**:
+### 3.5 RAG 知识库越权挂载 (引用机制)
+* **POST** `/sessions/{session_id}/references`
+* **说明**: 将全局知识库中的资料不经过重新上传，直接强行映射引用入当前备课会话中。
+* **请求体**:
 ```json
 {
-  "task_id": "gen_9x8y",
-  "status": "generating"
+  "reference_ids": ["doc_991", "doc_992"]
 }
 ```
+* **响应负载**: `null`
 
-### 3.2 查询生成任务状态
-* **接口**: `GET /generate/tasks/{task_id}`
-* **说明**: 轮询获取生成进度。
-* **响应**:
+### 3.6 会话局部资料修改
+* **PUT** `/sessions/{session_id}/files/{file_id}`
+* **说明**: 动态修改之前已经上传文件的提示词引流诉求。
+* **请求体**: `{"intent_desc": "由于课时变更，现在只需参考本文档第一章即可"}`
+* **响应**: `null`
+
+### 3.7 踢出挂载资料
+* **DELETE** `/sessions/{session_id}/files/{file_id}`
+* **说明**: 从本 session 缓存链路中剥离该文件，后续生成大纲时不参考。
+
+---
+
+## 模块四：智能化结构化课件生成 (Generation & Workflow)
+
+### 4.1 触发结构化合成
+* **POST** `/sessions/{session_id}/generate`
+* **说明**: 大模型对现有的所有聊天历史及明确选中的文件上下文进行分析，推导出完整 JSON 化树形架构的 PPT、教案文本等介质。
+* **请求体 (核心)**:
+```json
+{
+  "selected_file_ids": ["f_a1b2", "doc_991"], 
+  "generation_mode": "depth"    // 快速生成(fast)或深度发散(depth)
+}
+```
+* **说明**: 借用 `selected_file_ids` 字段强制钳制生成范围保障幻觉受控。
+* **响应**: `{"task_id": "gen_8872", "status": "generating"}`
+
+### 4.2 查询后台合成进度
+* **GET** `/generate/tasks/{task_id}`
+* **说明**: 由于大型备课可能会调用多个链式大模型（Chain of Thought），支持通过轮询本接口获取分步骤进度。
+* **响应负载**:
 ```json
 {
   "status": "generating",
@@ -163,119 +289,57 @@ data: {"chunk": "", "is_finished": true, "extracted_intent": {"core_topic": "牛
 }
 ```
 
-### 3.3 获取课件结构化预览数据 (核心)
-* **接口**: `GET /sessions/{session_id}/courseware/preview`
-* **说明**: 获取大模型生成的结构化 JSON，前端据此渲染高保真预览界面。
-* **响应**:
+### 4.3 获取 / 预览核心大纲图元
+* **GET** `/sessions/{session_id}/courseware/preview`
+* **说明**: 当生成完毕后拉取可视化大屏需要的数据阵列。
+* **响应结构**:
 ```json
 {
   "ppt_data": [
     {
       "page_index": 1,
-      "type": "cover",
-      "title": "牛顿第二定律探讨",
-      "speaker": "王老师"
-    },
-    {
-      "page_index": 2,
       "type": "content",
-      "title": "核心公式推导",
-      "bullets": ["F = ma", "动量守恒的关联"],
-      "suggested_image_prompt": "物理实验室，牛顿摆..."
+      "title": "力学模型",
+      "bullets": ["第一点..."],
+      "image_url": "https://oss/gen1.jpg"
     }
   ],
-  "word_教案": "教学目标：掌握核心定律...\n教学过程：...",
-  "interactive_game": {
-    "type": "quiz",
-    "question": "当质量加倍时，加速度如何变化？"
-  }
+  "word_markdown": "# 第一节 大纲...\n## 结论..."
 }
 ```
 
-### 3.4 提交局部修改意见
-* **接口**: `POST /sessions/{session_id}/courseware/iterate`
-* **说明**: 针对特定页面提出修改，返回更新后的该页数据。
-* **请求**:
-```json
-{
-  "target_type": "ppt",
-  "page_index": 2,
-  "instruction": "把核心公式推导这里的文字精简一下，加一个生活中的案例。"
-}
-```
-* **响应**:
-```json
-{
-  "page_index": 2,
-  "title": "核心公式推导（生活实例）",
-  "bullets": ["F = ma", "案例：推空车与推满载货车的区别"]
-}
-```
+### 4.4 局部微调迭代 (Regeneration)
+* **POST** `/sessions/{session_id}/courseware/iterate`
+* **说明**: 针对特定的一页幻灯片内容发起定向自然语言洗牌。
+* **请求体**: `{"target_type": "ppt", "page_index": 1, "instruction": "减少字数加几张示意图"}`
+* **响应负载**: (直接返回那页更新完毕的 `page` 子对象)
 
 ---
 
-## 模块四：导出与下载 (Export)
+## 模块五：渲染导出管道 (Export)
 
-### 4.1 触发打包导出
-* **接口**: `POST /sessions/{session_id}/export`
-* **说明**: 异步将 JSON 数据渲染为物理文件 (.pptx, .docx)。
-* **请求**: 提交前端最终确认无误的完整 JSON 结构（或告知后端使用 session 缓存的最新版本）。
-* **响应**:
-```json
-{
-  "export_task_id": "exp_3k4m"
-}
-```
-
-### 4.2 获取下载链接
-* **接口**: `GET /export/tasks/{export_task_id}`
-* **说明**: 轮询导出状态，完成后获取真实文件 URL。
-* **响应**:
-```json
-{
-  "status": "completed",
-  "download_urls": {
-    "ppt_url": "https://oss.domain.com/files/newton_course.pptx",
-    "word_url": "https://oss.domain.com/files/newton_plan.docx",
-    "h5_url": "https://oss.domain.com/games/quiz_1.html"
-  }
-}
-```
+* **POST /sessions/{session_id}/export**
+  根据前端最终定稿的 JSON 或后端最新的记忆体状态唤起 Office 物理文档渲染机制。
+* **GET /export/tasks/{export_task_id}**
+  轮询下载长链路 `{"status": "completed", "download_urls": {"ppt_url": "..."}}`
 
 ---
 
-## 模块五：本地知识库管理 (RAG Admin)
+## 模块六：知识域行政管控区 (RAG Knowledge Base Admin)
 
-### 5.1 上传并向量化文档
-* **接口**: `POST /knowledge-base/documents`
-* **说明**: 管理员上传专业资料补充 RAG 知识库。
-* **Content-Type**: `multipart/form-data`
-* **请求**: 
-  * `file`: 文件实体
-  * `metadata`: `{"subject": "Physics", "level": "University"}`
-* **响应**:
-```json
-{
-  "doc_id": "doc_991",
-  "status": "embedding"
-}
-```
+### 6.1 全局知识新增入库
+* **POST** `/knowledge-base/documents`
+* **上传方式**: `multipart/form-data` 带 `metadata` 分类指纹。
 
-### 5.2 获取知识库文档列表
-* **接口**: `GET /knowledge-base/documents`
-* **说明**: 分页查询知识库已入库文档的状态。
-* **响应**:
-```json
-{
-  "total": 120,
-  "items": [
-    {
-      "doc_id": "doc_991",
-      "filename": "大学物理-力学篇.pdf",
-      "status": "completed"
-    }
-  ]
-}
-```
+### 6.2 知识库文档分页检索
+* **GET** `/knowledge-base/documents`
+* **说明**: 此接口受上述 `0.3` 统一分页与字段索引规范限制。可筛选 `?status=completed&subject=力学`。
 
----
+### 6.3 更新知识分档指纹
+* **PUT** `/knowledge-base/documents/{doc_id}`
+* **请求体**: `{"metadata": {"subject": "经典物理学的延伸"}}`
+* **响应负载**: `null`
+
+### 6.4 销毁剔除 RAG 资料
+* **DELETE** `/knowledge-base/documents/{doc_id}`
+* **说明**: 强行终结和删除底库向量表，使其再也无法服务于新的 session。
