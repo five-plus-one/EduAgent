@@ -276,6 +276,17 @@
   padding-bottom: 64px;
 }
 
+/* ---------------- SPEECH ERROR ---------------- */
+.speechError {
+  font-size: 0.82rem;
+  color: hsl(340, 80%, 50%);
+  padding: 6px 12px;
+  margin: 6px 20px 0;
+  background: hsla(340, 80%, 96%, 0.8);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid hsl(340, 80%, 50%);
+}
+
 /* ---------------- PPT CARD ---------------- */
 .pptCard {
   width: 100%;
@@ -349,6 +360,30 @@
   margin-bottom: 0.8em;
   font-weight: 700;
   letter-spacing: -0.5px;
+}
+
+/* Float Action Button for text selection */
+.floatActionBtn {
+  position: fixed;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background-color: var(--accent-primary);
+  color: white;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  z-index: 1000;
+  box-shadow: 0 8px 20px var(--accent-glow), 0 0 0 1px hsla(0, 0%, 100%, 0.2) inset;
+  border: none;
+  animation: slideUpFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.2s ease;
+}
+
+.floatActionBtn:hover {
+  transform: translateX(-50%) translateY(-2px) scale(1.05);
+  box-shadow: 0 12px 24px var(--accent-glow), 0 0 0 1px hsla(0, 0%, 100%, 0.4) inset;
 }
 
 .markdownWrapper h1 {

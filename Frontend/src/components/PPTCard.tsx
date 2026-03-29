@@ -56,19 +56,27 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       onMouseEnter={() => setShowIterate(true)}
       onMouseLeave={() => setShowIterate(false)}
     >
-      <div className={styles.cardHeader}>
-        <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
-        <h4>{page.title}</h4>
-      </div>
+      {page.layout_type !== 'cover' && (
+        <div className={styles.cardHeader}>
+          <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
+          <h4>{page.title}</h4>
+        </div>
+      )}
       
       {/* Universal Grid/Flex Stage powered by layout_type */}
       <div className={clsx(styles.stage, styles[`layout_${page.layout_type}`])}>
-        {page.speaker && page.layout_type === 'cover' && (
-           <p className={clsx(styles.textBlock, styles.pos_bottom)} style={{textAlign: 'center', opacity: 0.6}}>
-             主讲人: {page.speaker}
-           </p>
+        {page.layout_type === 'cover' && (
+           <h1 className={styles.coverTitle}>{page.title}</h1>
         )}
+        
         {page.elements?.map(renderElement)}
+        
+        {page.speaker && page.layout_type === 'cover' && (
+           <div className={styles.coverSpeaker}>
+             <div className={styles.speakerLine} />
+             <span>主讲人: {page.speaker}</span>
+           </div>
+        )}
       </div>
 
       {/* Loading Skeleton Overlay for Targeted Modification */}
