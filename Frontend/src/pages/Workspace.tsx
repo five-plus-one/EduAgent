@@ -6,6 +6,8 @@ import { clsx } from 'clsx';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useChatSession } from '../hooks/useChatSession';
 import MessageBubble from '../components/MessageBubble';
+import { useCourseware } from '../hooks/useCourseware';
+import PPTCard from '../components/PPTCard';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -14,6 +16,7 @@ export default function Workspace() {
   const streamEndRef = useRef<HTMLDivElement>(null);
 
   const { messages, isSynthesizing, sendMessage } = useChatSession(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -136,21 +139,25 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              <div className={clsx(styles.pptCard, 'glass-panel')}>
-                <div className={styles.cardHeader}>
-                  <span className={styles.pageNumber}>01</span>
-                  <h4>牛顿第二定律导入</h4>
-                </div>
-                <ul className={styles.bulletList}>
-                  <li>生活案例：推空车与重车的区别感受</li>
-                  <li>核心问题：力、质量、加速度有何关系？</li>
-                </ul>
-              </div>
+              {pages.map(page => (
+                <PPTCard 
+                  key={page.page_index} 
+                  page={page} 
+                  isUpdating={updatingPages.has(page.page_index)}
+                  onIterate={(instruction) => iteratePage(page.page_index, instruction)}
+                />
+              ))}
             </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
-            <div className={styles.placeholderCentric}>Word教案生成中...</div>
+            <div className={clsx(styles.wordDoc, 'glass-panel')}>
+              <div className={styles.markdownWrapper}>
+                {wordDoc.split('\n').map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
+              </div>
+            </div>
           </Tabs.Content>
         </Tabs.Root>
       </section>
