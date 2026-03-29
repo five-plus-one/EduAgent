@@ -291,17 +291,58 @@
 
 ### 4.3 获取 / 预览核心大纲图元
 * **GET** `/sessions/{session_id}/courseware/preview`
-* **说明**: 当生成完毕后拉取可视化大屏需要的数据阵列。
+* **说明**: 拉取大模型经过排版组装后的 JSON 图元数组，该数组具备适应多端渲染引擎的独立区块阵列（Block Elements Array），可以轻松实现纯文字、图文混排（左右/上下）或画廊模式。
 * **响应结构**:
 ```json
 {
   "ppt_data": [
     {
       "page_index": 1,
-      "type": "content",
-      "title": "力学模型",
-      "bullets": ["第一点..."],
-      "image_url": "https://oss/gen1.jpg"
+      "layout_type": "cover",          // 支持: cover, standard, two_column (双列对比), image_gallery (多图画廊)
+      "title": "力学模型溯源",
+      "speaker_notes": "在这个阶段讲一下摩擦力的前置推导...",
+      "elements": [
+        {
+          "element_id": "txt_101",
+          "type": "text_block",
+          "position": "center",        // 支持: top, bottom, center, left, right, right_top, right_bottom
+          "content": [
+            "牛顿定律的边界情况",
+            "在非惯性系中如何看待科里奥利力"
+          ]
+        }
+      ]
+    },
+    {
+      "page_index": 2,
+      "layout_type": "two_column",
+      "title": "微观粒子的摩擦学表现",
+      "speaker_notes": "引导学生通过右侧双图对比玻璃板和木板的光滑度极差。",
+      "elements": [
+        {
+          "element_id": "txt_201",
+          "type": "text_block",
+          "position": "left",
+          "content": [
+            "接触面越粗糙，滚动阻力和附着力呈指数放大。",
+            "下面这是我们在高倍显微镜下的晶体解理面结构抓拍："
+          ]
+        },
+        {
+          "element_id": "img_202",
+          "type": "image",
+          "position": "right_top",     // 右侧双图排版：图A
+          "url": "https://oss/glass_surface_micro.jpg",
+          "alt": "玻璃解理面微观示意图"
+        },
+        {
+          "element_id": "img_203",
+          "type": "image",
+          "position": "right_bottom",  // 右侧双图排版：图B
+          "url": "https://oss/wood_surface_micro.jpg",
+          "alt": "木材切面微观示意图"
+        }
+      ]
     }
   ],
   "word_markdown": "# 第一节 大纲...\n## 结论..."
