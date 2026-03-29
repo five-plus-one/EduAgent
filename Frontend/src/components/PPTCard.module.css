@@ -3,7 +3,7 @@
   max-width: 640px;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-md);
-  padding: 32px;
+  padding: 24px 32px;
   display: flex;
   flex-direction: column;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
@@ -63,8 +63,10 @@
 .layout_two_column {
   display: grid;
   grid-template-columns: 1.2fr 1fr; /* Text left slightly larger, images right */
-  gap: 24px;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
   height: 100%;
+  min-height: 0;
 }
 
 .layout_image_gallery {
@@ -79,7 +81,8 @@
   grid-row: 1 / span 2;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 8px;
 }
 
 .pos_right_top {
@@ -132,7 +135,7 @@
   overflow: hidden;
   box-shadow: var(--shadow-sm);
   display: flex;
-  min-height: 160px; /* fallback height */
+  min-height: 0;
 }
 
 .pptImage {
