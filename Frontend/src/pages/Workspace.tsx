@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Mic, Paperclip, Send, Download, Sparkles } from 'lucide-react';
+import { Mic, MicOff, Paperclip, Send, Download, Sparkles } from 'lucide-react';
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -11,16 +11,21 @@ import PPTCard from '../components/PPTCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
   const [inputText, setInputText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
+
+  const { isRecording, isSupported: isSpeechSupported, startRecording, stopRecording, error: speechError } =
+    useSpeechRecognition((text) => {
+      setInputText(prev => prev ? prev + ' ' + text : text);
+    });
 
   const { messages, isSynthesizing, sendMessage } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
@@ -134,11 +139,14 @@ export default function Workspace() {
             <div className={styles.actionsBox}>
               <button 
                 className={clsx(styles.micButton, isRecording && styles.recording)}
-                onMouseDown={() => setIsRecording(true)}
-                onMouseUp={() => setIsRecording(false)}
-                title="长按说话"
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onTouchStart={startRecording}
+                onTouchEnd={stopRecording}
+                title={isSpeechSupported ? '长按说话' : '您的浏览器不支持语音识别'}
+                disabled={!isSpeechSupported}
               >
-                <Mic size={20} />
+                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
               <button 
                 className={clsx('button-primary', styles.sendButton)} 
@@ -149,6 +157,9 @@ export default function Workspace() {
               </button>
             </div>
           </div>
+          {speechError && (
+            <p className={styles.speechError}>⚠️ {speechError}</p>
+          )}
         </div>
       </section>
 

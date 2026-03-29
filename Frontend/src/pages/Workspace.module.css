@@ -276,6 +276,17 @@
   padding-bottom: 64px;
 }
 
+/* ---------------- SPEECH ERROR ---------------- */
+.speechError {
+  font-size: 0.82rem;
+  color: hsl(340, 80%, 50%);
+  padding: 6px 12px;
+  margin: 6px 20px 0;
+  background: hsla(340, 80%, 96%, 0.8);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid hsl(340, 80%, 50%);
+}
+
 /* ---------------- PPT CARD ---------------- */
 .pptCard {
   width: 100%;
