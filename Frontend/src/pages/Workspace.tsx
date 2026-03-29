@@ -9,6 +9,8 @@ import MessageBubble from '../components/MessageBubble';
 import { useCourseware } from '../hooks/useCourseware';
 import PPTCard from '../components/PPTCard';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -154,7 +156,12 @@ export default function Workspace() {
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
               <div className={styles.markdownWrapper}>
-                <ReactMarkdown>{wordDoc}</ReactMarkdown>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]} 
+                  rehypePlugins={[rehypeRaw]}
+                >
+                  {wordDoc}
+                </ReactMarkdown>
               </div>
             </div>
           </Tabs.Content>
