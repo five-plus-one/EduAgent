@@ -1,0 +1,132 @@
+.loginContainer {
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  background-image: 
+    radial-gradient(circle at 10% 20%, hsla(var(--hue), 80%, 65%, 0.1) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, hsla(var(--hue), 60%, 55%, 0.15) 0%, transparent 40%);
+  position: relative;
+  overflow: hidden;
+}
+
+.glassBox {
+  width: 100%;
+  max-width: 420px;
+  padding: 48px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 20px 60px hsla(var(--hue), 30%, 0%, 0.1);
+}
+
+.brandWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.logoIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent-primary), hsl(var(--hue), 80%, 45%));
+  box-shadow: 0 8px 24px var(--accent-glow);
+  margin-bottom: 20px;
+}
+
+.brandTitle {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.brandSubtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.loginForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.inputGroup label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.loginBtn {
+  width: 100%;
+  padding: 16px;
+  font-size: 1.05rem;
+  margin-top: 8px;
+  gap: 12px;
+}
+
+.spinner {
+  animation: rotate 1s linear infinite;
+}
+
+.loginFooter {
+  margin-top: 32px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-tertiary);
+}
+
+.loginFooter a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.loginFooter a:hover {
+  text-decoration: underline;
+}
+
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
