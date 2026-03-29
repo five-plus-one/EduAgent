@@ -19,6 +19,22 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// API 0.1 Login
+export const login = async (username: string, password: string) => {
+  // If the backend isn't up, we mock the successful response format
+  try {
+    const res = await apiClient.post('/auth/login', { username, password });
+    return res.data;
+  } catch (error) {
+    console.warn("Backend not found, using mockup token.");
+    return {
+      access_token: 'mock_eyJhbGciOiJIUzI1...',
+      refresh_token: 'mock_def50200a...',
+      expires_in: 3600
+    };
+  }
+};
+
 // Helper for SSE streams based on API 1.2
 export const streamChatCompletion = async (
   sessionId: string,

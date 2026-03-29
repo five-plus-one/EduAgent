@@ -16,11 +16,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  user: {
-    id: 'u_1001',
-    name: '王老师',
-    department: '物理系'
-  },
+  user: null,
   activeSessionId: null,
   theme: 'light',
   setActiveSession: (id: string) => set({ activeSessionId: id }),

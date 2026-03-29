@@ -41,8 +41,9 @@
 
 .newSessionBtn {
   width: 100%;
-  padding: 12px;
+  padding: 12px 12px;
   font-size: 0.95rem;
+  justify-content: flex-start;
 }
 
 .nav {
