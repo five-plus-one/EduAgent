@@ -1,6 +1,6 @@
 from typing import Generator
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import APIKeyHeader
 import jwt
 from jwt.exceptions import PyJWTError
 from sqlalchemy.orm import Session
@@ -12,9 +12,7 @@ from app.db.session import SessionLocal
 from app.models.user import User
 from app.schemas.user import TokenPayload
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/login"
-)
+reusable_oauth2 = APIKeyHeader(name="Authorization", scheme_name="JWT")
 
 def get_db() -> Generator:
     try:
@@ -24,9 +22,12 @@ def get_db() -> Generator:
         db.close()
 
 def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+    db: Session = Depends(get_db), token: str = Depends(reusable_oauth2)
 ) -> User:
     try:
+        if token.startswith("Bearer "):
+            token = token[7:]
+
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
         )
