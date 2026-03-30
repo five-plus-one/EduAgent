@@ -37,6 +37,26 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
         {isAI ? (
           <div className={styles.markdownWrapper}>
 
+            {/* ===== Tool Call Log Panel (persisted in GlobalStreamManager singleton) ===== */}
+            {showToolPanel && (
+              <div className={clsx(styles.thinkBlock, styles.toolBlock)}>
+                <button
+                  className={styles.thinkHeader}
+                  onClick={() => setToolExpanded(v => !v)}
+                  aria-expanded={toolExpanded}
+                >
+                  <Wrench size={14} className={styles.thinkIcon} />
+                  <span className={styles.thinkLabel}>工具调用记录</span>
+                  {toolExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                {toolExpanded && (
+                  <div className={styles.thinkBody}>
+                    <Markdown>{toolLog || ''}</Markdown>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ===== DeepSeek-style Thinking Panel ===== */}
             {showThinkPanel && (
               <div className={styles.thinkBlock}>
@@ -51,7 +71,6 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
                   </span>
                   {thinkExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
-
                 {thinkExpanded && (
                   <div className={styles.thinkBody}>
                     <Markdown>{thinking || ''}</Markdown>
@@ -67,8 +86,8 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
             {/* Blinking cursor while typing main content */}
             {isTyping && !isThinking && <span className={styles.cursor} />}
 
-            {/* Show a spinner when we're still waiting but have no content yet */}
-            {isTyping && !isThinking && !content && !hasThinking && (
+            {/* Three-dot loader: only when truly idle — no content, no thinking, no tool activity */}
+            {isTyping && !isThinking && !content && !hasThinking && !hasToolLog && (
               <span className={styles.thinkingDots}>
                 <span /><span /><span />
               </span>

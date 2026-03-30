@@ -198,3 +198,22 @@
   40% { transform: scale(1); opacity: 1; }
 }
 
+
+/* Tool call log panel ¡ª warm orange to distinguish from thinking panel */
+.toolBlock {
+  background: linear-gradient(135deg, hsl(30, 80%, 97%), hsl(30, 70%, 94%));
+  border-color: hsl(30, 60%, 85%);
+}
+
+.toolBlock .thinkHeader {
+  color: hsl(25, 60%, 45%);
+}
+
+.toolBlock .thinkIcon {
+  color: hsl(25, 70%, 50%);
+}
+
+.toolBlock .thinkBody {
+  color: hsl(25, 40%, 35%);
+  border-top-color: hsl(30, 60%, 85%);
+}
