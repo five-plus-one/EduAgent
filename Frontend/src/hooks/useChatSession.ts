@@ -126,7 +126,7 @@ export function useChatSession(sessionId: string) {
           const newArr = [...prev];
           newArr[idx] = { 
             ...newArr[idx], 
-            content: state.content || (state.isSynthesizing ? '' : '...'), // Fallback for empty content
+            content: state.content || (state.isSynthesizing ? '' : '...'),
             toolLog: state.toolLog,
             thinking: state.thinking,
             isThinking: state.isThinking,

@@ -3,7 +3,7 @@ import { streamChatCompletion } from './api';
 export interface StreamState {
   aiMsgId: string;
   content: string;
-  toolLog: string;        // Tool call markers — stored separately from AI content
+  toolLog: string;        // Tool call markers
   thinking: string;
   isThinking: boolean;
   isSynthesizing: boolean;
@@ -20,7 +20,6 @@ class StreamManagerClass {
   }>();
 
   private sessionListeners = new Map<string, Set<StreamListener>>();
-
   private messageToolLogs = new Map<string, string>();
 
   public getMessageToolLog(messageId: string): string {
@@ -33,11 +32,8 @@ class StreamManagerClass {
     }
     this.sessionListeners.get(sessionId)!.add(listener);
     const stream = this.activeStreams.get(sessionId);
-    if (stream) {
-      listener({ ...stream.state });
-    } else {
-      listener(null);
-    }
+    if (stream) listener({ ...stream.state });
+    else listener(null);
     return () => this.unsubscribe(sessionId, listener);
   }
 
@@ -65,77 +61,60 @@ class StreamManagerClass {
 
   private shouldRefetchForTool(toolName: string): boolean {
     const name = toolName.toLowerCase();
-    return name.includes('generate') || 
-           name.includes('slide') || 
-           name.includes('page') || 
-           name.includes('update') || 
-           name.includes('edit') || 
-           name.includes('insert') ||
-           name.includes('delete');
+    return /generate|slide|page|update|edit|insert|delete/.test(name);
   }
 
-  /** 
-   * Robust Stream Scrubber: Strips internal tags and monologues.
-   * Ensures content field remains clean while thinking/logs are captured.
+  /**
+   * P8 High-Performance Stream Scrubber
+   * Cleans internal tags while strictly preserving user-facing text.
    */
-  private processTextChunk(sessionId: string, stream: any, newChunk: string) {
+  private processTextChunk(stream: any, newChunk: string) {
     stream.buffer += newChunk;
-    
-    // Pattern to find complete tags: <think>...</think> or <(seed:)?tool_call>...</(seed:)?tool_call>
-    // Note: We use [\s\S]*? for non-greedy multiline matching
-    const patterns = [
-      { 
-        regex: /<think>([\s\S]*?)<\/think>/, 
-        handler: (match: string, content: string) => { stream.state.thinking += content; }
-      },
-      { 
-        regex: /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/, 
-        handler: (match: string, p1: string, content: string) => { 
-          stream.state.toolLog += `\n> 🤖 *模型意图捕捉: \`${match.length} 字符\`*\n`;
-        }
-      }
-    ];
 
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const p of patterns) {
-        const match = stream.buffer.match(p.regex);
-        if (match) {
-          p.handler(...(match as any));
-          stream.buffer = stream.buffer.replace(p.regex, '');
-          changed = true;
-          break; 
-        }
-      }
+    // 1. Capture completed thinking blocks
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+    let match;
+    while ((match = thinkRegex.exec(stream.buffer)) !== null) {
+      stream.state.thinking += match[1];
+      stream.buffer = stream.buffer.replace(match[0], '');
     }
 
-    // After processing complete tags, we look at what's left in the buffer.
-    // We can safely move everything before the LAST UNCLOSED '<' to the displayed content.
-    const lastOpenTag = stream.buffer.lastIndexOf('<');
-    if (lastOpenTag === -1) {
-      // No partial tags, move all
+    // 2. Capture completed tool/monologue tags
+    const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
+    while ((match = toolRegex.exec(stream.buffer)) !== null) {
+      stream.state.toolLog += `\n> 🤖 *模型意图捕捉: \`${match[0].length} 字符\`*\n`;
+      stream.buffer = stream.buffer.replace(match[0], '');
+    }
+
+    // 3. Update 'isThinking' state if currently inside unclosed tag
+    stream.state.isThinking = stream.buffer.includes('<think>') && !stream.buffer.includes('</think>');
+
+    // 4. Content Flush: Move text that is DEFINITELY not part of an unclosed tag
+    // We stop at the first '<' that might start a tag.
+    const firstOpenTag = stream.buffer.indexOf('<');
+    if (firstOpenTag === -1) {
+      // No tags, move everything
       stream.state.content += stream.buffer;
       stream.buffer = '';
-    } else if (lastOpenTag > 0) {
-      // Move everything up to the '<'
-      stream.state.content += stream.buffer.slice(0, lastOpenTag);
-      stream.buffer = stream.buffer.slice(lastOpenTag);
+    } else if (firstOpenTag > 0) {
+      // Move text before the tag
+      stream.state.content += stream.buffer.slice(0, firstOpenTag);
+      stream.buffer = stream.buffer.slice(firstOpenTag);
     }
     
-    // Also check if we are currently inside an unclosed <think> tag to update 'isThinking' UI state
-    stream.state.isThinking = stream.buffer.includes('<think>') && !stream.buffer.includes('</think>');
+    // Safety: If buffer gets too large without a closing tag, flush it to content
+    // (backend might be using < in text improperly)
+    if (stream.buffer.length > 2000) {
+      stream.state.content += stream.buffer;
+      stream.buffer = '';
+    }
   }
 
   public async startStream(sessionId: string, userContent: string) {
     if (this.activeStreams.has(sessionId)) return;
 
     const controller = new AbortController();
-    const streamData: {
-      state: StreamState;
-      buffer: string;
-      abortController: AbortController;
-    } = {
+    const streamData = {
       state: {
         aiMsgId: Math.random().toString(36).substring(2, 11),
         content: '',
@@ -160,46 +139,30 @@ class StreamManagerClass {
         sessionId,
         userContent,
         (chunk, isFinished, intent) => {
-          if (intent && typeof intent === 'string') {
-            streamData.state.latestIntent = intent;
-          }
-
-          if (chunk) {
-            this.processTextChunk(sessionId, streamData, chunk);
-          }
+          if (intent && typeof intent === 'string') streamData.state.latestIntent = intent;
+          if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
-            // Final flush: anything left in buffer is treated as content (likely a false alarm <)
             if (streamData.buffer) {
               streamData.state.content += streamData.buffer;
               streamData.buffer = '';
             }
-            
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
-
             if (streamData.state.toolLog) {
               this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
             }
-
             if (!refetchDispatched && this.shouldRefetchForTool(lastToolName)) {
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
           }
-
           this.notify(sessionId, streamData);
-
-          if (isFinished) {
-            this.activeStreams.delete(sessionId);
-          }
+          if (isFinished) this.activeStreams.delete(sessionId);
         },
         (_err) => {
-          if (!controller.signal.aborted) {
-            streamData.state.isSynthesizing = false;
-            streamData.state.content += '\n⚠️ 发生连接错误或由于页面断开中止请求。';
-            this.notify(sessionId, streamData);
-            this.activeStreams.delete(sessionId);
-          }
+          streamData.state.isSynthesizing = false;
+          this.notify(sessionId, streamData);
+          this.activeStreams.delete(sessionId);
         },
         controller.signal,
         {
@@ -209,8 +172,7 @@ class StreamManagerClass {
           },
           onToolCall: (tool) => {
             lastToolName = tool.tool_name;
-            const isPPTTool = this.shouldRefetchForTool(tool.tool_name);
-            if (isPPTTool) {
+            if (this.shouldRefetchForTool(tool.tool_name)) {
               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
             }
             streamData.state.toolLog += `\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n`;
@@ -218,23 +180,17 @@ class StreamManagerClass {
           },
           onToolResult: (result) => {
             window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
-            const isPPTTool = this.shouldRefetchForTool(lastToolName);
-            const shouldRefetch = result.should_refetch_ppt === true || isPPTTool;
-            if (shouldRefetch) {
+            if (result.should_refetch_ppt || this.shouldRefetchForTool(lastToolName)) {
               refetchDispatched = true;
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
-            const statusIcon = result.status === 'success' ? '✅' : '❌';
-            streamData.state.toolLog += `> ${statusIcon} *操作已完成*\n\n`;
+            const icon = result.status === 'success' ? '✅' : '❌';
+            streamData.state.toolLog += `> ${icon} *操作已完成*\n\n`;
             this.notify(sessionId, streamData);
           }
         }
       );
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      streamData.state.isSynthesizing = false;
-      streamData.state.content += '\n⚠️ 网络请求遇到问题，会话已终止。';
-      this.notify(sessionId, streamData);
       this.activeStreams.delete(sessionId);
     }
   }
