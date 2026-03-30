@@ -24,24 +24,61 @@ export function useCourseware(sessionId: string) {
   const [updatingPages, setUpdatingPages] = useState<Set<number>>(new Set());
   const [wordDoc, setWordDoc] = useState('');
 
-  const fetchPreview = useCallback(async () => {
+  const [previewStatus, setPreviewStatus] = useState<'idle'|'loading'|'ready'|'error'>('idle');
+
+  const fetchPreview = useCallback(async (withPolling = false) => {
     if (sessionId === 'new') return;
     try {
       const resp = await getCoursewarePreview(sessionId);
       if (resp) {
-        if (resp.ppt_data && Array.isArray(resp.ppt_data)) {
-          setPages(resp.ppt_data);
-        } else if (resp.pages && Array.isArray(resp.pages)) {
-          setPages(resp.pages);
+        const pptData = resp.ppt_data || resp.pages;
+        const hasData = Array.isArray(pptData) && pptData.length > 0;
+
+        if (!hasData && withPolling) {
+          // Backend is still processing — keep polling every 3s (up to 120s)
+          return; // caller handles the retry loop
         }
 
+        if (Array.isArray(pptData)) setPages(pptData);
         if (resp.word_markdown) setWordDoc(resp.word_markdown);
         else if (resp.word_doc) setWordDoc(resp.word_doc);
         else if (resp.wordDoc) setWordDoc(resp.wordDoc);
+
+        if (hasData) setPreviewStatus('ready');
       }
     } catch (e) {
-      console.warn('Backend courseware not ready yet.', e);
+      if (!withPolling) console.warn('Backend courseware not ready yet.', e);
+      // During polling, 404s are expected — don't warn
     }
+  }, [sessionId]);
+
+  // Polling wrapper used after Tool completion
+  const pollUntilReady = useCallback(async () => {
+    const MAX_WAIT_MS = 120_000; // 2 minutes max
+    const POLL_INTERVAL = 3000;
+    const start = Date.now();
+
+    while (Date.now() - start < MAX_WAIT_MS) {
+      try {
+        const resp = await getCoursewarePreview(sessionId);
+        const pptData = resp?.ppt_data || resp?.pages;
+        if (Array.isArray(pptData) && pptData.length > 0) {
+          setPages(pptData);
+          if (resp.word_markdown) setWordDoc(resp.word_markdown);
+          else if (resp.word_doc) setWordDoc(resp.word_doc);
+          setPreviewStatus('ready');
+          setIsGenerating(false);
+          return;
+        }
+      } catch {
+        // 404 = backend still processing, continue waiting
+      }
+      await new Promise(r => setTimeout(r, POLL_INTERVAL));
+    }
+
+    // Timeout — tell user
+    setPreviewStatus('error');
+    setIsGenerating(false);
   }, [sessionId]);
 
   useEffect(() => {
@@ -49,9 +86,11 @@ export function useCourseware(sessionId: string) {
     setPages([]);
     setWordDoc('');
     setUpdatingPages(new Set());
+    setPreviewStatus('idle');
     
     fetchPreview();
   }, [sessionId, fetchPreview]);
+
 
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -68,8 +107,10 @@ export function useCourseware(sessionId: string) {
     const handleRefetch = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        setIsGenerating(false);
-        fetchPreview();
+        // Don't immediately setIsGenerating(false) — backend may still be processing.
+        // pollUntilReady will clear isGenerating once data actually arrives (or times out).
+        setPreviewStatus('loading');
+        pollUntilReady();
       }
     };
 
@@ -138,5 +179,5 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate };
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus };
 }

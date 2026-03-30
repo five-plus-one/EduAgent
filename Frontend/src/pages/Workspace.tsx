@@ -31,7 +31,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate, previewStatus } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   // RAG Knowledge Base Integration
@@ -362,7 +362,7 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {isGenerating ? (
+              {isGenerating || previewStatus === 'loading' ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -371,6 +371,22 @@ export default function Workspace() {
                     该过程极其消耗心智，约需 <strong>80-90 秒</strong>。<br/>
                     您可以切回左侧处理其他会话，后台渲染不会中断。
                   </p>
+                </div>
+              ) : previewStatus === 'error' ? (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
+                  <span style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</span>
+                  <h3 style={{ marginBottom: '12px' }}>课件生成超时</h3>
+                  <p style={{ maxWidth: '380px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                    后端处理时间过长（已超过 2 分钟）。这可能是后端服务暂时过载。
+                  </p>
+                  <button
+                    className='button-primary'
+                    onClick={() => handleGenerate(Array.from(linkedDocs), 'fast')}
+                    disabled={sessionId === 'new'}
+                    style={{ padding: '10px 24px' }}
+                  >
+                    🔄 重新生成
+                  </button>
                 </div>
               ) : pages.length > 0 ? (
                 pages.map(page => (
