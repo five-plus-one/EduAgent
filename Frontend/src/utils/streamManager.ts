@@ -15,7 +15,8 @@ export type StreamListener = (state: StreamState | null) => void;
 class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
-    buffer: string;
+    inThinking: boolean;
+    inToolCall: boolean;
     abortController: AbortController;
   }>();
 
@@ -60,53 +61,60 @@ class StreamManagerClass {
   }
 
   private shouldRefetchForTool(toolName: string): boolean {
-    const name = toolName.toLowerCase();
+    const name = (toolName || "").toLowerCase();
     return /generate|slide|page|update|edit|insert|delete/.test(name);
   }
 
   /**
-   * P8 High-Performance Stream Scrubber
-   * Cleans internal tags while strictly preserving user-facing text.
+   * P8 Real-Time Streaming Scrubber (Scrubber 4.0)
+   * Prevents content washout by handling partial tag states across chunks.
+   * Immediately streams tag-wrapped content to the right fields.
    */
   private processTextChunk(stream: any, newChunk: string) {
-    stream.buffer += newChunk;
-
-    // 1. Capture completed thinking blocks
-    const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
-    let match;
-    while ((match = thinkRegex.exec(stream.buffer)) !== null) {
-      stream.state.thinking += match[1];
-      stream.buffer = stream.buffer.replace(match[0], '');
-    }
-
-    // 2. Capture completed tool/monologue tags
-    const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
-    while ((match = toolRegex.exec(stream.buffer)) !== null) {
-      stream.state.toolLog += `\n> 🤖 *模型意图捕捉: \`${match[0].length} 字符\`*\n`;
-      stream.buffer = stream.buffer.replace(match[0], '');
-    }
-
-    // 3. Update 'isThinking' state if currently inside unclosed tag
-    stream.state.isThinking = stream.buffer.includes('<think>') && !stream.buffer.includes('</think>');
-
-    // 4. Content Flush: Move text that is DEFINITELY not part of an unclosed tag
-    // We stop at the first '<' that might start a tag.
-    const firstOpenTag = stream.buffer.indexOf('<');
-    if (firstOpenTag === -1) {
-      // No tags, move everything
-      stream.state.content += stream.buffer;
-      stream.buffer = '';
-    } else if (firstOpenTag > 0) {
-      // Move text before the tag
-      stream.state.content += stream.buffer.slice(0, firstOpenTag);
-      stream.buffer = stream.buffer.slice(firstOpenTag);
-    }
+    let remaining = newChunk;
     
-    // Safety: If buffer gets too large without a closing tag, flush it to content
-    // (backend might be using < in text improperly)
-    if (stream.buffer.length > 2000) {
-      stream.state.content += stream.buffer;
-      stream.buffer = '';
+    while (remaining.length > 0) {
+      if (stream.inThinking) {
+        const closeIdx = remaining.indexOf('</think>');
+        if (closeIdx !== -1) {
+          stream.state.thinking += remaining.slice(0, closeIdx);
+          stream.inThinking = false;
+          stream.state.isThinking = false;
+          remaining = remaining.slice(closeIdx + 8);
+        } else {
+          stream.state.thinking += remaining;
+          remaining = '';
+        }
+      } else if (stream.inToolCall) {
+        const closeIdx = remaining.search(/<\/(seed:)?tool_call>/);
+        if (closeIdx !== -1) {
+          // Monologues/Seed logic captured but hidden from main bubble
+          stream.inToolCall = false;
+          remaining = remaining.slice(remaining.indexOf('>', closeIdx) + 1);
+        } else {
+          remaining = '';
+        }
+      } else {
+        const thinkOpenIdx = remaining.indexOf('<think>');
+        const toolOpenIdx = remaining.search(/<(seed:)?tool_call[^>]*>/);
+        
+        // Find the earliest starting tag
+        const finders = [
+          { idx: thinkOpenIdx, tag: '<think>', set: () => { stream.inThinking = true; stream.state.isThinking = true; } },
+          { idx: toolOpenIdx, tag: remaining.match(/<(seed:)?tool_call[^>]*>/)?.[0] || '', set: () => { stream.inToolCall = true; } }
+        ].filter(f => f.idx !== -1).sort((a, b) => a.idx - b.idx);
+
+        if (finders.length > 0) {
+          const first = finders[0];
+          stream.state.content += remaining.slice(0, first.idx);
+          first.set();
+          remaining = remaining.slice(first.idx + first.tag.length);
+        } else {
+          // No unclosed tags in this chunk
+          stream.state.content += remaining;
+          remaining = '';
+        }
+      }
     }
   }
 
@@ -124,7 +132,8 @@ class StreamManagerClass {
         isSynthesizing: true,
         latestIntent: null,
       },
-      buffer: '',
+      inThinking: false,
+      inToolCall: false,
       abortController: controller,
     };
     
@@ -143,10 +152,6 @@ class StreamManagerClass {
           if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
-            if (streamData.buffer) {
-              streamData.state.content += streamData.buffer;
-              streamData.buffer = '';
-            }
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
             if (streamData.state.toolLog) {

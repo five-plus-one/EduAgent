@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain, Wrench } from 'lucide-react';
-import styles from './MessageBubble.module.css';
+import styles from './MessageBubbleStyles.module.css';
 import { clsx } from 'clsx';
 
 export interface MessageProps {
