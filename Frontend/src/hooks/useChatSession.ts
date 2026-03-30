@@ -137,5 +137,5 @@ export function useChatSession(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration };
+  return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent: () => setLatestIntent(null) };
 }

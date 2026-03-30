@@ -93,12 +93,14 @@ def get_session_detail(
         
     messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
     
+    session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
+    
     return {
         "session_id": session_ctx.id,
         "course_name": session_ctx.course_name,
         "target_audience": session_ctx.target_audience,
         "messages": [{"role": m.role, "content": m.content} for m in messages],
-        "associated_files": [] # 留给 Phase 3 完成
+        "associated_files": [sf.id for sf in session_files]
     }
 
 @router.put("/{session_id}")
@@ -164,10 +166,24 @@ async def chat_with_session(
     db.add(user_msg_db)
     db.commit()
 
+    # Pre-computation: Retrieve RAG chunks if any session files exist
+    rag_context = ""
+    session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
+    file_ids = [sf.id for sf in session_files]
+    if file_ids:
+        from app.services.vector_store import search_vectors
+        try:
+            # We fetch top 3 highly-correlated chunks against the new user query
+            docs = search_vectors(query=chat_msg.content, filter_document_ids=file_ids, top_k=3)
+            if docs:
+                rag_context = "\n---\n".join([d.page_content for d in docs])
+        except Exception:
+            pass  # Fallback gracefully if Chroma is empty or disconnected
+
     async def sse_generator():
         ai_full_text = ""
-        # stream the chunks
-        async for chunk_sse in stream_chat_response(history, chat_msg.content):
+        # stream the chunks with RAG support
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context):
             # Parse chunk internally to build final full AI text for DB persistence
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
@@ -204,11 +220,31 @@ async def audio_chat(
 ):
     """
     1.3 语音输入转文本
+    Reads bytes and streams to ASR endpoint.
     """
-    mock_text = f"收到来自 {audio_file.filename} 的语音。我现在想做一份关于牛顿定律的课件，有什么好的想法吗？"
-    return {
-        "text": mock_text
-    }
+    import requests
+    from app.core.config import settings
+    
+    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/audio/transcriptions"
+    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
+    
+    try:
+        audio_bytes = await audio_file.read()
+        files = {
+            "file": (audio_file.filename or "audio.wav", audio_bytes, audio_file.content_type or "audio/wav")
+        }
+        data = {
+            "model": "whisper-1" # Generic representation, will be proxy-mapped usually
+        }
+        resp = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+        resp.raise_for_status()
+        text = resp.json().get("text", "")
+        return {"text": text}
+    except Exception as e:
+        # Fallback to mock text indicating ASR isn't configured at upstream
+        return {
+            "text": f"(ASR组件上游调用失败: {str(e)}。无法识别真实的语音内容，请检查大模型通道是否支持 Whisper 协议)"
+        }
 
 @router.post("/{session_id}/files")
 async def upload_session_file(

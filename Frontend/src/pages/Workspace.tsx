@@ -30,7 +30,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
@@ -103,12 +103,13 @@ export default function Workspace() {
         // 沉浸式视点转移：强制将用户视线从文字瀑布流切换到生成进度面板
         setActiveTab('ppt');
         const timer = setTimeout(() => {
+          clearIntent();
           handleGenerate(Array.from(linkedDocs), 'fast');
         }, 800);
         return () => clearTimeout(timer);
       }
     }
-  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate]);
+  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate, clearIntent]);
 
   const handleSubmit = () => {
     const text = inputText.trim();

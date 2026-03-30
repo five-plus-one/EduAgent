@@ -68,8 +68,11 @@ def get_courseware_preview(
     if not cw or not cw.ppt_data:
         raise HTTPException(status_code=404, detail="Courseware not found or not generated yet")
         
+    slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
+    if not isinstance(slides_array, list): slides_array = []
+
     return {
-        "ppt_data": cw.ppt_data,
+        "ppt_data": slides_array,
         "word_markdown": cw.word_markdown or ""
     }
 
@@ -84,10 +87,55 @@ def iterate_slide(
     if not cw:
         raise HTTPException(status_code=404, detail="Courseware not found")
         
-    page_to_update = next((p for p in cw.ppt_data if p.get("page_index") == body.page_index), None)
+    slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
+    if not isinstance(slides_array, list): slides_array = []
+    
+    page_to_update = next((p for p in slides_array if p.get("page_index") == body.page_index), None)
     if page_to_update:
-        page_to_update["speaker_notes"] = f"(Updated by iterate: {body.instruction})\n" + page_to_update.get("speaker_notes", "")
-        db.query(Courseware).filter(Courseware.id == cw.id).update({"ppt_data": cw.ppt_data})
+        import requests, json, re
+        from app.core.config import settings
+        
+        prompt = f"""
+        你是一位高级课件排版专家。请根据以下用户的“局部修改指令”，重新输出并覆盖该单页PPT的内容。
+        你必须完全遵守原始系统的 JSON Element 格式要求！**只能输出单个页面合法的JSON对象（Dict），不要带任何前后多余的 markdown 或开场白！**
+        
+        【原始该页数据 JSON】
+        {json.dumps(page_to_update, ensure_ascii=False, indent=2)}
+        
+        【用户修改指令】
+        {body.instruction}
+        
+        【操作要求】
+        请结合原先上下文，输出被重修修改后的全新单页 JSON 结构。保持 `page_index` 固定不变。可适度调整 `layout_type`、`title`、`speaker_notes` 或增添/删除 `elements` 来完全响应诉求！
+        """
+        
+        url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
+        payload = {"model": "doubao-seed-2-0-pro-260215", "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
+        
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=40)
+            resp.raise_for_status()
+            content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+            
+            json_match = re.search(r"\{.*\}", content, re.DOTALL)
+            if json_match:
+                new_page = json.loads(json_match.group(0))
+                for k, v in new_page.items():
+                    page_to_update[k] = v
+        except Exception as e:
+            # Fallback mock style if LLM fails
+            page_to_update["speaker_notes"] = f"(大模型迭代调用失败: {str(e)})\n" + page_to_update.get("speaker_notes", "")
+        
+        # Save back the structure
+        new_data = dict(cw.ppt_data) if isinstance(cw.ppt_data, dict) else {}
+        if isinstance(cw.ppt_data, dict):
+            new_data["ppt_data"] = slides_array
+        else:
+            new_data = slides_array
+            
+        # SQL core update
+        db.query(Courseware).filter(Courseware.id == cw.id).update({"ppt_data": new_data})
         db.commit()
         return page_to_update
         
