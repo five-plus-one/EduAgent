@@ -24,12 +24,18 @@ class SessionListResponse(BaseModel):
     has_more: bool
     items: List[SessionItem]
 
+class AssociatedFile(BaseModel):
+    session_file_id: str
+    document_id: Optional[str] = None  # 全局知识库资料的原始 ID，用于前端状态还原
+    filename: str
+    status: str
+
 class SessionDetailResponse(BaseModel):
     session_id: str
     course_name: Optional[str]
     target_audience: Optional[str]
     messages: List[Dict[str, Any]]
-    associated_files: List[str]
+    associated_files: List[AssociatedFile]
 
 class SessionUpdate(BaseModel):
     course_name: Optional[str] = None

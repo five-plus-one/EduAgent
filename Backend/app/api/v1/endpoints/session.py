@@ -100,7 +100,15 @@ def get_session_detail(
         "course_name": session_ctx.course_name,
         "target_audience": session_ctx.target_audience,
         "messages": [{"role": m.role, "content": m.content} for m in messages],
-        "associated_files": [sf.id for sf in session_files]
+        "associated_files": [
+            {
+                "session_file_id": sf.id,
+                "document_id": sf.document_id,   # 知识库原始文档 ID，用于前端侧边栏勾选状态还原
+                "filename": sf.filename,
+                "status": sf.status,
+            }
+            for sf in session_files
+        ]
     }
 
 @router.put("/{session_id}")
