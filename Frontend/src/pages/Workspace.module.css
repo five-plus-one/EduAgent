@@ -503,3 +503,135 @@
   70% { transform: scale(1); box-shadow: 0 0 0 10px hsla(var(--hue), 85%, 55%, 0); }
   100% { transform: scale(0.8); box-shadow: 0 0 0 0 hsla(var(--hue), 85%, 55%, 0); }
 }
+
+/* High-Density KB Panel for References */
+.kbPanel {
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.kbHeader {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.kbHeader h3 {
+  font-size: 1.15rem;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.kbHeader p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.kbList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 32px;
+}
+
+.kbListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glass);
+  background: var(--bg-primary);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 16px;
+}
+
+.kbListItem:hover {
+  background: var(--bg-glass-hover);
+  border-color: hsla(var(--hue), 85%, 55%, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px hsla(0, 0%, 0%, 0.05);
+}
+
+.kbItemInfo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.docIcon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.kbItemTextWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.kbItemTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kbItemMeta {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+  color: var(--text-tertiary);
+  display: inline-block;
+  align-self: flex-start;
+  font-weight: 500;
+}
+
+.kbItemActions {
+  flex-shrink: 0;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 100px;
+  height: 36px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s;
+}
+
+.btnLinked {
+  background: var(--bg-secondary);
+  color: var(--accent-primary);
+  border: 1px solid var(--border-glass);
+  cursor: default;
+  font-weight: 600;
+}
+
+.btnLinked:hover {
+  background: var(--bg-secondary);
+  transform: none;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}

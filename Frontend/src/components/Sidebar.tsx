@@ -11,7 +11,7 @@ import {
 import styles from './Sidebar.module.css';
 import { clsx } from 'clsx';
 import { useAppStore } from '../store/useAppStore';
-import { logout, listSessions } from '../utils/api';
+import { logout, listSessions, createSession } from '../utils/api';
 
 interface SessionItem {
   session_id: string;
@@ -26,6 +26,32 @@ export default function Sidebar() {
 
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+
+  // New session state
+  const [showNewInput, setShowNewInput] = useState(false);
+  const [newSessionName, setNewSessionName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateSession = async () => {
+    const name = newSessionName.trim() || '未命名会话';
+    setIsCreating(true);
+    try {
+      const result = await createSession(name);
+      const newId = result?.session_id ?? result;
+      setSessions(prev => [{
+        session_id: newId,
+        course_name: name,
+        updated_at: new Date().toISOString()
+      }, ...prev]);
+      setShowNewInput(false);
+      setNewSessionName('');
+      navigate(`/chat/${newId}`);
+    } catch (e) {
+      alert('创建会话失败，请检查网络');
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -63,10 +89,39 @@ export default function Sidebar() {
           <span className={styles.logoText}>EduAgent</span>
         </div>
         
-        <NavLink to="/chat/new" className={clsx('button-primary', styles.newSessionBtn)}>
+        <button 
+          onClick={() => {
+            setShowNewInput(!showNewInput);
+            if (!showNewInput) setNewSessionName('');
+          }} 
+          className={clsx('button-primary', styles.newSessionBtn)}
+        >
           <MessageSquarePlus size={18} />
           <span>新课件设计</span>
-        </NavLink>
+        </button>
+        {showNewInput && (
+          <div className={styles.newInputContainer}>
+            <input 
+              autoFocus
+              className={styles.newInput} 
+              placeholder="输入课程名称..." 
+              value={newSessionName}
+              onChange={e => setNewSessionName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleCreateSession();
+                if (e.key === 'Escape') setShowNewInput(false);
+              }}
+              disabled={isCreating}
+            />
+            <button 
+              className={styles.newSubmitBtn} 
+              onClick={handleCreateSession}
+              disabled={isCreating}
+            >
+              {isCreating ? '创建中' : '确定'}
+            </button>
+          </div>
+        )}
       </div>
 
       <nav className={styles.nav}>

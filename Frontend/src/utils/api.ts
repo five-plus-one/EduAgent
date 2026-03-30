@@ -195,33 +195,44 @@ export const deleteFile = async (sessionId: string, fileId: string) => {
 // Functions are kept as stubs to avoid build errors.
 // ==========================================
 
-/** 4.1 Trigger courseware generation [STUB - backend not implemented] */
+/** 4.1 Trigger courseware generation */
 export const generateCourseware = async (
-  _sessionId: string,
-  _selectedFileIds: string[],
-  _mode: 'fast' | 'depth' = 'depth'
+  sessionId: string,
+  selectedFileIds: string[],
+  mode: 'fast' | 'depth' = 'depth'
 ) => {
-  throw new Error('generateCourseware: backend endpoint not yet implemented');
+  const res = await apiClient.post(`/sessions/${sessionId}/generate`, {
+    selected_file_ids: selectedFileIds,
+    mode
+  });
+  return res.data?.data ?? res.data;
 };
 
-/** 4.2 Poll generation task progress [STUB - backend not implemented] */
-export const getGenerationStatus = async (_taskId: string) => {
-  throw new Error('getGenerationStatus: backend endpoint not yet implemented');
+/** 4.2 Poll generation task progress */
+export const getGenerationStatus = async (taskId: string) => {
+  const res = await apiClient.get(`/generate/tasks/${taskId}`);
+  return res.data?.data ?? res.data;
 };
 
-/** 4.3 Get slideshow preview data [STUB - backend not implemented] */
-export const getCoursewarePreview = async (_sessionId: string) => {
-  throw new Error('getCoursewarePreview: backend endpoint not yet implemented');
+/** 4.3 Get slideshow preview data */
+export const getCoursewarePreview = async (sessionId: string) => {
+  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview`);
+  return res.data?.data ?? res.data;
 };
 
-/** 4.4 Submit a partial re-generation instruction [STUB - backend not implemented] */
+/** 4.4 Submit a partial re-generation instruction */
 export const iterateCoursewarePage = async (
-  _sessionId: string,
-  _targetType: 'ppt' | 'word',
-  _pageIndex: number,
-  _instruction: string
+  sessionId: string,
+  targetType: 'ppt' | 'word',
+  pageIndex: number,
+  instruction: string
 ) => {
-  throw new Error('iterateCoursewarePage: backend endpoint not yet implemented');
+  const res = await apiClient.post(`/sessions/${sessionId}/courseware/iterate`, {
+    target_type: targetType,
+    page_index: pageIndex,
+    instruction
+  });
+  return res.data?.data ?? res.data;
 };
 
 // ==========================================
@@ -229,14 +240,24 @@ export const iterateCoursewarePage = async (
 // NOTE: These endpoints are NOT yet implemented on the backend.
 // ==========================================
 
-/** 5.1 Trigger file export [STUB - backend not implemented] */
-export const triggerExport = async (_sessionId: string) => {
-  throw new Error('triggerExport: backend endpoint not yet implemented');
+/** 5.1 Trigger file export (initiates async task) */
+export const triggerExport = async (sessionId: string) => {
+  const res = await apiClient.post(`/sessions/${sessionId}/export`);
+  return res.data?.data ?? res.data;
 };
 
-/** 5.2 Poll export task for download URLs [STUB - backend not implemented] */
-export const getExportStatus = async (_exportTaskId: string) => {
-  throw new Error('getExportStatus: backend endpoint not yet implemented');
+/** 5.2 Poll export task for download URLs */
+export const getExportStatus = async (taskId: string) => {
+  const res = await apiClient.get(`/export/tasks/${taskId}`);
+  return res.data?.data ?? res.data;
+};
+
+/** 5.3 Download exported file directly as blob */
+export const downloadExportedFile = async (filename: string) => {
+  const res = await apiClient.get(`/download/${filename}`, {
+    responseType: 'blob'
+  });
+  return res.data;
 };
 
 // ==========================================

@@ -46,6 +46,49 @@
   justify-content: flex-start;
 }
 
+.newInputContainer {
+  display: flex;
+  gap: 8px;
+  margin-top: -12px; /* Pull closer to button */
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.newInput {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.newInput:focus {
+  border-color: var(--accent-primary);
+}
+
+.newSubmitBtn {
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.newSubmitBtn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 .nav {
   flex: 1;
   display: flex;

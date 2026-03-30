@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Mic, MicOff, Paperclip, Send, Square, Download, Sparkles } from 'lucide-react';
+
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -12,6 +12,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useExport } from '../hooks/useExport';
+import { listKnowledgeDocs, addReferences } from '../utils/api';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -27,13 +30,73 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
+  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
+  const { isExporting, exportCourseware } = useExport(sessionId);
+
+  // RAG Knowledge Base Integration
+  const [kbDocs, setKbDocs] = useState<any[]>([]);
+  const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
+  const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
+  
+  useEffect(() => {
+    let active = true;
+    listKnowledgeDocs(1, 50).then(res => {
+      if (active) setKbDocs(res?.items || []);
+    }).catch(e => console.error("Failed to load KB docs", e));
+    return () => { active = false; };
+  }, []);
+
+  const handleLinkDoc = async (docId: string) => {
+    if (sessionId === 'new') {
+      alert('请先创建会话再关联资料');
+      return;
+    }
+    
+    setLinkingDocs(prev => new Set(prev).add(docId));
+    try {
+      await addReferences(sessionId, [docId]);
+      setLinkedDocs(prev => new Set(prev).add(docId));
+    } catch (e) {
+      alert('资料关联失败，请检查网络或刷新重试。');
+    } finally {
+      setLinkingDocs(prev => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+    }
+  };
+
+  // State cleanup on session switch
+  useEffect(() => {
+    setLinkedDocs(new Set());
+    setLinkingDocs(new Set());
+    setInputText('');
+    setSelectionText('');
+  }, [sessionId]);
 
   // Auto scroll to bottom
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // AI Tool Caller (MCP Proxy)
+  useEffect(() => {
+    if (latestIntent && !isGenerating && sessionId !== 'new') {
+      const intentLower = latestIntent.toLowerCase();
+      // If AI's intent suggests UI should create PPT, automatically trigger it.
+      if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt') || intentLower.includes('mcp_generate')) {
+        console.log('[MCP Proxy] AI Intent detected:', latestIntent, '-> Auto-triggering Generate!');
+        // We simulate user clicking the '一键生成' button
+        // Optional delay for better UI UX
+        const timer = setTimeout(() => {
+          handleGenerate(Array.from(linkedDocs), 'fast');
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
@@ -186,38 +249,117 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
-            <button className={clsx('button-base', styles.exportBtn)}>
-              <Download size={16} /> 导出
-            </button>
+            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className={clsx('button-primary', styles.generateBtn)}
+                onClick={() => handleGenerate([], 'fast')}
+                disabled={isGenerating || sessionId === 'new'}
+              >
+                <Sparkles size={16} className={clsx(isGenerating && styles.rotating)} /> 
+                {isGenerating ? 'AI生成中...' : 'AI 一键生成课件'}
+              </button>
+              <button 
+                className={clsx('button-base', styles.exportBtn)}
+                onClick={exportCourseware}
+                disabled={isExporting || sessionId === 'new'}
+              >
+                <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
+                {isExporting ? '导出中...' : '导出 pptx'}
+              </button>
+            </div>
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
-            <div className={styles.placeholderCentric}>资料解析区暂无数据</div>
+            <div className={styles.kbPanel}>
+              <div className={styles.kbHeader}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Library size={20} className={styles.sparkleIcon} />
+                  <h3 style={{ margin: 0 }}>知识库资料墙</h3>
+                </div>
+                <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
+              </div>
+              
+              {kbDocs.length === 0 ? (
+                <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
+              ) : (
+                <div className={styles.kbList}>
+                  {kbDocs.map(doc => {
+                    const isLinked = linkedDocs.has(doc.document_id);
+                    const isLinking = linkingDocs.has(doc.document_id);
+                    return (
+                      <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
+                        <div className={styles.kbItemInfo}>
+                          <FileText size={18} className={styles.docIcon} />
+                          <div className={styles.kbItemTextWrap}>
+                            <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
+                            <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                          </div>
+                        </div>
+                        <div className={styles.kbItemActions}>
+                          <button 
+                            className={clsx(
+                              isLinked ? styles.btnLinked : 'button-primary', 
+                              styles.actionBtn
+                            )}
+                            disabled={isLinked || isLinking || sessionId === 'new'}
+                            onClick={() => handleLinkDoc(doc.document_id)}
+                          >
+                            {isLinking ? (
+                              <><Loader2 size={14} className={styles.spinner} /> 关联中</>
+                            ) : isLinked ? (
+                              <><CheckCircle size={14} /> 已绑定</>
+                            ) : (
+                              <><Link size={14} /> 加入会话</>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {pages.map(page => (
-                <PPTCard 
-                  key={page.page_index} 
-                  page={page} 
-                  isUpdating={updatingPages.has(page.page_index)}
-                  onIterate={(instruction) => iteratePage(page.page_index, instruction)}
-                />
-              ))}
+              {pages.length > 0 ? (
+                pages.map(page => (
+                  <PPTCard 
+                    key={page.page_index} 
+                    page={page} 
+                    isUpdating={updatingPages.has(page.page_index)}
+                    onIterate={(instruction) => iteratePage(page.page_index, instruction)}
+                  />
+                ))
+              ) : (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+                  <Sparkles size={48} style={{ marginBottom: '16px' }} />
+                  <h3>课件待生成</h3>
+                  <p>请点击右上角「✨ AI 一键生成课件」开始</p>
+                </div>
+              )}
             </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
-              <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]} 
-                  rehypePlugins={[rehypeRaw]}
-                >
-                  {wordDoc}
-                </ReactMarkdown>
-              </div>
+              {wordDoc ? (
+                <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]} 
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {wordDoc}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+                  <Sparkles size={48} style={{ marginBottom: '16px' }} />
+                  <h3>讲义待生成</h3>
+                  <p>随课件一并产出，请先生成课件</p>
+                </div>
+              )}
             </div>
             
             {/* FLOATING ACTION BUTTON */}
