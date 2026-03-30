@@ -64,6 +64,15 @@ export function useChatSession(sessionId: string) {
             content: m.content || m.text || '',
           }));
 
+          // Inject persisted tool log into the last AI message (survives session switches)
+          const persistedToolLog = GlobalStreamManager.getToolLog(sessionId);
+          if (persistedToolLog) {
+            const lastAiIdx = mapped.reduceRight((acc, m, i) => acc === -1 && m.role === 'ai' ? i : acc, -1);
+            if (lastAiIdx !== -1) {
+              mapped[lastAiIdx] = { ...mapped[lastAiIdx], toolLog: persistedToolLog };
+            }
+          }
+
           // Merge with any currently active global stream for this session
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
@@ -71,6 +80,7 @@ export function useChatSession(sessionId: string) {
               id: activeStream.aiMsgId,
               role: 'ai',
               content: activeStream.content,
+              toolLog: activeStream.toolLog,
               thinking: activeStream.thinking,
               isThinking: activeStream.isThinking,
               isTyping: activeStream.isSynthesizing,
@@ -101,7 +111,8 @@ export function useChatSession(sessionId: string) {
           const newArr = [...prev];
           newArr[idx] = { 
             ...newArr[idx], 
-            content: state.content, 
+            content: state.content,
+            toolLog: state.toolLog,
             thinking: state.thinking,
             isThinking: state.isThinking,
             isTyping: state.isSynthesizing 
@@ -112,6 +123,7 @@ export function useChatSession(sessionId: string) {
             id: state.aiMsgId,
             role: 'ai',
             content: state.content,
+            toolLog: state.toolLog,
             thinking: state.thinking,
             isThinking: state.isThinking,
             isTyping: state.isSynthesizing
