@@ -109,13 +109,17 @@ export const deleteSession = async (sessionId: string) => {
 // Module 3: Interaction & File References
 // ==========================================
 
-/** 3.1 Streaming text chat (SSE) */
+/** 3.1 Streaming text & tool calls (SSE) */
 export const streamChatCompletion = async (
   sessionId: string,
   content: string,
   onMessage: (chunk: string, isFinished: boolean, intent?: unknown) => void,
   onError: (err: unknown) => void,
   signal?: AbortSignal,
+  callbacks?: {
+    onToolCall?: (tool: { tool_name: string; arguments: any }) => void;
+    onToolResult?: (result: { tool_name: string; status: string; should_refetch_ppt?: boolean }) => void;
+  }
 ) => {
   const token = localStorage.getItem('access_token');
 
@@ -131,7 +135,16 @@ export const streamChatCompletion = async (
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
-        onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
+        
+        // Handle explicit Tool Calls/Results vs normal Text
+        if (data.event_type === 'tool_call' && callbacks?.onToolCall && data.tool_call) {
+          callbacks.onToolCall(data.tool_call);
+        } else if (data.event_type === 'tool_result' && callbacks?.onToolResult && data.tool_result) {
+          callbacks.onToolResult(data.tool_result);
+        } else {
+          // Default behavior: handle as normal text chunk
+          onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
+        }
       } catch {
         console.error('Failed to parse SSE chunk', ev.data);
       }

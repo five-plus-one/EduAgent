@@ -94,6 +94,29 @@ export function useChatSession(sessionId: string) {
           }
         },
         controller.signal,
+        {
+          onToolCall: (tool) => {
+            // Enhance the bubble with an action indicator block
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId && !m.content.includes(`正在执行操作: \`${tool.tool_name}\``)
+                ? { ...m, content: m.content + `\n\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n\n` }
+                : m
+            ));
+          },
+          onToolResult: (result) => {
+            // If the backend requests a sync of the PPT view, signal the rest of the app
+            if (result.status === 'success' && result.should_refetch_ppt) {
+               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
+            }
+            
+            // Mark tool completion
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId
+                ? { ...m, content: m.content + `> ✨ *操作已完成*\n\n` }
+                : m
+            ));
+          }
+        }
       );
     } catch (err) {
       // Ignore AbortError — user-initiated stop is handled by stopGeneration()
