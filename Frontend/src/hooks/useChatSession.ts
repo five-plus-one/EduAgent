@@ -30,67 +30,68 @@ export function useChatSession(sessionId: string) {
   }, [sessionId, isSynthesizing, navigate]);
 
   useEffect(() => {
+    let active = true;
     setMessages([]);
     setIsSynthesizing(false);
     setLatestIntent(null);
 
-    let active = true;
-
-    if (sessionId && sessionId !== 'new') {
-      getSession(sessionId).then(res => {
+    const loadHistory = async () => {
+      if (!sessionId || sessionId === 'new') return;
+      try {
+        const res = await getSession(sessionId);
         if (!active) return;
         const historyData = res?.messages || res?.chat_history || res?.history;
         if (historyData && Array.isArray(historyData)) {
+          // Band-aid for DB duplication
           const deduplicated = historyData.filter((m: any, i: number, arr: any[]) => {
             if (i === 0) return true;
             const prev = arr[i - 1];
-            const contentMatches = (m.content || m.text) === (prev.content || prev.text);
-            const roleMatches = m.role === prev.role;
-            return !(roleMatches && contentMatches);
+            return !((m.role === prev.role) && ((m.content || m.text) === (prev.content || prev.text)));
           });
 
-          const healMessage = (m: any) => {
-            let content = m.content || m.text || '';
+          // History Healing: Extraction logic for legacy "dirty" DB strings
+          const healAI = (m: any) => {
+            let content = (m.content || m.text || '').trim();
             let thinking = '';
-            let toolLogs: string[] = [];
+            let toolLogSegments: string[] = [];
 
-            // Pattern for <think>
+            // Extract <think>
             const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
-            let thinkMatch;
-            while ((thinkMatch = thinkRegex.exec(content)) !== null) {
-              thinking += (thinkMatch[1] || '').trim() + '\n';
+            let match;
+            while ((match = thinkRegex.exec(content)) !== null) {
+              thinking += match[1].trim() + '\n';
             }
             content = content.replace(thinkRegex, '').trim();
 
-            // Pattern for <tool_call>
+            // Extract <tool_call>
             const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
-            let toolMatch;
-            while ((toolMatch = toolRegex.exec(content)) !== null) {
-              toolLogs.push(`\n> 🤖 *历史意图捕捉: \`${toolMatch[0].length} 字符\`*\n`);
+            while ((match = toolRegex.exec(content)) !== null) {
+              toolLogSegments.push(`\n> 🤖 *历史意图捕捉: \`${match[0].length} 字符\`*\n`);
             }
             content = content.replace(toolRegex, '').trim();
 
-            return { content: content || (m.role === 'user' ? '(empty)' : '...'), thinking: thinking.trim(), toolLog: toolLogs.join('\n') };
+            return { content: content || '...', thinking: thinking.trim(), toolLog: toolLogSegments.join('\n') };
           };
 
           const mapped: MessageProps[] = deduplicated.map((m: any) => {
             const id = m.id || generateId();
-            const role = ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher';
+            const role = (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher';
             
             if (role === 'ai') {
-              const healed = healMessage(m);
-              const persistedLog = GlobalStreamManager.getMessageToolLog(id);
+              const healed = healAI(m);
+              const managerLog = GlobalStreamManager.getMessageToolLog(id);
               return {
                 id,
                 role,
                 content: healed.content,
                 thinking: healed.thinking,
-                toolLog: [healed.toolLog, persistedLog].filter(Boolean).join('\n'),
+                toolLog: [healed.toolLog, managerLog].filter(Boolean).join('\n'),
               };
             }
             return { id, role, content: m.content || m.text || '' };
           });
 
+          // Mix in any active streaming session
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
             mapped.push({
@@ -107,10 +108,12 @@ export function useChatSession(sessionId: string) {
           }
           setMessages(mapped);
         }
-      }).catch(e => {
-        console.error('[Session History] Failed to fetch session history:', e);
-      });
-    }
+      } catch (err) {
+        console.error('[Session History] Retrieval failed:', err);
+      }
+    };
+
+    loadHistory();
 
     const unsubscribe = GlobalStreamManager.subscribe(sessionId, (state: StreamState | null) => {
       if (!active || !state) return;
@@ -119,26 +122,25 @@ export function useChatSession(sessionId: string) {
 
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
-        const base = {
+        const nextMsg = {
           id: state.aiMsgId,
           role: 'ai' as const,
           content: state.content || (state.isSynthesizing ? '' : '...'),
           toolLog: state.toolLog,
           thinking: state.thinking,
           isThinking: state.isThinking,
-          isTyping: state.isSynthesizing 
+          isTyping: state.isSynthesizing
         };
         if (idx !== -1) {
-          const newArr = [...prev];
-          newArr[idx] = base;
-          return newArr;
-        } else {
-          return [...prev, base];
+          const updated = [...prev];
+          updated[idx] = nextMsg;
+          return updated;
         }
+        return [...prev, nextMsg];
       });
     });
 
-    return () => { 
+    return () => {
       active = false;
       unsubscribe();
     };
