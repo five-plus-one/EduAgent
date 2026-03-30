@@ -171,6 +171,24 @@
   box-shadow: none;
 }
 
+.stopButton {
+  background: hsl(0, 75%, 52%) !important;
+  color: white !important;
+  box-shadow: 0 0 12px hsla(0, 75%, 52%, 0.45) !important;
+  animation: stop-pulse 1.8s ease-in-out infinite;
+}
+
+.stopButton:hover {
+  background: hsl(0, 75%, 45%) !important;
+  transform: scale(1.08);
+}
+
+@keyframes stop-pulse {
+  0%, 100% { box-shadow: 0 0 10px hsla(0, 75%, 52%, 0.4); }
+  50% { box-shadow: 0 0 20px hsla(0, 75%, 52%, 0.7); }
+}
+
+
 /* ---------------- DRAG DIVIDER ---------------- */
 .divider {
   width: 1px;
