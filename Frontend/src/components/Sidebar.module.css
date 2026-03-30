@@ -159,3 +159,27 @@
   color: hsl(340, 80%, 55%);
   background: hsla(340, 80%, 55%, 0.12);
 }
+
+.loadingItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+}
+
+.emptyItem {
+  padding: 10px 12px;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}

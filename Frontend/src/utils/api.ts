@@ -191,73 +191,65 @@ export const deleteFile = async (sessionId: string, fileId: string) => {
 
 // ==========================================
 // Module 4: Courseware Generation
+// NOTE: These endpoints are NOT yet implemented on the backend.
+// Functions are kept as stubs to avoid build errors.
 // ==========================================
 
-/** 4.1 Trigger courseware generation */
+/** 4.1 Trigger courseware generation [STUB - backend not implemented] */
 export const generateCourseware = async (
-  sessionId: string,
-  selectedFileIds: string[],
-  mode: 'fast' | 'depth' = 'depth'
+  _sessionId: string,
+  _selectedFileIds: string[],
+  _mode: 'fast' | 'depth' = 'depth'
 ) => {
-  const res = await apiClient.post(`/sessions/${sessionId}/generate`, {
-    selected_file_ids: selectedFileIds,
-    generation_mode: mode,
-  });
-  return res.data?.data ?? res.data;
+  throw new Error('generateCourseware: backend endpoint not yet implemented');
 };
 
-/** 4.2 Poll generation task progress */
-export const getGenerationStatus = async (taskId: string) => {
-  const res = await apiClient.get(`/generate/tasks/${taskId}`);
-  return res.data?.data ?? res.data;
+/** 4.2 Poll generation task progress [STUB - backend not implemented] */
+export const getGenerationStatus = async (_taskId: string) => {
+  throw new Error('getGenerationStatus: backend endpoint not yet implemented');
 };
 
-/** 4.3 Get slideshow preview data */
-export const getCoursewarePreview = async (sessionId: string) => {
-  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview`);
-  return res.data?.data ?? res.data;
+/** 4.3 Get slideshow preview data [STUB - backend not implemented] */
+export const getCoursewarePreview = async (_sessionId: string) => {
+  throw new Error('getCoursewarePreview: backend endpoint not yet implemented');
 };
 
-/** 4.4 Submit a partial re-generation instruction */
+/** 4.4 Submit a partial re-generation instruction [STUB - backend not implemented] */
 export const iterateCoursewarePage = async (
-  sessionId: string,
-  targetType: 'ppt' | 'word',
-  pageIndex: number,
-  instruction: string
+  _sessionId: string,
+  _targetType: 'ppt' | 'word',
+  _pageIndex: number,
+  _instruction: string
 ) => {
-  const res = await apiClient.post(`/sessions/${sessionId}/courseware/iterate`, {
-    target_type: targetType,
-    page_index: pageIndex,
-    instruction,
-  });
-  return res.data?.data ?? res.data;
+  throw new Error('iterateCoursewarePage: backend endpoint not yet implemented');
 };
 
 // ==========================================
 // Module 5: Export
+// NOTE: These endpoints are NOT yet implemented on the backend.
 // ==========================================
 
-/** 5.1 Trigger file export */
-export const triggerExport = async (sessionId: string) => {
-  const res = await apiClient.post(`/sessions/${sessionId}/export`);
-  return res.data?.data ?? res.data;
+/** 5.1 Trigger file export [STUB - backend not implemented] */
+export const triggerExport = async (_sessionId: string) => {
+  throw new Error('triggerExport: backend endpoint not yet implemented');
 };
 
-/** 5.2 Poll export task for download URLs */
-export const getExportStatus = async (exportTaskId: string) => {
-  const res = await apiClient.get(`/export/tasks/${exportTaskId}`);
-  return res.data?.data ?? res.data;
+/** 5.2 Poll export task for download URLs [STUB - backend not implemented] */
+export const getExportStatus = async (_exportTaskId: string) => {
+  throw new Error('getExportStatus: backend endpoint not yet implemented');
 };
 
 // ==========================================
 // Module 6: Knowledge Base (RAG Admin)
 // ==========================================
 
-/** 6.1 Upload a doc to RAG */
+/** 6.1 Upload a doc to RAG
+ * Backend field: 'metadata_json' (JSON string), not 'metadata'
+ */
 export const uploadKnowledgeDoc = async (file: File, metadata: Record<string, unknown>) => {
   const form = new FormData();
   form.append('file', file);
-  form.append('metadata', JSON.stringify(metadata));
+  form.append('metadata_json', JSON.stringify(metadata)); // ← correct field name
   const res = await apiClient.post('/knowledge-base/documents', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
