@@ -13,16 +13,21 @@ class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
     abortController: AbortController;
-    listeners: Set<StreamListener>;
   }>();
+
+  private sessionListeners = new Map<string, Set<StreamListener>>();
 
   /**
    * Components subscribe here to receive background updates.
    */
   public subscribe(sessionId: string, listener: StreamListener): () => void {
-    let stream = this.activeStreams.get(sessionId);
+    if (!this.sessionListeners.has(sessionId)) {
+      this.sessionListeners.set(sessionId, new Set());
+    }
+    this.sessionListeners.get(sessionId)!.add(listener);
+
+    const stream = this.activeStreams.get(sessionId);
     if (stream) {
-      stream.listeners.add(listener);
       listener({ ...stream.state });
     } else {
       listener(null);
@@ -31,10 +36,7 @@ class StreamManagerClass {
   }
 
   private unsubscribe(sessionId: string, listener: StreamListener) {
-    const stream = this.activeStreams.get(sessionId);
-    if (stream) {
-      stream.listeners.delete(listener);
-    }
+    this.sessionListeners.get(sessionId)?.delete(listener);
   }
 
   /**
@@ -54,8 +56,8 @@ class StreamManagerClass {
     return this.activeStreams.get(sessionId)?.state;
   }
 
-  private notify(_sessionId: string, stream: any) {
-    stream.listeners.forEach((l: StreamListener) => l({ ...stream.state }));
+  private notify(sessionId: string, stream: any) {
+    this.sessionListeners.get(sessionId)?.forEach((l: StreamListener) => l({ ...stream.state }));
   }
 
   /**
@@ -68,7 +70,6 @@ class StreamManagerClass {
     const streamData: {
       state: StreamState;
       abortController: AbortController;
-      listeners: Set<StreamListener>;
     } = {
       state: {
         aiMsgId: Math.random().toString(36).substring(2, 11),
@@ -77,7 +78,6 @@ class StreamManagerClass {
         latestIntent: null,
       },
       abortController: controller,
-      listeners: new Set<StreamListener>(),
     };
     
     this.activeStreams.set(sessionId, streamData);
