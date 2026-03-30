@@ -49,7 +49,6 @@ export function useChatSession(sessionId: string) {
             return !(roleMatches && contentMatches);
           });
 
-          // History Healing: Extract tags from already-stored DB content
           const healMessage = (m: any) => {
             let content = m.content || m.text || '';
             let thinking = '';
@@ -71,7 +70,7 @@ export function useChatSession(sessionId: string) {
             }
             content = content.replace(toolRegex, '').trim();
 
-            return { content: content || '...', thinking: thinking.trim(), toolLog: toolLogs.join('\n') };
+            return { content: content || (m.role === 'user' ? '(empty)' : '...'), thinking: thinking.trim(), toolLog: toolLogs.join('\n') };
           };
 
           const mapped: MessageProps[] = deduplicated.map((m: any) => {
@@ -80,16 +79,15 @@ export function useChatSession(sessionId: string) {
             
             if (role === 'ai') {
               const healed = healMessage(m);
-              const persistedLogFromManager = GlobalStreamManager.getMessageToolLog(id);
+              const persistedLog = GlobalStreamManager.getMessageToolLog(id);
               return {
                 id,
                 role,
                 content: healed.content,
                 thinking: healed.thinking,
-                toolLog: [healed.toolLog, persistedLogFromManager].filter(Boolean).join('\n'),
+                toolLog: [healed.toolLog, persistedLog].filter(Boolean).join('\n'),
               };
             }
-
             return { id, role, content: m.content || m.text || '' };
           });
 
@@ -107,7 +105,6 @@ export function useChatSession(sessionId: string) {
             setIsSynthesizing(activeStream.isSynthesizing);
             if (activeStream.latestIntent) setLatestIntent(activeStream.latestIntent);
           }
-
           setMessages(mapped);
         }
       }).catch(e => {
@@ -122,27 +119,21 @@ export function useChatSession(sessionId: string) {
 
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
+        const base = {
+          id: state.aiMsgId,
+          role: 'ai' as const,
+          content: state.content || (state.isSynthesizing ? '' : '...'),
+          toolLog: state.toolLog,
+          thinking: state.thinking,
+          isThinking: state.isThinking,
+          isTyping: state.isSynthesizing 
+        };
         if (idx !== -1) {
           const newArr = [...prev];
-          newArr[idx] = { 
-            ...newArr[idx], 
-            content: state.content || (state.isSynthesizing ? '' : '...'),
-            toolLog: state.toolLog,
-            thinking: state.thinking,
-            isThinking: state.isThinking,
-            isTyping: state.isSynthesizing 
-          };
+          newArr[idx] = base;
           return newArr;
         } else {
-          return [...prev, {
-            id: state.aiMsgId,
-            role: 'ai',
-            content: state.content,
-            toolLog: state.toolLog,
-            thinking: state.thinking,
-            isThinking: state.isThinking,
-            isTyping: state.isSynthesizing
-          }];
+          return [...prev, base];
         }
       });
     });
