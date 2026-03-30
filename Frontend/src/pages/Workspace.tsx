@@ -30,7 +30,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
@@ -101,12 +101,13 @@ export default function Workspace() {
         // We simulate user clicking the '一键生成' button
         // Optional delay for better UI UX
         const timer = setTimeout(() => {
+          clearIntent();
           handleGenerate(Array.from(linkedDocs), 'fast');
         }, 1000);
         return () => clearTimeout(timer);
       }
     }
-  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate]);
+  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate, clearIntent]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
