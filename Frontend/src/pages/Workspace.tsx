@@ -39,6 +39,7 @@ export default function Workspace() {
   const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('files');
   
   useEffect(() => {
     let active = true;
@@ -66,6 +67,7 @@ export default function Workspace() {
       } else {
         await addReferences(sessionId, [docId]);
         setLinkedDocs(prev => new Set(prev).add(docId));
+        // Soft focus switch to PPT to implicitly hint next action
       }
     } catch (e) {
       alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');
@@ -98,11 +100,11 @@ export default function Workspace() {
       // If AI's intent suggests UI should create PPT, automatically trigger it.
       if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt') || intentLower.includes('mcp_generate')) {
         console.log('[MCP Proxy] AI Intent detected:', latestIntent, '-> Auto-triggering Generate!');
-        // We simulate user clicking the '一键生成' button
-        // Optional delay for better UI UX
+        // 沉浸式视点转移：强制将用户视线从文字瀑布流切换到生成进度面板
+        setActiveTab('ppt');
         const timer = setTimeout(() => {
           handleGenerate(Array.from(linkedDocs), 'fast');
-        }, 1000);
+        }, 800);
         return () => clearTimeout(timer);
       }
     }
@@ -196,18 +198,19 @@ export default function Workspace() {
 
         {/* OMNI-DOCK INPUT */}
         <div className={styles.inputDockContainer}>
-          <div className={clsx(styles.omniDock, 'glass-panel')}>
-            <button className={styles.iconButton} title="上传参考资料">
+          <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
+            <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
               <Paperclip size={20} />
             </button>
             <textarea 
               ref={inputRef}
               className={styles.textarea} 
-              placeholder="描述您的教学逻辑，或者选中右侧PPT指定修改..."
+              placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={1}
+              disabled={isGenerating}
             />
             <div className={styles.actionsBox}>
               <button 
@@ -216,8 +219,8 @@ export default function Workspace() {
                 onMouseUp={stopRecording}
                 onTouchStart={startRecording}
                 onTouchEnd={stopRecording}
-                title={isSpeechSupported ? '长按说话' : '您的浏览器不支持语音识别'}
-                disabled={!isSpeechSupported}
+                title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
+                disabled={!isSpeechSupported || isGenerating}
               >
                 {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
@@ -232,7 +235,7 @@ export default function Workspace() {
               ) : (
                 <button
                   className={clsx('button-primary', styles.sendButton)}
-                  disabled={!inputText.trim()}
+                  disabled={!inputText.trim() || isGenerating}
                   onClick={handleSubmit}
                   title="发送消息"
                 >
@@ -252,7 +255,7 @@ export default function Workspace() {
 
       {/* RIGHT PANEL: Visual WorkSpace */}
       <section className={styles.visualPanel}>
-        <Tabs.Root className={styles.tabsRoot} defaultValue="ppt">
+        <Tabs.Root className={styles.tabsRoot} value={activeTab} onValueChange={setActiveTab}>
           <header className={styles.visualHeader}>
             <Tabs.List className={styles.tabsList}>
               <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
@@ -262,7 +265,10 @@ export default function Workspace() {
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
               <button 
                 className={clsx('button-primary', styles.generateBtn)}
-                onClick={() => handleGenerate([], 'fast')}
+                onClick={() => {
+                  setActiveTab('ppt');
+                  handleGenerate([], 'fast');
+                }}
                 disabled={isGenerating || sessionId === 'new'}
               >
                 <Sparkles size={16} className={clsx(isGenerating && styles.rotating)} /> 

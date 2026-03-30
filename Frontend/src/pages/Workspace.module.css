@@ -134,6 +134,19 @@
   gap: 8px;
 }
 
+.dockDisabled {
+  opacity: 0.6;
+  pointer-events: none;
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-glass) !important;
+}
+
+.dockDisabled .textarea::placeholder {
+  color: var(--accent-primary);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 .micButton {
   background: var(--bg-secondary);
   border: none;
