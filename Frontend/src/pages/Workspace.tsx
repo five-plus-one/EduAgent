@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Mic, MicOff, Paperclip, Send, Square, Download, Sparkles } from 'lucide-react';
+
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -14,6 +14,7 @@ import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences } from '../utils/api';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -36,6 +37,7 @@ export default function Workspace() {
   // RAG Knowledge Base Integration
   const [kbDocs, setKbDocs] = useState<any[]>([]);
   const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
+  const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   
   useEffect(() => {
     let active = true;
@@ -50,17 +52,26 @@ export default function Workspace() {
       alert('请先创建会话再关联资料');
       return;
     }
+    
+    setLinkingDocs(prev => new Set(prev).add(docId));
     try {
       await addReferences(sessionId, [docId]);
       setLinkedDocs(prev => new Set(prev).add(docId));
     } catch (e) {
-      alert('资料关联失败');
+      alert('资料关联失败，请检查网络或刷新重试。');
+    } finally {
+      setLinkingDocs(prev => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
     }
   };
 
   // State cleanup on session switch
   useEffect(() => {
     setLinkedDocs(new Set());
+    setLinkingDocs(new Set());
     setInputText('');
     setSelectionText('');
   }, [sessionId]);
@@ -261,28 +272,47 @@ export default function Workspace() {
           <Tabs.Content className={styles.tabsContent} value="files">
             <div className={styles.kbPanel}>
               <div className={styles.kbHeader}>
-                <h3>全局知识库核心资料池</h3>
-                <p>选择并关联相关资料，作为 AI 生成幻灯片的依据。</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <Library size={20} className={styles.sparkleIcon} />
+                  <h3 style={{ margin: 0 }}>知识库资料墙</h3>
+                </div>
+                <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
               </div>
+              
               {kbDocs.length === 0 ? (
-                <div className={styles.placeholderCentric}>知识库尚未上传任何文档</div>
+                <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
               ) : (
-                <div className={styles.kbGrid}>
+                <div className={styles.kbList}>
                   {kbDocs.map(doc => {
                     const isLinked = linkedDocs.has(doc.document_id);
+                    const isLinking = linkingDocs.has(doc.document_id);
                     return (
-                      <div key={doc.document_id} className={clsx(styles.kbCard, 'glass-panel')}>
-                        <div className={styles.kbCardInfo}>
-                          <h4 className={styles.truncate}>{doc.filename}</h4>
-                          <span className={styles.kbMeta}>{doc.subject || '通用'}</span>
+                      <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
+                        <div className={styles.kbItemInfo}>
+                          <FileText size={18} className={styles.docIcon} />
+                          <div className={styles.kbItemTextWrap}>
+                            <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
+                            <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                          </div>
                         </div>
-                        <button 
-                          className={clsx(isLinked ? 'button-base' : 'button-primary', styles.linkBtn)}
-                          disabled={isLinked || sessionId === 'new'}
-                          onClick={() => handleLinkDoc(doc.document_id)}
-                        >
-                          {isLinked ? '已关联' : '🔗 关联至当前会话'}
-                        </button>
+                        <div className={styles.kbItemActions}>
+                          <button 
+                            className={clsx(
+                              isLinked ? styles.btnLinked : 'button-primary', 
+                              styles.actionBtn
+                            )}
+                            disabled={isLinked || isLinking || sessionId === 'new'}
+                            onClick={() => handleLinkDoc(doc.document_id)}
+                          >
+                            {isLinking ? (
+                              <><Loader2 size={14} className={styles.spinner} /> 关联中</>
+                            ) : isLinked ? (
+                              <><CheckCircle size={14} /> 已绑定</>
+                            ) : (
+                              <><Link size={14} /> 加入会话</>
+                            )}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
