@@ -1,15 +1,14 @@
-
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain, Wrench } from 'lucide-react';
-import styles from './MessageBubbleStyles.module.css';
+import styles from './message-bubble.module.css';
 import { clsx } from 'clsx';
 
 export interface MessageProps {
   id: string;
   role: 'teacher' | 'ai';
   content: string;
-  toolLog?: string;     // Tool call/result log (persisted across session switches)
+  toolLog?: string;
   thinking?: string;
   isThinking?: boolean;
   isTyping?: boolean;
@@ -36,15 +35,10 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
       <div className={clsx(styles.bubble, isAI ? styles.bubbleAI : styles.bubbleTeacher)}>
         {isAI ? (
           <div className={styles.markdownWrapper}>
-
-            {/* ===== Tool Call Log Panel (persisted in GlobalStreamManager singleton) ===== */}
+            {/* Tool Logs */}
             {showToolPanel && (
               <div className={clsx(styles.thinkBlock, styles.toolBlock)}>
-                <button
-                  className={styles.thinkHeader}
-                  onClick={() => setToolExpanded(v => !v)}
-                  aria-expanded={toolExpanded}
-                >
+                <button className={styles.thinkHeader} onClick={() => setToolExpanded(v => !v)}>
                   <Wrench size={14} className={styles.thinkIcon} />
                   <span className={styles.thinkLabel}>工具调用记录</span>
                   {toolExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -57,14 +51,10 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
               </div>
             )}
 
-            {/* ===== DeepSeek-style Thinking Panel ===== */}
+            {/* DeepSeek Thinking */}
             {showThinkPanel && (
               <div className={styles.thinkBlock}>
-                <button
-                  className={styles.thinkHeader}
-                  onClick={() => setThinkExpanded(v => !v)}
-                  aria-expanded={thinkExpanded}
-                >
+                <button className={styles.thinkHeader} onClick={() => setThinkExpanded(v => !v)}>
                   <Brain size={14} className={clsx(styles.thinkIcon, isThinking && styles.thinkIconPulse)} />
                   <span className={styles.thinkLabel}>
                     {isThinking ? '深度思考中...' : '已完成思考'}
@@ -80,12 +70,15 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
               </div>
             )}
 
-            {/* ===== Main answer content ===== */}
+            {/* Main Content */}
             {content ? (
-              <Markdown>{content}</Markdown>
+              <div className={styles.textContent}>
+                <Markdown>{content}</Markdown>
+                {isTyping && !isThinking && <span className={styles.cursor} />}
+              </div>
             ) : (
-              // If there's no content but we ARE typing and not thinking/tooling, show placeholders
-              isTyping && !isThinking && !hasToolLog && !hasThinking && (
+              // Empty content but we are live-streaming
+              isTyping && !isThinking && !hasThinking && !hasToolLog && (
                 <div style={{ minHeight: '20px', display: 'flex', alignItems: 'center' }}>
                   <span className={styles.thinkingDots}>
                     <span /><span /><span />
@@ -93,9 +86,6 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
                 </div>
               )
             )}
-
-            {/* Blinking cursor while typing main content */}
-            {isTyping && !isThinking && content && <span className={styles.cursor} />}
           </div>
         ) : (
           <div className={styles.textContent}>{content}</div>

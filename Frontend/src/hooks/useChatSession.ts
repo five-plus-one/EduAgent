@@ -62,7 +62,7 @@ export function useChatSession(sessionId: string) {
 
             const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
             while ((match = toolRegex.exec(cleaned)) !== null) {
-              toolLogs.push(`\n> 🤖 *历史工具记录: \`${match[0].length} 字符\`*\n`);
+              toolLogs.push(`\n> 🤖 *历史意图捕捉: \`${match[0].length} 字符\`*\n`);
             }
             cleaned = cleaned.replace(toolRegex, '').trim();
 
@@ -97,6 +97,8 @@ export function useChatSession(sessionId: string) {
               isThinking: activeStream.isThinking,
               isTyping: activeStream.isSynthesizing,
             });
+            setIsSynthesizing(activeStream.isSynthesizing);
+            if (activeStream.latestIntent) setLatestIntent(activeStream.latestIntent);
           }
           setMessages(mapped);
         }
@@ -114,9 +116,9 @@ export function useChatSession(sessionId: string) {
 
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
-        const data = {
+        const data: MessageProps = {
           id: state.aiMsgId,
-          role: 'ai' as 'ai',
+          role: 'ai',
           content: state.content,
           toolLog: state.toolLog,
           thinking: state.thinking,

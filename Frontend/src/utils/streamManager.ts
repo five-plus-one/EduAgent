@@ -68,66 +68,88 @@ class StreamManagerClass {
     return /generate|slide|page|update|edit|insert|delete/.test(name);
   }
 
+  /**
+   * P8 Stream Scrubber (Scrubber 7.0 - The "Truth" Scrubber)
+   * High-agency, incremental flushing of content, thinking, and tool monologues.
+   */
   private processTextChunk(stream: any, chunk: string) {
     stream.buffer += chunk;
     
-    let changed = true;
-    while (changed) {
-      changed = false;
-      
+    // We loop as long as we can find a tag boundary in the buffer.
+    while (true) {
       if (stream.mode === 'text') {
-        const startThink = stream.buffer.indexOf('<think>');
-        const startToolIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
+        const thinkIdx = stream.buffer.indexOf('<think>');
+        const toolIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
         
-        const indices = [];
-        if (startThink !== -1) indices.push({ type: 'think', idx: startThink, len: 7 });
-        if (startToolIdx !== -1) {
-            const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
-            if (match) indices.push({ type: 'tool', idx: startToolIdx, len: match[0].length });
-        }
-        indices.sort((a, b) => a.idx - b.idx);
+        let targetType: 'think' | 'tool' | null = null;
+        let startIdx = -1;
+        let tagLen = 0;
 
-        if (indices.length > 0) {
-          const first = indices[0];
-          stream.state.content += stream.buffer.slice(0, first.idx);
-          stream.buffer = stream.buffer.slice(first.idx + first.len);
-          stream.mode = first.type as any;
-          if (first.type === 'think') stream.state.isThinking = true;
-          changed = true;
+        if (thinkIdx !== -1 && (toolIdx === -1 || thinkIdx < toolIdx)) {
+          targetType = 'think';
+          startIdx = thinkIdx;
+          tagLen = 7;
+        } else if (toolIdx !== -1) {
+          targetType = 'tool';
+          startIdx = toolIdx;
+          const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
+          tagLen = match ? match[0].length : 0;
+        }
+
+        if (targetType) {
+          // Flush everything before the tag to conversational content
+          stream.state.content += stream.buffer.slice(0, startIdx);
+          stream.buffer = stream.buffer.slice(startIdx + tagLen);
+          stream.mode = targetType;
+          if (targetType === 'think') stream.state.isThinking = true;
+          continue; // Process the new mode
         } else {
-          // Flush everything that isn't a partial tag start
+          // No tag starts in current buffer.
+          // Flush all except potential partial tag start (e.g., "<th") at the very end
           const lastBracket = stream.buffer.lastIndexOf('<');
-          if (lastBracket !== -1 && lastBracket > stream.buffer.length - 10) {
+          // If the buffer ends with a likely tag start (length < 15 after '<'), hold it
+          if (lastBracket !== -1 && stream.buffer.length - lastBracket < 15) {
             stream.state.content += stream.buffer.slice(0, lastBracket);
             stream.buffer = stream.buffer.slice(lastBracket);
           } else {
             stream.state.content += stream.buffer;
             stream.buffer = '';
           }
+          break; // Done with current chunk
         }
       } else if (stream.mode === 'think') {
-        const endThink = stream.buffer.indexOf('</think>');
-        if (endThink !== -1) {
-          stream.state.thinking += stream.buffer.slice(0, endThink);
-          stream.buffer = stream.buffer.slice(endThink + 8);
+        const endIdx = stream.buffer.indexOf('</think>');
+        if (endIdx !== -1) {
+          // End of thinking block
+          stream.state.thinking += stream.buffer.slice(0, endIdx);
+          stream.buffer = stream.buffer.slice(endIdx + 8);
           stream.mode = 'text';
           stream.state.isThinking = false;
-          changed = true;
+          continue;
         } else {
-          stream.state.thinking += stream.buffer;
-          stream.buffer = '';
+          // Still in thinking mode. Flush everything that is NOT a potential partial closing tag
+          const lastBracket = stream.buffer.lastIndexOf('</');
+          if (lastBracket !== -1 && stream.buffer.length - lastBracket < 10) {
+            stream.state.thinking += stream.buffer.slice(0, lastBracket);
+            stream.buffer = stream.buffer.slice(lastBracket);
+          } else {
+            stream.state.thinking += stream.buffer;
+            stream.buffer = '';
+          }
+          break;
         }
       } else if (stream.mode === 'tool') {
-        const endTool = stream.buffer.search(/<\/(seed:)?tool_call>/);
-        if (endTool !== -1) {
+        const endIdx = stream.buffer.search(/<\/(seed:)?tool_call>/);
+        if (endIdx !== -1) {
           const match = stream.buffer.match(/<\/(seed:)?tool_call>/);
-          if (match) {
-            stream.buffer = stream.buffer.slice(endTool + match[0].length);
-            stream.mode = 'text';
-            changed = true;
-          }
+          const endLen = match ? match[0].length : 0;
+          stream.buffer = stream.buffer.slice(endIdx + endLen);
+          stream.mode = 'text';
+          continue;
         } else {
-          stream.buffer = ''; // Skip tool monologue
+          // Swallow tool monologue
+          stream.buffer = '';
+          break;
         }
       }
     }
@@ -167,8 +189,9 @@ class StreamManagerClass {
           if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
-            if (streamData.buffer && streamData.mode === 'text') {
-              streamData.state.content += streamData.buffer;
+            if (streamData.buffer) {
+              if (streamData.mode === 'text') streamData.state.content += streamData.buffer;
+              else if (streamData.mode === 'think') streamData.state.thinking += streamData.buffer;
               streamData.buffer = '';
             }
             streamData.state.isSynthesizing = false;
