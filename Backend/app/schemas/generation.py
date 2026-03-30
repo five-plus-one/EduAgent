@@ -5,6 +5,16 @@ class GenerateRequest(BaseModel):
     selected_file_ids: List[str] = []
     generation_mode: str = "depth"
 
+class TaskResponse(BaseModel):
+    task_id: str
+    status: str
+
+class TaskStatusResponse(BaseModel):
+    status: str
+    stage: Optional[str] = None
+    progress: int
+    download_urls: Optional[dict] = None
+
 class ElementModel(BaseModel):
     element_id: str
     type: str # text_block, image
