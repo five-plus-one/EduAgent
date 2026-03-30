@@ -113,7 +113,7 @@ export const deleteSession = async (sessionId: string) => {
 export const streamChatCompletion = async (
   sessionId: string,
   content: string,
-  onMessage: (chunk: string, isFinished: boolean, intent?: unknown) => void,
+  onMessage: (chunk: string, isFinished: boolean, intent?: unknown, eventType?: string, eventData?: any) => void,
   onError: (err: unknown) => void,
   signal?: AbortSignal,
   callbacks?: {
@@ -135,7 +135,6 @@ export const streamChatCompletion = async (
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
-        
         // Handle explicit Tool Calls/Results vs normal Text
         if (data.event_type === 'tool_call' && callbacks?.onToolCall && data.tool_call) {
           callbacks.onToolCall(data.tool_call);
