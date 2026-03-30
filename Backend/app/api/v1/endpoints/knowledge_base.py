@@ -37,6 +37,7 @@ async def upload_global_document(
         
     new_doc = Document(
         id=doc_id,
+        user_id=current_user.id,   # 绑定到当前用户
         filename=file.filename,
         file_path=file_path,
         status="pending",
@@ -58,7 +59,8 @@ def list_global_documents(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ):
-    query = db.query(Document)
+    # 只返回属于当前用户的文档
+    query = db.query(Document).filter(Document.user_id == current_user.id)
     if status:
         query = query.filter(Document.status == status)
         
@@ -92,7 +94,8 @@ def update_document_metadata(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ):
-    doc = db.query(Document).filter(Document.id == doc_id).first()
+    # 验证归属权
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
@@ -107,7 +110,8 @@ def delete_document(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ):
-    doc = db.query(Document).filter(Document.id == doc_id).first()
+    # 验证归属权，防止越权删除他人资料
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
         
