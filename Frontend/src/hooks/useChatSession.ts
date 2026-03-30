@@ -58,13 +58,49 @@ export function useChatSession(sessionId: string) {
             return !(roleMatches && contentMatches);
           });
 
+          const healMessage = (m: any) => {
+            let content = m.content || m.text || '';
+            let thinking = '';
+            let toolLog = '';
+
+            // Extract DeepSeek-style <think> tags
+            const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+            if (thinkMatch) {
+              thinking = thinkMatch[1].trim();
+              content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            }
+
+            // Extract <seed:tool_call> or <tool_call> tags
+            const toolMatch = content.match(/<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/);
+            if (toolMatch) {
+              const tagContent = toolMatch[0];
+              toolLog = `\n> 🤖 *历史工具记录: \`${tagContent.length} chars\`*\n`;
+              content = content.replace(/<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g, '').trim();
+            }
+
+            return { content, thinking, toolLog };
+          };
+
           const mapped: MessageProps[] = deduplicated.map((m: any) => {
             const id = m.id || generateId();
+            const role = ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher';
+            
+            if (role === 'ai') {
+              const healed = healMessage(m);
+              const persistedLog = GlobalStreamManager.getMessageToolLog(id);
+              return {
+                id,
+                role,
+                content: healed.content,
+                thinking: healed.thinking,
+                toolLog: [healed.toolLog, persistedLog].filter(Boolean).join('\n'),
+              };
+            }
+
             return {
               id,
-              role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
+              role,
               content: m.content || m.text || '',
-              toolLog: GlobalStreamManager.getMessageToolLog(id), // Fetch persisted tool log for this specific message
             };
           });
 
