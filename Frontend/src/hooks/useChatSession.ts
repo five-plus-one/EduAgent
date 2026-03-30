@@ -58,20 +58,15 @@ export function useChatSession(sessionId: string) {
             return !(roleMatches && contentMatches);
           });
 
-          const mapped: MessageProps[] = deduplicated.map((m: any) => ({
-            id: m.id || generateId(),
-            role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
-            content: m.content || m.text || '',
-          }));
-
-          // Inject persisted tool log into the last AI message (survives session switches)
-          const persistedToolLog = GlobalStreamManager.getToolLog(sessionId);
-          if (persistedToolLog) {
-            const lastAiIdx = mapped.reduceRight((acc, m, i) => acc === -1 && m.role === 'ai' ? i : acc, -1);
-            if (lastAiIdx !== -1) {
-              mapped[lastAiIdx] = { ...mapped[lastAiIdx], toolLog: persistedToolLog };
-            }
-          }
+          const mapped: MessageProps[] = deduplicated.map((m: any) => {
+            const id = m.id || generateId();
+            return {
+              id,
+              role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
+              content: m.content || m.text || '',
+              toolLog: GlobalStreamManager.getMessageToolLog(id), // Fetch persisted tool log for this specific message
+            };
+          });
 
           // Merge with any currently active global stream for this session
           const activeStream = GlobalStreamManager.getStream(sessionId);
