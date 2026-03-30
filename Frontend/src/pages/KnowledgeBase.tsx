@@ -5,9 +5,11 @@ import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 
 interface KBDocument {
-  doc_id: string;
+  document_id: string; // backend field name (NOT doc_id)
   filename: string;
   status: string;
+  progress?: number;   // 0-100
+  summary?: string;
   created_at?: string;
 }
 
@@ -21,8 +23,8 @@ export default function KnowledgeBase() {
   const fetchDocs = useCallback(async () => {
     try {
       const data = await listKnowledgeDocs(1, 50);
-      // Backend returns items array directly or wrapped
-      const items = data?.items ?? data ?? [];
+      // Backend returns { total, items: [...] } or raw array
+      const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
       setDocuments(items);
     } catch {
       console.error('Failed to fetch knowledge base documents');
@@ -78,11 +80,11 @@ export default function KnowledgeBase() {
     }
   };
 
-  const handleDelete = async (docId: string) => {
+  const handleDelete = async (documentId: string) => {
     if (!window.confirm('确认从知识库中删除该文件？此操作不可撤销。')) return;
     try {
-      await deleteKnowledgeDoc(docId);
-      setDocuments((prev) => prev.filter((d) => d.doc_id !== docId));
+      await deleteKnowledgeDoc(documentId);
+      setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
     } catch {
       console.error('Delete failed');
     }
@@ -169,7 +171,7 @@ export default function KnowledgeBase() {
                   </tr>
                 ) : (
                   documents.map((doc) => (
-                    <tr key={doc.doc_id} className={styles.tableRow}>
+                    <tr key={doc.document_id} className={styles.tableRow}>
                       <td>
                         <div className={styles.cellFile}>
                           <FileText size={16} className={styles.fileIcon} />
@@ -186,16 +188,21 @@ export default function KnowledgeBase() {
                            <div className={clsx(styles.statusBadge, styles.statusSuccess)}>
                              <CheckCircle size={14} /> 解析完成
                            </div>
+                        ) : doc.status === 'failed' ? (
+                           <div className={clsx(styles.statusBadge, styles.statusFailed)}>
+                             <Clock size={14} /> 解析失败
+                           </div>
                         ) : (
                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                             <Clock size={14} className={styles.rotating} /> 向量化中
+                             <Clock size={14} className={styles.rotating} />
+                             向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}
                            </div>
                         )}
                       </td>
                       <td>
                         <button
                           className={styles.deleteBtn}
-                          onClick={() => handleDelete(doc.doc_id)}
+                          onClick={() => handleDelete(doc.document_id)}
                           title="删除"
                         >
                           <Trash2 size={14} />
