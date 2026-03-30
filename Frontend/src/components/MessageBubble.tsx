@@ -81,17 +81,21 @@ export default function MessageBubble({ role, content, toolLog, thinking, isThin
             )}
 
             {/* ===== Main answer content ===== */}
-            {content && <Markdown>{content}</Markdown>}
+            {content ? (
+              <Markdown>{content}</Markdown>
+            ) : (
+              // If there's no content but we ARE typing and not thinking/tooling, show placeholders
+              isTyping && !isThinking && !hasToolLog && !hasThinking && (
+                <div style={{ minHeight: '20px', display: 'flex', alignItems: 'center' }}>
+                  <span className={styles.thinkingDots}>
+                    <span /><span /><span />
+                  </span>
+                </div>
+              )
+            )}
 
             {/* Blinking cursor while typing main content */}
-            {isTyping && !isThinking && <span className={styles.cursor} />}
-
-            {/* Three-dot loader: only when truly idle — no content, no thinking, no tool activity */}
-            {isTyping && !isThinking && !content && !hasThinking && !hasToolLog && (
-              <span className={styles.thinkingDots}>
-                <span /><span /><span />
-              </span>
-            )}
+            {isTyping && !isThinking && content && <span className={styles.cursor} />}
           </div>
         ) : (
           <div className={styles.textContent}>{content}</div>

@@ -22,13 +22,13 @@ class StreamManagerClass {
 
   /**
    * Persists tool call logs across session switches (survives component unmounts).
-   * Key: sessionId, Value: markdown-formatted tool log text.
+   * Key: messageId, Value: markdown-formatted tool log text.
    */
-  private sessionToolLogs = new Map<string, string>();
+  private messageToolLogs = new Map<string, string>();
 
-  /** Read the persisted tool log for a session (for history rendering). */
-  public getToolLog(sessionId: string): string {
-    return this.sessionToolLogs.get(sessionId) || '';
+  /** Read the persisted tool log for a specific message. */
+  public getMessageToolLog(messageId: string): string {
+    return this.messageToolLogs.get(messageId) || '';
   }
 
   public subscribe(sessionId: string, listener: StreamListener): () => void {
@@ -66,6 +66,18 @@ class StreamManagerClass {
 
   private notify(sessionId: string, stream: any) {
     this.sessionListeners.get(sessionId)?.forEach((l: StreamListener) => l({ ...stream.state }));
+  }
+
+  /** Helper to determine if a tool call should trigger a PPT refetch */
+  private shouldRefetchForTool(toolName: string): boolean {
+    const name = toolName.toLowerCase();
+    return name.includes('generate') || 
+           name.includes('slide') || 
+           name.includes('page') || 
+           name.includes('update') || 
+           name.includes('edit') || 
+           name.includes('insert') ||
+           name.includes('delete');
   }
 
   public async startStream(sessionId: string, userContent: string) {
@@ -133,13 +145,13 @@ class StreamManagerClass {
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
 
-            // Persist tool log to singleton so it survives session switches
+            // Persist tool log to singleton using messageId so it survives session switches
             if (streamData.state.toolLog) {
-              this.sessionToolLogs.set(sessionId, streamData.state.toolLog);
+              this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
             }
 
             // Fallback refetch — ONLY if onToolResult hasn't already dispatched it
-            if (!refetchDispatched && lastToolName.toLowerCase().includes('generate')) {
+            if (!refetchDispatched && this.shouldRefetchForTool(lastToolName)) {
               console.log('[StreamManager] isFinished fallback → triggering PPT refetch');
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
@@ -167,8 +179,8 @@ class StreamManagerClass {
           },
           onToolCall: (tool) => {
             lastToolName = tool.tool_name;
-            const isGenerateTool = tool.tool_name.toLowerCase().includes('generate');
-            if (isGenerateTool) {
+            const isPPTTool = this.shouldRefetchForTool(tool.tool_name);
+            if (isPPTTool) {
               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
             }
 
@@ -179,8 +191,8 @@ class StreamManagerClass {
           onToolResult: (result) => {
             window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
 
-            const isGenerateTool = lastToolName.toLowerCase().includes('generate');
-            const shouldRefetch = result.should_refetch_ppt === true || isGenerateTool;
+            const isPPTTool = this.shouldRefetchForTool(lastToolName);
+            const shouldRefetch = result.should_refetch_ppt === true || isPPTTool;
 
             if (shouldRefetch) {
               refetchDispatched = true;
