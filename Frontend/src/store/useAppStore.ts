@@ -12,6 +12,7 @@ interface AppState {
   theme: 'light' | 'dark';
   setActiveSession: (id: string) => void;
   setUser: (user: User) => void;
+  clearUser: () => void;
   toggleTheme: () => void;
 }
 
@@ -21,7 +22,9 @@ export const useAppStore = create<AppState>((set) => ({
   theme: 'light',
   setActiveSession: (id: string) => set({ activeSessionId: id }),
   setUser: (user: User) => set({ user }),
+  clearUser: () => set({ user: null }),
   toggleTheme: () => set((state) => ({ 
     theme: state.theme === 'light' ? 'dark' : 'light' 
   })),
 }));
+

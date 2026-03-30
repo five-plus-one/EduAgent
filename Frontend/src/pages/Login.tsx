@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { login, getMe } from '../utils/api';
@@ -107,7 +107,7 @@ export default function Login() {
         </form>
         
         <div className={styles.loginFooter}>
-          <p>没有账号？ <a href="#contact">联系系统管理员</a></p>
+          <p>没有账号？ <Link to="/register" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>立即注册</Link></p>
         </div>
       </div>
     </div>

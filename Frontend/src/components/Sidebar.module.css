@@ -135,13 +135,27 @@
   color: var(--text-tertiary);
 }
 
-.settingsIcon {
+.logoutBtn {
   margin-left: auto;
-  color: var(--text-secondary);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, color 0.2s, background 0.2s;
 }
 
-.profileBtn:hover .settingsIcon {
+.profileBtn:hover .logoutBtn {
   opacity: 1;
+}
+
+.logoutBtn:hover {
+  color: hsl(340, 80%, 55%);
+  background: hsla(340, 80%, 55%, 0.12);
 }
