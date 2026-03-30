@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { streamChatCompletion } from '../utils/api';
+import { streamChatCompletion, getSession } from '../utils/api';
 import type { MessageProps } from '../components/MessageBubble';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -108,11 +108,33 @@ export function useChatSession(sessionId: string) {
     }
   }, [sessionId, isSynthesizing, navigate]);
 
-  // Handle session switch: wipe out chat state to prevent dirty crossover
+  // Handle session switch: wipe out chat state and load history
   useEffect(() => {
     setMessages([]);
     setIsSynthesizing(false);
     setLatestIntent(null);
+
+    if (sessionId && sessionId !== 'new') {
+      let active = true;
+      getSession(sessionId).then(res => {
+        if (!active) return;
+        // Compatible mapping for multiple potential backend array names
+        const historyData = res?.messages || res?.chat_history || res?.history;
+        if (historyData && Array.isArray(historyData)) {
+          const mapped = historyData.map((m: any) => ({
+            id: m.id || generateId(),
+            role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
+            content: m.content || m.text || '',
+          }));
+          setMessages(mapped);
+        } else {
+          console.warn('[Session History] Backend did not return an array of messages/chat_history in getSession()', res);
+        }
+      }).catch(e => {
+        console.error('[Session History] Failed to fetch session history:', e);
+      });
+      return () => { active = false; };
+    }
   }, [sessionId]);
 
   return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration };
