@@ -93,12 +93,14 @@ def get_session_detail(
         
     messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
     
+    session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
+    
     return {
         "session_id": session_ctx.id,
         "course_name": session_ctx.course_name,
         "target_audience": session_ctx.target_audience,
         "messages": [{"role": m.role, "content": m.content} for m in messages],
-        "associated_files": [] # 留给 Phase 3 完成
+        "associated_files": [sf.id for sf in session_files]
     }
 
 @router.put("/{session_id}")
@@ -204,11 +206,31 @@ async def audio_chat(
 ):
     """
     1.3 语音输入转文本
+    Reads bytes and streams to ASR endpoint.
     """
-    mock_text = f"收到来自 {audio_file.filename} 的语音。我现在想做一份关于牛顿定律的课件，有什么好的想法吗？"
-    return {
-        "text": mock_text
-    }
+    import requests
+    from app.core.config import settings
+    
+    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/audio/transcriptions"
+    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
+    
+    try:
+        audio_bytes = await audio_file.read()
+        files = {
+            "file": (audio_file.filename or "audio.wav", audio_bytes, audio_file.content_type or "audio/wav")
+        }
+        data = {
+            "model": "whisper-1" # Generic representation, will be proxy-mapped usually
+        }
+        resp = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+        resp.raise_for_status()
+        text = resp.json().get("text", "")
+        return {"text": text}
+    except Exception as e:
+        # Fallback to mock text indicating ASR isn't configured at upstream
+        return {
+            "text": f"(ASR组件上游调用失败: {str(e)}。无法识别真实的语音内容，请检查大模型通道是否支持 Whisper 协议)"
+        }
 
 @router.post("/{session_id}/files")
 async def upload_session_file(
