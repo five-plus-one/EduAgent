@@ -31,15 +31,28 @@ class StreamManagerClass {
     if (!this.sessionListeners.has(sessionId)) {
       this.sessionListeners.set(sessionId, new Set());
     }
-    this.sessionListeners.get(sessionId)!.add(listener);
+    const listeners = this.sessionListeners.get(sessionId)!;
+    listeners.add(listener);
+    
     const stream = this.activeStreams.get(sessionId);
-    if (stream) listener({ ...stream.state });
-    else listener(null);
-    return () => this.unsubscribe(sessionId, listener);
+    if (stream) {
+      console.log(`[StreamManager] Syncing subscriber with active stream ${sessionId}`);
+      listener(this.cloneState(stream.state));
+    } else {
+      listener(null);
+    }
+    
+    return () => {
+      listeners.delete(listener);
+    };
   }
 
   private unsubscribe(sessionId: string, listener: StreamListener) {
     this.sessionListeners.get(sessionId)?.delete(listener);
+  }
+
+  private cloneState(state: StreamState): StreamState {
+    return JSON.parse(JSON.stringify(state));
   }
 
   public stopStream(sessionId: string) {
@@ -59,7 +72,8 @@ class StreamManagerClass {
   private notify(sessionId: string, stream: any) {
     const listeners = this.sessionListeners.get(sessionId);
     if (listeners) {
-      listeners.forEach((l: StreamListener) => l({ ...stream.state }));
+      const stateCopy = this.cloneState(stream.state);
+      listeners.forEach((l: StreamListener) => l(stateCopy));
     }
   }
 
@@ -69,45 +83,50 @@ class StreamManagerClass {
   }
 
   /**
-   * P8 Stream Scrubber (Scrubber 7.0 - The "Truth" Scrubber)
-   * High-agency, incremental flushing of content, thinking, and tool monologues.
+   * P8 Scrubber 9.0 (Full Transparency Protocol)
+   * Guaranteed content propagation even during mode transitions.
    */
   private processTextChunk(stream: any, chunk: string) {
     stream.buffer += chunk;
-    
-    // We loop as long as we can find a tag boundary in the buffer.
-    while (true) {
+    console.log(`[Scrubber9] Mode: ${stream.mode}, Buffer: ${stream.buffer.length}`);
+
+    // High-agency loop: process as many tags as we find
+    let changed = true;
+    while (changed) {
+      changed = false;
+      
       if (stream.mode === 'text') {
         const thinkIdx = stream.buffer.indexOf('<think>');
         const toolIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
         
-        let targetType: 'think' | 'tool' | null = null;
         let startIdx = -1;
         let tagLen = 0;
+        let nextMode: 'think' | 'tool' | null = null;
 
         if (thinkIdx !== -1 && (toolIdx === -1 || thinkIdx < toolIdx)) {
-          targetType = 'think';
           startIdx = thinkIdx;
           tagLen = 7;
+          nextMode = 'think';
         } else if (toolIdx !== -1) {
-          targetType = 'tool';
-          startIdx = toolIdx;
           const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
-          tagLen = match ? match[0].length : 0;
+          if (match) {
+            startIdx = toolIdx;
+            tagLen = match[0].length;
+            nextMode = 'tool';
+          }
         }
 
-        if (targetType) {
-          // Flush everything before the tag to conversational content
+        if (nextMode && startIdx !== -1) {
+          // Flush conversational text BEFORE the tag
           stream.state.content += stream.buffer.slice(0, startIdx);
           stream.buffer = stream.buffer.slice(startIdx + tagLen);
-          stream.mode = targetType;
-          if (targetType === 'think') stream.state.isThinking = true;
-          continue; // Process the new mode
+          stream.mode = nextMode;
+          if (nextMode === 'think') stream.state.isThinking = true;
+          changed = true;
         } else {
-          // No tag starts in current buffer.
-          // Flush all except potential partial tag start (e.g., "<th") at the very end
+          // Normal conversational text. 
+          // We hold the buffer ONLY if it ends with a partial tag start (max 15 chars)
           const lastBracket = stream.buffer.lastIndexOf('<');
-          // If the buffer ends with a likely tag start (length < 15 after '<'), hold it
           if (lastBracket !== -1 && stream.buffer.length - lastBracket < 15) {
             stream.state.content += stream.buffer.slice(0, lastBracket);
             stream.buffer = stream.buffer.slice(lastBracket);
@@ -115,40 +134,33 @@ class StreamManagerClass {
             stream.state.content += stream.buffer;
             stream.buffer = '';
           }
-          break; // Done with current chunk
         }
       } else if (stream.mode === 'think') {
         const endIdx = stream.buffer.indexOf('</think>');
         if (endIdx !== -1) {
-          // End of thinking block
           stream.state.thinking += stream.buffer.slice(0, endIdx);
           stream.buffer = stream.buffer.slice(endIdx + 8);
           stream.mode = 'text';
           stream.state.isThinking = false;
-          continue;
+          changed = true;
         } else {
-          // Still in thinking mode. Flush everything that is NOT a potential partial closing tag
-          const lastBracket = stream.buffer.lastIndexOf('</');
-          if (lastBracket !== -1 && stream.buffer.length - lastBracket < 10) {
-            stream.state.thinking += stream.buffer.slice(0, lastBracket);
-            stream.buffer = stream.buffer.slice(lastBracket);
-          } else {
-            stream.state.thinking += stream.buffer;
-            stream.buffer = '';
-          }
-          break;
+          // Incrementally flush thinking process to UI
+          stream.state.thinking += stream.buffer;
+          stream.buffer = '';
         }
       } else if (stream.mode === 'tool') {
         const endIdx = stream.buffer.search(/<\/(seed:)?tool_call>/);
         if (endIdx !== -1) {
           const match = stream.buffer.match(/<\/(seed:)?tool_call>/);
-          const endLen = match ? match[0].length : 0;
-          stream.buffer = stream.buffer.slice(endIdx + endLen);
-          stream.mode = 'text';
-          continue;
+          if (match) {
+            stream.buffer = stream.buffer.slice(endIdx + match[0].length);
+            stream.mode = 'text';
+            changed = true;
+          }
         } else {
-          // Swallow tool monologue
-          stream.buffer = '';
+          // In tool mode, we don't dump JSON to UI, but we don't block.
+          // The buffer grows until closing tag or is cleared at end of stream.
+          if (stream.buffer.length > 5000) stream.buffer = ''; // Safety valve
           break;
         }
       }
@@ -170,7 +182,7 @@ class StreamManagerClass {
         latestIntent: null,
       },
       buffer: '',
-      mode: 'text' as const,
+      mode: 'text' as 'text' | 'think' | 'tool',
       abortController: controller,
     };
     
@@ -189,16 +201,21 @@ class StreamManagerClass {
           if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
-            if (streamData.buffer) {
-              if (streamData.mode === 'text') streamData.state.content += streamData.buffer;
-              else if (streamData.mode === 'think') streamData.state.thinking += streamData.buffer;
-              streamData.buffer = '';
+            // End of stream cleanup
+            if (streamData.buffer && streamData.mode === 'text') {
+              streamData.state.content += streamData.buffer;
+            } else if (streamData.buffer && streamData.mode === 'think') {
+              streamData.state.thinking += streamData.buffer;
             }
+            streamData.buffer = '';
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
+            
+            // Save tool logs for persistence within current component lifecycle
             if (streamData.state.toolLog) {
-              this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
+                this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
             }
+            
             if (!refetchDispatched && this.shouldRefetchForTool(lastToolName)) {
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
@@ -206,7 +223,8 @@ class StreamManagerClass {
           this.notify(sessionId, streamData);
           if (isFinished) this.activeStreams.delete(sessionId);
         },
-        (_err) => {
+        (err) => {
+          console.error('[StreamManager] Error:', err);
           streamData.state.isSynthesizing = false;
           this.notify(sessionId, streamData);
           this.activeStreams.delete(sessionId);
