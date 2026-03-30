@@ -137,8 +137,9 @@ export function useChatSession(sessionId: string) {
     setIsSynthesizing(false);
     setLatestIntent(null);
 
+    let active = true;
+
     if (sessionId && sessionId !== 'new') {
-      let active = true;
       getSession(sessionId).then(res => {
         if (!active) return;
         // Compatible mapping for multiple potential backend array names
@@ -156,9 +157,14 @@ export function useChatSession(sessionId: string) {
       }).catch(e => {
         console.error('[Session History] Failed to fetch session history:', e);
       });
-      return () => { active = false; };
     }
-  }, [sessionId]);
+
+    // [PUA Always-On] 必须做到生命周期的强闭环：卸载或切换会话时，必定从物理层面掐断残留的 Stream 请求
+    return () => { 
+      active = false; 
+      stopGeneration();
+    };
+  }, [sessionId, stopGeneration]);
 
   return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent: () => setLatestIntent(null) };
 }
