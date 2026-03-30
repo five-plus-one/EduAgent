@@ -76,26 +76,6 @@
 }
 ```
 
-### 1.1 用户登录
-* **POST** `/auth/login`
-* **说明**: 提交教工账号与密码获取短效与长效授信。
-* **请求体 (Body)**:
-```json
-{
-  "username": "teacher_01",
-  "password": "secure_password123"
-}
-```
-* **响应负载**:
-```json
-{
-  "access_token": "eyJhbGciOi...",
-  "refresh_token": "def5020...",
-  "expires_in": 7200,
-  "token_type": "Bearer"
-}
-```
-
 ### 1.2 用户注册
 * **POST** `/auth/register`
 * **说明**: 创建新的教师账户，无需鉴权。成功后直接返回用户信息，需再调用 `1.1 登录` 接口获取 Token。
@@ -259,15 +239,40 @@
 
 ## 模块三：上下文与资料挂载调度 (Interaction & Reference)
 
-### 3.1 文本对话式聊天 (流式)
+### 3.1 文本对话式聊天与 Tool Calling (流式)
 * **POST** `/sessions/{session_id}/chat`
-* **说明**: 前端向会话递送指令，并订阅返回的 SSE 事件流获取大语言模型的思考态与文本。
+* **说明**: 前端向会话递送指令，并订阅返回的 SSE 事件流。大模型以此接口返回文本与**工具调用指令 (Tool Calling)**，触发对课件的物理修改。**系统严禁对话通道输出 Markdown 格式的课件底稿，必须走 Tool 调用从而分离文档与对话。**
 * **Header**: `Accept: text/event-stream`
 * **请求体**: 
 ```json
 {"content": "请把侧重点放在抛物线运动上。"}
 ```
-* **响应流**: 标准 Server-Sent Events 流。
+* **响应流负载体 (SSE `data:` Event Payload)**:
+```json
+{
+  "event_type": "text",      // 类型枚举: "text", "tool_call", "tool_result"
+  
+  // 1. 常规闲聊 (event_type === "text")
+  "chunk": "好的，我已经帮您更新了第三页的标题。",
+  
+  // 2. 状态/骨架更新前置指令 (event_type === "tool_call")
+  "tool_call": {
+    "tool_name": "update_slide", // 包括 generate_full_ppt, add_slide 等
+    "arguments": { "page_index": 2, "new_content": "全新的章节解析" }
+  },
+
+  // 3. 后端执行工具完毕后的触发信标 (event_type === "tool_result")
+  "tool_result": {
+    "tool_name": "update_slide",
+    "status": "success",
+    "should_refetch_ppt": true // 前端拦截到 true 后静默发起 4.3 接口刷新页面
+  },
+  
+  "is_finished": false,
+  "extracted_intent": null
+}
+```
+*(注：前端一旦捕获非 `text` 类型事件，则剥离渲染层，确保 Chat Bubble 页面清爽。)*
 
 ### 3.2 语音输入转文本识别
 * **POST** `/sessions/{session_id}/audio-chat`
