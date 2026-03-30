@@ -10,9 +10,7 @@ from app.core.config import settings
 
 def _get_llm():
     return ChatOpenAI(
-        model=settings.EMBEDDING_MODEL.replace("embedding-3-large", "doubao-seed-1-8-251228") if "doubao" not in settings.EMBEDDING_MODEL else "doubao-seed-1-8-251228",
-        # Using the base LLM specified in the plan (using custom overriding since embedding uses text-embedding but Chat uses doubao)
-        model_name="doubao-seed-1-8-251228",
+        model=settings.LLM_MODEL,
         api_key=settings.OPENAI_API_KEY,
         base_url=settings.OPENAI_API_BASE,
         temperature=0.3
