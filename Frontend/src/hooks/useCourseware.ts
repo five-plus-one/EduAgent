@@ -53,6 +53,8 @@ export function useCourseware(sessionId: string) {
     fetchPreview();
   }, [sessionId, fetchPreview]);
 
+  const [isGenerating, setIsGenerating] = useState(false);
+
   // Listen for Agent-driven slide modifications & Tool lifecycles
   useEffect(() => {
     const handleStart = (e: Event) => {
@@ -82,7 +84,6 @@ export function useCourseware(sessionId: string) {
     };
   }, [sessionId, fetchPreview]);
 
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = useCallback(async (selectedFiles: string[] = [], mode: 'fast'|'depth' = 'fast') => {
     if (sessionId === 'new' || isGenerating) return;

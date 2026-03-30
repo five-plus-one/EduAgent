@@ -13,7 +13,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession } from '../utils/api';
 import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink } from 'lucide-react';
 
 export default function Workspace() {
@@ -80,12 +80,23 @@ export default function Workspace() {
     }
   };
 
-  // State cleanup on session switch
+  // Load linked docs when session changes, then also clear transient state
   useEffect(() => {
     setLinkedDocs(new Set());
     setLinkingDocs(new Set());
     setInputText('');
     setSelectionText('');
+
+    if (sessionId && sessionId !== 'new') {
+      let active = true;
+      getSession(sessionId).then(res => {
+        if (!active) return;
+        // API 2.3: associated_files contains the IDs of docs linked to this session
+        const associated: string[] = res?.associated_files || [];
+        setLinkedDocs(new Set(associated));
+      }).catch(e => console.warn('Failed to load linked docs for session', e));
+      return () => { active = false; };
+    }
   }, [sessionId]);
 
   // Auto scroll to bottom
