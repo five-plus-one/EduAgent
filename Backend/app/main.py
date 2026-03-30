@@ -9,6 +9,7 @@ from app.db.session import engine, SessionLocal
 from app.models.user import User
 from app.models.session import SessionContext, Message, SessionFile
 from app.models.document import Document
+from app.models.generation import GenerationTask, Courseware
 from app.core import security
 
 # Create tables
