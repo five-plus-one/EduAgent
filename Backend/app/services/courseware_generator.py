@@ -13,7 +13,9 @@ def _get_llm():
         model=settings.LLM_MODEL,
         api_key=settings.OPENAI_API_KEY,
         base_url=settings.OPENAI_API_BASE,
-        temperature=0.3
+        temperature=0.3,
+        request_timeout=60,
+        max_retries=1
     )
 
 def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, generation_mode: str):
@@ -66,13 +68,18 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
         
         请至少生成3页课件内容。
         """
-        llm = _get_llm()
+        import requests
         content = ""
         last_e = None
         for _ in range(3):
             try:
-                response = llm.invoke(prompt)
-                content = response.content
+                url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+                headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
+                payload = {"model": settings.LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
+                
+                response = requests.post(url, headers=headers, json=payload, timeout=60)
+                response.raise_for_status()
+                content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
                 if content:
                     break
             except Exception as e:
