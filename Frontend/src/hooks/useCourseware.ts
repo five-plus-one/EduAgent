@@ -39,8 +39,13 @@ export function useCourseware(sessionId: string) {
   }, [sessionId]);
 
   useEffect(() => {
+    // Clear old state before fetching new
+    setPages([]);
+    setWordDoc('');
+    setUpdatingPages(new Set());
+    
     fetchPreview();
-  }, [fetchPreview]);
+  }, [sessionId, fetchPreview]);
 
   const [isGenerating, setIsGenerating] = useState(false);
 

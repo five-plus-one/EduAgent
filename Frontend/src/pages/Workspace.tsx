@@ -58,6 +58,13 @@ export default function Workspace() {
     }
   };
 
+  // State cleanup on session switch
+  useEffect(() => {
+    setLinkedDocs(new Set());
+    setInputText('');
+    setSelectionText('');
+  }, [sessionId]);
+
   // Auto scroll to bottom
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
