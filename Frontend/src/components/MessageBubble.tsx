@@ -1,6 +1,7 @@
 
+import { useState } from 'react';
 import Markdown from 'react-markdown';
-import { Sparkles, UserCircle } from 'lucide-react';
+import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain } from 'lucide-react';
 import styles from './MessageBubble.module.css';
 import { clsx } from 'clsx';
 
@@ -8,11 +9,17 @@ export interface MessageProps {
   id: string;
   role: 'teacher' | 'ai';
   content: string;
+  thinking?: string;    // Reasoning/thinking content (DeepSeek-style)
+  isThinking?: boolean; // True while the <think> block is still streaming
   isTyping?: boolean;
 }
 
-export default function MessageBubble({ role, content, isTyping }: MessageProps) {
+export default function MessageBubble({ role, content, thinking, isThinking, isTyping }: MessageProps) {
   const isAI = role === 'ai';
+  const [thinkExpanded, setThinkExpanded] = useState(true); // Start expanded while streaming
+
+  const hasThinking = !!thinking;
+  const showThinkPanel = isAI && (hasThinking || isThinking);
 
   return (
     <div className={clsx(styles.messageRow, isAI ? styles.rowAI : styles.rowTeacher)}>
@@ -25,8 +32,43 @@ export default function MessageBubble({ role, content, isTyping }: MessageProps)
       <div className={clsx(styles.bubble, isAI ? styles.bubbleAI : styles.bubbleTeacher)}>
         {isAI ? (
           <div className={styles.markdownWrapper}>
-            <Markdown>{content}</Markdown>
-            {isTyping && <span className={styles.cursor} />}
+
+            {/* ===== DeepSeek-style Thinking Panel ===== */}
+            {showThinkPanel && (
+              <div className={styles.thinkBlock}>
+                <button
+                  className={styles.thinkHeader}
+                  onClick={() => setThinkExpanded(v => !v)}
+                  aria-expanded={thinkExpanded}
+                >
+                  <Brain size={14} className={clsx(styles.thinkIcon, isThinking && styles.thinkIconPulse)} />
+                  <span className={styles.thinkLabel}>
+                    {isThinking ? '深度思考中...' : '已完成思考'}
+                  </span>
+                  {thinkExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                {thinkExpanded && (
+                  <div className={styles.thinkBody}>
+                    <Markdown>{thinking || ''}</Markdown>
+                    {isThinking && <span className={styles.thinkCursor} />}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ===== Main answer content ===== */}
+            {content && <Markdown>{content}</Markdown>}
+
+            {/* Blinking cursor while typing main content */}
+            {isTyping && !isThinking && <span className={styles.cursor} />}
+
+            {/* Show a spinner when we're still waiting but have no content yet */}
+            {isTyping && !isThinking && !content && !hasThinking && (
+              <span className={styles.thinkingDots}>
+                <span /><span /><span />
+              </span>
+            )}
           </div>
         ) : (
           <div className={styles.textContent}>{content}</div>

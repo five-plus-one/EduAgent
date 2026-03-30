@@ -71,6 +71,8 @@ export function useChatSession(sessionId: string) {
               id: activeStream.aiMsgId,
               role: 'ai',
               content: activeStream.content,
+              thinking: activeStream.thinking,
+              isThinking: activeStream.isThinking,
               isTyping: activeStream.isSynthesizing,
             });
             setIsSynthesizing(activeStream.isSynthesizing);
@@ -96,16 +98,22 @@ export function useChatSession(sessionId: string) {
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
         if (idx !== -1) {
-          // Update existing active bubble
           const newArr = [...prev];
-          newArr[idx] = { ...newArr[idx], content: state.content, isTyping: state.isSynthesizing };
+          newArr[idx] = { 
+            ...newArr[idx], 
+            content: state.content, 
+            thinking: state.thinking,
+            isThinking: state.isThinking,
+            isTyping: state.isSynthesizing 
+          };
           return newArr;
         } else {
-          // If the AI bubble hasn't been added yet, add it to the end.
           return [...prev, {
             id: state.aiMsgId,
             role: 'ai',
             content: state.content,
+            thinking: state.thinking,
+            isThinking: state.isThinking,
             isTyping: state.isSynthesizing
           }];
         }

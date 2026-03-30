@@ -3,6 +3,8 @@ import { streamChatCompletion } from './api';
 export interface StreamState {
   aiMsgId: string;
   content: string;
+  thinking: string;       // DeepSeek-style reasoning content
+  isThinking: boolean;    // true while <think> block is open
   isSynthesizing: boolean;
   latestIntent: string | null;
 }
@@ -74,6 +76,8 @@ class StreamManagerClass {
       state: {
         aiMsgId: Math.random().toString(36).substring(2, 11),
         content: '',
+        thinking: '',
+        isThinking: false,
         isSynthesizing: true,
         latestIntent: null,
       },
@@ -93,11 +97,37 @@ class StreamManagerClass {
           if (intent && typeof intent === 'string') {
             streamData.state.latestIntent = intent;
           }
-          streamData.state.content += chunk;
+
+          // --- Thinking block parser (handles <think>...</think> or event_type="thinking") ---
+          let remaining = chunk;
+          while (remaining.length > 0) {
+            if (streamData.state.isThinking) {
+              const closeIdx = remaining.indexOf('</think>');
+              if (closeIdx !== -1) {
+                streamData.state.thinking += remaining.slice(0, closeIdx);
+                streamData.state.isThinking = false;
+                remaining = remaining.slice(closeIdx + 8);
+              } else {
+                streamData.state.thinking += remaining;
+                remaining = '';
+              }
+            } else {
+              const openIdx = remaining.indexOf('<think>');
+              if (openIdx !== -1) {
+                // Text before <think> goes to content
+                streamData.state.content += remaining.slice(0, openIdx);
+                streamData.state.isThinking = true;
+                remaining = remaining.slice(openIdx + 7);
+              } else {
+                streamData.state.content += remaining;
+                remaining = '';
+              }
+            }
+          }
+
           if (isFinished) {
             streamData.state.isSynthesizing = false;
-            // Fallback: if backend never sent a tool_result event but a generate tool was called,
-            // we still need to refetch so the PPT panel populates.
+            streamData.state.isThinking = false;
             if (lastToolName.toLowerCase().includes('generate')) {
               console.log('[StreamManager] Stream finished with a generate tool — fallback PPT refetch');
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
@@ -120,6 +150,10 @@ class StreamManagerClass {
         },
         controller.signal,
         {
+          onThinking: (chunk) => {
+            streamData.state.thinking += chunk;
+            this.notify(sessionId, streamData);
+          },
           onToolCall: (tool) => {
             lastToolName = tool.tool_name;
             const isGenerateTool = tool.tool_name.toLowerCase().includes('generate');
