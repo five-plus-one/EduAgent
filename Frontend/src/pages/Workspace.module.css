@@ -628,6 +628,18 @@
   transform: none;
 }
 
+.btnUnlinkHover {
+  background: hsla(0, 85%, 55%, 0.1) !important;
+  color: hsl(0, 85%, 55%) !important;
+  border-color: hsla(0, 85%, 55%, 0.3) !important;
+  cursor: pointer !important;
+}
+
+.btnUnlinkHover:hover {
+  background: hsla(0, 85%, 55%, 0.2) !important;
+  transform: translateY(-1px) !important;
+}
+
 .spinner {
   animation: spin 1s linear infinite;
 }
