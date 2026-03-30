@@ -7,7 +7,7 @@ import json
 from app.api import deps
 from app.models.user import User
 from app.models.session import SessionContext, Message
-from app.schemas.session import SessionCreate, SessionResponse, ChatMessage
+from app.schemas.session import SessionCreate, SessionResponse, ChatMessage, SessionListResponse, SessionItem, SessionDetailResponse, SessionUpdate
 from app.services.llm_service import stream_chat_response
 from app.db.session import SessionLocal
 
@@ -35,6 +35,87 @@ def create_session(
         "session_id": new_session.id,
         "created_at": new_session.created_at
     }
+
+@router.get("", response_model=SessionListResponse)
+def list_sessions(
+    page: int = 1,
+    size: int = 20,
+    keyword: str = None,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    query = db.query(SessionContext).filter(SessionContext.user_id == current_user.id)
+    if keyword:
+        query = query.filter(SessionContext.course_name.contains(keyword))
+    
+    total = query.count()
+    sessions = query.order_by(SessionContext.created_at.desc()).offset((page - 1) * size).limit(size).all()
+    
+    items = []
+    for s in sessions:
+        items.append(SessionItem(
+            session_id=s.id,
+            course_name=s.course_name,
+            updated_at=s.created_at
+        ))
+        
+    return {
+        "total": total,
+        "page": page,
+        "has_more": (page * size) < total,
+        "items": items
+    }
+
+@router.get("/{session_id}", response_model=SessionDetailResponse)
+def get_session_detail(
+    session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+    
+    return {
+        "session_id": session_ctx.id,
+        "course_name": session_ctx.course_name,
+        "target_audience": session_ctx.target_audience,
+        "messages": [{"role": m.role, "content": m.content} for m in messages],
+        "associated_files": [] # 留给 Phase 3 完成
+    }
+
+@router.put("/{session_id}")
+def update_session(
+    session_id: str,
+    update_data: SessionUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    if update_data.course_name is not None:
+        session_ctx.course_name = update_data.course_name
+        
+    db.commit()
+    return None
+
+@router.delete("/{session_id}")
+def delete_session(
+    session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    db.delete(session_ctx)
+    db.commit()
+    return None
 
 @router.post("/{session_id}/chat")
 async def chat_with_session(
