@@ -11,10 +11,7 @@ export function useChatSession(sessionId: string) {
   const [latestIntent, setLatestIntent] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Holds the resolved real session ID (after lazy creation)
-  const resolvedSessionIdRef = useRef<string | null>(
-    sessionId !== 'new' ? sessionId : null
-  );
+
 
   // AbortController for the active SSE stream
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -56,18 +53,17 @@ export function useChatSession(sessionId: string) {
 
     try {
       // --- Enforce real session ---
-      if (!resolvedSessionIdRef.current || resolvedSessionIdRef.current === 'new') {
+      if (sessionId === 'new') {
         alert('当前处于未命名初始态，请在左侧侧边栏【新课件设计】创建并命名您的会话。');
         setIsSynthesizing(false);
         setMessages(prev => prev.slice(0, prev.length - 2)); // 撤回刚刚的占位符
         return;
       }
 
-      const activeSessionId = resolvedSessionIdRef.current;
       setLatestIntent(null); // reset intent for new message
 
       await streamChatCompletion(
-        activeSessionId,
+        sessionId,
         content,
         (chunk, isFinished, intent) => {
           if (intent && typeof intent === 'string') {
@@ -111,6 +107,13 @@ export function useChatSession(sessionId: string) {
       ));
     }
   }, [sessionId, isSynthesizing, navigate]);
+
+  // Handle session switch: wipe out chat state to prevent dirty crossover
+  useEffect(() => {
+    setMessages([]);
+    setIsSynthesizing(false);
+    setLatestIntent(null);
+  }, [sessionId]);
 
   return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration };
 }
