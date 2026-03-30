@@ -20,3 +20,16 @@ class Message(Base):
     content = Column(Text)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     session = relationship("SessionContext", back_populates="messages")
+
+class SessionFile(Base):
+    __tablename__ = "session_file"
+    id = Column(String, primary_key=True)
+    session_id = Column(String, ForeignKey("session_context.id"), index=True)
+    document_id = Column(String, ForeignKey("document.id"), nullable=True, index=True)
+    filename = Column(String, nullable=False)
+    file_path = Column(String, nullable=True)
+    status = Column(String, default="pending") # processing, completed, failed
+    intent_desc = Column(Text, nullable=True)
+    progress = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    session = relationship("SessionContext", backref="associated_files")

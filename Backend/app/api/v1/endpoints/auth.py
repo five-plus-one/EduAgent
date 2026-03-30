@@ -7,7 +7,7 @@ from app.core import security
 from app.core.config import settings
 from app.api import deps
 from app.models.user import User
-from app.schemas.user import Token, UserResponse, UserCreate
+from app.schemas.user import Token, UserResponse, UserCreate, PreferencesUpdate
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -52,6 +52,39 @@ def read_current_user(
         "department": current_user.department,
         "preferences": current_user.preferences
     }
+
+@router.post("/logout")
+def logout():
+    """
+    Logout (front-end clears token, backend could add to blacklist).
+    """
+    return None
+
+@router.put("/me/preferences")
+def update_preferences(
+    prefs: PreferencesUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """
+    Update global personalized settings.
+    """
+    current_prefs = current_user.preferences or {}
+    
+    if prefs.theme is not None:
+        current_prefs["theme"] = prefs.theme
+    if prefs.language is not None:
+        current_prefs["language"] = prefs.language
+    if prefs.default_ai_model is not None:
+        current_prefs["default_ai_model"] = prefs.default_ai_model
+        
+    # Re-assign to force SQLAlchemy JSON update
+    current_user.preferences = current_prefs
+    
+    db.commit()
+    db.refresh(current_user)
+    
+    return current_user.preferences
 
 # Endpoint just for init test user easier
 @router.post("/register", response_model=UserResponse)

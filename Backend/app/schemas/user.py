@@ -8,6 +8,11 @@ class UserCreate(BaseModel):
     name: Optional[str] = "未命名教师"
     department: Optional[str] = ""
 
+class PreferencesUpdate(BaseModel):
+    theme: Optional[str] = None
+    language: Optional[str] = None
+    default_ai_model: Optional[str] = None
+
 # Properties to return to client
 class UserResponse(BaseModel):
     user_id: str

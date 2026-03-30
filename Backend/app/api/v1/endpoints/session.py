@@ -1,17 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 import uuid
 import json
+import os
+import shutil
 
 from app.api import deps
 from app.models.user import User
-from app.models.session import SessionContext, Message
-from app.schemas.session import SessionCreate, SessionResponse, ChatMessage
+from app.models.document import Document
+from app.models.session import SessionContext, Message, SessionFile
+from app.schemas.session import SessionCreate, SessionResponse, ChatMessage, SessionListResponse, SessionItem, SessionDetailResponse, SessionUpdate
 from app.services.llm_service import stream_chat_response
 from app.db.session import SessionLocal
+from app.services.document_processor_task import process_session_file_task
+from app.services.vector_store import delete_document_vectors
 
 router = APIRouter()
+
+SESSION_UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "sessions")
+os.makedirs(SESSION_UPLOAD_DIR, exist_ok=True)
+
+class ReferenceRequest(BaseModel):
+    reference_ids: list[str]
+
+class IntentUpdateRequest(BaseModel):
+    intent_desc: str
 
 @router.post("", response_model=SessionResponse)
 def create_session(
@@ -35,6 +50,87 @@ def create_session(
         "session_id": new_session.id,
         "created_at": new_session.created_at
     }
+
+@router.get("", response_model=SessionListResponse)
+def list_sessions(
+    page: int = 1,
+    size: int = 20,
+    keyword: str = None,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    query = db.query(SessionContext).filter(SessionContext.user_id == current_user.id)
+    if keyword:
+        query = query.filter(SessionContext.course_name.contains(keyword))
+    
+    total = query.count()
+    sessions = query.order_by(SessionContext.created_at.desc()).offset((page - 1) * size).limit(size).all()
+    
+    items = []
+    for s in sessions:
+        items.append(SessionItem(
+            session_id=s.id,
+            course_name=s.course_name,
+            updated_at=s.created_at
+        ))
+        
+    return {
+        "total": total,
+        "page": page,
+        "has_more": (page * size) < total,
+        "items": items
+    }
+
+@router.get("/{session_id}", response_model=SessionDetailResponse)
+def get_session_detail(
+    session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+    
+    return {
+        "session_id": session_ctx.id,
+        "course_name": session_ctx.course_name,
+        "target_audience": session_ctx.target_audience,
+        "messages": [{"role": m.role, "content": m.content} for m in messages],
+        "associated_files": [] # 留给 Phase 3 完成
+    }
+
+@router.put("/{session_id}")
+def update_session(
+    session_id: str,
+    update_data: SessionUpdate,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    if update_data.course_name is not None:
+        session_ctx.course_name = update_data.course_name
+        
+    db.commit()
+    return None
+
+@router.delete("/{session_id}")
+def delete_session(
+    session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    db.delete(session_ctx)
+    db.commit()
+    return None
 
 @router.post("/{session_id}/chat")
 async def chat_with_session(
@@ -108,10 +204,118 @@ async def audio_chat(
 ):
     """
     1.3 语音输入转文本
-    目前为 Mock 响应，后期可对接 Whisper ASR
     """
-    # ... mock sleep/process ...
     mock_text = f"收到来自 {audio_file.filename} 的语音。我现在想做一份关于牛顿定律的课件，有什么好的想法吗？"
     return {
         "text": mock_text
     }
+
+@router.post("/{session_id}/files")
+async def upload_session_file(
+    session_id: str,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    intent_desc: str = Form(default=""),
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    file_id = "sf_" + uuid.uuid4().hex[:8]
+    ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
+    safe_filename = f"{file_id}{ext}"
+    file_path = os.path.join(SESSION_UPLOAD_DIR, safe_filename)
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    sf = SessionFile(
+        id=file_id,
+        session_id=session_id,
+        filename=file.filename,
+        file_path=file_path,
+        intent_desc=intent_desc,
+        status="pending"
+    )
+    db.add(sf)
+    db.commit()
+    
+    background_tasks.add_task(process_session_file_task, file_id)
+    return {"file_id": file_id, "status": "processing"}
+
+@router.get("/{session_id}/files/{file_id}/status")
+def get_session_file_status(
+    session_id: str,
+    file_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    sf = db.query(SessionFile).filter(SessionFile.id == file_id, SessionFile.session_id == session_id).first()
+    if not sf:
+        raise HTTPException(status_code=404, detail="Session File not found")
+        
+    return {"status": sf.status, "progress": sf.progress}
+
+@router.post("/{session_id}/references")
+def mount_documents_to_session(
+    session_id: str,
+    body: ReferenceRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    for doc_id in body.reference_ids:
+        doc = db.query(Document).filter(Document.id == doc_id).first()
+        if doc and doc.status == "completed":
+            sf = SessionFile(
+                id="sf_" + uuid.uuid4().hex[:8],
+                session_id=session_id,
+                document_id=doc.id,
+                filename=doc.filename,
+                file_path=doc.file_path, 
+                status="completed", 
+                progress=100
+            ) 
+            db.add(sf)
+    db.commit()
+    return None
+
+@router.put("/{session_id}/files/{file_id}")
+def update_session_file_intent(
+    session_id: str,
+    file_id: str,
+    body: IntentUpdateRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    sf = db.query(SessionFile).filter(SessionFile.id == file_id, SessionFile.session_id == session_id).first()
+    if sf:
+        sf.intent_desc = body.intent_desc
+        db.commit()
+    return None
+
+@router.delete("/{session_id}/files/{file_id}")
+def delete_session_file(
+    session_id: str,
+    file_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    sf = db.query(SessionFile).filter(SessionFile.id == file_id, SessionFile.session_id == session_id).first()
+    if not sf:
+        raise HTTPException(status_code=404, detail="File mount not found")
+    
+    # If not a global document mount, we delete actual vectors and local file
+    if not sf.document_id:
+        delete_document_vectors(file_id)
+        if sf.file_path and os.path.exists(sf.file_path):
+            os.remove(sf.file_path)
+            
+    db.delete(sf)
+    db.commit()
+    return None
