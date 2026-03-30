@@ -166,10 +166,24 @@ async def chat_with_session(
     db.add(user_msg_db)
     db.commit()
 
+    # Pre-computation: Retrieve RAG chunks if any session files exist
+    rag_context = ""
+    session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
+    file_ids = [sf.id for sf in session_files]
+    if file_ids:
+        from app.services.vector_store import search_vectors
+        try:
+            # We fetch top 3 highly-correlated chunks against the new user query
+            docs = search_vectors(query=chat_msg.content, filter_document_ids=file_ids, top_k=3)
+            if docs:
+                rag_context = "\n---\n".join([d.page_content for d in docs])
+        except Exception:
+            pass  # Fallback gracefully if Chroma is empty or disconnected
+
     async def sse_generator():
         ai_full_text = ""
-        # stream the chunks
-        async for chunk_sse in stream_chat_response(history, chat_msg.content):
+        # stream the chunks with RAG support
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context):
             # Parse chunk internally to build final full AI text for DB persistence
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()

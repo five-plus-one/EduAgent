@@ -12,7 +12,7 @@ def get_chat_llm():
         temperature=0.7
     )
 
-async def stream_chat_response(messages_history: list, new_user_input: str):
+async def stream_chat_response(messages_history: list, new_user_input: str, rag_context: str = ""):
     llm = get_chat_llm()
     messages = [
         SystemMessage(content=(
@@ -21,6 +21,9 @@ async def stream_chat_response(messages_history: list, new_user_input: str):
             "你的回答应该简洁、结构化，以推动生成PPT或者教案为最终目的。"
         ))
     ]
+    
+    if rag_context:
+        messages.append(SystemMessage(content=f"【当前您所在的备课空间已挂载了如下知识库文档片段，请您在回答当前用户问题时，务必深度结合以下原文切片进行严谨解答】：\n{rag_context}"))
     
     for msg in messages_history:
         if msg.role == "user":
