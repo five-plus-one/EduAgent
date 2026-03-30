@@ -15,6 +15,27 @@ export function useChatSession(sessionId: string) {
     sessionId !== 'new' ? sessionId : null
   );
 
+  // AbortController for the active SSE stream
+  const abortControllerRef = useRef<AbortController | null>(null);
+  // Track the current AI message id so stopGeneration can finalize it
+  const currentAiMsgIdRef = useRef<string | null>(null);
+
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    // Finalize the current AI message bubble (stop the typing indicator)
+    if (currentAiMsgIdRef.current) {
+      const id = currentAiMsgIdRef.current;
+      setMessages(prev => prev.map(m =>
+        m.id === id ? { ...m, isTyping: false } : m
+      ));
+      currentAiMsgIdRef.current = null;
+    }
+    setIsSynthesizing(false);
+  }, []);
+
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isSynthesizing) return;
 
@@ -24,17 +45,20 @@ export function useChatSession(sessionId: string) {
 
     // Create placeholder for AI response
     const aiMsgId = generateId();
+    currentAiMsgIdRef.current = aiMsgId;
     setIsSynthesizing(true);
     setMessages(prev => [...prev, { id: aiMsgId, role: 'ai', content: '', isTyping: true }]);
 
+    // Create a fresh AbortController for this request
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       // --- Lazy session creation ---
-      // If this is a "new" session, create it on the backend first
       if (!resolvedSessionIdRef.current) {
         const result = await createSession('新建备课会话');
         const newId: string = result?.session_id ?? result;
         resolvedSessionIdRef.current = newId;
-        // Update the URL so the user can bookmark / refresh the real session
         navigate(`/chat/${newId}`, { replace: true });
       }
 
@@ -50,27 +74,37 @@ export function useChatSession(sessionId: string) {
               : m
           ));
           if (isFinished) {
+            currentAiMsgIdRef.current = null;
+            abortControllerRef.current = null;
             setIsSynthesizing(false);
           }
         },
         (_err) => {
-          setIsSynthesizing(false);
-          setMessages(prev => prev.map(m =>
-            m.id === aiMsgId
-              ? { ...m, content: '⚠️ 连接错误，请检查网络后重试。', isTyping: false }
-              : m
-          ));
-        }
+          // Only handle non-abort errors
+          if (!controller.signal.aborted) {
+            setIsSynthesizing(false);
+            currentAiMsgIdRef.current = null;
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId
+                ? { ...m, content: m.content || '⚠️ 连接错误，请检查网络后重试。', isTyping: false }
+                : m
+            ));
+          }
+        },
+        controller.signal,
       );
-    } catch {
+    } catch (err) {
+      // Ignore AbortError — user-initiated stop is handled by stopGeneration()
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setIsSynthesizing(false);
+      currentAiMsgIdRef.current = null;
       setMessages(prev => prev.map(m =>
         m.id === aiMsgId
-          ? { ...m, content: '⚠️ 网络错误，请稍后再试。', isTyping: false }
+          ? { ...m, content: m.content || '⚠️ 网络错误，请稍后再试。', isTyping: false }
           : m
       ));
     }
   }, [sessionId, isSynthesizing, navigate]);
 
-  return { messages, isSynthesizing, sendMessage };
+  return { messages, isSynthesizing, sendMessage, stopGeneration };
 }

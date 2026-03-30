@@ -114,7 +114,8 @@ export const streamChatCompletion = async (
   sessionId: string,
   content: string,
   onMessage: (chunk: string, isFinished: boolean, intent?: unknown) => void,
-  onError: (err: unknown) => void
+  onError: (err: unknown) => void,
+  signal?: AbortSignal,
 ) => {
   const token = localStorage.getItem('access_token');
 
@@ -126,6 +127,7 @@ export const streamChatCompletion = async (
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ content }),
+    signal,
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
@@ -135,6 +137,10 @@ export const streamChatCompletion = async (
       }
     },
     onerror(err) {
+      // Silently swallow AbortError — this is intentional user cancellation
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw err; // must re-throw to stop fetchEventSource's retry loop
+      }
       onError(err);
       throw err;
     },

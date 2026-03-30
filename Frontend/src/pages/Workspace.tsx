@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Mic, MicOff, Paperclip, Send, Download, Sparkles } from 'lucide-react';
+import { Mic, MicOff, Paperclip, Send, Square, Download, Sparkles } from 'lucide-react';
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -27,7 +27,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, sendMessage } = useChatSession(sessionId);
+  const { messages, isSynthesizing, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
 
   // Auto scroll to bottom
@@ -148,13 +148,24 @@ export default function Workspace() {
               >
                 {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
-              <button 
-                className={clsx('button-primary', styles.sendButton)} 
-                disabled={!inputText.trim() || isSynthesizing}
-                onClick={handleSubmit}
-              >
-                <Send size={18} />
-              </button>
+              {isSynthesizing ? (
+                <button
+                  className={clsx('button-primary', styles.sendButton, styles.stopButton)}
+                  onClick={stopGeneration}
+                  title="停止生成"
+                >
+                  <Square size={18} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  className={clsx('button-primary', styles.sendButton)}
+                  disabled={!inputText.trim()}
+                  onClick={handleSubmit}
+                  title="发送消息"
+                >
+                  <Send size={18} />
+                </button>
+              )}
             </div>
           </div>
           {speechError && (
