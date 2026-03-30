@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import Markdown from 'react-markdown';
-import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain } from 'lucide-react';
+import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain, Wrench } from 'lucide-react';
 import styles from './MessageBubble.module.css';
 import { clsx } from 'clsx';
 
@@ -9,17 +9,21 @@ export interface MessageProps {
   id: string;
   role: 'teacher' | 'ai';
   content: string;
-  thinking?: string;    // Reasoning/thinking content (DeepSeek-style)
-  isThinking?: boolean; // True while the <think> block is still streaming
+  toolLog?: string;     // Tool call/result log (persisted across session switches)
+  thinking?: string;
+  isThinking?: boolean;
   isTyping?: boolean;
 }
 
-export default function MessageBubble({ role, content, thinking, isThinking, isTyping }: MessageProps) {
+export default function MessageBubble({ role, content, toolLog, thinking, isThinking, isTyping }: MessageProps) {
   const isAI = role === 'ai';
-  const [thinkExpanded, setThinkExpanded] = useState(true); // Start expanded while streaming
+  const [thinkExpanded, setThinkExpanded] = useState(true);
+  const [toolExpanded, setToolExpanded] = useState(true);
 
   const hasThinking = !!thinking;
+  const hasToolLog = !!toolLog;
   const showThinkPanel = isAI && (hasThinking || isThinking);
+  const showToolPanel = isAI && hasToolLog;
 
   return (
     <div className={clsx(styles.messageRow, isAI ? styles.rowAI : styles.rowTeacher)}>
