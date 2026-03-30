@@ -182,6 +182,11 @@
   color: hsl(40, 90%, 45%);
 }
 
+.statusFailed {
+  background-color: hsla(0, 75%, 52%, 0.1);
+  color: hsl(0, 75%, 52%);
+}
+
 .emptyTable {
   text-align: center;
   padding: 60px 0 !important;
