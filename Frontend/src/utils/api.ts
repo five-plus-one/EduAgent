@@ -119,6 +119,7 @@ export const streamChatCompletion = async (
   callbacks?: {
     onToolCall?: (tool: { tool_name: string; arguments: any }) => void;
     onToolResult?: (result: { tool_name: string; status: string; should_refetch_ppt?: boolean }) => void;
+    onThinking?: (chunk: string) => void;
   }
 ) => {
   const token = localStorage.getItem('access_token');
@@ -135,13 +136,15 @@ export const streamChatCompletion = async (
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
-        // Handle explicit Tool Calls/Results vs normal Text
-        if (data.event_type === 'tool_call' && callbacks?.onToolCall && data.tool_call) {
+        if (data.event_type === 'thinking' && callbacks?.onThinking) {
+          // Structured thinking event from backend
+          callbacks.onThinking(data.chunk ?? '');
+        } else if (data.event_type === 'tool_call' && callbacks?.onToolCall && data.tool_call) {
           callbacks.onToolCall(data.tool_call);
         } else if (data.event_type === 'tool_result' && callbacks?.onToolResult && data.tool_result) {
           callbacks.onToolResult(data.tool_result);
         } else {
-          // Default behavior: handle as normal text chunk
+          // Default: text chunk (may contain <think> tags for DeepSeek-style streaming)
           onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
         }
       } catch {

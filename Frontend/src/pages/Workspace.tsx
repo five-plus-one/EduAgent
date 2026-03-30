@@ -36,7 +36,8 @@ export default function Workspace() {
 
   // RAG Knowledge Base Integration
   const [kbDocs, setKbDocs] = useState<any[]>([]);
-  const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
+  const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());       // Set of document_ids
+  const [docToFileId, setDocToFileId] = useState<Map<string, string>>(new Map()); // document_id → session_file_id
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
@@ -58,16 +59,23 @@ export default function Workspace() {
     setLinkingDocs(prev => new Set(prev).add(docId));
     try {
       if (isLinked) {
-        await removeReference(sessionId, docId);
+        // Use session_file_id for the DELETE endpoint (not document_id)
+        const fileId = docToFileId.get(docId) ?? docId;
+        await removeReference(sessionId, fileId);
         setLinkedDocs(prev => {
           const next = new Set(prev);
+          next.delete(docId);
+          return next;
+        });
+        setDocToFileId(prev => {
+          const next = new Map(prev);
           next.delete(docId);
           return next;
         });
       } else {
         await addReferences(sessionId, [docId]);
         setLinkedDocs(prev => new Set(prev).add(docId));
-        // Soft focus switch to PPT to implicitly hint next action
+        // Note: document_id == file_id for newly linked docs (no session_file_id until re-fetched)
       }
     } catch (e) {
       alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');
@@ -83,6 +91,7 @@ export default function Workspace() {
   // Load linked docs when session changes, then also clear transient state
   useEffect(() => {
     setLinkedDocs(new Set());
+    setDocToFileId(new Map());
     setLinkingDocs(new Set());
     setInputText('');
     setSelectionText('');
@@ -91,9 +100,27 @@ export default function Workspace() {
       let active = true;
       getSession(sessionId).then(res => {
         if (!active) return;
-        // API 2.3: associated_files contains the IDs of docs linked to this session
-        const associated: string[] = res?.associated_files || [];
-        setLinkedDocs(new Set(associated));
+        // API 2.3 (updated): associated_files is an array of objects
+        // Each object: { session_file_id, document_id, filename, status }
+        const associated: any[] = res?.associated_files || [];
+        
+        const docIds = new Set<string>();
+        const mapping = new Map<string, string>();
+
+        associated.forEach((entry: any) => {
+          // Support both old format (plain string id) and new object format
+          if (typeof entry === 'string') {
+            docIds.add(entry);
+          } else if (entry?.document_id) {
+            docIds.add(entry.document_id);
+            if (entry.session_file_id) {
+              mapping.set(entry.document_id, entry.session_file_id);
+            }
+          }
+        });
+
+        setLinkedDocs(docIds);
+        setDocToFileId(mapping);
       }).catch(e => console.warn('Failed to load linked docs for session', e));
       return () => { active = false; };
     }

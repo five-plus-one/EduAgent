@@ -64,6 +64,15 @@ export function useChatSession(sessionId: string) {
             content: m.content || m.text || '',
           }));
 
+          // Inject persisted tool log into the last AI message (survives session switches)
+          const persistedToolLog = GlobalStreamManager.getToolLog(sessionId);
+          if (persistedToolLog) {
+            const lastAiIdx = mapped.reduceRight((acc, m, i) => acc === -1 && m.role === 'ai' ? i : acc, -1);
+            if (lastAiIdx !== -1) {
+              mapped[lastAiIdx] = { ...mapped[lastAiIdx], toolLog: persistedToolLog };
+            }
+          }
+
           // Merge with any currently active global stream for this session
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
@@ -71,6 +80,9 @@ export function useChatSession(sessionId: string) {
               id: activeStream.aiMsgId,
               role: 'ai',
               content: activeStream.content,
+              toolLog: activeStream.toolLog,
+              thinking: activeStream.thinking,
+              isThinking: activeStream.isThinking,
               isTyping: activeStream.isSynthesizing,
             });
             setIsSynthesizing(activeStream.isSynthesizing);
@@ -96,16 +108,24 @@ export function useChatSession(sessionId: string) {
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
         if (idx !== -1) {
-          // Update existing active bubble
           const newArr = [...prev];
-          newArr[idx] = { ...newArr[idx], content: state.content, isTyping: state.isSynthesizing };
+          newArr[idx] = { 
+            ...newArr[idx], 
+            content: state.content,
+            toolLog: state.toolLog,
+            thinking: state.thinking,
+            isThinking: state.isThinking,
+            isTyping: state.isSynthesizing 
+          };
           return newArr;
         } else {
-          // If the AI bubble hasn't been added yet, add it to the end.
           return [...prev, {
             id: state.aiMsgId,
             role: 'ai',
             content: state.content,
+            toolLog: state.toolLog,
+            thinking: state.thinking,
+            isThinking: state.isThinking,
             isTyping: state.isSynthesizing
           }];
         }
