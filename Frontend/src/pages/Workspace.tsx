@@ -214,27 +214,43 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {pages.map(page => (
-                <PPTCard 
-                  key={page.page_index} 
-                  page={page} 
-                  isUpdating={updatingPages.has(page.page_index)}
-                  onIterate={(instruction) => iteratePage(page.page_index, instruction)}
-                />
-              ))}
+              {pages.length > 0 ? (
+                pages.map(page => (
+                  <PPTCard 
+                    key={page.page_index} 
+                    page={page} 
+                    isUpdating={updatingPages.has(page.page_index)}
+                    onIterate={(instruction) => iteratePage(page.page_index, instruction)}
+                  />
+                ))
+              ) : (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+                  <Sparkles size={48} style={{ marginBottom: '16px' }} />
+                  <h3>课件待生成</h3>
+                  <p>请点击右上角「✨ AI 一键生成课件」开始</p>
+                </div>
+              )}
             </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
-              <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]} 
-                  rehypePlugins={[rehypeRaw]}
-                >
-                  {wordDoc}
-                </ReactMarkdown>
-              </div>
+              {wordDoc ? (
+                <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]} 
+                    rehypePlugins={[rehypeRaw]}
+                  >
+                    {wordDoc}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+                  <Sparkles size={48} style={{ marginBottom: '16px' }} />
+                  <h3>讲义待生成</h3>
+                  <p>随课件一并产出，请先生成课件</p>
+                </div>
+              )}
             </div>
             
             {/* FLOATING ACTION BUTTON */}

@@ -1,14 +1,15 @@
 .pptCard {
   width: 100%;
-  max-width: 640px;
+  max-width: 800px;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-md);
-  padding: 24px 32px;
+  padding: 5cqi 6cqi;
   display: flex;
   flex-direction: column;
   transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s;
   position: relative;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 .pptCard:hover {
@@ -24,14 +25,14 @@
 }
 
 .pageNumber {
-  font-size: 1.5rem;
+  font-size: max(1rem, 4cqw);
   font-weight: 800;
   color: var(--accent-primary);
   opacity: 0.5;
 }
 
 .pptCard h4 {
-  font-size: 1.4rem;
+  font-size: max(1rem, 3.5cqw);
   color: var(--text-primary);
   margin: 0;
 }
@@ -55,22 +56,22 @@
 }
 
 .coverTitle {
-  font-size: 3.2rem;
+  font-size: max(1.8rem, 7cqw);
   font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: 32px;
+  margin-bottom: 4cqh;
   letter-spacing: -1px;
 }
 
 .coverSpeaker {
   position: absolute;
-  right: 48px;
-  bottom: 40px;
+  right: 6cqw;
+  bottom: 6cqh;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 12px;
-  font-size: 1.25rem;
+  gap: 1.5cqh;
+  font-size: max(0.9rem, 2.5cqw);
   color: var(--text-secondary);
   font-weight: 500;
 }
@@ -140,20 +141,20 @@
 
 /* Element Styling */
 .textBlock {
-  font-size: 1.15rem;
+  font-size: max(0.85rem, 2.2cqw);
   color: var(--text-secondary);
-  line-height: 1.7;
+  line-height: 1.6;
 }
 
 .textBlock p {
-  margin-bottom: 12px;
+  margin-bottom: 1.5cqh;
 }
 
 .contentList {
-  padding-left: 20px;
+  padding-left: 3cqw;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 1.2cqh;
 }
 
 .imageWrapper {
