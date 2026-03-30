@@ -31,7 +31,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate, fetchPreview } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   // RAG Knowledge Base Integration
@@ -92,6 +92,18 @@ export default function Workspace() {
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Global Sync for Tool Calling
+  useEffect(() => {
+    const handleRefetch = (e: Event) => {
+       const detail = (e as CustomEvent).detail;
+       if (detail?.sessionId === sessionId) {
+          fetchPreview();
+       }
+    };
+    window.addEventListener('REFETCH_COURSEWARE', handleRefetch);
+    return () => window.removeEventListener('REFETCH_COURSEWARE', handleRefetch);
+  }, [sessionId, fetchPreview]);
 
   // AI Tool Caller (MCP Proxy)
   useEffect(() => {

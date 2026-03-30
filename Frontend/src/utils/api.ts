@@ -113,7 +113,7 @@ export const deleteSession = async (sessionId: string) => {
 export const streamChatCompletion = async (
   sessionId: string,
   content: string,
-  onMessage: (chunk: string, isFinished: boolean, intent?: unknown) => void,
+  onMessage: (chunk: string, isFinished: boolean, intent?: unknown, eventType?: string, eventData?: any) => void,
   onError: (err: unknown) => void,
   signal?: AbortSignal,
 ) => {
@@ -131,7 +131,8 @@ export const streamChatCompletion = async (
     onmessage(ev) {
       try {
         const data = JSON.parse(ev.data);
-        onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
+        const evType = data.event_type || 'text';
+        onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent, evType, data);
       } catch {
         console.error('Failed to parse SSE chunk', ev.data);
       }

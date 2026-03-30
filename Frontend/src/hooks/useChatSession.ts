@@ -65,16 +65,26 @@ export function useChatSession(sessionId: string) {
       await streamChatCompletion(
         sessionId,
         content,
-        (chunk, isFinished, intent) => {
+        (chunk, isFinished, intent, evType, evData) => {
           if (intent && typeof intent === 'string') {
             // Extracted intent detected from backend Agent!
             setLatestIntent(intent);
           }
-          setMessages(prev => prev.map(m =>
-            m.id === aiMsgId
-              ? { ...m, content: m.content + chunk, isTyping: !isFinished }
-              : m
-          ));
+          
+          if (evType === 'tool_result' && evData?.tool_result?.should_refetch_ppt) {
+            window.dispatchEvent(new CustomEvent('REFETCH_COURSEWARE', { detail: { sessionId } }));
+          }
+
+          if (evType === 'tool_call' || evType === 'tool_result') {
+            // Do not render tool JSON inside the chat bubble
+          } else {
+            setMessages(prev => prev.map(m =>
+              m.id === aiMsgId
+                ? { ...m, content: m.content + chunk, isTyping: !isFinished }
+                : m
+            ));
+          }
+          
           if (isFinished) {
             currentAiMsgIdRef.current = null;
             abortControllerRef.current = null;

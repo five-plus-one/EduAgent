@@ -169,7 +169,7 @@ async def chat_with_session(
     # Pre-computation: Retrieve RAG chunks if any session files exist
     rag_context = ""
     session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
-    file_ids = [sf.id for sf in session_files]
+    file_ids = [sf.document_id if sf.document_id else sf.id for sf in session_files]
     if file_ids:
         from app.services.vector_store import search_vectors
         try:
@@ -183,7 +183,7 @@ async def chat_with_session(
     async def sse_generator():
         ai_full_text = ""
         # stream the chunks with RAG support
-        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context):
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id):
             # Parse chunk internally to build final full AI text for DB persistence
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
