@@ -68,8 +68,11 @@ def get_courseware_preview(
     if not cw or not cw.ppt_data:
         raise HTTPException(status_code=404, detail="Courseware not found or not generated yet")
         
+    slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
+    if not isinstance(slides_array, list): slides_array = []
+
     return {
-        "ppt_data": cw.ppt_data,
+        "ppt_data": slides_array,
         "word_markdown": cw.word_markdown or ""
     }
 
@@ -84,10 +87,24 @@ def iterate_slide(
     if not cw:
         raise HTTPException(status_code=404, detail="Courseware not found")
         
-    page_to_update = next((p for p in cw.ppt_data if p.get("page_index") == body.page_index), None)
+    slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
+    if not isinstance(slides_array, list): slides_array = []
+    
+    page_to_update = next((p for p in slides_array if p.get("page_index") == body.page_index), None)
     if page_to_update:
+        # We need LLM to regenerate the slide content based on `body.instruction`
+        # But this is just a quick placeholder mutation exactly as the original code
         page_to_update["speaker_notes"] = f"(Updated by iterate: {body.instruction})\n" + page_to_update.get("speaker_notes", "")
-        db.query(Courseware).filter(Courseware.id == cw.id).update({"ppt_data": cw.ppt_data})
+        
+        # Save back the structure
+        new_data = dict(cw.ppt_data) if isinstance(cw.ppt_data, dict) else {}
+        if isinstance(cw.ppt_data, dict):
+            new_data["ppt_data"] = slides_array
+        else:
+            new_data = slides_array
+            
+        # SQL core update
+        db.query(Courseware).filter(Courseware.id == cw.id).update({"ppt_data": new_data})
         db.commit()
         return page_to_update
         
