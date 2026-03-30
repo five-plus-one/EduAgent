@@ -53,6 +53,20 @@ export function useCourseware(sessionId: string) {
     fetchPreview();
   }, [sessionId, fetchPreview]);
 
+  // Listen for Agent-driven slide modifications
+  useEffect(() => {
+    const handleRefetch = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) {
+        fetchPreview();
+      }
+    };
+    window.addEventListener('EduAgent_Refetch_PPT', handleRefetch);
+    return () => {
+      window.removeEventListener('EduAgent_Refetch_PPT', handleRefetch);
+    };
+  }, [sessionId, fetchPreview]);
+
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = useCallback(async (selectedFiles: string[] = [], mode: 'fast'|'depth' = 'fast') => {
