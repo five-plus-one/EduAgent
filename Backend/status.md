@@ -46,3 +46,20 @@
 
 - **极简外挂原则**：坚守目前开发目录的约束，不依赖需要独立部署的外部中间件环境，把一切必要的环境封装在 `requirements.txt` 和项目的私有 DB 内。
 - **状态不丢失 (Stateless API vs Stateful Agent)**：API 本身必须是无状态的（方便扩容），但用户的全部对话上下文将由 SQLAlchemy 深度绑定唯一的 `session_id` 持久化管理。
+
+---
+
+## 4. API 接口落地状态总览 (基于最新 API.md)
+
+以下为当前后端对于前端跨域请求已100%打通的核心基建：
+
+- ✅ **鉴权体系 (`/auth`)**: 支持注册 `register`、登录拿取 JWT Token `login`、信息偏好修改 `me` 及 `logout`。
+- ✅ **会话时空引擎 (`/sessions`)**: 
+  - 支持会话对象的完整 CRUD (列表分页、详情漫游、重命名、全量删档)。
+  - `POST /sessions/{session_id}/chat` 已攻克最难的 **SSE (Server-Sent Events) 单向流式推流**。
+- ✅ **全景资料库与混合挂载 (Knowledge Base & RAG)**:
+  - 攻破大体量 PDF/Word/TXT 的秒级接收入盘 (`/knowledge-base/documents`)。
+  - 已支持从“全局公共区”将其跨维度挂载向单个独立房间 (`/sessions/{id}/references`)。
+  - 支持会话内部专有素材直传与查询调度。
+- 🕒 **最终试炼 (Next Node)**:
+  - 当前进展指向最终局——“利用图元约束引擎一键导出 PPT/Word (`/courseware`, `/generate`)”。
