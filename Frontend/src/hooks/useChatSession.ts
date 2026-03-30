@@ -49,7 +49,16 @@ export function useChatSession(sessionId: string) {
         if (!active) return;
         const historyData = res?.messages || res?.chat_history || res?.history;
         if (historyData && Array.isArray(historyData)) {
-          const mapped: MessageProps[] = historyData.map((m: any) => ({
+          // Contiguous deduplication to band-aid DB pollution
+          const deduplicated = historyData.filter((m: any, i: number, arr: any[]) => {
+            if (i === 0) return true;
+            const prev = arr[i - 1];
+            const contentMatches = (m.content || m.text) === (prev.content || prev.text);
+            const roleMatches = m.role === prev.role;
+            return !(roleMatches && contentMatches);
+          });
+
+          const mapped: MessageProps[] = deduplicated.map((m: any) => ({
             id: m.id || generateId(),
             role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
             content: m.content || m.text || '',

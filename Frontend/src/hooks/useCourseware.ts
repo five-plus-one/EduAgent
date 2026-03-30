@@ -53,16 +53,31 @@ export function useCourseware(sessionId: string) {
     fetchPreview();
   }, [sessionId, fetchPreview]);
 
-  // Listen for Agent-driven slide modifications
+  // Listen for Agent-driven slide modifications & Tool lifecycles
   useEffect(() => {
+    const handleStart = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) setIsGenerating(true);
+    };
+    const handleEnd = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) setIsGenerating(false);
+    };
     const handleRefetch = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
+        setIsGenerating(false);
         fetchPreview();
       }
     };
+
+    window.addEventListener('EduAgent_Generate_Start', handleStart);
+    window.addEventListener('EduAgent_Generate_End', handleEnd);
     window.addEventListener('EduAgent_Refetch_PPT', handleRefetch);
+    
     return () => {
+      window.removeEventListener('EduAgent_Generate_Start', handleStart);
+      window.removeEventListener('EduAgent_Generate_End', handleEnd);
       window.removeEventListener('EduAgent_Refetch_PPT', handleRefetch);
     };
   }, [sessionId, fetchPreview]);

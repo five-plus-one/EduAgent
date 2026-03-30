@@ -113,6 +113,11 @@ class StreamManagerClass {
         controller.signal,
         {
           onToolCall: (tool) => {
+            const isGenerateTool = tool.tool_name.toLowerCase().includes('generate');
+            if (isGenerateTool) {
+               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
+            }
+            
             const msg = `\n\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n\n`;
             if (!streamData.state.content.includes(msg.trim())) {
               streamData.state.content += msg;
@@ -120,6 +125,8 @@ class StreamManagerClass {
             }
           },
           onToolResult: (result) => {
+            window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
+
             if (result.status === 'success' && result.should_refetch_ppt) {
                window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }

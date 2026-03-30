@@ -30,7 +30,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
@@ -93,23 +93,27 @@ export default function Workspace() {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // AI Tool Caller (MCP Proxy)
+  // Focus Hijacking: Auto-switch to PPT tab when AI is generating it via tools
   useEffect(() => {
-    if (latestIntent && !isGenerating && sessionId !== 'new') {
+    const handleGenerateStart = (e: Event) => {
+       const ev = e as CustomEvent;
+       if (ev.detail?.sessionId === sessionId) {
+          console.log('[Focus Hijack] Tool Call detected, auto-switching to PPT.');
+          setActiveTab('ppt');
+       }
+    };
+    window.addEventListener('EduAgent_Generate_Start', handleGenerateStart);
+    
+    // Intent-based fallback (no handleGenerate triggering anymore!)
+    if (latestIntent && sessionId !== 'new') {
       const intentLower = latestIntent.toLowerCase();
-      // If AI's intent suggests UI should create PPT, automatically trigger it.
-      if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt') || intentLower.includes('mcp_generate')) {
-        console.log('[MCP Proxy] AI Intent detected:', latestIntent, '-> Auto-triggering Generate!');
-        // 沉浸式视点转移：强制将用户视线从文字瀑布流切换到生成进度面板
+      if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt')) {
         setActiveTab('ppt');
-        const timer = setTimeout(() => {
-          clearIntent();
-          handleGenerate(Array.from(linkedDocs), 'fast');
-        }, 800);
-        return () => clearTimeout(timer);
       }
     }
-  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate, clearIntent]);
+    
+    return () => window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
+  }, [latestIntent, sessionId]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
