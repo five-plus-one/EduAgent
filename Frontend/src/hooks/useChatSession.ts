@@ -19,24 +19,16 @@ export function useChatSession(sessionId: string) {
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isSynthesizing) return;
-
     if (sessionId === 'new') {
       alert('当前处于未命名初始态，请在左侧侧边栏【新课件设计】创建并命名您的会话。');
       return;
     }
-
     setLatestIntent(null);
-
-    // Optimistically insert user's message
     const teacherMsgId = generateId();
     setMessages(prev => [...prev, { id: teacherMsgId, role: 'teacher', content }]);
-
-    // Hand off SSE networking to the global manager.
-    // The view layer will receive updates automatically via subscription.
     GlobalStreamManager.startStream(sessionId, content);
   }, [sessionId, isSynthesizing, navigate]);
 
-  // Handle session switch: load history and subscribe to any background streams
   useEffect(() => {
     setMessages([]);
     setIsSynthesizing(false);
@@ -49,7 +41,6 @@ export function useChatSession(sessionId: string) {
         if (!active) return;
         const historyData = res?.messages || res?.chat_history || res?.history;
         if (historyData && Array.isArray(historyData)) {
-          // Contiguous deduplication to band-aid DB pollution
           const deduplicated = historyData.filter((m: any, i: number, arr: any[]) => {
             if (i === 0) return true;
             const prev = arr[i - 1];
@@ -58,27 +49,29 @@ export function useChatSession(sessionId: string) {
             return !(roleMatches && contentMatches);
           });
 
+          // History Healing: Extract tags from already-stored DB content
           const healMessage = (m: any) => {
             let content = m.content || m.text || '';
             let thinking = '';
-            let toolLog = '';
+            let toolLogs: string[] = [];
 
-            // Extract DeepSeek-style <think> tags
-            const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
-            if (thinkMatch) {
-              thinking = thinkMatch[1].trim();
-              content = content.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+            // Pattern for <think>
+            const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
+            let thinkMatch;
+            while ((thinkMatch = thinkRegex.exec(content)) !== null) {
+              thinking += (thinkMatch[1] || '').trim() + '\n';
             }
+            content = content.replace(thinkRegex, '').trim();
 
-            // Extract <seed:tool_call> or <tool_call> tags
-            const toolMatch = content.match(/<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/);
-            if (toolMatch) {
-              const tagContent = toolMatch[0];
-              toolLog = `\n> 🤖 *历史工具记录: \`${tagContent.length} chars\`*\n`;
-              content = content.replace(/<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g, '').trim();
+            // Pattern for <tool_call>
+            const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
+            let toolMatch;
+            while ((toolMatch = toolRegex.exec(content)) !== null) {
+              toolLogs.push(`\n> 🤖 *历史意图捕捉: \`${toolMatch[0].length} 字符\`*\n`);
             }
+            content = content.replace(toolRegex, '').trim();
 
-            return { content, thinking, toolLog };
+            return { content: content || '...', thinking: thinking.trim(), toolLog: toolLogs.join('\n') };
           };
 
           const mapped: MessageProps[] = deduplicated.map((m: any) => {
@@ -87,24 +80,19 @@ export function useChatSession(sessionId: string) {
             
             if (role === 'ai') {
               const healed = healMessage(m);
-              const persistedLog = GlobalStreamManager.getMessageToolLog(id);
+              const persistedLogFromManager = GlobalStreamManager.getMessageToolLog(id);
               return {
                 id,
                 role,
                 content: healed.content,
                 thinking: healed.thinking,
-                toolLog: [healed.toolLog, persistedLog].filter(Boolean).join('\n'),
+                toolLog: [healed.toolLog, persistedLogFromManager].filter(Boolean).join('\n'),
               };
             }
 
-            return {
-              id,
-              role,
-              content: m.content || m.text || '',
-            };
+            return { id, role, content: m.content || m.text || '' };
           });
 
-          // Merge with any currently active global stream for this session
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
             mapped.push({
@@ -121,18 +109,14 @@ export function useChatSession(sessionId: string) {
           }
 
           setMessages(mapped);
-        } else {
-          console.warn('[Session History] Backend did not return an array of messages/chat_history in getSession()', res);
         }
       }).catch(e => {
         console.error('[Session History] Failed to fetch session history:', e);
       });
     }
 
-    // Subscribe to the global stream manager for ongoing updates.
     const unsubscribe = GlobalStreamManager.subscribe(sessionId, (state: StreamState | null) => {
       if (!active || !state) return;
-      
       setIsSynthesizing(state.isSynthesizing);
       if (state.latestIntent) setLatestIntent(state.latestIntent);
 
@@ -142,7 +126,7 @@ export function useChatSession(sessionId: string) {
           const newArr = [...prev];
           newArr[idx] = { 
             ...newArr[idx], 
-            content: state.content,
+            content: state.content || (state.isSynthesizing ? '' : '...'), // Fallback for empty content
             toolLog: state.toolLog,
             thinking: state.thinking,
             isThinking: state.isThinking,
@@ -163,8 +147,6 @@ export function useChatSession(sessionId: string) {
       });
     });
 
-    // PUA Always-On: 卸载或切换会话时，只取消视图层的监听订阅，不再物理掐断底层的长连接。
-    // 让大模型在后方安静地继续产生幻觉（啊不，是价值）！
     return () => { 
       active = false;
       unsubscribe();

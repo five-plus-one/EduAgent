@@ -15,19 +15,14 @@ export type StreamListener = (state: StreamState | null) => void;
 class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
-    buffer: string;        // Buffer for partial tag parsing across chunks
+    buffer: string;
     abortController: AbortController;
   }>();
 
   private sessionListeners = new Map<string, Set<StreamListener>>();
 
-  /**
-   * Persists tool call logs across session switches (survives component unmounts).
-   * Key: messageId, Value: markdown-formatted tool log text.
-   */
   private messageToolLogs = new Map<string, string>();
 
-  /** Read the persisted tool log for a specific message. */
   public getMessageToolLog(messageId: string): string {
     return this.messageToolLogs.get(messageId) || '';
   }
@@ -37,7 +32,6 @@ class StreamManagerClass {
       this.sessionListeners.set(sessionId, new Set());
     }
     this.sessionListeners.get(sessionId)!.add(listener);
-
     const stream = this.activeStreams.get(sessionId);
     if (stream) {
       listener({ ...stream.state });
@@ -69,7 +63,6 @@ class StreamManagerClass {
     this.sessionListeners.get(sessionId)?.forEach((l: StreamListener) => l({ ...stream.state }));
   }
 
-  /** Helper to determine if a tool call should trigger a PPT refetch */
   private shouldRefetchForTool(toolName: string): boolean {
     const name = toolName.toLowerCase();
     return name.includes('generate') || 
@@ -82,71 +75,56 @@ class StreamManagerClass {
   }
 
   /** 
-   * Scrub and Extract: High-resilience tag parser for text streams.
-   * Strips XML-like internal monologue/tool tags from the user-visible content.
+   * Robust Stream Scrubber: Strips internal tags and monologues.
+   * Ensures content field remains clean while thinking/logs are captured.
    */
   private processTextChunk(sessionId: string, stream: any, newChunk: string) {
     stream.buffer += newChunk;
     
+    // Pattern to find complete tags: <think>...</think> or <(seed:)?tool_call>...</(seed:)?tool_call>
+    // Note: We use [\s\S]*? for non-greedy multiline matching
+    const patterns = [
+      { 
+        regex: /<think>([\s\S]*?)<\/think>/, 
+        handler: (match: string, content: string) => { stream.state.thinking += content; }
+      },
+      { 
+        regex: /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/, 
+        handler: (match: string, p1: string, content: string) => { 
+          stream.state.toolLog += `\n> 🤖 *模型意图捕捉: \`${match.length} 字符\`*\n`;
+        }
+      }
+    ];
+
     let changed = true;
     while (changed) {
       changed = false;
-      
-      // Handle <think>...</think>
-      const thinkOpenIdx = stream.buffer.indexOf('<think>');
-      if (thinkOpenIdx !== -1) {
-        // Emit content before the tag
-        stream.state.content += stream.buffer.slice(0, thinkOpenIdx);
-        stream.buffer = stream.buffer.slice(thinkOpenIdx);
-        
-        const thinkCloseIdx = stream.buffer.indexOf('</think>');
-        if (thinkCloseIdx !== -1) {
-          // Extract thinking content
-          stream.state.thinking += stream.buffer.slice(7, thinkCloseIdx);
-          stream.buffer = stream.buffer.slice(thinkCloseIdx + 8);
-          stream.state.isThinking = false;
+      for (const p of patterns) {
+        const match = stream.buffer.match(p.regex);
+        if (match) {
+          p.handler(...(match as any));
+          stream.buffer = stream.buffer.replace(p.regex, '');
           changed = true;
-          continue;
-        } else {
-          // Tag not closed yet, mark state
-          stream.state.isThinking = true;
-          // Note: we don't clear the buffer yet to allow future chunks to complete the tag
-          // But we can peek at the partial thinking
-          return; 
+          break; 
         }
-      }
-
-      // Handle <seed:tool_call>...</seed:tool_call> or similar tool tags
-      const toolOpenIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
-      if (toolOpenIdx !== -1) {
-        stream.state.content += stream.buffer.slice(0, toolOpenIdx);
-        stream.buffer = stream.buffer.slice(toolOpenIdx);
-        
-        const toolCloseIdx = stream.buffer.search(/<\/(seed:)?tool_call>/);
-        if (toolCloseIdx !== -1) {
-          // Found closing tag, move internal deliberation to toolLog
-          const tagContent = stream.buffer.slice(0, toolCloseIdx + stream.buffer.match(/<\/(seed:)?tool_call>/)![0].length);
-          stream.state.toolLog += `\n> 🤖 *模型内部调用尝试: \`${tagContent.length} chars\`*\n`;
-          stream.buffer = stream.buffer.slice(tagContent.length);
-          changed = true;
-          continue;
-        } else {
-          // Tool tag not closed yet
-          return;
-        }
-      }
-
-      // If no open tags in buffer, flush content that is safe
-      // Safe content is anything before a partial '<'
-      const lastLeftAngle = stream.buffer.lastIndexOf('<');
-      if (lastLeftAngle === -1) {
-        stream.state.content += stream.buffer;
-        stream.buffer = '';
-      } else if (lastLeftAngle > 0) {
-        stream.state.content += stream.buffer.slice(0, lastLeftAngle);
-        stream.buffer = stream.buffer.slice(lastLeftAngle);
       }
     }
+
+    // After processing complete tags, we look at what's left in the buffer.
+    // We can safely move everything before the LAST UNCLOSED '<' to the displayed content.
+    const lastOpenTag = stream.buffer.lastIndexOf('<');
+    if (lastOpenTag === -1) {
+      // No partial tags, move all
+      stream.state.content += stream.buffer;
+      stream.buffer = '';
+    } else if (lastOpenTag > 0) {
+      // Move everything up to the '<'
+      stream.state.content += stream.buffer.slice(0, lastOpenTag);
+      stream.buffer = stream.buffer.slice(lastOpenTag);
+    }
+    
+    // Also check if we are currently inside an unclosed <think> tag to update 'isThinking' UI state
+    stream.state.isThinking = stream.buffer.includes('<think>') && !stream.buffer.includes('</think>');
   }
 
   public async startStream(sessionId: string, userContent: string) {
@@ -191,8 +169,8 @@ class StreamManagerClass {
           }
 
           if (isFinished) {
-            // Flush any remaining buffer if it doesn't look like a partial tag
-            if (streamData.buffer && !streamData.buffer.startsWith('<')) {
+            // Final flush: anything left in buffer is treated as content (likely a false alarm <)
+            if (streamData.buffer) {
               streamData.state.content += streamData.buffer;
               streamData.buffer = '';
             }
