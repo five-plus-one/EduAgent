@@ -66,10 +66,21 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
         
         请至少生成3页课件内容。
         """
-        
         llm = _get_llm()
-        response = llm.invoke(prompt)
-        content = response.content
+        content = ""
+        last_e = None
+        for _ in range(3):
+            try:
+                response = llm.invoke(prompt)
+                content = response.content
+                if content:
+                    break
+            except Exception as e:
+                last_e = e
+                import time
+                time.sleep(2)
+        if not content:
+            raise Exception(f"Upstream Error after 3 retries: {str(last_e)}")
         
         # Strip markdown syntax if LLM returns it block-wrapped
         if "```" in content:

@@ -35,8 +35,11 @@ async def stream_chat_response(messages_history: list, new_user_input: str):
         if chunk.content:
             data = json.dumps({"chunk": chunk.content, "is_finished": False}, ensure_ascii=False)
             yield f"data: {data}\n\n"
-            
-    # Yield final conclusion 
-    # The 'extracted_intent' field is a placeholder for actual LLM tool-calling intent extraction in later phases.
-    final_data = json.dumps({"chunk": "", "is_finished": True, "extracted_intent": {}}, ensure_ascii=False)
+    # Intent extraction heuristics for MCP (Frontend trigger)
+    intent = ""
+    user_text = new_user_input.lower()
+    if ("生成" in user_text or "做一份" in user_text or "制作" in user_text) and ("ppt" in user_text or "课件" in user_text or "大纲" in user_text):
+        intent = "generate_courseware"
+
+    final_data = json.dumps({"chunk": "", "is_finished": True, "extracted_intent": intent}, ensure_ascii=False)
     yield f"data: {final_data}\n\n"
