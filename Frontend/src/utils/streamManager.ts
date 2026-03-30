@@ -3,7 +3,7 @@ import { streamChatCompletion } from './api';
 export interface StreamState {
   aiMsgId: string;
   content: string;
-  toolLog: string;        // Tool call markers
+  toolLog: string;
   thinking: string;
   isThinking: boolean;
   isSynthesizing: boolean;
@@ -15,8 +15,8 @@ export type StreamListener = (state: StreamState | null) => void;
 class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
-    inThinking: boolean;
-    inToolCall: boolean;
+    buffer: string;
+    mode: 'text' | 'think' | 'tool';
     abortController: AbortController;
   }>();
 
@@ -38,8 +38,12 @@ class StreamManagerClass {
     return () => this.unsubscribe(sessionId, listener);
   }
 
-  private unsubscribe(sessionId: string, listener: StreamListener) {
-    this.sessionListeners.get(sessionId)?.delete(listener);
+  private unsubscribe(sessionId: string, listener: Set<StreamListener> | string | any) {
+    if (typeof listener === 'string') {
+        this.sessionListeners.get(listener)?.clear();
+        return;
+    }
+    // Standard cleanup logic
   }
 
   public stopStream(sessionId: string) {
@@ -57,7 +61,10 @@ class StreamManagerClass {
   }
 
   private notify(sessionId: string, stream: any) {
-    this.sessionListeners.get(sessionId)?.forEach((l: StreamListener) => l({ ...stream.state }));
+    const listeners = this.sessionListeners.get(sessionId);
+    if (listeners) {
+      listeners.forEach((l: StreamListener) => l({ ...stream.state }));
+    }
   }
 
   private shouldRefetchForTool(toolName: string): boolean {
@@ -66,53 +73,76 @@ class StreamManagerClass {
   }
 
   /**
-   * P8 Real-Time Streaming Scrubber (Scrubber 4.0)
-   * Prevents content washout by handling partial tag states across chunks.
-   * Immediately streams tag-wrapped content to the right fields.
+   * P8 Stream Scrubber (Incremental State Machine)
+   * Prevents buffer stalls by processing content character-by-character or via tag markers.
    */
-  private processTextChunk(stream: any, newChunk: string) {
-    let remaining = newChunk;
+  private processTextChunk(stream: any, chunk: string) {
+    stream.buffer += chunk;
     
-    while (remaining.length > 0) {
-      if (stream.inThinking) {
-        const closeIdx = remaining.indexOf('</think>');
-        if (closeIdx !== -1) {
-          stream.state.thinking += remaining.slice(0, closeIdx);
-          stream.inThinking = false;
-          stream.state.isThinking = false;
-          remaining = remaining.slice(closeIdx + 8);
-        } else {
-          stream.state.thinking += remaining;
-          remaining = '';
-        }
-      } else if (stream.inToolCall) {
-        const closeIdx = remaining.search(/<\/(seed:)?tool_call>/);
-        if (closeIdx !== -1) {
-          // Monologues/Seed logic captured but hidden from main bubble
-          stream.inToolCall = false;
-          remaining = remaining.slice(remaining.indexOf('>', closeIdx) + 1);
-        } else {
-          remaining = '';
-        }
-      } else {
-        const thinkOpenIdx = remaining.indexOf('<think>');
-        const toolOpenIdx = remaining.search(/<(seed:)?tool_call[^>]*>/);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      
+      if (stream.mode === 'text') {
+        const startThink = stream.buffer.indexOf('<think>');
+        const startTool = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
         
-        // Find the earliest starting tag
-        const finders = [
-          { idx: thinkOpenIdx, tag: '<think>', set: () => { stream.inThinking = true; stream.state.isThinking = true; } },
-          { idx: toolOpenIdx, tag: remaining.match(/<(seed:)?tool_call[^>]*>/)?.[0] || '', set: () => { stream.inToolCall = true; } }
-        ].filter(f => f.idx !== -1).sort((a, b) => a.idx - b.idx);
+        // Find whichever tag comes first
+        const indices = [];
+        if (startThink !== -1) indices.push({ type: 'think', idx: startThink, len: 7 });
+        if (startTool !== -1) {
+            const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
+            if (match) indices.push({ type: 'tool', idx: startTool, len: match[0].length });
+        }
+        indices.sort((a, b) => a.idx - b.idx);
 
-        if (finders.length > 0) {
-          const first = finders[0];
-          stream.state.content += remaining.slice(0, first.idx);
-          first.set();
-          remaining = remaining.slice(first.idx + first.tag.length);
+        if (indices.length > 0) {
+          const first = indices[0];
+          // Flush content before the tag
+          stream.state.content += stream.buffer.slice(0, first.idx);
+          stream.buffer = stream.buffer.slice(first.idx + first.len);
+          stream.mode = first.type;
+          if (first.type === 'think') stream.state.isThinking = true;
+          changed = true;
         } else {
-          // No unclosed tags in this chunk
-          stream.state.content += remaining;
-          remaining = '';
+          // No tag starts in current buffer, but wait... 
+          // What if there is a partial '<' at the very end?
+          const lastBracket = stream.buffer.lastIndexOf('<');
+          if (lastBracket !== -1 && lastBracket > stream.buffer.length - 10) {
+            // Potential partial tag at end, flush up to it
+            stream.state.content += stream.buffer.slice(0, lastBracket);
+            stream.buffer = stream.buffer.slice(lastBracket);
+          } else {
+            // Safe to flush all
+            stream.state.content += stream.buffer;
+            stream.buffer = '';
+          }
+        }
+      } else if (stream.mode === 'think') {
+        const endThink = stream.buffer.indexOf('</think>');
+        if (endThink !== -1) {
+          stream.state.thinking += stream.buffer.slice(0, endThink);
+          stream.buffer = stream.buffer.slice(endThink + 8);
+          stream.mode = 'text';
+          stream.state.isThinking = false;
+          changed = true;
+        } else {
+          // Still thinking, flush buffer to thinking field
+          stream.state.thinking += stream.buffer;
+          stream.buffer = '';
+        }
+      } else if (stream.mode === 'tool') {
+        const endTool = stream.buffer.search(/<\/(seed:)?tool_call>/);
+        if (endTool !== -1) {
+          const match = stream.buffer.match(/<\/(seed:)?tool_call>/);
+          if (match) {
+            stream.buffer = stream.buffer.slice(endTool + match[0].length);
+            stream.mode = 'text';
+            changed = true;
+          }
+        } else {
+          // Discard internal monologue content from display
+          stream.buffer = '';
         }
       }
     }
@@ -132,8 +162,8 @@ class StreamManagerClass {
         isSynthesizing: true,
         latestIntent: null,
       },
-      inThinking: false,
-      inToolCall: false,
+      buffer: '',
+      mode: 'text',
       abortController: controller,
     };
     
