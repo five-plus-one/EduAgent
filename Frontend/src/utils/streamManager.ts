@@ -38,12 +38,8 @@ class StreamManagerClass {
     return () => this.unsubscribe(sessionId, listener);
   }
 
-  private unsubscribe(sessionId: string, listener: Set<StreamListener> | string | any) {
-    if (typeof listener === 'string') {
-        this.sessionListeners.get(listener)?.clear();
-        return;
-    }
-    // Standard cleanup logic
+  private unsubscribe(sessionId: string, listener: StreamListener) {
+    this.sessionListeners.get(sessionId)?.delete(listener);
   }
 
   public stopStream(sessionId: string) {
@@ -72,10 +68,6 @@ class StreamManagerClass {
     return /generate|slide|page|update|edit|insert|delete/.test(name);
   }
 
-  /**
-   * P8 Stream Scrubber (Incremental State Machine)
-   * Prevents buffer stalls by processing content character-by-character or via tag markers.
-   */
   private processTextChunk(stream: any, chunk: string) {
     stream.buffer += chunk;
     
@@ -85,35 +77,30 @@ class StreamManagerClass {
       
       if (stream.mode === 'text') {
         const startThink = stream.buffer.indexOf('<think>');
-        const startTool = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
+        const startToolIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
         
-        // Find whichever tag comes first
         const indices = [];
         if (startThink !== -1) indices.push({ type: 'think', idx: startThink, len: 7 });
-        if (startTool !== -1) {
+        if (startToolIdx !== -1) {
             const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
-            if (match) indices.push({ type: 'tool', idx: startTool, len: match[0].length });
+            if (match) indices.push({ type: 'tool', idx: startToolIdx, len: match[0].length });
         }
         indices.sort((a, b) => a.idx - b.idx);
 
         if (indices.length > 0) {
           const first = indices[0];
-          // Flush content before the tag
           stream.state.content += stream.buffer.slice(0, first.idx);
           stream.buffer = stream.buffer.slice(first.idx + first.len);
-          stream.mode = first.type;
+          stream.mode = first.type as any;
           if (first.type === 'think') stream.state.isThinking = true;
           changed = true;
         } else {
-          // No tag starts in current buffer, but wait... 
-          // What if there is a partial '<' at the very end?
+          // Flush everything that isn't a partial tag start
           const lastBracket = stream.buffer.lastIndexOf('<');
           if (lastBracket !== -1 && lastBracket > stream.buffer.length - 10) {
-            // Potential partial tag at end, flush up to it
             stream.state.content += stream.buffer.slice(0, lastBracket);
             stream.buffer = stream.buffer.slice(lastBracket);
           } else {
-            // Safe to flush all
             stream.state.content += stream.buffer;
             stream.buffer = '';
           }
@@ -127,7 +114,6 @@ class StreamManagerClass {
           stream.state.isThinking = false;
           changed = true;
         } else {
-          // Still thinking, flush buffer to thinking field
           stream.state.thinking += stream.buffer;
           stream.buffer = '';
         }
@@ -141,8 +127,7 @@ class StreamManagerClass {
             changed = true;
           }
         } else {
-          // Discard internal monologue content from display
-          stream.buffer = '';
+          stream.buffer = ''; // Skip tool monologue
         }
       }
     }
@@ -163,7 +148,7 @@ class StreamManagerClass {
         latestIntent: null,
       },
       buffer: '',
-      mode: 'text',
+      mode: 'text' as const,
       abortController: controller,
     };
     
@@ -182,6 +167,10 @@ class StreamManagerClass {
           if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
+            if (streamData.buffer && streamData.mode === 'text') {
+              streamData.state.content += streamData.buffer;
+              streamData.buffer = '';
+            }
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
             if (streamData.state.toolLog) {

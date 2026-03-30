@@ -42,41 +42,36 @@ export function useChatSession(sessionId: string) {
         if (!active) return;
         const historyData = res?.messages || res?.chat_history || res?.history;
         if (historyData && Array.isArray(historyData)) {
-          // Band-aid for DB duplication
           const deduplicated = historyData.filter((m: any, i: number, arr: any[]) => {
             if (i === 0) return true;
             const prev = arr[i - 1];
             return !((m.role === prev.role) && ((m.content || m.text) === (prev.content || prev.text)));
           });
 
-          // History Healing: Extraction logic for legacy "dirty" DB strings
           const healAI = (m: any) => {
-            let content = (m.content || m.text || '').trim();
+            let rawContent = (m.content || m.text || '').trim();
             let thinking = '';
-            let toolLogSegments: string[] = [];
+            let toolLogs: string[] = [];
 
-            // Extract <think>
             const thinkRegex = /<think>([\s\S]*?)<\/think>/g;
             let match;
-            while ((match = thinkRegex.exec(content)) !== null) {
+            while ((match = thinkRegex.exec(rawContent)) !== null) {
               thinking += match[1].trim() + '\n';
             }
-            content = content.replace(thinkRegex, '').trim();
+            let cleaned = rawContent.replace(thinkRegex, '').trim();
 
-            // Extract <tool_call>
             const toolRegex = /<(seed:)?tool_call[^>]*>([\s\S]*?)<\/(seed:)?tool_call>/g;
-            while ((match = toolRegex.exec(content)) !== null) {
-              toolLogSegments.push(`\n> 🤖 *历史意图捕捉: \`${match[0].length} 字符\`*\n`);
+            while ((match = toolRegex.exec(cleaned)) !== null) {
+              toolLogs.push(`\n> 🤖 *历史工具记录: \`${match[0].length} 字符\`*\n`);
             }
-            content = content.replace(toolRegex, '').trim();
+            cleaned = cleaned.replace(toolRegex, '').trim();
 
-            return { content: content || '...', thinking: thinking.trim(), toolLog: toolLogSegments.join('\n') };
+            return { content: cleaned, thinking: thinking.trim(), toolLog: toolLogs.join('\n') };
           };
 
           const mapped: MessageProps[] = deduplicated.map((m: any) => {
             const id = m.id || generateId();
             const role = (m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher';
-            
             if (role === 'ai') {
               const healed = healAI(m);
               const managerLog = GlobalStreamManager.getMessageToolLog(id);
@@ -91,7 +86,6 @@ export function useChatSession(sessionId: string) {
             return { id, role, content: m.content || m.text || '' };
           });
 
-          // Mix in any active streaming session
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
             mapped.push({
@@ -103,13 +97,11 @@ export function useChatSession(sessionId: string) {
               isThinking: activeStream.isThinking,
               isTyping: activeStream.isSynthesizing,
             });
-            setIsSynthesizing(activeStream.isSynthesizing);
-            if (activeStream.latestIntent) setLatestIntent(activeStream.latestIntent);
           }
           setMessages(mapped);
         }
       } catch (err) {
-        console.error('[Session History] Retrieval failed:', err);
+        console.error('[History Healing] Fail:', err);
       }
     };
 
@@ -122,10 +114,10 @@ export function useChatSession(sessionId: string) {
 
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
-        const nextMsg = {
+        const data = {
           id: state.aiMsgId,
-          role: 'ai' as const,
-          content: state.content || (state.isSynthesizing ? '' : '...'),
+          role: 'ai' as 'ai',
+          content: state.content,
           toolLog: state.toolLog,
           thinking: state.thinking,
           isThinking: state.isThinking,
@@ -133,10 +125,10 @@ export function useChatSession(sessionId: string) {
         };
         if (idx !== -1) {
           const updated = [...prev];
-          updated[idx] = nextMsg;
+          updated[idx] = data;
           return updated;
         }
-        return [...prev, nextMsg];
+        return [...prev, data];
       });
     });
 
