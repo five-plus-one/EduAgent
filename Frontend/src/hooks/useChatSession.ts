@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { streamChatCompletion, createSession } from '../utils/api';
+import { streamChatCompletion } from '../utils/api';
 import type { MessageProps } from '../components/MessageBubble';
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -54,12 +54,12 @@ export function useChatSession(sessionId: string) {
     abortControllerRef.current = controller;
 
     try {
-      // --- Lazy session creation ---
-      if (!resolvedSessionIdRef.current) {
-        const result = await createSession('新建备课会话');
-        const newId: string = result?.session_id ?? result;
-        resolvedSessionIdRef.current = newId;
-        navigate(`/chat/${newId}`, { replace: true });
+      // --- Enforce real session ---
+      if (!resolvedSessionIdRef.current || resolvedSessionIdRef.current === 'new') {
+        alert('当前处于未命名初始态，请在左侧侧边栏【新课件设计】创建并命名您的会话。');
+        setIsSynthesizing(false);
+        setMessages(prev => prev.slice(0, prev.length - 2)); // 撤回刚刚的占位符
+        return;
       }
 
       const activeSessionId = resolvedSessionIdRef.current;
