@@ -16,6 +16,10 @@ __pycache__/
 *.db
 *.sqlite3
 
+# Local storage for Phase 3
+uploads/
+chroma_db/
+
 # Distribution / packaging
 dist/
 build/
