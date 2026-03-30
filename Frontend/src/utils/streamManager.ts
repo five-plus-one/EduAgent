@@ -83,6 +83,8 @@ class StreamManagerClass {
     this.activeStreams.set(sessionId, streamData);
     this.notify(sessionId, streamData); // Will immediately trigger updates on any active listeners
 
+    let lastToolName = '';
+
     try {
       await streamChatCompletion(
         sessionId,
@@ -92,13 +94,19 @@ class StreamManagerClass {
             streamData.state.latestIntent = intent;
           }
           streamData.state.content += chunk;
-          if (isFinished) streamData.state.isSynthesizing = false;
+          if (isFinished) {
+            streamData.state.isSynthesizing = false;
+            // Fallback: if backend never sent a tool_result event but a generate tool was called,
+            // we still need to refetch so the PPT panel populates.
+            if (lastToolName.toLowerCase().includes('generate')) {
+              console.log('[StreamManager] Stream finished with a generate tool — fallback PPT refetch');
+              window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
+            }
+          }
           
           this.notify(sessionId, streamData);
           
           if (isFinished) {
-            // Un-register this from being an "active" background process.
-            // Future UI mounts will simply load history from DB instead.
             this.activeStreams.delete(sessionId);
           }
         },
@@ -113,6 +121,7 @@ class StreamManagerClass {
         controller.signal,
         {
           onToolCall: (tool) => {
+            lastToolName = tool.tool_name;
             const isGenerateTool = tool.tool_name.toLowerCase().includes('generate');
             if (isGenerateTool) {
                window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
@@ -125,9 +134,15 @@ class StreamManagerClass {
             }
           },
           onToolResult: (result) => {
+            // Always dispatch End so UI unlocks
             window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
 
-            if (result.status === 'success' && result.should_refetch_ppt) {
+            // Refetch if: backend explicitly says so OR the tool was any generate-type 
+            const isGenerateTool = lastToolName.toLowerCase().includes('generate');
+            const shouldRefetch = result.should_refetch_ppt === true || isGenerateTool;
+
+            if (shouldRefetch) {
+               console.log(`[StreamManager] Tool "${lastToolName}" completed → triggering PPT refetch`);
                window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
             streamData.state.content += `> ✨ *操作已完成*\n\n`;
