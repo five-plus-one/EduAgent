@@ -15,6 +15,7 @@ export type StreamListener = (state: StreamState | null) => void;
 class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
+    buffer: string;        // Buffer for partial tag parsing across chunks
     abortController: AbortController;
   }>();
 
@@ -80,12 +81,81 @@ class StreamManagerClass {
            name.includes('delete');
   }
 
+  /** 
+   * Scrub and Extract: High-resilience tag parser for text streams.
+   * Strips XML-like internal monologue/tool tags from the user-visible content.
+   */
+  private processTextChunk(sessionId: string, stream: any, newChunk: string) {
+    stream.buffer += newChunk;
+    
+    let changed = true;
+    while (changed) {
+      changed = false;
+      
+      // Handle <think>...</think>
+      const thinkOpenIdx = stream.buffer.indexOf('<think>');
+      if (thinkOpenIdx !== -1) {
+        // Emit content before the tag
+        stream.state.content += stream.buffer.slice(0, thinkOpenIdx);
+        stream.buffer = stream.buffer.slice(thinkOpenIdx);
+        
+        const thinkCloseIdx = stream.buffer.indexOf('</think>');
+        if (thinkCloseIdx !== -1) {
+          // Extract thinking content
+          stream.state.thinking += stream.buffer.slice(7, thinkCloseIdx);
+          stream.buffer = stream.buffer.slice(thinkCloseIdx + 8);
+          stream.state.isThinking = false;
+          changed = true;
+          continue;
+        } else {
+          // Tag not closed yet, mark state
+          stream.state.isThinking = true;
+          // Note: we don't clear the buffer yet to allow future chunks to complete the tag
+          // But we can peek at the partial thinking
+          return; 
+        }
+      }
+
+      // Handle <seed:tool_call>...</seed:tool_call> or similar tool tags
+      const toolOpenIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
+      if (toolOpenIdx !== -1) {
+        stream.state.content += stream.buffer.slice(0, toolOpenIdx);
+        stream.buffer = stream.buffer.slice(toolOpenIdx);
+        
+        const toolCloseIdx = stream.buffer.search(/<\/(seed:)?tool_call>/);
+        if (toolCloseIdx !== -1) {
+          // Found closing tag, move internal deliberation to toolLog
+          const tagContent = stream.buffer.slice(0, toolCloseIdx + stream.buffer.match(/<\/(seed:)?tool_call>/)![0].length);
+          stream.state.toolLog += `\n> 🤖 *模型内部调用尝试: \`${tagContent.length} chars\`*\n`;
+          stream.buffer = stream.buffer.slice(tagContent.length);
+          changed = true;
+          continue;
+        } else {
+          // Tool tag not closed yet
+          return;
+        }
+      }
+
+      // If no open tags in buffer, flush content that is safe
+      // Safe content is anything before a partial '<'
+      const lastLeftAngle = stream.buffer.lastIndexOf('<');
+      if (lastLeftAngle === -1) {
+        stream.state.content += stream.buffer;
+        stream.buffer = '';
+      } else if (lastLeftAngle > 0) {
+        stream.state.content += stream.buffer.slice(0, lastLeftAngle);
+        stream.buffer = stream.buffer.slice(lastLeftAngle);
+      }
+    }
+  }
+
   public async startStream(sessionId: string, userContent: string) {
     if (this.activeStreams.has(sessionId)) return;
 
     const controller = new AbortController();
     const streamData: {
       state: StreamState;
+      buffer: string;
       abortController: AbortController;
     } = {
       state: {
@@ -97,6 +167,7 @@ class StreamManagerClass {
         isSynthesizing: true,
         latestIntent: null,
       },
+      buffer: '',
       abortController: controller,
     };
     
@@ -104,7 +175,7 @@ class StreamManagerClass {
     this.notify(sessionId, streamData);
 
     let lastToolName = '';
-    let refetchDispatched = false; // Guard: prevent double EduAgent_Refetch_PPT dispatch
+    let refetchDispatched = false;
 
     try {
       await streamChatCompletion(
@@ -115,44 +186,25 @@ class StreamManagerClass {
             streamData.state.latestIntent = intent;
           }
 
-          // Parse <think>...</think> tags from text chunk
-          let remaining = chunk;
-          while (remaining.length > 0) {
-            if (streamData.state.isThinking) {
-              const closeIdx = remaining.indexOf('</think>');
-              if (closeIdx !== -1) {
-                streamData.state.thinking += remaining.slice(0, closeIdx);
-                streamData.state.isThinking = false;
-                remaining = remaining.slice(closeIdx + 8);
-              } else {
-                streamData.state.thinking += remaining;
-                remaining = '';
-              }
-            } else {
-              const openIdx = remaining.indexOf('<think>');
-              if (openIdx !== -1) {
-                streamData.state.content += remaining.slice(0, openIdx);
-                streamData.state.isThinking = true;
-                remaining = remaining.slice(openIdx + 7);
-              } else {
-                streamData.state.content += remaining;
-                remaining = '';
-              }
-            }
+          if (chunk) {
+            this.processTextChunk(sessionId, streamData, chunk);
           }
 
           if (isFinished) {
+            // Flush any remaining buffer if it doesn't look like a partial tag
+            if (streamData.buffer && !streamData.buffer.startsWith('<')) {
+              streamData.state.content += streamData.buffer;
+              streamData.buffer = '';
+            }
+            
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
 
-            // Persist tool log to singleton using messageId so it survives session switches
             if (streamData.state.toolLog) {
               this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
             }
 
-            // Fallback refetch — ONLY if onToolResult hasn't already dispatched it
             if (!refetchDispatched && this.shouldRefetchForTool(lastToolName)) {
-              console.log('[StreamManager] isFinished fallback → triggering PPT refetch');
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
           }
@@ -183,24 +235,17 @@ class StreamManagerClass {
             if (isPPTTool) {
               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
             }
-
-            // Append to toolLog (NOT content — keeps AI reply clean for history)
             streamData.state.toolLog += `\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n`;
             this.notify(sessionId, streamData);
           },
           onToolResult: (result) => {
             window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
-
             const isPPTTool = this.shouldRefetchForTool(lastToolName);
             const shouldRefetch = result.should_refetch_ppt === true || isPPTTool;
-
             if (shouldRefetch) {
               refetchDispatched = true;
-              console.log(`[StreamManager] Tool "${lastToolName}" completed → triggering PPT refetch`);
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
-
-            // Append result to toolLog
             const statusIcon = result.status === 'success' ? '✅' : '❌';
             streamData.state.toolLog += `> ${statusIcon} *操作已完成*\n\n`;
             this.notify(sessionId, streamData);
