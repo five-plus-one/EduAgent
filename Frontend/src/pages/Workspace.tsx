@@ -13,8 +13,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download } from 'lucide-react';
+import { listKnowledgeDocs, addReferences, removeReference } from '../utils/api';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -38,6 +38,7 @@ export default function Workspace() {
   const [kbDocs, setKbDocs] = useState<any[]>([]);
   const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
+  const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   
   useEffect(() => {
     let active = true;
@@ -47,18 +48,27 @@ export default function Workspace() {
     return () => { active = false; };
   }, []);
 
-  const handleLinkDoc = async (docId: string) => {
+  const handleToggleLink = async (docId: string, isLinked: boolean) => {
     if (sessionId === 'new') {
-      alert('请先创建会话再关联资料');
+      alert('请先创建会话再管理关联资料');
       return;
     }
     
     setLinkingDocs(prev => new Set(prev).add(docId));
     try {
-      await addReferences(sessionId, [docId]);
-      setLinkedDocs(prev => new Set(prev).add(docId));
+      if (isLinked) {
+        await removeReference(sessionId, docId);
+        setLinkedDocs(prev => {
+          const next = new Set(prev);
+          next.delete(docId);
+          return next;
+        });
+      } else {
+        await addReferences(sessionId, [docId]);
+        setLinkedDocs(prev => new Set(prev).add(docId));
+      }
     } catch (e) {
-      alert('资料关联失败，请检查网络或刷新重试。');
+      alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');
     } finally {
       setLinkingDocs(prev => {
         const next = new Set(prev);
@@ -298,16 +308,23 @@ export default function Workspace() {
                         <div className={styles.kbItemActions}>
                           <button 
                             className={clsx(
-                              isLinked ? styles.btnLinked : 'button-primary', 
+                              isLinked ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked) : 'button-primary', 
                               styles.actionBtn
                             )}
-                            disabled={isLinked || isLinking || sessionId === 'new'}
-                            onClick={() => handleLinkDoc(doc.document_id)}
+                            disabled={isLinking || sessionId === 'new'}
+                            onClick={() => handleToggleLink(doc.document_id, isLinked)}
+                            onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
+                            onMouseLeave={() => setHoveredLinkDoc(null)}
+                            title={isLinked ? '点击解除绑定' : '点击加入会话'}
                           >
                             {isLinking ? (
-                              <><Loader2 size={14} className={styles.spinner} /> 关联中</>
+                              <><Loader2 size={14} className={styles.spinner} /> 变更中</>
                             ) : isLinked ? (
-                              <><CheckCircle size={14} /> 已绑定</>
+                              hoveredLinkDoc === doc.document_id ? (
+                                <><Unlink size={14} /> 取消绑定</>
+                              ) : (
+                                <><CheckCircle size={14} /> 已绑定</>
+                              )
                             ) : (
                               <><Link size={14} /> 加入会话</>
                             )}

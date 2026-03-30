@@ -306,7 +306,11 @@ def delete_session_file(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ):
-    sf = db.query(SessionFile).filter(SessionFile.id == file_id, SessionFile.session_id == session_id).first()
+    from sqlalchemy import or_
+    sf = db.query(SessionFile).filter(
+        SessionFile.session_id == session_id,
+        or_(SessionFile.id == file_id, SessionFile.document_id == file_id)
+    ).first()
     if not sf:
         raise HTTPException(status_code=404, detail="File mount not found")
     

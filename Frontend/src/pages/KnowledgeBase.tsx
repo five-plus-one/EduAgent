@@ -20,8 +20,9 @@ export default function KnowledgeBase() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchDocs = useCallback(async () => {
+  const fetchDocs = useCallback(async (isSilent = false) => {
     try {
+      if (!isSilent) setLoading(true);
       const data = await listKnowledgeDocs(1, 50);
       // Backend returns { total, items: [...] } or raw array
       const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
@@ -36,6 +37,20 @@ export default function KnowledgeBase() {
   useEffect(() => {
     fetchDocs();
   }, [fetchDocs]);
+
+  // AI/RAG Polling System: Keep fetching every 3s if any docs are processing
+  useEffect(() => {
+    const hasProcessing = documents.some(
+      (doc) => doc.status === 'processing' || doc.status === 'pending'
+    );
+    if (!hasProcessing) return;
+
+    const timer = setInterval(() => {
+      fetchDocs(true); // silent fetch to prevent UI flashing
+    }, 3000);
+
+    return () => clearInterval(timer);
+  }, [documents, fetchDocs]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -101,7 +116,7 @@ export default function KnowledgeBase() {
         </div>
         <button
           className={clsx('button-base', styles.refreshBtn)}
-          onClick={fetchDocs}
+          onClick={() => fetchDocs(false)}
           title="刷新列表"
         >
           <RefreshCw size={16} />

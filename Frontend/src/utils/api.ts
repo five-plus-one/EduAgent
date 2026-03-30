@@ -179,6 +179,11 @@ export const addReferences = async (sessionId: string, referenceIds: string[]) =
   await apiClient.post(`/sessions/${sessionId}/references`, { reference_ids: referenceIds });
 };
 
+/** 3.7 Remove linked document from session */
+export const removeReference = async (sessionId: string, docId: string) => {
+  await apiClient.delete(`/sessions/${sessionId}/files/${docId}`);
+};
+
 /** 3.6 Update file intent description */
 export const updateFile = async (sessionId: string, fileId: string, intentDesc: string) => {
   await apiClient.put(`/sessions/${sessionId}/files/${fileId}`, { intent_desc: intentDesc });
