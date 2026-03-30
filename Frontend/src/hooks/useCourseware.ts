@@ -29,8 +29,14 @@ export function useCourseware(sessionId: string) {
     try {
       const resp = await getCoursewarePreview(sessionId);
       if (resp) {
-        if (resp.pages && Array.isArray(resp.pages)) setPages(resp.pages);
-        if (resp.word_doc) setWordDoc(resp.word_doc);
+        if (resp.ppt_data && Array.isArray(resp.ppt_data)) {
+          setPages(resp.ppt_data);
+        } else if (resp.pages && Array.isArray(resp.pages)) {
+          setPages(resp.pages);
+        }
+
+        if (resp.word_markdown) setWordDoc(resp.word_markdown);
+        else if (resp.word_doc) setWordDoc(resp.word_doc);
         else if (resp.wordDoc) setWordDoc(resp.wordDoc);
       }
     } catch (e) {

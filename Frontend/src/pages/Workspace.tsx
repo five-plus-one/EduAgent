@@ -340,7 +340,17 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {pages.length > 0 ? (
+              {isGenerating ? (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
+                  <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
+                  <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
+                  <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+                    大模型正在深度重组知识架构，并为您渲染多端图元排版。<br/>
+                    该过程极其消耗心智，约需 <strong>80-90 秒</strong>。<br/>
+                    您可以切回左侧处理其他会话，后台渲染不会中断。
+                  </p>
+                </div>
+              ) : pages.length > 0 ? (
                 pages.map(page => (
                   <PPTCard 
                     key={page.page_index} 
@@ -353,7 +363,7 @@ export default function Workspace() {
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                   <Sparkles size={48} style={{ marginBottom: '16px' }} />
                   <h3>课件待生成</h3>
-                  <p>请点击右上角「✨ AI 一键生成课件」开始</p>
+                  <p>请击右上角「✨ AI 一键生成课件」开始</p>
                 </div>
               )}
             </div>
@@ -361,7 +371,17 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
-              {wordDoc ? (
+              {isGenerating ? (
+                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
+                  <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
+                  <h3 style={{ marginBottom: '12px' }}>AI 正在提炼讲义长文</h3>
+                  <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+                    大模型正在为您扩写与课件配套的完整教学讲义文稿。<br/>
+                    该并行流处理大约需要 <strong>80-90 秒</strong>。<br/>
+                    请稍作等待，全套资料链即可完成闭环。
+                  </p>
+                </div>
+              ) : wordDoc ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
