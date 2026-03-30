@@ -75,11 +75,20 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
             try:
                 url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
                 headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
-                payload = {"model": settings.LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
+                payload = {"model": settings.LLM_MODEL, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3, "stream": True}
                 
-                response = requests.post(url, headers=headers, json=payload, timeout=60)
+                response = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
                 response.raise_for_status()
-                content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+                for line in response.iter_lines():
+                    if line:
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith("data: ") and line_str != "data: [DONE]":
+                            try:
+                                import json
+                                chunk_data = json.loads(line_str[6:])
+                                content += chunk_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            except:
+                                pass
                 if content:
                     break
             except Exception as e:
@@ -94,6 +103,11 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
             content = content.split("```json")[-1].split("```")[0].strip()
         if content.startswith("```"):
             content = content.replace("```", "").strip()
+            
+        import re
+        json_match = re.search(r"\{.*\}", content, re.DOTALL)
+        if json_match:
+            content = json_match.group(0)
             
         parsed_data = json.loads(content)
 
