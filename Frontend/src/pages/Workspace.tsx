@@ -13,6 +13,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
+import { listKnowledgeDocs, addReferences } from '../utils/api';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -28,14 +29,56 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
+
+  // RAG Knowledge Base Integration
+  const [kbDocs, setKbDocs] = useState<any[]>([]);
+  const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());
+  
+  useEffect(() => {
+    let active = true;
+    listKnowledgeDocs(1, 50).then(res => {
+      if (active) setKbDocs(res?.items || []);
+    }).catch(e => console.error("Failed to load KB docs", e));
+    return () => { active = false; };
+  }, []);
+
+  const handleLinkDoc = async (docId: string) => {
+    if (sessionId === 'new') {
+      alert('请先创建会话再关联资料');
+      return;
+    }
+    try {
+      await addReferences(sessionId, [docId]);
+      setLinkedDocs(prev => new Set(prev).add(docId));
+    } catch (e) {
+      alert('资料关联失败');
+    }
+  };
 
   // Auto scroll to bottom
   useEffect(() => {
     streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // AI Tool Caller (MCP Proxy)
+  useEffect(() => {
+    if (latestIntent && !isGenerating && sessionId !== 'new') {
+      const intentLower = latestIntent.toLowerCase();
+      // If AI's intent suggests UI should create PPT, automatically trigger it.
+      if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt') || intentLower.includes('mcp_generate')) {
+        console.log('[MCP Proxy] AI Intent detected:', latestIntent, '-> Auto-triggering Generate!');
+        // We simulate user clicking the '一键生成' button
+        // Optional delay for better UI UX
+        const timer = setTimeout(() => {
+          handleGenerate(Array.from(linkedDocs), 'fast');
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [latestIntent, isGenerating, sessionId, linkedDocs, handleGenerate]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
@@ -209,7 +252,36 @@ export default function Workspace() {
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
-            <div className={styles.placeholderCentric}>资料解析区暂无数据</div>
+            <div className={styles.kbPanel}>
+              <div className={styles.kbHeader}>
+                <h3>全局知识库核心资料池</h3>
+                <p>选择并关联相关资料，作为 AI 生成幻灯片的依据。</p>
+              </div>
+              {kbDocs.length === 0 ? (
+                <div className={styles.placeholderCentric}>知识库尚未上传任何文档</div>
+              ) : (
+                <div className={styles.kbGrid}>
+                  {kbDocs.map(doc => {
+                    const isLinked = linkedDocs.has(doc.document_id);
+                    return (
+                      <div key={doc.document_id} className={clsx(styles.kbCard, 'glass-panel')}>
+                        <div className={styles.kbCardInfo}>
+                          <h4 className={styles.truncate}>{doc.filename}</h4>
+                          <span className={styles.kbMeta}>{doc.subject || '通用'}</span>
+                        </div>
+                        <button 
+                          className={clsx(isLinked ? 'button-base' : 'button-primary', styles.linkBtn)}
+                          disabled={isLinked || sessionId === 'new'}
+                          onClick={() => handleLinkDoc(doc.document_id)}
+                        >
+                          {isLinked ? '已关联' : '🔗 关联至当前会话'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="ppt">

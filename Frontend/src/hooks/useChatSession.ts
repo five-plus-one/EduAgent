@@ -8,6 +8,7 @@ const generateId = () => Math.random().toString(36).substring(2, 11);
 export function useChatSession(sessionId: string) {
   const [messages, setMessages] = useState<MessageProps[]>([]);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const [latestIntent, setLatestIntent] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Holds the resolved real session ID (after lazy creation)
@@ -63,11 +64,16 @@ export function useChatSession(sessionId: string) {
       }
 
       const activeSessionId = resolvedSessionIdRef.current;
+      setLatestIntent(null); // reset intent for new message
 
       await streamChatCompletion(
         activeSessionId,
         content,
-        (chunk, isFinished) => {
+        (chunk, isFinished, intent) => {
+          if (intent && typeof intent === 'string') {
+            // Extracted intent detected from backend Agent!
+            setLatestIntent(intent);
+          }
           setMessages(prev => prev.map(m =>
             m.id === aiMsgId
               ? { ...m, content: m.content + chunk, isTyping: !isFinished }
@@ -106,5 +112,5 @@ export function useChatSession(sessionId: string) {
     }
   }, [sessionId, isSynthesizing, navigate]);
 
-  return { messages, isSynthesizing, sendMessage, stopGeneration };
+  return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration };
 }

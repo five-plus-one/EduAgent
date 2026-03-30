@@ -503,3 +503,65 @@
   70% { transform: scale(1); box-shadow: 0 0 0 10px hsla(var(--hue), 85%, 55%, 0); }
   100% { transform: scale(0.8); box-shadow: 0 0 0 0 hsla(var(--hue), 85%, 55%, 0); }
 }
+
+/* KB Panel for References */
+.kbPanel {
+  padding: 0 12px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.kbHeader {
+  margin-bottom: 8px;
+}
+
+.kbHeader h3 {
+  font-size: 1.2rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.kbHeader p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.kbGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.kbCard {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glass);
+}
+
+.kbCardInfo h4 {
+  font-size: 1rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.kbMeta {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-pill);
+  color: var(--text-tertiary);
+  display: inline-block;
+}
+
+.linkBtn {
+  margin-top: auto;
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 8px;
+}
