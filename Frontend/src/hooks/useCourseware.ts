@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { iterateCoursewarePage, getCoursewarePreview } from '../utils/api';
+import { iterateCoursewarePage, getCoursewarePreview, generateCourseware, getGenerationStatus } from '../utils/api';
 
 export interface PPTElement {
   element_id: string;
@@ -124,6 +124,41 @@ export function useCourseware(sessionId: string) {
     fetchPreview();
   }, [fetchPreview]);
 
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleGenerate = useCallback(async (selectedFiles: string[] = [], mode: 'fast'|'depth' = 'fast') => {
+    if (sessionId === 'new' || isGenerating) return;
+    setIsGenerating(true);
+    try {
+      // 1. 发起后端异步生成任务
+      const triggerRes = await generateCourseware(sessionId, selectedFiles, mode);
+      const taskId = triggerRes.task_id;
+      
+      if (!taskId) throw new Error("No task_id returned from generation endpoint");
+
+      // 2. 轮询状态直到生成完成
+      while (true) {
+        await new Promise(r => setTimeout(r, 2000)); // 2s 心跳
+        const statusData = await getGenerationStatus(taskId);
+        
+        if (statusData.status === 'completed') {
+          break;
+        } else if (statusData.status === 'failed' || statusData.status === 'error') {
+          throw new Error(statusData.error || 'Generation task failed on server');
+        }
+      }
+
+      // 3. 生成完成后，重新抓取最新的 PPT 预览
+      await fetchPreview();
+      alert('AI 课件生成成功，请在右侧查阅。');
+    } catch (e) {
+      console.error('Failed to generate courseware', e);
+      alert(`生成失败: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [sessionId, isGenerating, fetchPreview]);
+
   const iteratePage = useCallback(async (pageIndex: number, instruction: string) => {
     setUpdatingPages(prev => new Set(prev).add(pageIndex));
 
@@ -144,5 +179,5 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview };
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate };
 }

@@ -29,7 +29,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   // Auto scroll to bottom
@@ -188,14 +188,24 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
-            <button 
-              className={clsx('button-base', styles.exportBtn)}
-              onClick={exportCourseware}
-              disabled={isExporting || sessionId === 'new'}
-            >
-              <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
-              {isExporting ? '导出中...' : '导出'}
-            </button>
+            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className={clsx('button-primary', styles.generateBtn)}
+                onClick={() => handleGenerate([], 'fast')}
+                disabled={isGenerating || sessionId === 'new'}
+              >
+                <Sparkles size={16} className={clsx(isGenerating && styles.rotating)} /> 
+                {isGenerating ? 'AI生成中...' : 'AI 一键生成课件'}
+              </button>
+              <button 
+                className={clsx('button-base', styles.exportBtn)}
+                onClick={exportCourseware}
+                disabled={isExporting || sessionId === 'new'}
+              >
+                <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
+                {isExporting ? '导出中...' : '导出 pptx'}
+              </button>
+            </div>
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
