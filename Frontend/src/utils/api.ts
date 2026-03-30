@@ -210,7 +210,7 @@ export const generateCourseware = async (
 
 /** 4.2 Poll generation task progress */
 export const getGenerationStatus = async (taskId: string) => {
-  const res = await apiClient.get(`/tasks/${taskId}`);
+  const res = await apiClient.get(`/generate/tasks/${taskId}`);
   return res.data?.data ?? res.data;
 };
 
@@ -248,7 +248,7 @@ export const triggerExport = async (sessionId: string) => {
 
 /** 5.2 Poll export task for download URLs */
 export const getExportStatus = async (taskId: string) => {
-  const res = await apiClient.get(`/tasks/${taskId}`);
+  const res = await apiClient.get(`/export/tasks/${taskId}`);
   return res.data?.data ?? res.data;
 };
 
