@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { iterateCoursewarePage } from '../utils/api';
+import { useState, useCallback, useEffect } from 'react';
+import { iterateCoursewarePage, getCoursewarePreview } from '../utils/api';
 
 export interface PPTElement {
   element_id: string;
@@ -72,7 +72,7 @@ export function useCourseware(sessionId: string) {
     }
   ]);
   const [updatingPages, setUpdatingPages] = useState<Set<number>>(new Set());
-  const [wordDoc] = useState(`
+  const [wordDoc, setWordDoc] = useState(`
 # 第一节：牛顿第二定律
 
 **教学目标**：深度掌握核心定律，并能够通过公式推导解决实际物理问题。
@@ -106,6 +106,24 @@ export function useCourseware(sessionId: string) {
 *注：本讲义由多模态AI教学智能体辅助生成并持续优化排版。*
 `);
 
+  const fetchPreview = useCallback(async () => {
+    if (sessionId === 'new') return;
+    try {
+      const resp = await getCoursewarePreview(sessionId);
+      if (resp) {
+        if (resp.pages && Array.isArray(resp.pages)) setPages(resp.pages);
+        if (resp.word_doc) setWordDoc(resp.word_doc);
+        else if (resp.wordDoc) setWordDoc(resp.wordDoc);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch real courseware preview, using fallback mocks.', e);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    fetchPreview();
+  }, [fetchPreview]);
+
   const iteratePage = useCallback(async (pageIndex: number, instruction: string) => {
     setUpdatingPages(prev => new Set(prev).add(pageIndex));
 
@@ -126,5 +144,5 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage };
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview };
 }

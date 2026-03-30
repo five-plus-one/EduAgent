@@ -12,6 +12,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useExport } from '../hooks/useExport';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -29,6 +30,7 @@ export default function Workspace() {
 
   const { messages, isSynthesizing, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage } = useCourseware(sessionId);
+  const { isExporting, exportCourseware } = useExport(sessionId);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -186,8 +188,13 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
-            <button className={clsx('button-base', styles.exportBtn)}>
-              <Download size={16} /> 导出
+            <button 
+              className={clsx('button-base', styles.exportBtn)}
+              onClick={exportCourseware}
+              disabled={isExporting || sessionId === 'new'}
+            >
+              <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
+              {isExporting ? '导出中...' : '导出'}
             </button>
           </header>
 
