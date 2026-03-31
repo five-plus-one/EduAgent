@@ -248,7 +248,9 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         page_count = 0
         theme_saved = False
 
-        async with AsyncClient(timeout=120) as client:
+        import httpx
+        timeout_config = httpx.Timeout(connect=15.0, read=600.0, write=15.0, pool=20.0)
+        async with AsyncClient(timeout=timeout_config) as client:
             async with client.stream("POST", url, headers=headers, json=payload) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
