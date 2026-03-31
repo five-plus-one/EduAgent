@@ -89,7 +89,8 @@ def get_courseware_preview(
 ):
     cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
     if not cw or not cw.ppt_data:
-        raise HTTPException(status_code=404, detail="Courseware not found or not generated yet")
+        # 兼容性修复：流式生成中可能为空，不要报 404，返回空载体让前端渲染为 0页。
+        return {"ppt_data": [], "word_markdown": ""}
         
     slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
     if not isinstance(slides_array, list): slides_array = []
