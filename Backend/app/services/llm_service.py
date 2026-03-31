@@ -210,7 +210,7 @@ async def stream_chat_response(
             should_refetch = True
             try:
                 from app.db.session import SessionLocal
-                from app.models.session import Courseware
+                from app.models.generation import Courseware   # 正确路径：generation.py
                 db_local = SessionLocal()
                 cw = db_local.query(Courseware).filter(Courseware.session_id == session_id).first()
                 if cw and cw.ppt_data and cw.ppt_data.get("ppt_data"):
