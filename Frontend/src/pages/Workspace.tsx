@@ -231,7 +231,10 @@ export default function Workspace() {
                 key={msg.id}
                 id={msg.id} 
                 role={msg.role} 
-                content={msg.content} 
+                content={msg.content}
+                thinking={msg.thinking}
+                toolLog={msg.toolLog}
+                isThinking={msg.isThinking}
                 isTyping={msg.isTyping} 
               />
             ))
