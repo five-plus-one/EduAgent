@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 // Core Setup
 // ==========================================
 
-export const API_BASE_URL = '/api/v1';
+export const API_BASE_URL = 'http://localhost:5173';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
