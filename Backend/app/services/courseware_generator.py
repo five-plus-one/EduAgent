@@ -287,44 +287,49 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                 continue
 
                             buffer += delta
-                            # Try to extract lines from buffer
-                            while "\n" in buffer:
-                                line_str, buffer = buffer.split("\n", 1)
-                                line_str = line_str.strip()
-                                if not line_str:
-                                    continue
+                            decoder = json.JSONDecoder()
+                            while buffer:
+                                buffer = buffer.lstrip()
+                                if not buffer:
+                                    break
                                 
                                 try:
-                                    obj = json.loads(line_str)
+                                    obj, idx = decoder.raw_decode(buffer)
                                     t = obj.get("__type")
                                     if t == "theme":
                                         obj.pop("__type", None)
                                         # Set theme logic here if we saved theme to CW
-                                        if "theme" in courseware.ppt_data:
+                                        if isinstance(courseware.ppt_data, dict) and "theme" in courseware.ppt_data:
                                             courseware.ppt_data["theme"] = obj
                                         else:
                                             # If not dict, initialize
-                                            courseware.ppt_data = {**courseware.ppt_data, "theme": obj} 
+                                            courseware.ppt_data = {**(courseware.ppt_data or {}), "theme": obj} 
                                             
                                         db.commit()
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
                                     elif t == "page":
                                         obj.pop("__type", None)
-                                        current_pages = courseware.ppt_data.get("ppt_data", [])
+                                        current_pages = courseware.ppt_data.get("ppt_data", []) if isinstance(courseware.ppt_data, dict) else []
                                         current_pages.append(obj)
-                                        courseware.ppt_data = {**courseware.ppt_data, "ppt_data": current_pages}
+                                        courseware.ppt_data = {**(courseware.ppt_data or {}), "ppt_data": current_pages}
                                         db.commit()
                                         page_count += 1
                                         yield sse("page_chunk", obj)
                                     elif t == "word_start":
                                         word_mode = True
                                         
+                                    buffer = buffer[idx:]
+                                    
+                                    if word_mode:
+                                        if buffer:
+                                            word_lines.append(buffer)
+                                            buffer = ""
+                                        break
+                                        
                                 except json.JSONDecodeError:
-                                    # Fallback if line wasn't exactly complete JSON. Reattach to buffer string
-                                    buffer = line_str + "\n" + buffer
-                                    break # Need more chunks to complete JSON line
-
+                                    # Need more chunks to complete JSON object
+                                    break
                         except json.JSONDecodeError:
                             continue
                             
