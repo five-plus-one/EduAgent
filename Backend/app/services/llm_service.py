@@ -113,7 +113,8 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
         "tools": TOOLS_SCHEMA,
         "tool_choice": "auto",
         "stream": True,
-        "stream_options": {"include_usage": False},
+        # 注意: 豆包的深度思考(thinking)与 Tool Calling 不可同时开启
+        # 这里优先保证 Tool Calling 正常工作，如只需思考流请删除 tools/tool_choice 并加回 thinking 配置
     }
 
     # 原生 HTTP 流式请求，可拿到 reasoning_content 字段
@@ -167,7 +168,10 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
                 yield f"data: {evt}\n\n"
 
             # ── 3. Tool Calls（流式拼装） ─────────────────────────────────────
-            for tc in delta.get("tool_calls", []):
+            raw_tool_calls = delta.get("tool_calls") or []
+            if raw_tool_calls:
+                logger.info(f"[TOOL_CALL_CHUNK] {raw_tool_calls}")
+            for tc in raw_tool_calls:
                 idx = tc.get("index", 0)
                 if idx not in tool_calls_buffer:
                     tool_calls_buffer[idx] = {
