@@ -255,6 +255,67 @@ export const iterateCoursewarePage = async (
   return res.data?.data ?? res.data;
 };
 
+/** 4.5 Stream courseware generation using SSE (Step-by-step rendering) */
+export const streamCoursewareGeneration = async (
+  sessionId: string,
+  selectedFileIds: string[],
+  mode: 'fast' | 'depth',
+  callbacks: {
+    onStart: (theme: any, totalHint: number) => void;
+    onPage:  (page: any) => void;
+    onWordReady: (markdown: string) => void;
+    onDone: (totalPages: number) => void;
+    onError: (err: any) => void;
+  },
+  signal?: AbortSignal
+) => {
+  const token = localStorage.getItem('access_token');
+
+  await fetchEventSource(`${API_BASE_URL}/sessions/${sessionId}/generate/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ selected_file_ids: selectedFileIds, mode }),
+    signal,
+    onmessage(ev) {
+      try {
+        const payload = JSON.parse(ev.data);
+        const { event, data } = payload;
+
+        switch (event) {
+          case 'generate_start':
+            callbacks.onStart(data.theme, data.total_hint);
+            break;
+          case 'page_chunk':
+            callbacks.onPage(data);
+            break;
+          case 'word_ready':
+            callbacks.onWordReady(data.word_markdown);
+            break;
+          case 'generate_done':
+            callbacks.onDone(data.total_pages);
+            break;
+          case 'generate_error':
+            callbacks.onError(new Error(data.message));
+            break;
+        }
+      } catch (err) {
+        console.error('[streamCoursewareGeneration] Parse error', ev.data, err);
+      }
+    },
+    onerror(err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw err; 
+      }
+      callbacks.onError(err);
+      throw err;
+    },
+  });
+};
+
 // ==========================================
 // Module 5: Export
 // NOTE: These endpoints are NOT yet implemented on the backend.

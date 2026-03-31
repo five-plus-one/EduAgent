@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
@@ -7,7 +7,9 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useChatSession } from '../hooks/useChatSession';
 import MessageBubble from '../components/MessageBubble';
 import { useCourseware } from '../hooks/useCourseware';
+import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
+import PPTSkeleton from '../components/PPTSkeleton';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -31,8 +33,23 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, handleGenerate, previewStatus } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
+
+  const { 
+    isStreaming, 
+    streamPages, 
+    streamWordDoc, 
+    startStreaming, 
+    stopStreaming,
+    streamError
+  } = usePPTStream(sessionId);
+
+  useEffect(() => {
+    if (!isStreaming && streamPages.length > 0) {
+      fetchPreview();
+    }
+  }, [isStreaming, streamPages, fetchPreview]);
 
   // RAG Knowledge Base Integration
   const [kbDocs, setKbDocs] = useState<any[]>([]);
@@ -142,7 +159,10 @@ export default function Workspace() {
     };
     window.addEventListener('EduAgent_Generate_Start', handleGenerateStart);
     
-    // Intent-based fallback (no handleGenerate triggering anymore!)
+    // Auto-stop stream if session changes? (handled by usePPTStream internally but good to be explicit here)
+    if (isStreaming && sessionId === 'new') stopStreaming();
+
+    // Intent-based fallback
     if (latestIntent && sessionId !== 'new') {
       const intentLower = latestIntent.toLowerCase();
       if (intentLower.includes('generate_courseware') || intentLower.includes('generate_ppt')) {
@@ -151,7 +171,7 @@ export default function Workspace() {
     }
     
     return () => window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
-  }, [latestIntent, sessionId]);
+  }, [latestIntent, sessionId, isStreaming, stopStreaming]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
@@ -270,10 +290,13 @@ export default function Workspace() {
               >
                 {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
-              {isSynthesizing ? (
+              {isSynthesizing || isStreaming ? (
                 <button
                   className={clsx('button-primary', styles.sendButton, styles.stopButton)}
-                  onClick={stopGeneration}
+                  onClick={() => {
+                    stopGeneration();
+                    if (isStreaming) stopStreaming();
+                  }}
                   title="停止生成"
                 >
                   <Square size={18} fill="currentColor" />
@@ -311,14 +334,15 @@ export default function Workspace() {
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
               <button 
                 className={clsx('button-primary', styles.generateBtn)}
-                onClick={() => {
+                onClick={async () => {
                   setActiveTab('ppt');
-                  handleGenerate([], 'fast');
+                  await startStreaming([], 'fast');
+                  fetchPreview();
                 }}
-                disabled={isGenerating || sessionId === 'new'}
+                disabled={isGenerating || isStreaming || sessionId === 'new'}
               >
-                <Sparkles size={16} className={clsx(isGenerating && styles.rotating)} /> 
-                {isGenerating ? 'AI生成中...' : 'AI 一键生成课件'}
+                <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
+                {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
               </button>
               <button 
                 className={clsx('button-base', styles.exportBtn)}
@@ -392,7 +416,8 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {isGenerating || previewStatus === 'loading' ? (
+              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet */}
+              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -402,7 +427,7 @@ export default function Workspace() {
                     您可以切回左侧处理其他会话，后台渲染不会中断。
                   </p>
                 </div>
-              ) : previewStatus === 'error' ? (
+              ) : previewStatus === 'error' && !isStreaming && pages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <span style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</span>
                   <h3 style={{ marginBottom: '12px' }}>课件生成超时</h3>
@@ -411,35 +436,66 @@ export default function Workspace() {
                   </p>
                   <button
                     className='button-primary'
-                    onClick={() => handleGenerate(Array.from(linkedDocs), 'fast')}
+                    onClick={() => startStreaming(Array.from(linkedDocs), 'fast')}
                     disabled={sessionId === 'new'}
                     style={{ padding: '10px 24px' }}
                   >
                     🔄 重新生成
                   </button>
                 </div>
-              ) : pages.length > 0 ? (
-                pages.map(page => (
-                  <PPTCard 
-                    key={page.page_index} 
-                    page={page} 
-                    isUpdating={updatingPages.has(page.page_index)}
-                    onIterate={(instruction) => iteratePage(page.page_index, instruction)}
-                  />
-                ))
               ) : (
-                <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
-                  <Sparkles size={48} style={{ marginBottom: '16px' }} />
-                  <h3>课件待生成</h3>
-                  <p>请击右上角「✨ AI 一键生成课件」开始</p>
-                </div>
+                <>
+                  {/* Render existing stable pages */}
+                  {pages.map(page => (
+                    <PPTCard 
+                      key={page.page_index} 
+                      page={page} 
+                      isUpdating={updatingPages.has(page.page_index)}
+                      onIterate={(instruction) => iteratePage(page.page_index, instruction)}
+                    />
+                  ))}
+                  
+                  {/* Render streaming pages (if streaming) */}
+                  {isStreaming && streamPages.map(page => {
+                     // Deduplicate if pages hasn't synced yet
+                     if (pages.some(p => p.page_index === page.page_index)) return null;
+                     return (
+                        <PPTCard 
+                          key={`stream-${page.page_index}`} 
+                          page={page} 
+                          isUpdating={false}
+                          onIterate={() => {}} // Disabled during stream for stability
+                        />
+                     );
+                  })}
+                  
+                  {/* Render the next page skeleton */}
+                  {isStreaming && (
+                    <PPTSkeleton pageNumber={(streamPages.length || pages.length) + 1} />
+                  )}
+
+                  {/* Empty State */}
+                  {pages.length === 0 && !isStreaming && previewStatus !== 'loading' && (
+                    <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
+                      <Sparkles size={48} style={{ marginBottom: '16px' }} />
+                      <h3>课件待生成</h3>
+                      <p>请点击右上角「✨ AI 一键生成课件」开始</p>
+                    </div>
+                  )}
+                  
+                  {streamError && !isStreaming && (
+                    <div className={styles.streamErrorToast}>
+                      ⚠️ {streamError}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
-              {isGenerating ? (
+              {isGenerating && !isStreaming ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在提炼讲义长文</h3>
@@ -449,13 +505,13 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
-              ) : wordDoc ? (
+              ) : (wordDoc || streamWordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                   >
-                    {wordDoc}
+                    {wordDoc || streamWordDoc}
                   </ReactMarkdown>
                 </div>
               ) : (
