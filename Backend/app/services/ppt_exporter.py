@@ -1,5 +1,21 @@
 import os
 import uuid
+import collections
+import collections.abc
+
+import logging
+logger = logging.getLogger(__name__)
+
+# Monkeypatch for Python 3.10+ compatibility with python-pptx
+if not hasattr(collections, 'Container'):
+    collections.Container = collections.abc.Container
+    collections.Mapping = collections.abc.Mapping
+    collections.MutableMapping = collections.abc.MutableMapping
+    collections.Iterable = collections.abc.Iterable
+    collections.MutableSet = collections.abc.MutableSet
+    collections.Callable = collections.abc.Callable
+    collections.Sequence = collections.abc.Sequence
+
 try:
     from pptx import Presentation
     from pptx.util import Inches, Pt
@@ -161,6 +177,9 @@ def run_export_task(task_id: str, session_id: str):
             task.result_data = {"error": "Error composing PPT. Missing python-pptx requirement?", "details": str(file_exp), "trace": traceback.format_exc()}
         db.commit()
     except Exception as e:
+        logger.error(f"Export Task Failed for session {session_id}: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         task.status = "failed"
         task.result_data = {"error": str(e)}
         db.commit()
