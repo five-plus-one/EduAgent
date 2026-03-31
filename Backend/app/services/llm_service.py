@@ -1,8 +1,6 @@
 import json
 import logging
-import requests as http_requests
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+import httpx
 from app.core.config import settings
 from app.services.llm_tools import GenerateFullPPT, UpdateSlide, AddSlide, DeleteSlide
 
@@ -78,16 +76,13 @@ SYSTEM_PROMPT = (
     "Your text response should only be brief conversational acknowledgement."
 )
 
-def get_chat_llm():
-    return ChatOpenAI(
-        model=settings.LLM_MODEL,
-        openai_api_base=settings.OPENAI_API_BASE,
-        openai_api_key=settings.OPENAI_API_KEY,
-        streaming=True,
-        temperature=0.7
-    )
 
-async def stream_chat_response(messages_history: list, new_user_input: str, rag_context: str = "", session_id: str = None):
+async def stream_chat_response(
+    messages_history: list,
+    new_user_input: str,
+    rag_context: str = "",
+    session_id: str = None
+):
     # 构造消息列表
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -113,87 +108,88 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
         "tools": TOOLS_SCHEMA,
         "tool_choice": "auto",
         "stream": True,
-        # 注意: 豆包的深度思考(thinking)与 Tool Calling 不可同时开启
-        # 这里优先保证 Tool Calling 正常工作，如只需思考流请删除 tools/tool_choice 并加回 thinking 配置
     }
 
-    # 原生 HTTP 流式请求，可拿到 reasoning_content 字段
     base_url = settings.OPENAI_API_BASE.rstrip("/")
-
-    # 用于拼接 tool_call 参数（流式 tool_calls 分多块吐出）
     tool_calls_buffer: dict[int, dict] = {}
     extracted_intent = ""
 
     try:
-        resp = http_requests.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=(10, 300)
-        )
-        resp.raise_for_status()
+        # 使用 async httpx 避免阻塞事件循环（深度思考可能需要较长时间）
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=10.0, read=600.0, write=10.0, pool=10.0)
+        ) as client:
+            async with client.stream(
+                "POST",
+                f"{base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
 
-        for raw_line in resp.iter_lines():
-            if not raw_line:
-                continue
-            line = raw_line.decode("utf-8") if isinstance(raw_line, bytes) else raw_line
-            if not line.startswith("data: "):
-                continue
-            data_str = line[6:].strip()
-            if data_str == "[DONE]":
-                break
+                async for raw_line in resp.aiter_lines():
+                    line = raw_line.strip()
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
 
-            try:
-                chunk = json.loads(data_str)
-            except json.JSONDecodeError:
-                continue
+                    try:
+                        chunk = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
 
-            choices = chunk.get("choices", [])
-            if not choices:
-                continue
+                    choices = chunk.get("choices", [])
+                    if not choices:
+                        continue
 
-            delta = choices[0].get("delta", {})
+                    delta = choices[0].get("delta", {})
 
-            # ── 1. 深度思考内容 (reasoning_content) ──────────────────────────
-            reasoning = delta.get("reasoning_content") or delta.get("thinking") or ""
-            if reasoning:
-                evt = json.dumps({"event_type": "thinking", "chunk": reasoning, "is_finished": False}, ensure_ascii=False)
-                yield f"data: {evt}\n\n"
+                    # ── 1. 深度思考内容 (reasoning_content) ──────────────────
+                    reasoning = delta.get("reasoning_content") or delta.get("thinking") or ""
+                    if reasoning:
+                        evt = json.dumps(
+                            {"event_type": "thinking", "chunk": reasoning, "is_finished": False},
+                            ensure_ascii=False
+                        )
+                        yield f"data: {evt}\n\n"
 
-            # ── 2. 普通文本内容 ───────────────────────────────────────────────
-            text_content = delta.get("content") or ""
-            if text_content:
-                evt = json.dumps({"event_type": "text", "chunk": text_content, "is_finished": False}, ensure_ascii=False)
-                yield f"data: {evt}\n\n"
+                    # ── 2. 普通文本内容 ────────────────────────────────────────
+                    text_content = delta.get("content") or ""
+                    if text_content:
+                        evt = json.dumps(
+                            {"event_type": "text", "chunk": text_content, "is_finished": False},
+                            ensure_ascii=False
+                        )
+                        yield f"data: {evt}\n\n"
 
-            # ── 3. Tool Calls（流式拼装） ─────────────────────────────────────
-            raw_tool_calls = delta.get("tool_calls") or []
-            if raw_tool_calls:
-                logger.info(f"[TOOL_CALL_CHUNK] {raw_tool_calls}")
-            for tc in raw_tool_calls:
-                idx = tc.get("index", 0)
-                if idx not in tool_calls_buffer:
-                    tool_calls_buffer[idx] = {
-                        "id": tc.get("id", ""),
-                        "name": tc.get("function", {}).get("name", ""),
-                        "args_str": ""
-                    }
-                fn = tc.get("function", {})
-                if fn.get("name"):
-                    tool_calls_buffer[idx]["name"] = fn["name"]
-                tool_calls_buffer[idx]["args_str"] += fn.get("arguments", "")
+                    # ── 3. Tool Calls（流式拼装）─────────────────────────────
+                    for tc in delta.get("tool_calls") or []:
+                        idx = tc.get("index", 0)
+                        if idx not in tool_calls_buffer:
+                            tool_calls_buffer[idx] = {
+                                "id": tc.get("id", ""),
+                                "name": tc.get("function", {}).get("name", ""),
+                                "args_str": ""
+                            }
+                        fn = tc.get("function", {})
+                        if fn.get("name"):
+                            tool_calls_buffer[idx]["name"] = fn["name"]
+                        tool_calls_buffer[idx]["args_str"] += fn.get("arguments", "")
 
     except Exception as e:
         logger.error(f"LLM Streaming error: {e}")
 
-    # ── 4. 执行已拼装完毕的 Tool Calls ───────────────────────────────────────
+    # ── 4. 执行已拼装完毕的 Tool Calls ──────────────────────────────────────
     for tc_info in tool_calls_buffer.values():
         t_name = tc_info["name"].lower()
         try:
             t_args = json.loads(tc_info["args_str"]) if tc_info["args_str"] else {}
         except Exception:
             t_args = {}
+
+        logger.info(f"[TOOL_EXEC] name={t_name} args={t_args}")
 
         # 向前端推送 tool_call 事件
         tc_data = json.dumps({
@@ -206,6 +202,7 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
         should_refetch = False
         if t_name in ["generatefullppt", "generate_full_ppt"]:
             extracted_intent = "generate_courseware"
+
         elif t_name in ["updateslide", "update_slide", "addslide", "add_slide", "deleteslide", "delete_slide"]:
             should_refetch = True
             try:
@@ -213,15 +210,20 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
                 from app.models.session import Courseware
                 db_local = SessionLocal()
                 cw = db_local.query(Courseware).filter(Courseware.session_id == session_id).first()
-                if cw and cw.ppt_data and cw.ppt_data.get('ppt_data'):
-                    slides = cw.ppt_data.get('ppt_data')
+                if cw and cw.ppt_data and cw.ppt_data.get("ppt_data"):
+                    slides = list(cw.ppt_data.get("ppt_data"))
                     if t_name in ["updateslide", "update_slide"]:
-                        idx = t_args.get("page_index", 1) - 1
-                        if 0 <= idx < len(slides):
-                            slides[idx]["content"] = t_args.get("new_content", "")
+                        page_idx = t_args.get("page_index", 1) - 1
+                        if 0 <= page_idx < len(slides):
+                            slides[page_idx]["content"] = t_args.get("new_content", "")
                     elif t_name in ["addslide", "add_slide"]:
                         pos = t_args.get("insert_after_index", 0)
-                        new_slide = {"page_index": pos + 1, "layout": "content", "title": "新增页", "content": t_args.get("content", "")}
+                        new_slide = {
+                            "page_index": pos + 1,
+                            "layout": "content",
+                            "title": "新增页",
+                            "content": t_args.get("content", "")
+                        }
                         slides.insert(pos, new_slide)
                         for i, s in enumerate(slides):
                             s["page_index"] = i + 1
@@ -231,12 +233,14 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
                             slides.pop(pos)
                             for i, s in enumerate(slides):
                                 s["page_index"] = i + 1
-                    cw.ppt_data = {**cw.ppt_data, 'ppt_data': slides}
+                    # 触发 SQLAlchemy JSON 变更检测
+                    cw.ppt_data = {**cw.ppt_data, "ppt_data": slides}
                     db_local.commit()
+                    logger.info(f"[TOOL_EXEC] DB updated for session {session_id}")
             except Exception as e:
                 logger.error(f"Tool Execute Error: {e}")
             finally:
-                if 'db_local' in locals():
+                if "db_local" in locals():
                     db_local.close()
 
         tr_data = json.dumps({
@@ -260,6 +264,3 @@ async def stream_chat_response(messages_history: list, new_user_input: str, rag_
         "extracted_intent": extracted_intent
     }, ensure_ascii=False)
     yield f"data: {final_data}\n\n"
-
-
-
