@@ -190,34 +190,44 @@ async def chat_with_session(
 
     async def sse_generator():
         ai_full_text = ""
-        # stream the chunks with RAG support
         async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id):
-            # Parse chunk internally to build final full AI text for DB persistence
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:
                     chunk_data = json.loads(chunk_data_str)
-                    if chunk_data.get("chunk"):
+                    ev = chunk_data.get("event_type", "text")
+                    # 只将正常对话文本存入 DB，思考内容不入历史
+                    if ev == "text" and chunk_data.get("chunk"):
                         ai_full_text += chunk_data["chunk"]
             except Exception:
                 pass
             yield chunk_sse
-            
-        # Background: Save the complete assistant string to SQLite via an independent session
+
+        # 将完整助手回复存入 SQLite
         db_local = SessionLocal()
         try:
+            if ai_full_text.strip():   # 如果只调用了工具没有话术也加一个占位记录
+                content_to_save = ai_full_text
+            else:
+                content_to_save = "[工具调用已执行]"
             ai_msg_db = Message(
                 id=f"msg_{uuid.uuid4().hex[:12]}",
                 session_id=session_id,
                 role="assistant",
-                content=ai_full_text
+                content=content_to_save
             )
             db_local.add(ai_msg_db)
             db_local.commit()
         finally:
             db_local.close()
 
-    return StreamingResponse(sse_generator(), media_type="text/event-stream")
+    # 禁用中间代理和服务器的缓冲，确保每一帧立即推送到前端
+    sse_headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",     # 禁止 nginx 缓冲
+        "Connection": "keep-alive",
+    }
+    return StreamingResponse(sse_generator(), media_type="text/event-stream", headers=sse_headers)
 
 @router.post("/{session_id}/audio-chat")
 async def audio_chat(
