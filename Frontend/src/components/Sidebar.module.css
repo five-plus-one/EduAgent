@@ -1,11 +1,11 @@
 .sidebar {
-  width: 260px;
+  width: 280px;
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
-  border-right: 1px solid var(--border-glass);
-  background-color: var(--bg-secondary);
+  padding: 32px 24px;
+  border-right: 1px solid rgba(15, 23, 42, 0.05);
+  background-color: transparent; /* Rely on global body gradient */
   flex-shrink: 0;
   z-index: 10;
 }
@@ -13,44 +13,56 @@
 .header {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: 28px;
+  margin-bottom: 40px;
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-left: 8px;
+  gap: 14px;
+  padding-left: 4px;
 }
 
 .logoIcon {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent-primary), hsl(var(--hue), 80%, 45%));
-  box-shadow: 0 4px 12px var(--accent-glow);
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-primary), #0ea5e9);
+  box-shadow: 0 6px 16px var(--accent-glow);
 }
 
 .logoText {
-  font-weight: 700;
-  font-size: 1.25rem;
-  letter-spacing: -0.5px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: -0.8px;
   color: var(--text-primary);
 }
 
 .newSessionBtn {
   width: 100%;
-  padding: 12px 12px;
-  font-size: 0.95rem;
+  padding: 14px 16px;
+  font-size: 1rem;
+  font-weight: 600;
   justify-content: flex-start;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  background: var(--bg-glass-hover);
+  border: 1px solid var(--border-glass);
+  color: var(--text-primary);
+}
+
+.newSessionBtn:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
 }
 
 .newInputContainer {
   display: flex;
   gap: 8px;
-  margin-top: -12px; /* Pull closer to button */
-  animation: slideDown 0.2s ease-out;
+  margin-top: -16px;
+  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideDown {
@@ -60,33 +72,44 @@
 
 .newInput {
   flex: 1;
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-glass);
-  background: var(--bg-primary);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: white;
   color: var(--text-primary);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   outline: none;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .newInput:focus {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 .newSubmitBtn {
-  background: var(--accent-primary);
+  background: var(--text-primary);
   color: white;
   border: none;
   border-radius: var(--radius-sm);
-  padding: 0 12px;
-  font-size: 0.85rem;
+  padding: 0 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.newSubmitBtn:hover {
+  background: var(--accent-primary);
+  transform: translateY(-1px);
 }
 
 .newSubmitBtn:disabled {
-  opacity: 0.7;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .nav {
@@ -94,34 +117,37 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  margin: 0 -12px;
+  padding: 0 12px;
 }
 
 .navTitle {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.8rem;
+  font-weight: 700;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  letter-spacing: 0.5px;
-  margin-bottom: 12px;
-  padding-left: 8px;
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+  padding-left: 12px;
 }
 
 .sessionList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .sessionItem {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 500;
   transition: all 0.2s ease;
 }
 
@@ -131,34 +157,36 @@
 }
 
 .sessionItem.active {
-  background-color: var(--bg-glass);
+  background-color: white;
   color: var(--accent-primary);
-  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .truncate {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 170px;
+  max-width: 160px;
 }
 
 .footer {
   margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-glass);
+  padding-top: 24px;
+  border-top: 1px solid rgba(15, 23, 42, 0.05);
 }
 
 .profileBtn {
   width: 100%;
   justify-content: flex-start;
-  padding: 12px;
+  padding: 14px;
   color: var(--text-primary);
   position: relative;
+  background: transparent;
 }
 
 .profileBtn:hover {
-  background-color: var(--bg-glass-hover);
+  background-color: white;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 .profileInfo {
@@ -169,13 +197,14 @@
 }
 
 .userName {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
 }
 
 .userRole {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-tertiary);
+  font-weight: 500;
 }
 
 .logoutBtn {
@@ -184,7 +213,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
+  padding: 8px;
   border: none;
   background: transparent;
   border-radius: var(--radius-sm);
@@ -199,23 +228,23 @@
 }
 
 .logoutBtn:hover {
-  color: hsl(340, 80%, 55%);
-  background: hsla(340, 80%, 55%, 0.12);
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
 }
 
 .loadingItem {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 12px 14px;
   color: var(--text-tertiary);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .emptyItem {
-  padding: 10px 12px;
+  padding: 12px 14px;
   color: var(--text-tertiary);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-style: italic;
 }
 
