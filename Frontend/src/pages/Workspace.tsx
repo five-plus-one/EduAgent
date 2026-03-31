@@ -459,8 +459,8 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet */}
-              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 ? (
+              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
+              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
