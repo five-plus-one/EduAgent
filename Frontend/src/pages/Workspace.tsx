@@ -157,7 +157,18 @@ export default function Workspace() {
           setActiveTab('ppt');
        }
     };
+    const handleStartStreaming = async (e: Event) => {
+       const ev = e as CustomEvent;
+       if (ev.detail?.sessionId === sessionId) {
+          console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
+          setActiveTab('ppt');
+          await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
+          fetchPreview();
+       }
+    };
+
     window.addEventListener('EduAgent_Generate_Start', handleGenerateStart);
+    window.addEventListener('EduAgent_Start_Streaming', handleStartStreaming);
     
     // Auto-stop stream if session changes? (handled by usePPTStream internally but good to be explicit here)
     if (isStreaming && sessionId === 'new') stopStreaming();
@@ -170,8 +181,11 @@ export default function Workspace() {
       }
     }
     
-    return () => window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
-  }, [latestIntent, sessionId, isStreaming, stopStreaming]);
+    return () => {
+       window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
+       window.removeEventListener('EduAgent_Start_Streaming', handleStartStreaming);
+    };
+  }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
