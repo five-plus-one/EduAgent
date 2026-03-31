@@ -1,14 +1,14 @@
 import uuid
 import os
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.models.user import User
 from app.models.session import SessionContext
 from app.models.generation import GenerationTask, Courseware
 from app.schemas.generation import GenerateRequest, TaskResponse, TaskStatusResponse, CoursewarePreviewResponse, IterateRequest
-from app.services.courseware_generator import run_generation_task
+from app.services.courseware_generator import run_generation_task, stream_generation
 from app.services.ppt_exporter import run_export_task, EXPORT_DIR
 
 router = APIRouter()
@@ -41,6 +41,29 @@ def trigger_generation(
     background_tasks.add_task(run_generation_task, task_id, session_id, body.selected_file_ids, body.generation_mode)
     
     return {"task_id": task_id, "status": "generating"}
+
+@router.post("/sessions/{session_id}/generate/stream")
+def trigger_generation_stream(
+    session_id: str,
+    body: GenerateRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    sse_headers = {
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive",
+    }
+    
+    return StreamingResponse(
+        stream_generation(session_id, body.selected_file_ids, body.generation_mode), 
+        media_type="text/event-stream", 
+        headers=sse_headers
+    )
 
 @router.get("/generate/tasks/{task_id}", response_model=TaskStatusResponse)
 def get_generation_status(

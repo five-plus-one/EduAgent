@@ -169,3 +169,166 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
         db.commit()
     finally:
         db.close()
+
+import asyncio
+from httpx import AsyncClient
+
+async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str):
+    """
+    异步流式生成核心函数，输出 NDJSON 格式供 SSE 使用。
+    """
+    db = SessionLocal()
+    try:
+        # Check if already generating
+        courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+        if not courseware:
+            courseware = Courseware(id="cw_" + uuid.uuid4().hex[:8], session_id=session_id)
+            courseware.ppt_data = {"ppt_data": []}
+            db.add(courseware)
+            db.commit()
+            
+        messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+        history_str = "\n".join([f"{m.role}: {m.content}" for m in messages])
+
+        rag_context = ""
+        if selected_file_ids:
+            last_msg = messages[-1].content if messages else "智能大纲提取"
+            docs = search_vectors(query=last_msg, filter_document_ids=selected_file_ids, top_k=6)
+            rag_context = "\n---\n".join([d.page_content for d in docs])
+
+        prompt = f"""
+        你是一位顶级设计巨匠、高级教学总监、排版大师。
+        请根据聊天记录与知识参考创作课程大纲。
+        
+        【聊天上下文】
+        {history_str}
+        
+        【RAG参考材料】
+        {rag_context}
+        
+        【输出格式的严格规定】
+        你必须严格按照以下 NDJSON（换行分隔 JSON）格式逐行输出，每行是一个独立的合法 JSON 对象。
+        绝对禁止输出任何 Markdown 围栏（```）、解释性文字或前置说明！
+
+        第一行，输出主题定义：
+        {{"__type": "theme", "name": "主题名称", "bg_color": "#HEX", "primary": "#HEX", "secondary": "HEX", "accent": "HEX", "text_color": "#HEX"}}
+
+        然后，每一页幻灯片输出一行，以 page_index 升序排列：
+        {{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "...", "speaker_notes": "...", "elements": [...]}}
+        {{"__type": "page", "page_index": 2, "layout_type": "two_column", ...}}
+        （以此类推，至少生成3页）
+
+        所有幻灯片行输出完毕后，输出此分隔行：
+        {{"__type": "word_start"}}
+
+        紧接着输出完整的 Word 讲义 Markdown 文本（可跨多行）。
+
+        最终以此行结束全部输出：
+        {{"__type": "done"}}
+        """
+
+        def sse(event: str, data: dict):
+            return f"data: {json.dumps({{'event': event, 'data': data}}, ensure_ascii=False)}\n\n"
+
+        url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "doubao-seed-2-0-pro-260215",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.4,
+            "stream": True
+        }
+
+        buffer = ""
+        word_mode = False
+        word_lines = []
+        page_count = 0
+        theme_saved = False
+
+        async with AsyncClient(timeout=120) as client:
+            async with client.stream("POST", url, headers=headers, json=payload) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        line_content = line[6:]
+                        if line_content == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(line_content)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if not delta:
+                                continue
+                            
+                            if word_mode:
+                                word_lines.append(delta)
+                                word_buffer = "".join(word_lines)
+                                if '{"__type": "done"}' in word_buffer or '{"__type":"done"}' in word_buffer:
+                                    # Write word markdown
+                                    clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+                                    courseware.word_markdown = clean_word
+                                    db.commit()
+                                    yield sse("generate_done", {"total_pages": page_count})
+                                    break
+                                continue
+
+                            buffer += delta
+                            # Try to extract lines from buffer
+                            while "\n" in buffer:
+                                line_str, buffer = buffer.split("\n", 1)
+                                line_str = line_str.strip()
+                                if not line_str:
+                                    continue
+                                
+                                try:
+                                    obj = json.loads(line_str)
+                                    t = obj.get("__type")
+                                    if t == "theme":
+                                        obj.pop("__type", None)
+                                        # Set theme logic here if we saved theme to CW
+                                        if "theme" in courseware.ppt_data:
+                                            courseware.ppt_data["theme"] = obj
+                                        else:
+                                            # If not dict, initialize
+                                            courseware.ppt_data = {**courseware.ppt_data, "theme": obj} 
+                                            
+                                        db.commit()
+                                        theme_saved = True
+                                        yield sse("generate_start", {"theme": obj, "total_hint": 8})
+                                    elif t == "page":
+                                        obj.pop("__type", None)
+                                        current_pages = courseware.ppt_data.get("ppt_data", [])
+                                        current_pages.append(obj)
+                                        courseware.ppt_data = {**courseware.ppt_data, "ppt_data": current_pages}
+                                        db.commit()
+                                        page_count += 1
+                                        yield sse("page_chunk", obj)
+                                    elif t == "word_start":
+                                        word_mode = True
+                                        
+                                except json.JSONDecodeError:
+                                    # Fallback if line wasn't exactly complete JSON. Reattach to buffer string
+                                    buffer = line_str + "\n" + buffer
+                                    break # Need more chunks to complete JSON line
+
+                        except json.JSONDecodeError:
+                            continue
+                            
+        # Final cleanup for word markdown if it didn't cleanly hit done
+        if word_mode and word_lines:
+            word_buffer = "".join(word_lines)
+            clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+            courseware.word_markdown = clean_word
+            db.commit()
+            yield sse("generate_done", {"total_pages": page_count})
+            
+    except asyncio.CancelledError:
+        print("[SSE] Client disconnected in stream")
+    except Exception as e:
+        print(f"[SSE Error] {e}")
+        yield f"data: {json.dumps({{'event': 'generate_error', 'data': {'message': str(e)}}})}\n\n"
+    finally:
+        db.close()
+

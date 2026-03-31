@@ -323,7 +323,22 @@ def mount_documents_to_session(
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    for doc_id in body.reference_ids:
+    # Get current globally mounted files
+    existing_mounts = db.query(SessionFile).filter(
+        SessionFile.session_id == session_id,
+        SessionFile.document_id.isnot(None)
+    ).all()
+    
+    existing_doc_ids = {sf.document_id for sf in existing_mounts}
+    new_doc_ids = set(body.reference_ids)
+    
+    # 1. Delete removed mounts
+    for sf in existing_mounts:
+        if sf.document_id not in new_doc_ids:
+            db.delete(sf)
+            
+    # 2. Add new mounts
+    for doc_id in new_doc_ids - existing_doc_ids:
         doc = db.query(Document).filter(Document.id == doc_id).first()
         if doc and doc.status == "completed":
             sf = SessionFile(
@@ -336,6 +351,7 @@ def mount_documents_to_session(
                 progress=100
             ) 
             db.add(sf)
+            
     db.commit()
     return None
 
