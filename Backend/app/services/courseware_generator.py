@@ -204,6 +204,11 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
     db = SessionLocal() # Keep local DB instance for async loop
     try:
         courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+        if courseware:
+            # 清空旧数据防止追加模式下出现脏数据和页数翻倍
+            courseware.ppt_data = {"version": "v1", "ppt_data": []}
+            courseware.word_markdown = ""
+            db.commit()
 
         prompt = f"""
         你是一位顶级设计巨匠、高级教学总监、排版大师。
@@ -256,6 +261,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         word_lines = []
         page_count = 0
         theme_saved = False
+        done_sent = False
 
         import httpx
         timeout_config = httpx.Timeout(connect=15.0, read=600.0, write=15.0, pool=20.0)
@@ -269,7 +275,15 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                             break
                         try:
                             chunk = json.loads(line_content)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            chunk_delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            
+                            reasoning = chunk_delta.get("reasoning_content", "") or chunk_delta.get("thinking", "")
+                            delta = chunk_delta.get("content", "")
+                            
+                            # 透传大模型思考过程给前端渲染 Loading Animation
+                            if reasoning:
+                                yield sse("thinking_chunk", {"text": reasoning})
+                                
                             if not delta:
                                 continue
                             
@@ -283,6 +297,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     db.commit()
                                     yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
+                                    done_sent = True
                                     break
                                 continue
 
@@ -298,21 +313,25 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     t = obj.get("__type")
                                     if t == "theme":
                                         obj.pop("__type", None)
-                                        # Set theme logic here if we saved theme to CW
-                                        if isinstance(courseware.ppt_data, dict) and "theme" in courseware.ppt_data:
-                                            courseware.ppt_data["theme"] = obj
-                                        else:
-                                            # If not dict, initialize
-                                            courseware.ppt_data = {**(courseware.ppt_data or {}), "theme": obj} 
-                                            
+                                        ppt_dict = courseware.ppt_data if isinstance(courseware.ppt_data, dict) else {}
+                                        if isinstance(courseware.ppt_data, list):
+                                            ppt_dict["ppt_data"] = courseware.ppt_data
+                                        ppt_dict["theme"] = obj
+                                        courseware.ppt_data = ppt_dict
                                         db.commit()
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
                                     elif t == "page":
                                         obj.pop("__type", None)
-                                        current_pages = courseware.ppt_data.get("ppt_data", []) if isinstance(courseware.ppt_data, dict) else []
+                                        ppt_dict = courseware.ppt_data if isinstance(courseware.ppt_data, dict) else {}
+                                        if isinstance(courseware.ppt_data, list):
+                                            ppt_dict["ppt_data"] = courseware.ppt_data
+                                        current_pages = ppt_dict.get("ppt_data", [])
+                                        if not isinstance(current_pages, list):
+                                            current_pages = []
                                         current_pages.append(obj)
-                                        courseware.ppt_data = {**(courseware.ppt_data or {}), "ppt_data": current_pages}
+                                        ppt_dict["ppt_data"] = current_pages
+                                        courseware.ppt_data = ppt_dict
                                         db.commit()
                                         page_count += 1
                                         yield sse("page_chunk", obj)
@@ -334,7 +353,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                             continue
                             
         # Final cleanup for word markdown if it didn't cleanly hit done
-        if word_mode and word_lines:
+        if word_mode and word_lines and not done_sent:
             word_buffer = "".join(word_lines)
             clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
             courseware.word_markdown = clean_word
