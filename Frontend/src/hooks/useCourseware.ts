@@ -42,7 +42,13 @@ export function useCourseware(sessionId: string) {
           return; // caller handles the retry loop
         }
 
-        if (Array.isArray(pptData)) setPages(pptData);
+        if (Array.isArray(pptData)) {
+          // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
+          const uniquePagesMap = new Map();
+          pptData.forEach(p => uniquePagesMap.set(p.page_index, p));
+          const uniquePages = Array.from(uniquePagesMap.values());
+          setPages(uniquePages);
+        }
         if (resp.word_markdown) setWordDoc(resp.word_markdown);
         else if (resp.word_doc) setWordDoc(resp.word_doc);
         else if (resp.wordDoc) setWordDoc(resp.wordDoc);
