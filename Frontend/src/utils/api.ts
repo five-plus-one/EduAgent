@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 // Core Setup
 // ==========================================
 
-export const API_BASE_URL = 'http://localhost:5173';
+export const API_BASE_URL = ''; // Relative path for same-origin or handled by proxy/mock server
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
