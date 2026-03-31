@@ -222,12 +222,14 @@
   flex-direction: column;
   position: relative;
   background-color: transparent;
+  min-width: 0;
 }
 
 .tabsRoot {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-width: 0;
 }
 
 .visualHeader {
@@ -289,6 +291,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   padding: 24px;
+  min-width: 0;
 }
 
 .placeholderCentric {
@@ -561,6 +564,7 @@
   background: var(--bg-primary);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   gap: 16px;
+  min-width: 0;
 }
 
 .kbListItem:hover {
@@ -598,6 +602,7 @@
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
