@@ -324,6 +324,35 @@ export default function Workspace() {
 
       {/* RIGHT PANEL: Visual WorkSpace */}
       <section className={styles.visualPanel}>
+        {sessionId === 'new' ? (
+          <div className={styles.welcomeHero}>
+            <div className={styles.heroContent}>
+              <div className={styles.heroBadge}>
+                <Sparkles size={14} /> 全新一代智能备课
+              </div>
+              <h2 className={styles.heroTitle}>
+                开启你的 <span>AI 创意空间</span>
+              </h2>
+              <p className={styles.heroDesc}>
+                在这里构建、推演并沉淀你的教学思想。<br/>
+                上传语料库，只需一句话即可生成多端图元排版课件与配套讲义。
+              </p>
+              
+              <div className={styles.heroFeatures}>
+                <div className={styles.featureCard}>
+                  <Library size={24} className={styles.featureIcon} />
+                  <h4>全局 RAG 知识库</h4>
+                  <p>无缝关联教学材料，确保 AI 提取内容精准、紧贴大纲且绝不发散。</p>
+                </div>
+                <div className={styles.featureCard}>
+                  <Link size={24} className={styles.featureIcon} />
+                  <h4>多端物料一致性并行生成</h4>
+                  <p>一键提炼 PPT 骨架与 Word 完整串词，告别机械的文档排版与复制黏贴。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
         <Tabs.Root className={styles.tabsRoot} value={activeTab} onValueChange={setActiveTab}>
           <header className={styles.visualHeader}>
             <Tabs.List className={styles.tabsList}>
@@ -535,6 +564,7 @@ export default function Workspace() {
             )}
           </Tabs.Content>
         </Tabs.Root>
+        )}
       </section>
 
     </div>
