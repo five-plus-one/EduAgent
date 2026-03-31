@@ -1,33 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&display=swap');
 
 :root {
-  --hue: 235;
+  --hue: 220;
   
-  /* Brand colors */
-  --bg-primary: hsl(var(--hue), 25%, 96%);
-  --bg-secondary: hsl(var(--hue), 20%, 93%);
-  --bg-glass: hsla(var(--hue), 30%, 100%, 0.65);
-  --bg-glass-hover: hsla(var(--hue), 30%, 100%, 0.85);
+  /* Refined Light Theme - Editorial / Glassmorphism */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-glass: rgba(255, 255, 255, 0.65);
+  --bg-glass-hover: rgba(255, 255, 255, 0.9);
   
-  --text-primary: hsl(var(--hue), 50%, 12%);
-  --text-secondary: hsl(var(--hue), 30%, 35%);
-  --text-tertiary: hsl(var(--hue), 20%, 55%);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
   
-  --accent-primary: hsl(250, 85%, 60%);
-  --accent-hover: hsl(250, 85%, 55%);
-  --accent-glow: hsla(250, 85%, 60%, 0.35);
+  --accent-primary: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-glow: rgba(37, 99, 235, 0.25);
   
-  --border-glass: hsla(var(--hue), 40%, 100%, 0.6);
+  --border-glass: rgba(255, 255, 255, 0.5);
   
   /* Radii & Shadows */
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
+  --radius-sm: 8px;
+  --radius-md: 20px;
+  --radius-lg: 32px;
   --radius-pill: 9999px;
   
-  --shadow-sm: 0 4px 16px hsla(var(--hue), 30%, 0%, 0.04);
-  --shadow-md: 0 12px 32px hsla(var(--hue), 30%, 0%, 0.08);
-  --shadow-glass: 0 16px 40px hsla(var(--hue), 30%, 0%, 0.06), inset 0 1px 0 hsla(0, 0%, 100%, 0.5);
+  --shadow-sm: 0 4px 12px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 20px 40px rgba(15, 23, 42, 0.08);
+  --shadow-glass: 0 12px 36px rgba(15, 23, 42, 0.05), inset 0 0 0 1px rgba(255, 255, 255, 0.8), inset 0 2px 6px rgba(255, 255, 255, 0.6);
 }
 
 * {
@@ -37,14 +37,19 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(circle at 15% 50%, rgba(37, 99, 235, 0.02) 0%, transparent 40%),
+    radial-gradient(circle at 85% 30%, rgba(37, 99, 235, 0.03) 0%, transparent 40%);
+  background-attachment: fixed;
   color: var(--text-primary);
   height: 100vh;
   width: 100vw;
   overflow: hidden;
   transition: background-color 0.4s ease, color 0.4s ease;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -56,9 +61,15 @@ body {
 /* Base UI Components (Utilities) */
 .glass-panel {
   background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-glass);
+}
+
+.glass-panel-heavy {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
   box-shadow: var(--shadow-glass);
 }
 
@@ -78,7 +89,7 @@ body {
 .button-primary {
   background: var(--accent-primary);
   color: white;
-  box-shadow: 0 4px 12px var(--accent-glow);
+  box-shadow: 0 4px 12px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -93,17 +104,17 @@ body {
 .button-primary:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px var(--accent-glow);
+  box-shadow: 0 8px 16px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
 /* Animations */
 @keyframes slideUpFade {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-slide-up {
-  animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Scrollbar styling - Sleek minimalist */
@@ -117,10 +128,10 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsla(var(--hue), 30%, 50%, 0.2);
+  background: rgba(15, 23, 42, 0.15);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsla(var(--hue), 30%, 50%, 0.4);
+  background: rgba(15, 23, 42, 0.25);
 }
