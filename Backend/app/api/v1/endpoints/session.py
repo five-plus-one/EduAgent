@@ -178,27 +178,47 @@ async def chat_with_session(
     rag_context = ""
     session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
     file_ids = [sf.document_id if sf.document_id else sf.id for sf in session_files]
+    
+    if session_files:
+        mounted_files_str = "\n".join([f"- 【文档名】{sf.filename} (文档内部ID: {sf.id}, 意图或主题: {sf.intent_desc or '无'})" for sf in session_files])
+        rag_context += f"【重要提示：当前会话已挂载了如下的资料全览清单。这是你的上帝视角！你可以知道用户传了什么！】\n{mounted_files_str}\n\n"
+        
     if file_ids:
         from app.services.vector_store import search_vectors
         try:
-            # We fetch top 3 highly-correlated chunks against the new user query
-            docs = search_vectors(query=chat_msg.content, filter_document_ids=file_ids, top_k=3)
+            docs = search_vectors(query=chat_msg.content, filter_document_ids=file_ids, top_k=6)
             if docs:
-                rag_context = "\n---\n".join([d.page_content for d in docs])
+                rag_context += "【相关文档段落的切片检索结果】\n" + "\n---\n".join([d.page_content for d in docs])
         except Exception:
             pass  # Fallback gracefully if Chroma is empty or disconnected
 
     async def sse_generator():
         ai_full_text = ""
+        is_thinking = False
         async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id):
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:
                     chunk_data = json.loads(chunk_data_str)
                     ev = chunk_data.get("event_type", "text")
-                    # 只将正常对话文本存入 DB，思考内容不入历史
-                    if ev == "text" and chunk_data.get("chunk"):
-                        ai_full_text += chunk_data["chunk"]
+                    
+                    if ev == "thinking":
+                        if not is_thinking:
+                            ai_full_text += "<think>\n"
+                            is_thinking = True
+                        if chunk_data.get("chunk"):
+                            ai_full_text += chunk_data["chunk"]
+                    else:
+                        if is_thinking:
+                            ai_full_text += "\n</think>\n"
+                            is_thinking = False
+                            
+                        if ev == "text" and chunk_data.get("chunk"):
+                            ai_full_text += chunk_data["chunk"]
+                        elif ev == "tool_call" and chunk_data.get("tool_call"):
+                            tc = chunk_data["tool_call"]
+                            tc_info = f'\n<tool_call>{json.dumps(tc, ensure_ascii=False)}</tool_call>\n'
+                            ai_full_text += tc_info
             except Exception:
                 pass
             yield chunk_sse
@@ -323,7 +343,22 @@ def mount_documents_to_session(
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    for doc_id in body.reference_ids:
+    # Get current globally mounted files
+    existing_mounts = db.query(SessionFile).filter(
+        SessionFile.session_id == session_id,
+        SessionFile.document_id.isnot(None)
+    ).all()
+    
+    existing_doc_ids = {sf.document_id for sf in existing_mounts}
+    new_doc_ids = set(body.reference_ids)
+    
+    # 1. Delete removed mounts
+    for sf in existing_mounts:
+        if sf.document_id not in new_doc_ids:
+            db.delete(sf)
+            
+    # 2. Add new mounts
+    for doc_id in new_doc_ids - existing_doc_ids:
         doc = db.query(Document).filter(Document.id == doc_id).first()
         if doc and doc.status == "completed":
             sf = SessionFile(
@@ -336,6 +371,7 @@ def mount_documents_to_session(
                 progress=100
             ) 
             db.add(sf)
+            
     db.commit()
     return None
 

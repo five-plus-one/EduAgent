@@ -233,6 +233,7 @@ async def stream_chat_response(
                                         
                     elif t_name in ["addslide", "add_slide"]:
                         pos = t_args.get("insert_after_index", 0)
+                        pos = max(0, min(pos, len(slides)))
                         new_slide = {
                             "page_index": pos + 1,
                             "layout_type": "minimal_list",
@@ -268,9 +269,15 @@ async def stream_chat_response(
                     db_local.close()
 
         # 重要：每个工具执行完后立即推送 tool_result，触发前端事件刷新
+        is_full_gen = (t_name.lower() in ["generatefullppt"])
         tr_data = json.dumps({
             "event_type": "tool_result",
-            "tool_result": {"tool_name": t_name, "status": "success", "should_refetch_ppt": should_refetch},
+            "tool_result": {
+                "tool_name": t_name, 
+                "status": "success", 
+                "should_refetch_ppt": should_refetch,
+                "trigger_full_generation": is_full_gen
+            },
             "is_finished": False
         }, ensure_ascii=False)
         yield f"data: {tr_data}\n\n"
