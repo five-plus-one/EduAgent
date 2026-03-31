@@ -47,9 +47,6 @@ class StreamManagerClass {
     };
   }
 
-  private unsubscribe(sessionId: string, listener: StreamListener) {
-    this.sessionListeners.get(sessionId)?.delete(listener);
-  }
 
   private cloneState(state: StreamState): StreamState {
     return JSON.parse(JSON.stringify(state));
@@ -197,7 +194,9 @@ class StreamManagerClass {
         sessionId,
         userContent,
         (chunk, isFinished, intent) => {
-          if (intent && typeof intent === 'string') streamData.state.latestIntent = intent;
+        if (intent && typeof intent === 'string') {
+          (streamData.state as any).latestIntent = intent;
+        }
           if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
@@ -237,18 +236,31 @@ class StreamManagerClass {
           },
           onToolCall: (tool) => {
             lastToolName = tool.tool_name;
-            if (this.shouldRefetchForTool(tool.tool_name)) {
+            // Only trigger full-screen loading for the heavy generation tool
+            const isFullGen = tool.tool_name.toLowerCase().includes('generatefullppt');
+            if (isFullGen) {
               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
             }
             streamData.state.toolLog += `\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n`;
             this.notify(sessionId, streamData);
           },
-          onToolResult: (result) => {
-            window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
-            if (result.should_refetch_ppt || this.shouldRefetchForTool(lastToolName)) {
-              refetchDispatched = true;
+          onToolResult: (result: any) => {
+            // Determine if we should treat this as a full generation (Heavy) or silent update (Light)
+            // Fallback to legacy regex if result doesn't provide the explicit flags
+            const isFullGen = result.trigger_full_generation ?? this.shouldRefetchForTool(lastToolName);
+
+            if (isFullGen) {
+              // Heavy operation: Notify UI to switch to PPT tab and start polling
+              window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
+            } else if (result.should_refetch_ppt) {
+              // Light operation: Silent refresh, influenced card should show shimmer
+              window.dispatchEvent(new CustomEvent('EduAgent_Slide_Updated', { 
+                detail: { sessionId, actualPageIndex: result.actual_page_index } 
+              }));
             }
+
+            window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
             const icon = result.status === 'success' ? '✅' : '❌';
             streamData.state.toolLog += `> ${icon} *操作已完成*\n\n`;
             this.notify(sessionId, streamData);

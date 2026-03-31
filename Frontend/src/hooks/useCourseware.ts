@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { iterateCoursewarePage, getCoursewarePreview, generateCourseware, getGenerationStatus } from '../utils/api';
+import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
 
 export interface PPTElement {
   element_id: string;
@@ -130,47 +130,43 @@ export function useCourseware(sessionId: string) {
       }
     };
 
+    const handleSlideUpdated = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId !== sessionId) return;
+      // [SILENT REFRESH] Fetch preview without setting isGenerating=true
+      // This allows the UI to stay responsive during incremental tool updates
+      fetchPreview();
+    };
+
     window.addEventListener('EduAgent_Generate_Start', handleStart);
     window.addEventListener('EduAgent_Generate_End', handleEnd);
     window.addEventListener('EduAgent_Refetch_PPT', handleRefetch);
+    window.addEventListener('EduAgent_Slide_Updated', handleSlideUpdated);
     
     return () => {
       pollCancelRef.current.cancelled = true; // abort poll on cleanup
       window.removeEventListener('EduAgent_Generate_Start', handleStart);
       window.removeEventListener('EduAgent_Generate_End', handleEnd);
       window.removeEventListener('EduAgent_Refetch_PPT', handleRefetch);
+      window.removeEventListener('EduAgent_Slide_Updated', handleSlideUpdated);
     };
   }, [sessionId, fetchPreview]);
 
 
   const handleGenerate = useCallback(async (selectedFiles: string[] = [], mode: 'fast'|'depth' = 'fast') => {
     if (sessionId === 'new' || isGenerating) return;
+    
+    // NOTE: This legacy handleGenerate is now a FASTER fallback.
+    // Full generation normally goes through usePPTStream.ts.
+    // This button will still work but without the step-by-step streaming UI.
     setIsGenerating(true);
     try {
-      // 1. 发起后端异步生成任务
-      const triggerRes = await generateCourseware(sessionId, selectedFiles, mode);
-      const taskId = triggerRes.task_id;
-      
-      if (!taskId) throw new Error("No task_id returned from generation endpoint");
-
-      // 2. 轮询状态直到生成完成
-      while (true) {
-        await new Promise(r => setTimeout(r, 2000)); // 2s 心跳
-        const statusData = await getGenerationStatus(taskId);
-        
-        if (statusData.status === 'completed') {
-          break;
-        } else if (statusData.status === 'failed' || statusData.status === 'error') {
-          throw new Error(statusData.error || 'Generation task failed on server');
-        }
-      }
-
-      // 3. 生成完成后，重新抓取最新的 PPT 预览
+      await generateCourseware(sessionId, selectedFiles, mode);
+      // Wait a bit for the first page to be written
+      await new Promise(r => setTimeout(r, 2000));
       await fetchPreview();
-      alert('AI 课件生成成功，请在右侧查阅。');
     } catch (e) {
       console.error('Failed to generate courseware', e);
-      alert(`生成失败: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setIsGenerating(false);
     }
