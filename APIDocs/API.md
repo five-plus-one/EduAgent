@@ -422,6 +422,89 @@
 * **请求体**: `{"target_type": "ppt", "page_index": 1, "instruction": "减少字数加几张示意图"}`
 * **响应负载**: (直接返回那页更新完毕的 `page` 子对象)
 
+### 4.5 ⚡ 流式逐页生成 [NEW — 推荐使用]
+* **POST** `/sessions/{session_id}/generate/stream`
+* **说明**: 基于 SSE 长连接的流式课件生成接口。后端在大模型生成每一页时立即推送，前端可实现**逐页动态渲染**、**随时中断**与**实时进度展示**。推荐替代 4.1 轮询方案使用。
+* **Header**: `Accept: text/event-stream`
+* **请求体**:
+```json
+{
+  "selected_file_ids": ["f_a1b2", "doc_991"],
+  "mode": "fast"
+}
+```
+* **并发限制**: 同一 `session_id` 同时只允许一个流式生成任务，重复请求返回 `409 Conflict`。
+
+#### SSE 事件协议
+
+所有 SSE 事件遵循格式: `data: {"event": "<type>", "data": {...}}\n\n`
+
+| `event` 类型 | 触发时机 | 前端建议动作 |
+|---|---|---|
+| `generate_start` | LLM 输出主题定义后 | 切 PPT Tab，应用主题色 CSS variables |
+| `page_chunk` | 每生成一页时 | `setPages(prev => [...prev, page])` 追加卡片 |
+| `word_ready` | 讲义文本生成完毕 | `setWordDoc(markdown)` |
+| `generate_done` | 全部完成 | 关闭流式状态，提示完成 |
+| `generate_error` | 任何异常 | 显示错误，已渲染页面保留 |
+
+**`generate_start`** — 携带主题色板:
+```json
+{
+  "event": "generate_start",
+  "data": {
+    "theme": {
+      "name": "Midnight Galaxy",
+      "bg_color": "#0B132B",
+      "primary": "#1C2541",
+      "secondary": "#3A506B",
+      "accent": "#5BC0BE",
+      "text_color": "#FFFFFF"
+    },
+    "total_hint": 8
+  }
+}
+```
+
+**`page_chunk`** — 单页数据（结构与 4.3 单页对象完全一致）:
+```json
+{
+  "event": "page_chunk",
+  "data": {
+    "page_index": 1,
+    "layout_type": "cover",
+    "title": "智感微酸——FOS/TAC 软测量系统",
+    "speaker_notes": "开宗明义，说明 FOS/TAC 比值对反应器稳定性的核心作用...",
+    "elements": [
+      {
+        "element_id": "e_0001",
+        "type": "text_block",
+        "position": "center",
+        "content": ["FOS/TAC 智能软测量系统", "基于机器学习的过程状态感知"],
+        "is_accent": true
+      }
+    ]
+  }
+}
+```
+
+**`word_ready`**:
+```json
+{ "event": "word_ready", "data": { "word_markdown": "# 第一章...\n" } }
+```
+
+**`generate_done`**:
+```json
+{ "event": "generate_done", "data": { "total_pages": 8 } }
+```
+
+**`generate_error`**:
+```json
+{ "event": "generate_error", "data": { "message": "LLM upstream timeout after 60s" } }
+```
+
+#### 中断语义
+前端断开 SSE 连接后，后端已写入数据库的 pages **不清除**。下次访问 `GET /courseware/preview` 返回已生成的部分页面，用户可在此基础上继续编辑。
+
 ---
 
 ## 模块五：渲染导出管道 (Export)
