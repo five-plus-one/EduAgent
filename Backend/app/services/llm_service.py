@@ -26,12 +26,12 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "UpdateSlide",
-            "description": "修改某一特定页PPT的内容。当用户说'把第三页标题改一下'时使用。",
+            "description": "【核心工具】当用户对已有PPT（课件预览区）提出局部修改、微调指令时必用。当用户说'修改标题为...'、'把内容换成...'时，通过此工具局部更新。不应重新生成PPT。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "page_index": {"type": "integer", "description": "幻灯片页码（从1开始）"},
-                    "new_content": {"type": "string", "description": "整页需要替换或更新的全新内容段落"}
+                    "new_content": {"type": "string", "description": "整页需要替换或更新的全新内容段落（包含标题与新正文）"}
                 },
                 "required": ["page_index", "new_content"]
             }
@@ -218,14 +218,35 @@ async def stream_chat_response(
                     if t_name in ["updateslide", "update_slide"]:
                         page_idx = t_args.get("page_index", 1) - 1
                         if 0 <= page_idx < len(slides):
-                            slides[page_idx]["content"] = t_args.get("new_content", "")
+                            target_slide = slides[page_idx]
+                            new_val = t_args.get("new_content", "")
+                            
+                            # Update title
+                            target_slide["title"] = new_val
+                            
+                            # Also update the first text element if it exists to reflect changes
+                            if "elements" in target_slide and len(target_slide["elements"]) > 0:
+                                for elem in target_slide["elements"]:
+                                    if elem.get("type") in ["text_block", "content", "list"]:
+                                        elem["content"] = [new_val] if isinstance(elem.get("content"), list) else new_val
+                                        break
+                                        
                     elif t_name in ["addslide", "add_slide"]:
                         pos = t_args.get("insert_after_index", 0)
                         new_slide = {
                             "page_index": pos + 1,
-                            "layout": "content",
+                            "layout_type": "minimal_list",
                             "title": "新增页",
-                            "content": t_args.get("content", "")
+                            "speaker_notes": "",
+                            "elements": [
+                                {
+                                    "element_id": f"e_{uuid.uuid4().hex[:6]}",
+                                    "type": "text_block",
+                                    "position": "left",
+                                    "content": [t_args.get("content", "")],
+                                    "is_accent": False
+                                }
+                            ]
                         }
                         slides.insert(pos, new_slide)
                         for i, s in enumerate(slides):
@@ -246,6 +267,7 @@ async def stream_chat_response(
                 if "db_local" in locals():
                     db_local.close()
 
+        # 重要：每个工具执行完后立即推送 tool_result，触发前端事件刷新
         tr_data = json.dumps({
             "event_type": "tool_result",
             "tool_result": {"tool_name": t_name, "status": "success", "should_refetch_ppt": should_refetch},

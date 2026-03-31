@@ -1,10 +1,7 @@
 import os
+import chromadb
 from langchain_openai import OpenAIEmbeddings
-try:
-    from langchain_community.vectorstores import Chroma
-except ImportError:
-    # Fallback to direct chromadb if langchain-chroma preferred
-    from langchain_chroma import Chroma
+from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.core.config import settings
 
@@ -20,10 +17,14 @@ def get_embeddings():
 def get_vector_store(collection_name: str = "eduagent_global"):
     os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
     embeddings = get_embeddings()
+    
+    # Use PersistentClient to avoid 'default_tenant' common connection issues
+    client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+    
     return Chroma(
+        client=client,
         collection_name=collection_name,
         embedding_function=embeddings,
-        persist_directory=CHROMA_PERSIST_DIR
     )
 
 def store_document_vectors(text: str, document_id: str, metadata: dict = None):
