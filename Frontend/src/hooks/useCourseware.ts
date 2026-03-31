@@ -212,9 +212,11 @@ export function useCourseware(sessionId: string) {
       if (updatedPage) {
         setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, ...updatedPage } : p));
       }
-    } catch {
-      // Silently revert on fail
-      console.error('Failed to iterate page', pageIndex);
+    } catch (e: any) {
+      console.error('Failed to iterate page', pageIndex, e);
+      // Surface error to user — do NOT silently swallow
+      const msg = e?.response?.data?.detail || e?.message || '修改失败，请重试';
+      alert(`第 ${pageIndex} 页修改失败：${msg}`);
     } finally {
       setUpdatingPages(prev => {
         const next = new Set(prev);
