@@ -34,6 +34,18 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       );
     }
 
+    if (el.type === 'interactive_game' || el.type === 'animation' || el.type === 'html5') {
+      return (
+        <div key={el.element_id} className={clsx(styles.interactiveWrapper, positionClass)} style={{ width: '100%', minHeight: '300px', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
+          {el.url ? (
+            <iframe src={el.url} title={el.alt || "Interactive Content"} width="100%" height="100%" style={{ minHeight: '300px', border: 'none' }} />
+          ) : (
+            <iframe srcDoc={el.content?.join('\n') || `<h1>Interactive Block Pending</h1>`} title={el.alt || "Interactive Content"} width="100%" height="100%" style={{ minHeight: '300px', border: 'none' }} />
+          )}
+        </div>
+      );
+    }
+
     if (el.type === 'text_block') {
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
