@@ -484,8 +484,8 @@ export default function Workspace() {
                     />
                   ))}
                   
-                  {/* Render streaming pages (if streaming) */}
-                  {isStreaming && streamPages.map(page => {
+                  {/* Render streaming pages (retain during transition before fetchPreview finishes) */}
+                  {streamPages.map(page => {
                      // Deduplicate if pages hasn't synced yet
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
@@ -534,13 +534,13 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
-              ) : (wordDoc || streamWordDoc) ? (
+              ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                   >
-                    {wordDoc || streamWordDoc}
+                    {streamWordDoc || wordDoc}
                   </ReactMarkdown>
                 </div>
               ) : (
