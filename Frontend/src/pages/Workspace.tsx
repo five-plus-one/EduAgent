@@ -250,87 +250,105 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className={styles.messageStream}>
-          {messages.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIconWrapper}>
-                <Sparkles size={32} />
-              </div>
-              <h3>您想设计什么课程？</h3>
-              <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+        {sessionId === 'new' ? (
+          <div className={styles.newSessionGuide}>
+            <div className={styles.newSessionIconRing}>
+              <Sparkles size={36} />
             </div>
-          ) : (
-            messages.map((msg) => (
-              <MessageBubble 
-                key={msg.id}
-                id={msg.id} 
-                role={msg.role} 
-                content={msg.content}
-                thinking={msg.thinking}
-                toolLog={msg.toolLog}
-                isThinking={msg.isThinking}
-                isTyping={msg.isTyping} 
-              />
-            ))
-          )}
-          <div ref={streamEndRef} />
-        </div>
-
-        {/* OMNI-DOCK INPUT */}
-        <div className={styles.inputDockContainer}>
-          <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
-            <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
-              <Paperclip size={20} />
-            </button>
-            <textarea 
-              ref={inputRef}
-              className={styles.textarea} 
-              placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={isGenerating}
-            />
-            <div className={styles.actionsBox}>
-              <button 
-                className={clsx(styles.micButton, isRecording && styles.recording)}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
-                title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
-                disabled={!isSpeechSupported || isGenerating}
-              >
-                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-              </button>
-              {isSynthesizing || isStreaming ? (
-                <button
-                  className={clsx('button-primary', styles.sendButton, styles.stopButton)}
-                  onClick={() => {
-                    stopGeneration();
-                    if (isStreaming) stopStreaming();
-                  }}
-                  title="停止生成"
-                >
-                  <Square size={18} fill="currentColor" />
-                </button>
-              ) : (
-                <button
-                  className={clsx('button-primary', styles.sendButton)}
-                  disabled={!inputText.trim() || isGenerating}
-                  onClick={handleSubmit}
-                  title="发送消息"
-                >
-                  <Send size={18} />
-                </button>
-              )}
+            <h3 className={styles.newSessionTitle}>开始你的 AI 创作之旅</h3>
+            <p className={styles.newSessionDesc}>
+              请在左侧边栏<strong>新建会话</strong>，或选择一个已有会话，<br />
+              即可开启与 AI 的协作备课之旅。
+            </p>
+            <div className={styles.newSessionArrow}>
+              ← 从左侧边栏选择或新建会话
             </div>
           </div>
-          {speechError && (
-            <p className={styles.speechError}>⚠️ {speechError}</p>
-          )}
-        </div>
+        ) : (
+          <>
+            <div className={styles.messageStream}>
+              {messages.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIconWrapper}>
+                    <Sparkles size={32} />
+                  </div>
+                  <h3>您想设计什么课程？</h3>
+                  <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <MessageBubble 
+                    key={msg.id}
+                    id={msg.id} 
+                    role={msg.role} 
+                    content={msg.content}
+                    thinking={msg.thinking}
+                    toolLog={msg.toolLog}
+                    isThinking={msg.isThinking}
+                    isTyping={msg.isTyping} 
+                  />
+                ))
+              )}
+              <div ref={streamEndRef} />
+            </div>
+
+            {/* OMNI-DOCK INPUT */}
+            <div className={styles.inputDockContainer}>
+              <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
+                <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
+                  <Paperclip size={20} />
+                </button>
+                <textarea 
+                  ref={inputRef}
+                  className={styles.textarea} 
+                  placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  disabled={isGenerating}
+                />
+                <div className={styles.actionsBox}>
+                  <button 
+                    className={clsx(styles.micButton, isRecording && styles.recording)}
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    onTouchStart={startRecording}
+                    onTouchEnd={stopRecording}
+                    title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
+                    disabled={!isSpeechSupported || isGenerating}
+                  >
+                    {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                  </button>
+                  {isSynthesizing || isStreaming ? (
+                    <button
+                      className={clsx('button-primary', styles.sendButton, styles.stopButton)}
+                      onClick={() => {
+                        stopGeneration();
+                        if (isStreaming) stopStreaming();
+                      }}
+                      title="停止生成"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button
+                      className={clsx('button-primary', styles.sendButton)}
+                      disabled={!inputText.trim() || isGenerating}
+                      onClick={handleSubmit}
+                      title="发送消息"
+                    >
+                      <Send size={18} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {speechError && (
+                <p className={styles.speechError}>⚠️ {speechError}</p>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* DRAG DIVIDER */}
