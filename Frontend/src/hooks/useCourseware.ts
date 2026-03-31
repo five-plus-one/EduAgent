@@ -133,9 +133,35 @@ export function useCourseware(sessionId: string) {
     const handleSlideUpdated = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId !== sessionId) return;
+      
+      const actualPageIndex = ev.detail?.actualPageIndex;
+      if (typeof actualPageIndex === 'number') {
+        setPages(prev => {
+          if (!prev.some(p => p.page_index === actualPageIndex)) {
+            // Optimistic skeleton block for AddSlide scenario
+            return [...prev, {
+              page_index: actualPageIndex,
+              layout_type: 'cover',
+              title: '✨ 正在排版新页面...',
+              elements: []
+            }];
+          }
+          return prev;
+        });
+        setUpdatingPages(prev => new Set(prev).add(actualPageIndex));
+      }
+
       // [SILENT REFRESH] Fetch preview without setting isGenerating=true
       // This allows the UI to stay responsive during incremental tool updates
-      fetchPreview();
+      fetchPreview().finally(() => {
+        if (typeof actualPageIndex === 'number') {
+          setUpdatingPages(prev => {
+            const next = new Set(prev);
+            next.delete(actualPageIndex);
+            return next;
+          });
+        }
+      });
     };
 
     window.addEventListener('EduAgent_Generate_Start', handleStart);
