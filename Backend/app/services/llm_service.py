@@ -108,6 +108,9 @@ async def stream_chat_response(
         "tools": TOOLS_SCHEMA,
         "tool_choice": "auto",
         "stream": True,
+        # 开启中等深度思考（minimal=不思考, low/medium/high=逐步加深）
+        # 注意：thinking 与 tool_choice 可以并存，模型会先思考再决定是否调用工具
+        "thinking": {"type": "enabled", "budget_tokens": 4096},
     }
 
     base_url = settings.OPENAI_API_BASE.rstrip("/")
