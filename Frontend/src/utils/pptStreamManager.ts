@@ -140,13 +140,8 @@ class PPTStreamManagerClass {
           onDone: () => {
             state.isStreaming = false;
             this.notify(sessionId, state);
-            // Keep streamPages in state until caller clears via EduAgent_Refetch_PPT
-            // so the UI doesn't flash empty between stream end and fetchPreview completing.
-            // Only remove from activeStreams after a short grace period.
-            setTimeout(() => {
-              this.activeStreams.delete(sessionId);
-            }, 5000);
-            // Fire full completion event to let UI fetch final
+            this.activeStreams.delete(sessionId);
+            // Fire full completion event to let UI fetch final data from DB
             window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
           },
           onError: (err: any) => {

@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+
 import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
 
 export interface PPTElement {
@@ -25,9 +26,6 @@ export function useCourseware(sessionId: string) {
   const [wordDoc, setWordDoc] = useState('');
 
   const [previewStatus, setPreviewStatus] = useState<'idle'|'loading'|'ready'|'error'>('idle');
-
-  // Cancel token ref: cancels any in-flight poll when sessionId changes
-  const pollCancelRef = useRef<{ cancelled: boolean }>({ cancelled: false });
 
   const fetchPreview = useCallback(async (withPolling = false) => {
     if (sessionId === 'new') return;
@@ -61,50 +59,10 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  // Polling wrapper used after Tool completion — accepts cancel token for safe session switching
-  const pollUntilReady = useCallback(async (cancelToken: { cancelled: boolean }) => {
-    const MAX_WAIT_MS = 120_000; // 2 minutes max
-    const POLL_INTERVAL = 3000;
-    const start = Date.now();
-
-    while (Date.now() - start < MAX_WAIT_MS) {
-      if (cancelToken.cancelled) {
-        console.log('[useCourseware] Poll aborted — session switched.');
-        return;
-      }
-      try {
-        const resp = await getCoursewarePreview(sessionId);
-        const pptData = resp?.ppt_data || resp?.pages;
-        if (Array.isArray(pptData) && pptData.length > 0) {
-          if (cancelToken.cancelled) return; // double-check after async gap
-          setPages(pptData);
-          if (resp.word_markdown) setWordDoc(resp.word_markdown);
-          else if (resp.word_doc) setWordDoc(resp.word_doc);
-          setPreviewStatus('ready');
-          setIsGenerating(false);
-          return;
-        }
-      } catch {
-        // 404 = backend still processing, continue waiting
-      }
-      await new Promise(r => setTimeout(r, POLL_INTERVAL));
-    }
-
-    if (!cancelToken.cancelled) {
-      // Timeout — tell user
-      setPreviewStatus('error');
-      setIsGenerating(false);
-    }
-  }, [sessionId]);
-
   const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
-    // Cancel any in-flight poll from prior session
-    pollCancelRef.current.cancelled = true;
-    pollCancelRef.current = { cancelled: false };
-
-    // Clear old state before fetching new
+    // Clear old state before fetching new session
     setPages([]);
     setWordDoc('');
     setUpdatingPages(new Set());
@@ -113,6 +71,7 @@ export function useCourseware(sessionId: string) {
     
     fetchPreview();
   }, [sessionId, fetchPreview]);
+
 
   // Listen for Agent-driven slide modifications & Tool lifecycles
   useEffect(() => {
@@ -130,7 +89,6 @@ export function useCourseware(sessionId: string) {
         // Backend commits every page to DB before yielding the SSE event,
         // so by the time generate_done fires, all data is already in DB.
         // A single immediate fetch is sufficient — no polling needed.
-        pollCancelRef.current.cancelled = true;
         fetchPreview();
       }
     };
@@ -175,13 +133,13 @@ export function useCourseware(sessionId: string) {
     window.addEventListener('EduAgent_Slide_Updated', handleSlideUpdated);
     
     return () => {
-      pollCancelRef.current.cancelled = true; // abort poll on cleanup
       window.removeEventListener('EduAgent_Generate_Start', handleStart);
       window.removeEventListener('EduAgent_Generate_End', handleEnd);
       window.removeEventListener('EduAgent_Refetch_PPT', handleRefetch);
       window.removeEventListener('EduAgent_Slide_Updated', handleSlideUpdated);
     };
   }, [sessionId, fetchPreview]);
+
 
 
   const handleGenerate = useCallback(async (selectedFiles: string[] = [], mode: 'fast'|'depth' = 'fast') => {
