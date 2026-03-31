@@ -80,7 +80,7 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
                 </button>
                 {thinkExpanded && (
                   <div className={styles.thinkBody} style={{ color: '#64748b', fontStyle: 'italic' }}>
-                    {thinking ? <Markdown>{thinking}</Markdown> : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>}
+                    {thinking ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div> : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>}
                     {isThinking && <span className={styles.thinkCursor} />}
                   </div>
                 )}

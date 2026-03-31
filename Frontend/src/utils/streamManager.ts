@@ -231,6 +231,7 @@ class StreamManagerClass {
         controller.signal,
         {
           onThinking: (chunk) => {
+            streamData.state.isThinking = true;
             streamData.state.thinking += chunk;
             this.notify(sessionId, streamData);
           },
@@ -239,7 +240,8 @@ class StreamManagerClass {
             // Only trigger full-screen loading for the heavy generation tool
             const isFullGen = tool.tool_name.toLowerCase().includes('generatefullppt');
             if (isFullGen) {
-              window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
+              // Instead of waiting and polling, we actively trigger the streaming process from the frontend
+              window.dispatchEvent(new CustomEvent('EduAgent_Start_Streaming', { detail: { sessionId, mode: 'depth' } }));
             }
             streamData.state.toolLog += `\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n`;
             this.notify(sessionId, streamData);
@@ -250,9 +252,8 @@ class StreamManagerClass {
             const isFullGen = result.trigger_full_generation ?? this.shouldRefetchForTool(lastToolName);
 
             if (isFullGen) {
-              // Heavy operation: Notify UI to switch to PPT tab and start polling
-              window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
-              window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
+              // The generation is handled by the streaming UI now. We don't need to refetch and poll.
+              // Just mark the tool as success.
             } else if (result.should_refetch_ppt) {
               // Light operation: Silent refresh, influenced card should show shimmer
               window.dispatchEvent(new CustomEvent('EduAgent_Slide_Updated', { 

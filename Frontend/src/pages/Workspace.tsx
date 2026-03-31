@@ -157,7 +157,18 @@ export default function Workspace() {
           setActiveTab('ppt');
        }
     };
+    const handleStartStreaming = async (e: Event) => {
+       const ev = e as CustomEvent;
+       if (ev.detail?.sessionId === sessionId) {
+          console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
+          setActiveTab('ppt');
+          await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
+          fetchPreview();
+       }
+    };
+
     window.addEventListener('EduAgent_Generate_Start', handleGenerateStart);
+    window.addEventListener('EduAgent_Start_Streaming', handleStartStreaming);
     
     // Auto-stop stream if session changes? (handled by usePPTStream internally but good to be explicit here)
     if (isStreaming && sessionId === 'new') stopStreaming();
@@ -170,8 +181,11 @@ export default function Workspace() {
       }
     }
     
-    return () => window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
-  }, [latestIntent, sessionId, isStreaming, stopStreaming]);
+    return () => {
+       window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
+       window.removeEventListener('EduAgent_Start_Streaming', handleStartStreaming);
+    };
+  }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
@@ -445,8 +459,8 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet */}
-              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 ? (
+              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
+              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -484,8 +498,8 @@ export default function Workspace() {
                     />
                   ))}
                   
-                  {/* Render streaming pages (if streaming) */}
-                  {isStreaming && streamPages.map(page => {
+                  {/* Render streaming pages (retain during transition before fetchPreview finishes) */}
+                  {streamPages.map(page => {
                      // Deduplicate if pages hasn't synced yet
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
@@ -534,13 +548,13 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
-              ) : (wordDoc || streamWordDoc) ? (
+              ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                   >
-                    {wordDoc || streamWordDoc}
+                    {streamWordDoc || wordDoc}
                   </ReactMarkdown>
                 </div>
               ) : (
