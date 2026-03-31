@@ -157,7 +157,18 @@ export default function Workspace() {
           setActiveTab('ppt');
        }
     };
+    const handleStartStreaming = async (e: Event) => {
+       const ev = e as CustomEvent;
+       if (ev.detail?.sessionId === sessionId) {
+          console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
+          setActiveTab('ppt');
+          await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
+          fetchPreview();
+       }
+    };
+
     window.addEventListener('EduAgent_Generate_Start', handleGenerateStart);
+    window.addEventListener('EduAgent_Start_Streaming', handleStartStreaming);
     
     // Auto-stop stream if session changes? (handled by usePPTStream internally but good to be explicit here)
     if (isStreaming && sessionId === 'new') stopStreaming();
@@ -170,8 +181,11 @@ export default function Workspace() {
       }
     }
     
-    return () => window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
-  }, [latestIntent, sessionId, isStreaming, stopStreaming]);
+    return () => {
+       window.removeEventListener('EduAgent_Generate_Start', handleGenerateStart);
+       window.removeEventListener('EduAgent_Start_Streaming', handleStartStreaming);
+    };
+  }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
 
   const handleSubmit = () => {
     const text = inputText.trim();
@@ -236,87 +250,105 @@ export default function Workspace() {
           </div>
         </header>
 
-        <div className={styles.messageStream}>
-          {messages.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIconWrapper}>
-                <Sparkles size={32} />
-              </div>
-              <h3>您想设计什么课程？</h3>
-              <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+        {sessionId === 'new' ? (
+          <div className={styles.newSessionGuide}>
+            <div className={styles.newSessionIconRing}>
+              <Sparkles size={36} />
             </div>
-          ) : (
-            messages.map((msg) => (
-              <MessageBubble 
-                key={msg.id}
-                id={msg.id} 
-                role={msg.role} 
-                content={msg.content}
-                thinking={msg.thinking}
-                toolLog={msg.toolLog}
-                isThinking={msg.isThinking}
-                isTyping={msg.isTyping} 
-              />
-            ))
-          )}
-          <div ref={streamEndRef} />
-        </div>
-
-        {/* OMNI-DOCK INPUT */}
-        <div className={styles.inputDockContainer}>
-          <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
-            <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
-              <Paperclip size={20} />
-            </button>
-            <textarea 
-              ref={inputRef}
-              className={styles.textarea} 
-              placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={isGenerating}
-            />
-            <div className={styles.actionsBox}>
-              <button 
-                className={clsx(styles.micButton, isRecording && styles.recording)}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
-                title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
-                disabled={!isSpeechSupported || isGenerating}
-              >
-                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
-              </button>
-              {isSynthesizing || isStreaming ? (
-                <button
-                  className={clsx('button-primary', styles.sendButton, styles.stopButton)}
-                  onClick={() => {
-                    stopGeneration();
-                    if (isStreaming) stopStreaming();
-                  }}
-                  title="停止生成"
-                >
-                  <Square size={18} fill="currentColor" />
-                </button>
-              ) : (
-                <button
-                  className={clsx('button-primary', styles.sendButton)}
-                  disabled={!inputText.trim() || isGenerating}
-                  onClick={handleSubmit}
-                  title="发送消息"
-                >
-                  <Send size={18} />
-                </button>
-              )}
+            <h3 className={styles.newSessionTitle}>开始你的 AI 创作之旅</h3>
+            <p className={styles.newSessionDesc}>
+              请在左侧边栏<strong>新建会话</strong>，或选择一个已有会话，<br />
+              即可开启与 AI 的协作备课之旅。
+            </p>
+            <div className={styles.newSessionArrow}>
+              ← 从左侧边栏选择或新建会话
             </div>
           </div>
-          {speechError && (
-            <p className={styles.speechError}>⚠️ {speechError}</p>
-          )}
-        </div>
+        ) : (
+          <>
+            <div className={styles.messageStream}>
+              {messages.length === 0 ? (
+                <div className={styles.emptyState}>
+                  <div className={styles.emptyIconWrapper}>
+                    <Sparkles size={32} />
+                  </div>
+                  <h3>您想设计什么课程？</h3>
+                  <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <MessageBubble 
+                    key={msg.id}
+                    id={msg.id} 
+                    role={msg.role} 
+                    content={msg.content}
+                    thinking={msg.thinking}
+                    toolLog={msg.toolLog}
+                    isThinking={msg.isThinking}
+                    isTyping={msg.isTyping} 
+                  />
+                ))
+              )}
+              <div ref={streamEndRef} />
+            </div>
+
+            {/* OMNI-DOCK INPUT */}
+            <div className={styles.inputDockContainer}>
+              <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
+                <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
+                  <Paperclip size={20} />
+                </button>
+                <textarea 
+                  ref={inputRef}
+                  className={styles.textarea} 
+                  placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  disabled={isGenerating}
+                />
+                <div className={styles.actionsBox}>
+                  <button 
+                    className={clsx(styles.micButton, isRecording && styles.recording)}
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecording}
+                    onTouchStart={startRecording}
+                    onTouchEnd={stopRecording}
+                    title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
+                    disabled={!isSpeechSupported || isGenerating}
+                  >
+                    {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                  </button>
+                  {isSynthesizing || isStreaming ? (
+                    <button
+                      className={clsx('button-primary', styles.sendButton, styles.stopButton)}
+                      onClick={() => {
+                        stopGeneration();
+                        if (isStreaming) stopStreaming();
+                      }}
+                      title="停止生成"
+                    >
+                      <Square size={18} fill="currentColor" />
+                    </button>
+                  ) : (
+                    <button
+                      className={clsx('button-primary', styles.sendButton)}
+                      disabled={!inputText.trim() || isGenerating}
+                      onClick={handleSubmit}
+                      title="发送消息"
+                    >
+                      <Send size={18} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {speechError && (
+                <p className={styles.speechError}>⚠️ {speechError}</p>
+              )}
+            </div>
+          </>
+        )}
       </section>
 
       {/* DRAG DIVIDER */}
@@ -445,8 +477,8 @@ export default function Workspace() {
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
             <div className={styles.canvasArea}>
-              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet */}
-              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 ? (
+              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
+              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -484,8 +516,8 @@ export default function Workspace() {
                     />
                   ))}
                   
-                  {/* Render streaming pages (if streaming) */}
-                  {isStreaming && streamPages.map(page => {
+                  {/* Render streaming pages (retain during transition before fetchPreview finishes) */}
+                  {streamPages.map(page => {
                      // Deduplicate if pages hasn't synced yet
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
@@ -534,13 +566,13 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
-              ) : (wordDoc || streamWordDoc) ? (
+              ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
                   >
-                    {wordDoc || streamWordDoc}
+                    {streamWordDoc || wordDoc}
                   </ReactMarkdown>
                 </div>
               ) : (

@@ -46,19 +46,48 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       );
     }
 
+    const contentArray = Array.isArray(el.content) ? el.content : (typeof el.content === 'string' ? [el.content] : []);
+
+    if (el.type === 'title') {
+      return <h2 key={el.element_id} className={clsx(styles.elementTitle, positionClass)}>{contentArray[0]}</h2>;
+    }
+
+    if (el.type === 'subtitle') {
+      return <h4 key={el.element_id} className={clsx(styles.elementSubtitle, positionClass)}>{contentArray[0]}</h4>;
+    }
+
+    if (el.type === 'list' || el.type === 'list_item') {
+      return (
+        <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
+          {contentArray.map((b: string, i: number) => <li key={i}>{b}</li>)}
+        </ul>
+      );
+    }
+
     if (el.type === 'text_block') {
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
-          {el.content && el.content.length > 1 ? (
+          {contentArray.length > 1 ? (
             <ul className={styles.contentList}>
-              {el.content.map((b: string, i: number) => <li key={i}>{b}</li>)}
+              {contentArray.map((b: string, i: number) => <li key={i}>{b}</li>)}
             </ul>
           ) : (
-             el.content?.map((text: string, i: number) => <p key={i}>{text}</p>)
+            contentArray.map((text: string, i: number) => <p key={i} style={{ whiteSpace: 'pre-wrap' }}>{text}</p>)
           )}
         </div>
       );
     }
+    
+    // Timeline Item Fallback
+    if (el.type === 'timeline_item') {
+      return (
+        <div key={el.element_id} className={clsx(styles.textBlock, positionClass)} style={{ marginBottom: '8px' }}>
+          <strong>{el.time}</strong>
+          <p style={{ margin: '4px 0 0 0' }}>{contentArray[0] || el.content}</p>
+        </div>
+      );
+    }
+
     return null;
   };
 
