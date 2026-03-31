@@ -37,6 +37,10 @@ class PPTStreamManagerClass {
 
     return () => {
       listeners.delete(listener);
+      // Cleanup empty listener sets to prevent memory leak
+      if (listeners.size === 0) {
+        this.sessionListeners.delete(sessionId);
+      }
     };
   }
 
@@ -69,6 +73,12 @@ class PPTStreamManagerClass {
       this.notify(sessionId, stream.state);
       this.activeStreams.delete(sessionId);
     }
+  }
+
+  /** Reset stream state for a session — called on session switch to avoid stale pages */
+  public clearStreamState(sessionId: string) {
+    this.activeStreams.delete(sessionId);
+    this.notify(sessionId, this.getEmptyState());
   }
 
   private applyTheme(theme: PPTTheme) {
@@ -130,7 +140,12 @@ class PPTStreamManagerClass {
           onDone: () => {
             state.isStreaming = false;
             this.notify(sessionId, state);
-            this.activeStreams.delete(sessionId);
+            // Keep streamPages in state until caller clears via EduAgent_Refetch_PPT
+            // so the UI doesn't flash empty between stream end and fetchPreview completing.
+            // Only remove from activeStreams after a short grace period.
+            setTimeout(() => {
+              this.activeStreams.delete(sessionId);
+            }, 5000);
             // Fire full completion event to let UI fetch final
             window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
           },
