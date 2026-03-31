@@ -127,12 +127,11 @@ export function useCourseware(sessionId: string) {
     const handleRefetch = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        // Cancel any previous poll, start a fresh one with a new cancel token
+        // Backend commits every page to DB before yielding the SSE event,
+        // so by the time generate_done fires, all data is already in DB.
+        // A single immediate fetch is sufficient — no polling needed.
         pollCancelRef.current.cancelled = true;
-        const newToken = { cancelled: false };
-        pollCancelRef.current = newToken;
-        setPreviewStatus('loading');
-        pollUntilReady(newToken);
+        fetchPreview();
       }
     };
 
