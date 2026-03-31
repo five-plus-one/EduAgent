@@ -281,6 +281,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
                                     courseware.word_markdown = clean_word
                                     db.commit()
+                                    yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     break
                                 continue
@@ -333,6 +334,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
             courseware.word_markdown = clean_word
             db.commit()
+            yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
             
     except asyncio.CancelledError:
