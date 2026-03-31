@@ -112,7 +112,7 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
                 # Force Advanced Model to handle the massive JSON instruction
                 payload = {"model": "doubao-seed-2-0-pro-260215", "messages": [{"role": "user", "content": prompt}], "temperature": 0.4, "stream": True}
                 
-                response = requests.post(url, headers=headers, json=payload, stream=True, timeout=60)
+                response = requests.post(url, headers=headers, json=payload, stream=True, timeout=600)
                 response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
@@ -237,7 +237,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         """
 
         def sse(event: str, data: dict):
-            return f"data: {json.dumps({{'event': event, 'data': data}}, ensure_ascii=False)}\n\n"
+            return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"
 
         url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
         headers = {
@@ -281,6 +281,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
                                     courseware.word_markdown = clean_word
                                     db.commit()
+                                    yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     break
                                 continue
@@ -333,13 +334,14 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
             courseware.word_markdown = clean_word
             db.commit()
+            yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
             
     except asyncio.CancelledError:
         print("[SSE] Client disconnected in stream")
     except Exception as e:
         print(f"[SSE Error] {e}")
-        yield f"data: {json.dumps({{'event': 'generate_error', 'data': {'message': str(e)}}})}\n\n"
+        yield f"data: {json.dumps({'event': 'generate_error', 'data': {'message': str(e)}})}\n\n"
     finally:
         db.close()
 

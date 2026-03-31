@@ -53,6 +53,14 @@ def trigger_generation_stream(
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
         
+    active_task = db.query(GenerationTask).filter(
+        GenerationTask.session_id == session_id, 
+        GenerationTask.status == "generating",
+        GenerationTask.task_type == "generate"
+    ).first()
+    if active_task:
+        raise HTTPException(status_code=409, detail="A generation task is already running for this session")
+        
     sse_headers = {
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
