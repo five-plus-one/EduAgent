@@ -19,117 +19,147 @@ export function useChatSession(sessionId: string) {
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isSynthesizing) return;
-
     if (sessionId === 'new') {
-      alert('当前处于未命名初始态，请在左侧侧边栏【新课件设计】创建并命名您的会话。');
-      return;
+        alert('当前处于未命名初始态，请在左侧侧边栏【新课件设计】创建并命名您的会话。');
+        return;
     }
-
     setLatestIntent(null);
-
-    // Optimistically insert user's message
     const teacherMsgId = generateId();
     setMessages(prev => [...prev, { id: teacherMsgId, role: 'teacher', content }]);
-
-    // Hand off SSE networking to the global manager.
-    // The view layer will receive updates automatically via subscription.
     GlobalStreamManager.startStream(sessionId, content);
   }, [sessionId, isSynthesizing, navigate]);
 
-  // Handle session switch: load history and subscribe to any background streams
   useEffect(() => {
+    let active = true;
     setMessages([]);
     setIsSynthesizing(false);
     setLatestIntent(null);
 
-    let active = true;
-
-    if (sessionId && sessionId !== 'new') {
-      getSession(sessionId).then(res => {
+    const loadHistory = async () => {
+      if (!sessionId || sessionId === 'new') return;
+      try {
+        console.log(`[UseChatSession] Loading data for session ${sessionId}`);
+        const res = await getSession(sessionId);
         if (!active) return;
         const historyData = res?.messages || res?.chat_history || res?.history;
         if (historyData && Array.isArray(historyData)) {
-          // Contiguous deduplication to band-aid DB pollution
+          // 1. Deduplicate consecutive identical messages
           const deduplicated = historyData.filter((m: any, i: number, arr: any[]) => {
             if (i === 0) return true;
             const prev = arr[i - 1];
-            const contentMatches = (m.content || m.text) === (prev.content || prev.text);
-            const roleMatches = m.role === prev.role;
-            return !(roleMatches && contentMatches);
+            return !((m.role === prev.role) && ((m.content || m.text) === (prev.content || prev.text)));
           });
 
-          const mapped: MessageProps[] = deduplicated.map((m: any) => {
-            const id = m.id || generateId();
-            return {
-              id,
-              role: ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher',
-              content: m.content || m.text || '',
-              toolLog: GlobalStreamManager.getMessageToolLog(id), // Fetch persisted tool log for this specific message
+          // 2. Heal AI content by stripping <think> and <tool_call> tags safely
+          const healAI = (m: any) => {
+            const raw = (m.content || m.text || '').trim();
+            if (!raw) return { content: '', thinking: '', toolLog: '' };
+
+            let thinking = '';
+            let toolLogSegments: string[] = [];
+            
+            // Extract thinking using a robust pattern
+            const thinkRgx = /<think>([\s\S]*?)(?:<\/think>|$)/g;
+            let thinkMatch;
+            while ((thinkMatch = thinkRgx.exec(raw)) !== null) {
+              thinking += thinkMatch[1].trim() + '\n';
+            }
+
+            // Extract tool logs
+            const toolRgx = /<(?:seed:)?tool_call[^>]*>([\s\S]*?)(?:<\/(?:seed:)?tool_call>|$)/g;
+            let toolMatch;
+            while ((toolMatch = toolRgx.exec(raw)) !== null) {
+              toolLogSegments.push(`\n> 🤖 *历史工具记录: \`${toolMatch[0].length} 字符\`*\n`);
+            }
+
+            // Clean the conversational content
+            let cleaned = raw.replace(thinkRgx, '').replace(toolRgx, '').trim();
+            // PUA Defensive: If cleaning results in empty but raw was non-empty and didn't look like JUST tags
+            if (!cleaned && raw && raw.length > 20 && !raw.startsWith('<think')) {
+                cleaned = raw;
+            }
+
+            return { 
+                content: cleaned || (thinking ? '' : ''), 
+                thinking: thinking.trim(), 
+                toolLog: toolLogSegments.join('\n') 
             };
+          };
+
+          const mapped: Array<MessageProps> = deduplicated.map((m: any) => {
+            const id = m.id || generateId();
+            const role = ((m.role === 'assistant' || m.role === 'ai') ? 'ai' : 'teacher') as 'ai' | 'teacher';
+            
+            if (role === 'ai') {
+              const healed = healAI(m);
+              const managerLog = GlobalStreamManager.getMessageToolLog(id);
+              return {
+                id,
+                role,
+                content: healed.content,
+                thinking: healed.thinking,
+                toolLog: [healed.toolLog, managerLog].filter(Boolean).join('\n'),
+              };
+            }
+            return { id, role, content: (m.content || m.text || m.payload?.content || '') };
           });
 
-          // Merge with any currently active global stream for this session
+          setMessages(mapped);
+          
+          // Check for active resume
           const activeStream = GlobalStreamManager.getStream(sessionId);
           if (activeStream) {
-            mapped.push({
-              id: activeStream.aiMsgId,
-              role: 'ai',
-              content: activeStream.content,
-              toolLog: activeStream.toolLog,
-              thinking: activeStream.thinking,
-              isThinking: activeStream.isThinking,
-              isTyping: activeStream.isSynthesizing,
+            setMessages(prev => {
+                if (prev.some(m => m.id === activeStream.aiMsgId)) return prev;
+                return [...prev, {
+                    id: activeStream.aiMsgId,
+                    role: 'ai',
+                    content: activeStream.content,
+                    toolLog: activeStream.toolLog,
+                    thinking: activeStream.thinking,
+                    isThinking: activeStream.isThinking,
+                    isTyping: activeStream.isSynthesizing,
+                }];
             });
             setIsSynthesizing(activeStream.isSynthesizing);
             if (activeStream.latestIntent) setLatestIntent(activeStream.latestIntent);
           }
-
-          setMessages(mapped);
-        } else {
-          console.warn('[Session History] Backend did not return an array of messages/chat_history in getSession()', res);
         }
-      }).catch(e => {
-        console.error('[Session History] Failed to fetch session history:', e);
-      });
-    }
+      } catch (err) {
+        console.error('[History Healing] Error:', err);
+      }
+    };
 
-    // Subscribe to the global stream manager for ongoing updates.
+    loadHistory();
+
     const unsubscribe = GlobalStreamManager.subscribe(sessionId, (state: StreamState | null) => {
       if (!active || !state) return;
+      console.log(`[UseChatSession] Global Stream UI Tick for ${sessionId}. ContentLen: ${state.content.length}`);
       
       setIsSynthesizing(state.isSynthesizing);
       if (state.latestIntent) setLatestIntent(state.latestIntent);
 
       setMessages(prev => {
         const idx = prev.findIndex(m => m.id === state.aiMsgId);
+        const data: MessageProps = {
+          id: state.aiMsgId,
+          role: 'ai',
+          content: state.content,
+          toolLog: state.toolLog,
+          thinking: state.thinking,
+          isThinking: state.isThinking,
+          isTyping: state.isSynthesizing
+        };
         if (idx !== -1) {
-          const newArr = [...prev];
-          newArr[idx] = { 
-            ...newArr[idx], 
-            content: state.content,
-            toolLog: state.toolLog,
-            thinking: state.thinking,
-            isThinking: state.isThinking,
-            isTyping: state.isSynthesizing 
-          };
-          return newArr;
-        } else {
-          return [...prev, {
-            id: state.aiMsgId,
-            role: 'ai',
-            content: state.content,
-            toolLog: state.toolLog,
-            thinking: state.thinking,
-            isThinking: state.isThinking,
-            isTyping: state.isSynthesizing
-          }];
+          const updated = [...prev];
+          updated[idx] = data;
+          return updated;
         }
+        return [...prev, data];
       });
     });
 
-    // PUA Always-On: 卸载或切换会话时，只取消视图层的监听订阅，不再物理掐断底层的长连接。
-    // 让大模型在后方安静地继续产生幻觉（啊不，是价值）！
-    return () => { 
+    return () => {
       active = false;
       unsubscribe();
     };

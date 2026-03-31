@@ -3,7 +3,7 @@ import { streamChatCompletion } from './api';
 export interface StreamState {
   aiMsgId: string;
   content: string;
-  toolLog: string;        // Tool call markers — stored separately from AI content
+  toolLog: string;
   thinking: string;
   isThinking: boolean;
   isSynthesizing: boolean;
@@ -15,18 +15,14 @@ export type StreamListener = (state: StreamState | null) => void;
 class StreamManagerClass {
   private activeStreams = new Map<string, {
     state: StreamState;
+    buffer: string;
+    mode: 'text' | 'think' | 'tool';
     abortController: AbortController;
   }>();
 
   private sessionListeners = new Map<string, Set<StreamListener>>();
-
-  /**
-   * Persists tool call logs across session switches (survives component unmounts).
-   * Key: messageId, Value: markdown-formatted tool log text.
-   */
   private messageToolLogs = new Map<string, string>();
 
-  /** Read the persisted tool log for a specific message. */
   public getMessageToolLog(messageId: string): string {
     return this.messageToolLogs.get(messageId) || '';
   }
@@ -35,19 +31,28 @@ class StreamManagerClass {
     if (!this.sessionListeners.has(sessionId)) {
       this.sessionListeners.set(sessionId, new Set());
     }
-    this.sessionListeners.get(sessionId)!.add(listener);
-
+    const listeners = this.sessionListeners.get(sessionId)!;
+    listeners.add(listener);
+    
     const stream = this.activeStreams.get(sessionId);
     if (stream) {
-      listener({ ...stream.state });
+      console.log(`[StreamManager] Syncing subscriber with active stream ${sessionId}`);
+      listener(this.cloneState(stream.state));
     } else {
       listener(null);
     }
-    return () => this.unsubscribe(sessionId, listener);
+    
+    return () => {
+      listeners.delete(listener);
+    };
   }
 
   private unsubscribe(sessionId: string, listener: StreamListener) {
     this.sessionListeners.get(sessionId)?.delete(listener);
+  }
+
+  private cloneState(state: StreamState): StreamState {
+    return JSON.parse(JSON.stringify(state));
   }
 
   public stopStream(sessionId: string) {
@@ -65,29 +70,108 @@ class StreamManagerClass {
   }
 
   private notify(sessionId: string, stream: any) {
-    this.sessionListeners.get(sessionId)?.forEach((l: StreamListener) => l({ ...stream.state }));
+    const listeners = this.sessionListeners.get(sessionId);
+    if (listeners) {
+      const stateCopy = this.cloneState(stream.state);
+      listeners.forEach((l: StreamListener) => l(stateCopy));
+    }
   }
 
-  /** Helper to determine if a tool call should trigger a PPT refetch */
   private shouldRefetchForTool(toolName: string): boolean {
-    const name = toolName.toLowerCase();
-    return name.includes('generate') || 
-           name.includes('slide') || 
-           name.includes('page') || 
-           name.includes('update') || 
-           name.includes('edit') || 
-           name.includes('insert') ||
-           name.includes('delete');
+    const name = (toolName || "").toLowerCase();
+    return /generate|slide|page|update|edit|insert|delete/.test(name);
+  }
+
+  /**
+   * P8 Scrubber 9.0 (Full Transparency Protocol)
+   * Guaranteed content propagation even during mode transitions.
+   */
+  private processTextChunk(stream: any, chunk: string) {
+    stream.buffer += chunk;
+    console.log(`[Scrubber9] Mode: ${stream.mode}, Buffer: ${stream.buffer.length}`);
+
+    // High-agency loop: process as many tags as we find
+    let changed = true;
+    while (changed) {
+      changed = false;
+      
+      if (stream.mode === 'text') {
+        const thinkIdx = stream.buffer.indexOf('<think>');
+        const toolIdx = stream.buffer.search(/<(seed:)?tool_call[^>]*>/);
+        
+        let startIdx = -1;
+        let tagLen = 0;
+        let nextMode: 'think' | 'tool' | null = null;
+
+        if (thinkIdx !== -1 && (toolIdx === -1 || thinkIdx < toolIdx)) {
+          startIdx = thinkIdx;
+          tagLen = 7;
+          nextMode = 'think';
+        } else if (toolIdx !== -1) {
+          const match = stream.buffer.match(/<(seed:)?tool_call[^>]*>/);
+          if (match) {
+            startIdx = toolIdx;
+            tagLen = match[0].length;
+            nextMode = 'tool';
+          }
+        }
+
+        if (nextMode && startIdx !== -1) {
+          // Flush conversational text BEFORE the tag
+          stream.state.content += stream.buffer.slice(0, startIdx);
+          stream.buffer = stream.buffer.slice(startIdx + tagLen);
+          stream.mode = nextMode;
+          if (nextMode === 'think') stream.state.isThinking = true;
+          changed = true;
+        } else {
+          // Normal conversational text. 
+          // We hold the buffer ONLY if it ends with a partial tag start (max 15 chars)
+          const lastBracket = stream.buffer.lastIndexOf('<');
+          if (lastBracket !== -1 && stream.buffer.length - lastBracket < 15) {
+            stream.state.content += stream.buffer.slice(0, lastBracket);
+            stream.buffer = stream.buffer.slice(lastBracket);
+          } else {
+            stream.state.content += stream.buffer;
+            stream.buffer = '';
+          }
+        }
+      } else if (stream.mode === 'think') {
+        const endIdx = stream.buffer.indexOf('</think>');
+        if (endIdx !== -1) {
+          stream.state.thinking += stream.buffer.slice(0, endIdx);
+          stream.buffer = stream.buffer.slice(endIdx + 8);
+          stream.mode = 'text';
+          stream.state.isThinking = false;
+          changed = true;
+        } else {
+          // Incrementally flush thinking process to UI
+          stream.state.thinking += stream.buffer;
+          stream.buffer = '';
+        }
+      } else if (stream.mode === 'tool') {
+        const endIdx = stream.buffer.search(/<\/(seed:)?tool_call>/);
+        if (endIdx !== -1) {
+          const match = stream.buffer.match(/<\/(seed:)?tool_call>/);
+          if (match) {
+            stream.buffer = stream.buffer.slice(endIdx + match[0].length);
+            stream.mode = 'text';
+            changed = true;
+          }
+        } else {
+          // In tool mode, we don't dump JSON to UI, but we don't block.
+          // The buffer grows until closing tag or is cleared at end of stream.
+          if (stream.buffer.length > 5000) stream.buffer = ''; // Safety valve
+          break;
+        }
+      }
+    }
   }
 
   public async startStream(sessionId: string, userContent: string) {
     if (this.activeStreams.has(sessionId)) return;
 
     const controller = new AbortController();
-    const streamData: {
-      state: StreamState;
-      abortController: AbortController;
-    } = {
+    const streamData = {
       state: {
         aiMsgId: Math.random().toString(36).substring(2, 11),
         content: '',
@@ -97,6 +181,8 @@ class StreamManagerClass {
         isSynthesizing: true,
         latestIntent: null,
       },
+      buffer: '',
+      mode: 'text' as 'text' | 'think' | 'tool',
       abortController: controller,
     };
     
@@ -104,72 +190,44 @@ class StreamManagerClass {
     this.notify(sessionId, streamData);
 
     let lastToolName = '';
-    let refetchDispatched = false; // Guard: prevent double EduAgent_Refetch_PPT dispatch
+    let refetchDispatched = false;
 
     try {
       await streamChatCompletion(
         sessionId,
         userContent,
         (chunk, isFinished, intent) => {
-          if (intent && typeof intent === 'string') {
-            streamData.state.latestIntent = intent;
-          }
-
-          // Parse <think>...</think> tags from text chunk
-          let remaining = chunk;
-          while (remaining.length > 0) {
-            if (streamData.state.isThinking) {
-              const closeIdx = remaining.indexOf('</think>');
-              if (closeIdx !== -1) {
-                streamData.state.thinking += remaining.slice(0, closeIdx);
-                streamData.state.isThinking = false;
-                remaining = remaining.slice(closeIdx + 8);
-              } else {
-                streamData.state.thinking += remaining;
-                remaining = '';
-              }
-            } else {
-              const openIdx = remaining.indexOf('<think>');
-              if (openIdx !== -1) {
-                streamData.state.content += remaining.slice(0, openIdx);
-                streamData.state.isThinking = true;
-                remaining = remaining.slice(openIdx + 7);
-              } else {
-                streamData.state.content += remaining;
-                remaining = '';
-              }
-            }
-          }
+          if (intent && typeof intent === 'string') streamData.state.latestIntent = intent;
+          if (chunk) this.processTextChunk(streamData, chunk);
 
           if (isFinished) {
+            // End of stream cleanup
+            if (streamData.buffer && streamData.mode === 'text') {
+              streamData.state.content += streamData.buffer;
+            } else if (streamData.buffer && streamData.mode === 'think') {
+              streamData.state.thinking += streamData.buffer;
+            }
+            streamData.buffer = '';
             streamData.state.isSynthesizing = false;
             streamData.state.isThinking = false;
-
-            // Persist tool log to singleton using messageId so it survives session switches
+            
+            // Save tool logs for persistence within current component lifecycle
             if (streamData.state.toolLog) {
-              this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
+                this.messageToolLogs.set(streamData.state.aiMsgId, streamData.state.toolLog);
             }
-
-            // Fallback refetch — ONLY if onToolResult hasn't already dispatched it
+            
             if (!refetchDispatched && this.shouldRefetchForTool(lastToolName)) {
-              console.log('[StreamManager] isFinished fallback → triggering PPT refetch');
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
           }
-
           this.notify(sessionId, streamData);
-
-          if (isFinished) {
-            this.activeStreams.delete(sessionId);
-          }
+          if (isFinished) this.activeStreams.delete(sessionId);
         },
-        (_err) => {
-          if (!controller.signal.aborted) {
-            streamData.state.isSynthesizing = false;
-            streamData.state.content += '\n⚠️ 发生连接错误或由于页面断开中止请求。';
-            this.notify(sessionId, streamData);
-            this.activeStreams.delete(sessionId);
-          }
+        (err) => {
+          console.error('[StreamManager] Error:', err);
+          streamData.state.isSynthesizing = false;
+          this.notify(sessionId, streamData);
+          this.activeStreams.delete(sessionId);
         },
         controller.signal,
         {
@@ -179,39 +237,25 @@ class StreamManagerClass {
           },
           onToolCall: (tool) => {
             lastToolName = tool.tool_name;
-            const isPPTTool = this.shouldRefetchForTool(tool.tool_name);
-            if (isPPTTool) {
+            if (this.shouldRefetchForTool(tool.tool_name)) {
               window.dispatchEvent(new CustomEvent('EduAgent_Generate_Start', { detail: { sessionId } }));
             }
-
-            // Append to toolLog (NOT content — keeps AI reply clean for history)
             streamData.state.toolLog += `\n> 🤖 *正在执行操作: \`${tool.tool_name}\`...*\n`;
             this.notify(sessionId, streamData);
           },
           onToolResult: (result) => {
             window.dispatchEvent(new CustomEvent('EduAgent_Generate_End', { detail: { sessionId } }));
-
-            const isPPTTool = this.shouldRefetchForTool(lastToolName);
-            const shouldRefetch = result.should_refetch_ppt === true || isPPTTool;
-
-            if (shouldRefetch) {
+            if (result.should_refetch_ppt || this.shouldRefetchForTool(lastToolName)) {
               refetchDispatched = true;
-              console.log(`[StreamManager] Tool "${lastToolName}" completed → triggering PPT refetch`);
               window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
             }
-
-            // Append result to toolLog
-            const statusIcon = result.status === 'success' ? '✅' : '❌';
-            streamData.state.toolLog += `> ${statusIcon} *操作已完成*\n\n`;
+            const icon = result.status === 'success' ? '✅' : '❌';
+            streamData.state.toolLog += `> ${icon} *操作已完成*\n\n`;
             this.notify(sessionId, streamData);
           }
         }
       );
     } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      streamData.state.isSynthesizing = false;
-      streamData.state.content += '\n⚠️ 网络请求遇到问题，会话已终止。';
-      this.notify(sessionId, streamData);
       this.activeStreams.delete(sessionId);
     }
   }
