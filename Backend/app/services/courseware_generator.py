@@ -177,24 +177,33 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
     """
     异步流式生成核心函数，输出 NDJSON 格式供 SSE 使用。
     """
-    db = SessionLocal()
-    try:
-        # Check if already generating
-        courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
-        if not courseware:
-            courseware = Courseware(id="cw_" + uuid.uuid4().hex[:8], session_id=session_id)
-            courseware.ppt_data = {"ppt_data": []}
-            db.add(courseware)
-            db.commit()
-            
-        messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
-        history_str = "\n".join([f"{m.role}: {m.content}" for m in messages])
+    def _sync_init():
+        db_local = SessionLocal()
+        try:
+            courseware = db_local.query(Courseware).filter(Courseware.session_id == session_id).first()
+            if not courseware:
+                courseware = Courseware(id="cw_" + uuid.uuid4().hex[:8], session_id=session_id)
+                courseware.ppt_data = {"ppt_data": []}
+                db_local.add(courseware)
+                db_local.commit()
+                
+            messages = db_local.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+            history_str = "\n".join([f"{m.role}: {m.content}" for m in messages])
 
-        rag_context = ""
-        if selected_file_ids:
-            last_msg = messages[-1].content if messages else "智能大纲提取"
-            docs = search_vectors(query=last_msg, filter_document_ids=selected_file_ids, top_k=6)
-            rag_context = "\n---\n".join([d.page_content for d in docs])
+            rag_context = ""
+            if selected_file_ids:
+                last_msg = messages[-1].content if messages else "智能大纲提取"
+                docs = search_vectors(query=last_msg, filter_document_ids=selected_file_ids, top_k=6)
+                rag_context = "\n---\n".join([d.page_content for d in docs])
+                
+            return history_str, rag_context
+        finally:
+            db_local.close()
+
+    history_str, rag_context = await asyncio.to_thread(_sync_init)
+    db = SessionLocal() # Keep local DB instance for async loop
+    try:
+        courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
 
         prompt = f"""
         你是一位顶级设计巨匠、高级教学总监、排版大师。
