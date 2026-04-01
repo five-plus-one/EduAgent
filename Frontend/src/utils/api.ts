@@ -266,6 +266,7 @@ export const streamCoursewareGeneration = async (
     onWordReady: (markdown: string) => void;
     onDone: (totalPages: number) => void;
     onError: (err: any) => void;
+    onThinking?: (text: string) => void;
   },
   signal?: AbortSignal
 ) => {
@@ -286,6 +287,9 @@ export const streamCoursewareGeneration = async (
         const { event, data } = payload;
 
         switch (event) {
+          case 'thinking_chunk':
+            callbacks.onThinking?.(data.text);
+            break;
           case 'generate_start':
             callbacks.onStart(data.theme, data.total_hint);
             break;
