@@ -74,18 +74,82 @@ def run_export_task(task_id: str, session_id: str):
             acc_col = hex2rgb(theme.get("accent", "EF233C"))
             txt_col = hex2rgb(theme.get("text_color", "000000"))
             
-            # Helper to add configured textbox
+            import re
+
+            def strip_markdown(text: str) -> str:
+                """Strip common markdown syntax to plain text for PPTX."""
+                if not text:
+                    return ""
+                # Remove bold/italic markers
+                text = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
+                # Remove inline code
+                text = re.sub(r'`(.+?)`', r'\1', text)
+                # Remove leading list markers (-, *, + followed by space)
+                text = re.sub(r'^[\-\*\+]\s+', '', text, flags=re.MULTILINE)
+                # Remove leading numbered list markers
+                text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+                # Remove heading markers
+                text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+                # Remove blockquote markers
+                text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+                # Clean up extra spaces
+                text = text.strip()
+                return text
+
+            def add_text_rich(slide, text, l, t, w, h, size, bold_default, color, align=None, accent_color=None):
+                """Add a textbox with markdown **bold** converted to real PPTX bold runs."""
+                from pptx.util import Pt
+                from pptx.oxml.ns import qn
+                
+                tb = slide.shapes.add_textbox(l, t, w, h)
+                tf = tb.text_frame
+                tf.word_wrap = True
+                p = tf.paragraphs[0]
+                if align:
+                    p.alignment = align
+
+                # Parse **bold** spans using regex
+                segments = re.split(r'(\*\*[^*]+\*\*)', str(text))
+                for seg in segments:
+                    if not seg:
+                        continue
+                    bold_match = re.match(r'\*\*([^*]+)\*\*', seg)
+                    run = p.add_run()
+                    if bold_match:
+                        run.text = bold_match.group(1)
+                        run.font.bold = True
+                        run.font.size = Pt(size)
+                        run.font.color.rgb = accent_color if accent_color else color
+                    else:
+                        # Still strip other markdown from plain segments
+                        run.text = strip_markdown(seg)
+                        run.font.bold = bold_default
+                        run.font.size = Pt(size)
+                        run.font.color.rgb = color
+                
+                # Fallback: if no runs were added, just add plain text
+                if not p.runs:
+                    run = p.add_run()
+                    run.text = strip_markdown(str(text))
+                    run.font.bold = bold_default
+                    run.font.size = Pt(size)
+                    run.font.color.rgb = color
+                
+                return tb
+
+            # Legacy simple helper (for title text where bold/markdown not expected)
             def add_text(slide, text, l, t, w, h, size, bold, color, align=None):
                 tb = slide.shapes.add_textbox(l, t, w, h)
                 tf = tb.text_frame
                 tf.word_wrap = True
                 p = tf.paragraphs[0]
-                p.text = str(text)
+                p.text = strip_markdown(str(text))
                 p.font.size = Pt(size)
                 p.font.bold = bold
                 p.font.color.rgb = color
                 if align: p.alignment = align
                 return tb
+
 
             for page in slides_array:
                 slide = prs.slides.add_slide(blank_layout)
@@ -98,67 +162,96 @@ def run_export_task(task_id: str, session_id: str):
                 fill.fore_color.rgb = bg_col
 
                 title_text = page.get("title", "")
-                
+
+                def get_content(elem) -> str:
+                    raw = elem.get("content", [])
+                    if isinstance(raw, list):
+                        return "\n".join(str(c) for c in raw)
+                    return str(raw) if raw else ""
+
                 # Canvas-Design Geometric Accent Lines
-                if layout_type == "title_slide":
+                if layout_type in ("cover", "title_slide"):
                     # Giant top accent bar
-                    shape = slide.shapes.add_shape(1, Inches(0), Inches(1), Inches(4), Inches(0.2)) # msoShapeRectangle
-                    shape.fill.solid()
-                    shape.fill.fore_color.rgb = acc_col
-                    shape.line.fill.background()
-                    
-                    add_text(slide, title_text, Inches(1), Inches(2), Inches(8), Inches(1.5), 54, True, txt_col)
-                    
+                    bar = slide.shapes.add_shape(1, Inches(0), Inches(0), Inches(10), Inches(0.3))
+                    bar.fill.solid()
+                    bar.fill.fore_color.rgb = acc_col
+                    bar.line.fill.background()
+
+                    add_text(slide, title_text, Inches(0.8), Inches(1.4), Inches(8.4), Inches(2.4), 52, True, pri_col)
+
                     for idx, elem in enumerate(page.get("elements", [])):
-                        content = r'\n'.join(elem.get("content", [])) if isinstance(elem.get("content"), list) else str(elem.get("content", ""))
-                        add_text(slide, content, Inches(1), Inches(4 + 1.2*idx), Inches(8), Inches(1), 20, False, sec_col)
+                        content = get_content(elem)
+                        etype = elem.get("type", "text_block")
+                        y_pos = Inches(4.2 + idx * 0.85)
+                        if etype == "subtitle":
+                            add_text(slide, content, Inches(0.8), y_pos, Inches(8.4), Inches(0.8), 24, False, sec_col)
+                        else:
+                            add_text_rich(slide, content, Inches(0.8), y_pos, Inches(8.4), Inches(0.8), 18, False, txt_col, accent_color=acc_col)
 
                 elif layout_type == "two_column":
-                    # Left vertical strip
-                    shape = slide.shapes.add_shape(1, Inches(0.5), Inches(0.5), Inches(0.1), Inches(6.5))
-                    shape.fill.solid()
-                    shape.fill.fore_color.rgb = pri_col
-                    shape.line.fill.background()
-                    
-                    add_text(slide, title_text, Inches(0.8), Inches(0.5), Inches(8.5), Inches(0.8), 36, True, txt_col)
-                    
+                    strip = slide.shapes.add_shape(1, Inches(0.5), Inches(0.5), Inches(0.08), Inches(6.5))
+                    strip.fill.solid()
+                    strip.fill.fore_color.rgb = acc_col
+                    strip.line.fill.background()
+
+                    add_text(slide, title_text, Inches(0.8), Inches(0.3), Inches(8.5), Inches(0.8), 32, True, txt_col)
+
                     elements = page.get("elements", [])
-                    # Split into left and right
                     left_elems = [e for e in elements if e.get("position", "left") == "left"]
-                    right_elems = [e for e in elements if "right" in e.get("position", "left")]
-                    if not right_elems and not left_elems:
+                    right_elems = [e for e in elements if "right" in str(e.get("position", ""))]
+                    if not left_elems and not right_elems:
                         left_elems = elements[:max(1, len(elements)//2)]
                         right_elems = elements[max(1, len(elements)//2):]
 
                     for idx, e in enumerate(left_elems):
-                        content = r'\n'.join(e.get("content", [])) if isinstance(e.get("content"), list) else str(e.get("content", ""))
-                        add_text(slide, content, Inches(0.8), Inches(1.8 + idx*1.5), Inches(4), Inches(4), 16, False, txt_col)
-                    
+                        content = get_content(e)
+                        add_text_rich(slide, content, Inches(0.8), Inches(1.5 + idx*1.5), Inches(4.2), Inches(1.4), 15, False, txt_col, accent_color=acc_col)
+
                     for idx, e in enumerate(right_elems):
-                        content = r'\n'.join(e.get("content", [])) if isinstance(e.get("content"), list) else str(e.get("content", ""))
-                        # Draw aesthetic container background for right columns (Accent colored card)
-                        card = slide.shapes.add_shape(1, Inches(5.2), Inches(1.6 + idx*2), Inches(4.2), Inches(1.8))
-                        card.fill.solid()
-                        card.fill.fore_color.rgb = pri_col # Theme primary color fill
-                        card.line.fill.background()
-                        add_text(slide, content, Inches(5.4), Inches(1.8 + idx*2), Inches(3.8), Inches(1.4), 14, False, bg_col)
+                        content = get_content(e)
+                        is_big = e.get("is_accent", False) or e.get("type") == "huge_number"
+                        if is_big:
+                            add_text_rich(slide, content, Inches(5.2), Inches(1.5 + idx*2), Inches(4.2), Inches(2), 48, True, acc_col, PP_ALIGN.CENTER, accent_color=acc_col)
+                        else:
+                            card = slide.shapes.add_shape(1, Inches(5.2), Inches(1.4 + idx*2), Inches(4.2), Inches(1.8))
+                            card.fill.solid()
+                            card.fill.fore_color.rgb = pri_col
+                            card.line.fill.background()
+                            add_text_rich(slide, content, Inches(5.4), Inches(1.55 + idx*2), Inches(3.8), Inches(1.4), 14, False, bg_col, accent_color=bg_col)
 
                 elif layout_type == "stat_callout":
-                    add_text(slide, title_text, Inches(0.5), Inches(0.5), Inches(9), Inches(1), 32, True, txt_col)
+                    add_text(slide, title_text, Inches(0.5), Inches(0.4), Inches(9), Inches(1), 32, True, txt_col)
+                    uline = slide.shapes.add_shape(1, Inches(0.5), Inches(1.3), Inches(2), Inches(0.06))
+                    uline.fill.solid()
+                    uline.fill.fore_color.rgb = acc_col
+                    uline.line.fill.background()
                     for idx, e in enumerate(page.get("elements", [])):
-                        content = r'\n'.join(e.get("content", [])) if isinstance(e.get("content"), list) else str(e.get("content", ""))
+                        content = get_content(e)
                         if e.get("is_accent") or e.get("type") in ["huge_number", "stat"]:
-                            # Huge text centered
-                            add_text(slide, content, Inches(0.5), Inches(2 + idx*1.5), Inches(9), Inches(2), 64, True, acc_col, PP_ALIGN.CENTER)
+                            add_text(slide, content, Inches(0.5), Inches(1.8 + idx*2.0), Inches(9), Inches(2.2), 72, True, acc_col, PP_ALIGN.CENTER)
                         else:
-                            add_text(slide, content, Inches(1), Inches(2 + idx*1.5), Inches(8), Inches(1.5), 18, False, sec_col, PP_ALIGN.CENTER)
+                            add_text_rich(slide, content, Inches(1), Inches(2.0 + idx*1.5), Inches(8), Inches(1.4), 18, False, txt_col, PP_ALIGN.CENTER, accent_color=acc_col)
 
-                else: # minimal_list or fallback
-                    # Quiet elegant title with no line
-                    add_text(slide, title_text, Inches(1), Inches(0.8), Inches(8), Inches(1), 28, True, pri_col)
+                else:  # minimal_list / timeline / fallback
+                    topbar = slide.shapes.add_shape(1, Inches(0), Inches(0), Inches(10), Inches(0.18))
+                    topbar.fill.solid()
+                    topbar.fill.fore_color.rgb = pri_col
+                    topbar.line.fill.background()
+
+                    add_text(slide, title_text, Inches(0.8), Inches(0.35), Inches(8.5), Inches(1), 30, True, pri_col)
+
                     for idx, e in enumerate(page.get("elements", [])):
-                        content = r'\n'.join(e.get("content", [])) if isinstance(e.get("content"), list) else str(e.get("content", ""))
-                        add_text(slide, "— " + content, Inches(1), Inches(2.2 + idx*1.2), Inches(8), Inches(1), 16, False, txt_col)
+                        content = get_content(e)
+                        is_accent = e.get("is_accent", False) or e.get("type") == "huge_number"
+                        y = Inches(1.6 + idx * 1.3)
+                        if is_accent:
+                            add_text_rich(slide, content, Inches(0.8), y, Inches(8.4), Inches(1.3), 36, True, acc_col, None, accent_color=acc_col)
+                        else:
+                            dot = slide.shapes.add_shape(9, Inches(0.65), y + Inches(0.15), Inches(0.12), Inches(0.12))
+                            dot.fill.solid()
+                            dot.fill.fore_color.rgb = acc_col
+                            dot.line.fill.background()
+                            add_text_rich(slide, content, Inches(0.9), y, Inches(8.6), Inches(1.2), 15, False, txt_col, None, accent_color=acc_col)
 
             task.stage = "saving_file"
             task.progress = 90

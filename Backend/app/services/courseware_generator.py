@@ -210,36 +210,54 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             courseware.word_markdown = ""
             db.commit()
 
-        prompt = f"""
-        你是一位顶级设计巨匠、高级教学总监、排版大师。
-        请根据聊天记录与知识参考创作课程大纲。
-        
-        【聊天上下文】
-        {history_str}
-        
-        【RAG参考材料】
-        {rag_context}
-        
-        【输出格式的严格规定】
-        你必须严格按照以下 NDJSON（换行分隔 JSON）格式逐行输出，每行是一个独立的合法 JSON 对象。
-        绝对禁止输出任何 Markdown 围栏（```）、解释性文字或前置说明！
+        prompt = f"""你是一位世界顶尖的课件设计大师，将课程内容转化为视觉丰富、层次分明的演示文稿。
 
-        第一行，输出主题定义：
-        {{"__type": "theme", "name": "主题名称", "bg_color": "#HEX", "primary": "#HEX", "secondary": "HEX", "accent": "HEX", "text_color": "#HEX"}}
+【聊天上下文】
+{history_str}
 
-        然后，每一页幻灯片输出一行，以 page_index 升序排列：
-        {{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "...", "speaker_notes": "...", "elements": [...]}}
-        {{"__type": "page", "page_index": 2, "layout_type": "two_column", ...}}
-        （以此类推，至少生成3页）
+【RAG参考材料】
+{rag_context}
 
-        所有幻灯片行输出完毕后，输出此分隔行：
-        {{"__type": "word_start"}}
+【严格格式要求：每行输出一个独立的完整 JSON 对象，禁止 Markdown 围栏与任何说明文字】
 
-        紧接着输出完整的 Word 讲义 Markdown 文本（可跨多行）。
+第1行，主题色板：
+{{"__type": "theme", "name": "主题名称", "bg_color": "#1A1A2E", "primary": "#E94560", "secondary": "#0F3460", "accent": "#533483", "text_color": "#EAEAEA"}}
+选色规则：bg_color 使用高级深色（如 #1A1A2E、#0D1117、#162032）或高级浅色（如 #F8FAFC）；primary 为标题主色；accent 为强调色，二者需有鲜明对比。
 
-        最终以此行结束全部输出：
-        {{"__type": "done"}}
-        """
+其后每页幻灯片一行，字段说明如下：
+
+【layout_type 选项及适用场景】
+- "cover"：封面页（仅用于第1页）
+- "minimal_list"：简洁要点页，左大标题+右侧要点，适合概念介绍
+- "two_column"：双栏对比，position 用 left / right_top / right_bottom
+- "stat_callout"：数据震撼页，含 huge_number 类型 element（is_accent=true）
+- "image_focus"：图文页，含 image 类型 element
+- "timeline"：时间线/流程页，elements 为 timeline_item 型
+
+【elements 每个元素字段】
+- element_id: 唯一字符串如 "e1"
+- type: "text_block" | "list" | "huge_number" | "subtitle" | "image" | "timeline_item"
+- position: "center" | "left" | "right_top" | "right_bottom" | "top" | "bottom" | "full"
+- content: 字符串数组，**内容中可用 Markdown 加粗**（如 "**关键点**：说明"）
+- is_accent: true 时用 accent 颜色高亮（用于数字、警句、关键词）
+- time: 仅 timeline_item 使用（时间节点字符串）
+
+【生成质量要求】
+1. 整套课件 6-8 页：1封面 + 1目录/导言 + 4-5正文页（混合不同 layout_type）+ 1总结页
+2. 每张正文页的 elements 至少 2 个，有文字、有重点、有视觉焦点
+3. 封面页必须含 subtitle 类型元素（副标题/作者）
+4. stat_callout 页的 huge_number content 用实际数字（如 ["87%"]、["3x"]）
+5. 多用 is_accent: true 突出关键词，形成视觉层次
+6. content 字段大量使用 **加粗** 标注重点
+
+参考示例（格式正确，内容替换为实际课程内容）：
+{{"__type": "page", "page_index": 2, "layout_type": "two_column", "title": "核心对比", "speaker_notes": "重点对比两种方案", "elements": [{{"element_id": "e1", "type": "list", "position": "left", "content": ["**传统方案**：流程繁琐，成本高", "响应延迟超过 **48小时**"], "is_accent": false}}, {{"element_id": "e2", "type": "huge_number", "position": "right_top", "content": ["↑240%"], "is_accent": true}}]}}
+
+所有幻灯片输出完后输出：
+{{"__type": "word_start"}}
+[输出完整 Word 讲义 Markdown，使用 ## ### 标题，详细展开正文]
+{{"__type": "done"}}
+"""
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"

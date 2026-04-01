@@ -100,12 +100,23 @@ def get_courseware_preview(
         # 兼容性修复：流式生成中可能为空，不要报 404，返回空载体让前端渲染为 0页。
         return {"ppt_data": [], "word_markdown": ""}
         
-    slides_array = cw.ppt_data.get("ppt_data", []) if isinstance(cw.ppt_data, dict) else cw.ppt_data
+    raw_data = cw.ppt_data
+    if isinstance(raw_data, str):
+        import json
+        try:
+            raw_data = json.loads(raw_data)
+        except:
+            raw_data = {}
+            
+    slides_array = raw_data.get("ppt_data", []) if isinstance(raw_data, dict) else raw_data
     if not isinstance(slides_array, list): slides_array = []
+    
+    theme_data = raw_data.get("theme") if isinstance(raw_data, dict) else None
 
     return {
         "ppt_data": slides_array,
-        "word_markdown": cw.word_markdown or ""
+        "word_markdown": cw.word_markdown or "",
+        "theme": theme_data
     }
 
 @router.post("/sessions/{session_id}/courseware/iterate")
