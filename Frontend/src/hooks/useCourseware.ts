@@ -55,7 +55,7 @@ export function useCourseware(sessionId: string) {
                 if (fallbackData.wordDoc) setWordDoc(fallbackData.wordDoc);
                 
                 if (fallbackData.theme) {
-                  safeApplyTheme(fallbackData.theme);
+                  safeApplyTheme(fallbackData.theme, sessionId);
                 }
                 
                 setPreviewStatus('ready');
@@ -70,7 +70,7 @@ export function useCourseware(sessionId: string) {
         // --- EXTRACT & RESTORE THEME ---
         // Backend now might return the theme directly, we must prioritize resp.theme!
         if (resp.theme) {
-          safeApplyTheme(resp.theme);
+          safeApplyTheme(resp.theme, sessionId);
         } else {
           // Fallback legacy behavior if backend validation strips the theme schema
           try {
@@ -78,7 +78,7 @@ export function useCourseware(sessionId: string) {
             if (fallbackDataStr) {
               const fallbackData = JSON.parse(fallbackDataStr);
               if (fallbackData.theme) {
-                safeApplyTheme(fallbackData.theme);
+                safeApplyTheme(fallbackData.theme, sessionId);
               }
             }
           } catch (e) {}
@@ -115,7 +115,7 @@ export function useCourseware(sessionId: string) {
               
               // Restore CSS theme variables that were lost due to session switch
               if (fallbackData.theme) {
-                safeApplyTheme(fallbackData.theme);
+                safeApplyTheme(fallbackData.theme, sessionId);
               }
               
               setPreviewStatus('ready');
