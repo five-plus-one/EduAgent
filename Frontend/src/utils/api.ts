@@ -10,7 +10,7 @@ export const API_BASE_URL = 'http://192.168.31.157:8000/api/v1'; // Backend serv
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 120000, // 2分钟长超时，保证深度思考能力
 });
 
 // Request Interceptor: attach Bearer token if present
@@ -266,6 +266,7 @@ export const streamCoursewareGeneration = async (
     onWordReady: (markdown: string) => void;
     onDone: (totalPages: number) => void;
     onError: (err: any) => void;
+    onThinking?: (text: string) => void;
   },
   signal?: AbortSignal
 ) => {
@@ -286,6 +287,9 @@ export const streamCoursewareGeneration = async (
         const { event, data } = payload;
 
         switch (event) {
+          case 'thinking_chunk':
+            callbacks.onThinking?.(data.text);
+            break;
           case 'generate_start':
             callbacks.onStart(data.theme, data.total_hint);
             break;

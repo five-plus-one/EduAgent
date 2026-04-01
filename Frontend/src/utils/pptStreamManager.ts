@@ -9,6 +9,7 @@ export interface PPTStreamState {
   streamTheme: PPTTheme | null;
   totalHint: number;
   streamError: string | null;
+  streamThinking: string;
 }
 
 export type PPTStreamListener = (state: PPTStreamState) => void;
@@ -60,6 +61,7 @@ class PPTStreamManagerClass {
       streamTheme: null,
       totalHint: 8,
       streamError: null,
+      streamThinking: '',
     };
   }
 
@@ -136,6 +138,10 @@ class PPTStreamManagerClass {
           },
           onWordReady: (markdown) => {
             state.streamWordDoc = markdown;
+            this.notify(sessionId, state);
+          },
+          onThinking: (chunk: string) => {
+            state.streamThinking += chunk;
             this.notify(sessionId, state);
           },
           onDone: () => {
