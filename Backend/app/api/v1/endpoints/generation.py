@@ -174,7 +174,10 @@ def iterate_slide(
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=120)
         resp.raise_for_status()
-        llm_content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+        _resp_choices = resp.json().get("choices", [])
+        if not _resp_choices or not isinstance(_resp_choices, list):
+            raise HTTPException(status_code=500, detail="LLM 返回了空的 choices，请重试")
+        llm_content = _resp_choices[0].get("message", {}).get("content", "")
 
         # 稳健 JSON 提取：raw_decode 将找到并解析第一个完整 JSON 对象
         llm_content = llm_content.strip()

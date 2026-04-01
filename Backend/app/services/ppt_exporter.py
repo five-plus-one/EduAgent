@@ -7,6 +7,70 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ──────────────────────────────────────────────
+# Premium Theme Dictionary (mirrors frontend PREMIUM_THEMES)
+# ──────────────────────────────────────────────
+PREMIUM_THEMES = {
+    # Light Themes
+    "modern_minimalist":  {"bg_color": "#F8FAFC", "primary": "#0F172A", "secondary": "#64748B", "accent": "#3B82F6", "text_color": "#1E293B"},
+    "sunset_boulevard":   {"bg_color": "#FFF7F0", "primary": "#EA580C", "secondary": "#FB923C", "accent": "#FACC15", "text_color": "#431407"},
+    "golden_hour":        {"bg_color": "#FEF3C7", "primary": "#B45309", "secondary": "#D97706", "accent": "#F59E0B", "text_color": "#451A03"},
+    "forest_canopy":      {"bg_color": "#F0FDF4", "primary": "#15803D", "secondary": "#166534", "accent": "#22C55E", "text_color": "#14532D"},
+    "desert_rose":        {"bg_color": "#FFF1F2", "primary": "#BE123C", "secondary": "#E11D48", "accent": "#F43F5E", "text_color": "#4C0519"},
+    "arctic_frost":       {"bg_color": "#F0F9FF", "primary": "#0369A1", "secondary": "#0284C7", "accent": "#38BDF8", "text_color": "#082F49"},
+    # Dark Themes
+    "ocean_depths":       {"bg_color": "#0B192C", "primary": "#38BDF8", "secondary": "#94A3B8", "accent": "#10B981", "text_color": "#F8FAFC"},
+    "cyber_neon":         {"bg_color": "#09090B", "primary": "#A855F7", "secondary": "#EC4899", "accent": "#06B6D4", "text_color": "#F1F5F9"},
+    "midnight_galaxy":    {"bg_color": "#020617", "primary": "#6366F1", "secondary": "#4F46E5", "accent": "#818CF8", "text_color": "#F8FAFC"},
+    "botanical_garden":   {"bg_color": "#064E3B", "primary": "#A7F3D0", "secondary": "#34D399", "accent": "#10B981", "text_color": "#F0FDF4"},
+}
+
+LIGHT_THEME_KEYS = ["modern_minimalist", "sunset_boulevard", "golden_hour",
+                     "forest_canopy", "desert_rose", "arctic_frost"]
+DARK_THEME_KEYS  = ["ocean_depths", "cyber_neon", "midnight_galaxy", "botanical_garden"]
+
+
+def simple_hash(s: str) -> int:
+    """Deterministic hash of a string, matches frontend implementation."""
+    h = 0
+    for ch in s:
+        h += ord(ch)
+    return h
+
+
+def hex_luma(hex_code: str) -> float:
+    """
+    Returns sRGB luminance (0.0 dark … 1.0 bright).
+    Handles named colors and falls back gracefully.
+    """
+    named = {"white": "#FFFFFF", "black": "#000000", "red": "#FF0000",
+             "blue": "#0000FF", "green": "#008000", "yellow": "#FFFF00"}
+    code = str(hex_code).strip().lower()
+    code = named.get(code, code)
+    code = code.lstrip("#")
+    if len(code) == 3:
+        code = "".join(c * 2 for c in code)
+    if len(code) != 6:
+        return 1.0   # unknown → assume light
+    try:
+        r, g, b = int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16)
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+    except Exception:
+        return 1.0
+
+
+def pick_premium_theme(session_id: str, raw_theme: dict) -> dict:
+    """
+    Deterministically pick a premium theme.
+    Uses the LLM's bg_color luminance to decide dark/light,
+    then uses session_id hash to select which specific theme.
+    """
+    bg_raw = raw_theme.get("bg_color", "#FFFFFF")
+    is_light = hex_luma(bg_raw) > 0.4
+    keys = LIGHT_THEME_KEYS if is_light else DARK_THEME_KEYS
+    idx = simple_hash(session_id or "default") % len(keys)
+    return PREMIUM_THEMES[keys[idx]]
+
 # Monkeypatch for Python 3.10+ compatibility with python-pptx
 if not hasattr(collections, 'Container'):
     collections.Container = collections.abc.Container
@@ -55,11 +119,19 @@ CONTENT_H     = SLIDE_H - CONTENT_T - 0.35            # ≈ 5.8"
 # Helpers
 # ──────────────────────────────────────────────
 def hex2rgb(hex_code: str) -> "RGBColor":
+    """Convert hex color string to RGBColor, handling named colors robustly."""
+    named = {"white": "#FFFFFF", "black": "#000000", "red": "#FF0000",
+             "blue": "#0000FF", "green": "#008000", "yellow": "#FFFF00",
+             "gray": "#808080", "grey": "#808080"}
+    code = str(hex_code).strip().lower()
+    code = named.get(code, code)
+    code = code.lstrip("#")
+    if len(code) == 3:
+        code = "".join(c * 2 for c in code)
     try:
-        h = str(hex_code).lstrip('#').strip()
-        if len(h) != 6:
-            return RGBColor(30, 30, 30)
-        return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        if len(code) != 6:
+            raise ValueError
+        return RGBColor(int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16))
     except Exception:
         return RGBColor(30, 30, 30)
 
@@ -464,12 +536,15 @@ def run_export_task(task_id: str, session_id: str):
             if not isinstance(slides_arr, list):
                 slides_arr = []
 
+            # Use premium theme (deterministic by session_id + LLM intent luminance)
+            # This mirrors the frontend PREMIUM_THEMES selection exactly
+            sel = pick_premium_theme(session_id, theme)
             colors = {
-                "bg":  hex2rgb(theme.get("bg_color",    "#FFFFFF")),
-                "pri": hex2rgb(theme.get("primary",     "#1E3A5F")),
-                "sec": hex2rgb(theme.get("secondary",   "#64748B")),
-                "acc": hex2rgb(theme.get("accent",      "#F59E0B")),
-                "txt": hex2rgb(theme.get("text_color",  "#1E293B")),
+                "bg":  hex2rgb(sel["bg_color"]),
+                "pri": hex2rgb(sel["primary"]),
+                "sec": hex2rgb(sel["secondary"]),
+                "acc": hex2rgb(sel["accent"]),
+                "txt": hex2rgb(sel["text_color"]),
             }
 
             for page in slides_arr:

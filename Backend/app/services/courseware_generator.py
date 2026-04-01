@@ -119,9 +119,10 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
                         line_str = line.decode('utf-8')
                         if line_str.startswith("data: ") and line_str != "data: [DONE]":
                             try:
-                                import json
                                 chunk_data = json.loads(line_str[6:])
-                                content += chunk_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                _choices = chunk_data.get("choices", [])
+                                if _choices and isinstance(_choices, list):
+                                    content += _choices[0].get("delta", {}).get("content", "")
                             except:
                                 pass
                 if content:
@@ -300,7 +301,11 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                             break
                         try:
                             chunk = json.loads(line_content)
-                            chunk_delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            # 安全取 choices — 空 choices:[] 时跳过，防止 IndexError
+                            _choices = chunk.get("choices", [])
+                            if not _choices or not isinstance(_choices, list):
+                                continue
+                            chunk_delta = _choices[0].get("delta", {})
                             
                             reasoning = chunk_delta.get("reasoning_content", "") or chunk_delta.get("thinking", "")
                             delta = chunk_delta.get("content", "")
@@ -340,6 +345,34 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     
                                     if t == "theme":
                                         obj.pop("__type", None)
+
+                                        # ── 后端配色安全门 ──────────────────────────
+                                        # 用 WCAG 亮度公式检验 bg / text 对比，
+                                        # 低于 3:1 时自动注入安全 fallback，防止"白字白底"上线
+                                        def _luma(hex_str: str) -> float:
+                                            try:
+                                                h = str(hex_str).lstrip("#")
+                                                if len(h) == 3: h = "".join(c*2 for c in h)
+                                                r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+                                                return (0.2126*r + 0.7152*g + 0.0722*b) / 255.0
+                                            except Exception:
+                                                return 0.5
+
+                                        bg_luma  = _luma(obj.get("bg_color",  "#ffffff"))
+                                        txt_luma = _luma(obj.get("text_color","#000000"))
+                                        L1, L2 = max(bg_luma, txt_luma), min(bg_luma, txt_luma)
+                                        contrast_ratio = (L1 + 0.05) / (L2 + 0.05)
+
+                                        if contrast_ratio < 3.0:
+                                            # 低对比度：按 bg 亮度翻转 text 颜色
+                                            if bg_luma > 0.5:
+                                                obj["text_color"] = "#1E293B"   # 亮背景 → 深字
+                                                obj["primary"]    = "#0F172A"
+                                            else:
+                                                obj["text_color"] = "#F8FAFC"   # 暗背景 → 亮字
+                                                obj["primary"]    = "#E2E8F0"
+                                        # ─────────────────────────────────────────────
+
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
                                         if isinstance(courseware.ppt_data, list):
                                             ppt_dict["ppt_data"] = list(courseware.ppt_data)
