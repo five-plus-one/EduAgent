@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
@@ -29,9 +29,17 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     const positionClass = styles[`pos_${el.position}`] || '';
 
     if (el.type === 'image') {
+      if (!el.url) {
+        return (
+          <div key={el.element_id} className={clsx(styles.imagePlaceholder, positionClass)}>
+            <div className={styles.placeholderIcon}><ImageIcon size={32} /></div>
+            <span className={styles.placeholderText}>视觉影像挂载中...</span>
+          </div>
+        );
+      }
       return (
         <div key={el.element_id} className={clsx(styles.imageWrapper, positionClass)}>
-          <img src={el.url} alt={el.alt || 'PPT Element'} className={styles.pptImage} />
+          <img src={el.url} alt={el.alt || 'PPT Image'} className={styles.pptImage} />
         </div>
       );
     }

@@ -23,6 +23,7 @@ export default function Workspace() {
   const [inputText, setInputText] = useState('');
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const wordDocRef = useRef<HTMLDivElement>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -62,19 +63,30 @@ export default function Workspace() {
 
   const handleExportWord = () => {
     if (!wordDoc) return;
+    
+    let contentHtml = `<pre>${wordDoc}</pre>`;
+    if (wordDocRef.current) {
+        contentHtml = wordDocRef.current.innerHTML;
+    }
+
     const htmlContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
       <head>
         <meta charset='utf-8'>
         <title>讲义导出</title>
         <style>
-          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; }
-          pre { white-space: pre-wrap; font-family: inherit; }
+          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; color: #333; }
+          h1, h2, h3 { color: #1a1a1a; margin-top: 24px; margin-bottom: 12px; }
+          p { margin-bottom: 12px; }
+          ul, ol { padding-left: 24px; margin-bottom: 16px; margin-top: 8px; }
+          li { margin-bottom: 6px; }
+          strong { font-weight: bold; color: #111; }
         </style>
       </head>
       <body>
         <h1>${sessionId === 'new' ? '未命名讲义' : '课件讲义'}</h1>
-        <pre>${wordDoc}</pre>
+        <hr/>
+        ${contentHtml}
       </body>
       </html>
     `;
@@ -614,7 +626,7 @@ export default function Workspace() {
                   </p>
                 </div>
               ) : (streamWordDoc || wordDoc) ? (
-                <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
+                <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
