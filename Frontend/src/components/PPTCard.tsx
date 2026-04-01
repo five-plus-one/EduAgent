@@ -129,12 +129,43 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       {/* ----------------------------------------------------------- */}
       
       {/* Universal Grid/Flex Stage powered by layout_type */}
-      <div className={clsx(styles.stage, styles[`layout_${page.layout_type}`])}>
+      <div 
+        className={clsx(styles.stage, styles[`layout_${page.layout_type}`] || styles.layout_standard)}
+        style={{ '--col-count': Math.min(page.elements?.length || 2, 4) } as React.CSSProperties}
+      >
+        {/* Cover Archetype */}
         {page.layout_type === 'cover' && (
            <h1 className={styles.coverTitle}>{page.title}</h1>
         )}
-        
-        {page.elements?.map(renderElement)}
+
+        {/* Timeline Archetype */}
+        {page.layout_type === 'timeline' ? (
+          <>
+             <div className={styles.timelineSpine} />
+             {page.elements?.map((el: any, idx) => (
+               <div key={el.element_id || idx} className={styles.timelineItem}>
+                 <div className={styles.timelineDot} />
+                 <div className={styles.timelineTime}>{el.time || String(idx+1).padStart(2, '0')}</div>
+                 <div className={styles.timelineContent}>
+                    {renderElement({...el, type: 'text_block'}) /* override type to prevent double timeline fallback */}
+                 </div>
+               </div>
+             ))}
+          </>
+        ) : page.layout_type === 'stat_callout' ? (
+          <>
+             {/* Stat Callout Archetype */}
+             {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => (
+                <div key={el.element_id} className={styles.hugeNumber}>{Array.isArray(el.content) ? el.content[0] : el.content}</div>
+             ))}
+             <div className={styles.statSubtitle}>
+               {page.elements?.filter(e => !(e.is_accent || e.type === 'huge_number' || e.type === 'stat')).map(renderElement)}
+             </div>
+          </>
+        ) : (
+          /* Default Archetypes (Minimal List, Two Column, Standard) */
+          page.elements?.map(renderElement)
+        )}
         
         {page.speaker && page.layout_type === 'cover' && (
            <div className={styles.coverSpeaker}>
