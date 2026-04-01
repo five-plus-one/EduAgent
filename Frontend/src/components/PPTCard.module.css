@@ -13,7 +13,7 @@
   background: var(--ppt-bg, rgba(255, 255, 255, 0.85));
   backdrop-filter: blur(28px) saturate(200%);
   -webkit-backdrop-filter: blur(28px) saturate(200%);
-  color: var(--ppt-text, var(--text-primary));
+  color: var(--ppt-text, #1e293b);
   box-shadow: 
     0 40px 80px -20px rgba(15, 23, 42, 0.15), 
     0 0 0 1px rgba(255, 255, 255, 0.6) inset,
@@ -47,19 +47,20 @@
   font-size: max(1.5rem, 5cqw);
   font-family: 'Outfit', sans-serif;
   font-weight: 900;
-  color: var(--ppt-primary, var(--accent-primary));
-  opacity: 0.15;
+  color: var(--ppt-primary, #3b82f6);
+  opacity: 0.4;
   letter-spacing: -1px;
 }
 
 .pptCard h4 {
   font-size: max(1.3rem, 4.2cqw);
-  color: var(--ppt-text, var(--text-primary));
+  color: var(--ppt-text, #0f172a);
   font-weight: 800;
   margin: 0;
   letter-spacing: -0.04em;
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
   text-transform: capitalize;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
@@ -86,13 +87,14 @@
   font-size: max(3.2rem, 10.5cqw);
   font-family: 'Outfit', system-ui, sans-serif;
   font-weight: 900;
-  color: var(--ppt-primary, var(--text-primary));
+  color: var(--ppt-primary, #0f172a);
   margin-bottom: 5cqh;
   letter-spacing: -0.04em;
   line-height: 1.05;
   text-shadow: 0 8px 24px rgba(0,0,0,0.06);
-  background: linear-gradient(135deg, var(--ppt-primary) 0%, var(--ppt-accent) 100%);
+  background: linear-gradient(135deg, var(--ppt-primary, #0f172a) 0%, var(--ppt-accent, #3b82f6) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   padding-bottom: 0.2em; /* 防止背景剪裁导致的字体底部被切 */
 }
@@ -106,7 +108,7 @@
   align-items: flex-end;
   gap: 1.5cqh;
   font-size: max(1rem, 2.8cqw);
-  color: var(--ppt-text, var(--text-secondary));
+  color: var(--ppt-text, #475569);
   font-weight: 500;
   opacity: 0.8;
 }
@@ -114,7 +116,7 @@
 .speakerLine {
   width: 80px;
   height: 4px;
-  background-color: var(--ppt-accent, var(--accent-primary));
+  background-color: var(--ppt-accent, #3b82f6);
   border-radius: 2px;
 }
 
@@ -176,7 +178,7 @@
 /* Element Styling */
 .textBlock {
   font-size: max(0.95rem, 2.4cqw);
-  color: var(--ppt-text, var(--text-secondary));
+  color: var(--ppt-text, #334155);
   opacity: 0.85;
   line-height: 1.7;
   font-weight: 400;
@@ -194,7 +196,7 @@
 }
 
 .contentList li::marker {
-  color: var(--ppt-accent, var(--accent-primary));
+  color: var(--ppt-accent, #3b82f6);
 }
 
 .imageWrapper {
