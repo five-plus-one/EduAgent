@@ -103,7 +103,7 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
 
   return (
     <div 
-      className={clsx(styles.pptCard, 'glass-panel', isUpdating && styles.updating)}
+      className={clsx(styles.pptCard, isUpdating && styles.updating)}
       onMouseEnter={() => setShowIterate(true)}
       onMouseLeave={() => setShowIterate(false)}
     >
