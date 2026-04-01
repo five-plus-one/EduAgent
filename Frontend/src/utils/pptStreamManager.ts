@@ -9,6 +9,7 @@ export interface PPTStreamState {
   streamTheme: PPTTheme | null;
   totalHint: number;
   streamError: string | null;
+  streamThinking: string;
 }
 
 export type PPTStreamListener = (state: PPTStreamState) => void;
