@@ -272,11 +272,13 @@
 }
 
 .statSubtitle {
-  font-size: calc(22 * var(--pt));
+  font-size: calc(26 * var(--pt));
   color: var(--ppt-text);
   text-align: center;
   max-width: 80%;
   margin: 0 auto;
+  line-height: 1.4;
+  font-weight: 500;
 }
 
 .layout_image_gallery {
@@ -333,6 +335,16 @@
   -webkit-backdrop-filter: blur(8px);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
+}
+
+.contentList li p,
+.textBlock p {
+  margin: 0;
+}
+
+.contentList li p:not(:last-child),
+.textBlock p:not(:last-child) {
+  margin-bottom: 0.5em;
 }
 
 .textBlock {
