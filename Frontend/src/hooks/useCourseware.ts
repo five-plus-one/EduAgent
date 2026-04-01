@@ -69,6 +69,24 @@ export function useCourseware(sessionId: string) {
         }
         // ----------------------------------------------------
 
+        // --- EXTRACT & RESTORE THEME ---
+        // Backend's strict schema drops the 'theme' object completely in 200 OK responses.
+        // We MUST re-hydrate the theme from localStorage so the cards don't turn invisible/white.
+        try {
+          const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
+          if (fallbackDataStr) {
+            const fallbackData = JSON.parse(fallbackDataStr);
+            if (fallbackData.theme) {
+              const root = document.documentElement;
+              if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
+              if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
+              if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
+              if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
+              if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+            }
+          }
+        } catch (e) {}
+
         if (Array.isArray(pptData)) {
           // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
           const uniquePagesMap = new Map();

@@ -236,7 +236,7 @@ export const getGenerationStatus = async (taskId: string) => {
 
 /** 4.3 Get slideshow preview data */
 export const getCoursewarePreview = async (sessionId: string) => {
-  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview`);
+  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview?t=${Date.now()}`);
   return res.data?.data ?? res.data;
 };
 
