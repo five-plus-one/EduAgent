@@ -306,8 +306,11 @@
 
 .contentList li {
   position: relative;
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
   border-left: 3px solid var(--ppt-accent, #3b82f6);
+  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   padding: calc(0.12 * var(--in)) calc(0.2 * var(--in));
   border-radius: 0 8px 8px 0;
   margin-bottom: calc(0.08 * var(--in));
@@ -325,8 +328,11 @@
   margin-bottom: calc(0.1 * var(--in));
   
   /* Glassmorphism Structural Upgrade */
-  background: rgba(255, 255, 255, 0.4);
+  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
   border-left: 3px solid var(--ppt-primary, #1e293b);
+  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   padding: calc(0.15 * var(--in)) calc(0.25 * var(--in));
   border-radius: 0 8px 8px 0;
   box-shadow: 0 4px 15px rgba(0,0,0,0.03);
