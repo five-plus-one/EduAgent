@@ -2,6 +2,50 @@ import { streamCoursewareGeneration } from './api';
 import type { PPTTheme } from '../hooks/usePPTStream';
 import type { PPTPage } from '../hooks/useCourseware';
 
+// -------------------------------------------------------------
+// P8 兜底：反大模型弱智色系降级处理器 (Luminance Contrast Safety)
+// -------------------------------------------------------------
+export const getLuminance = (hex: string) => {
+  hex = String(hex).replace('#', '').trim();
+  if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+  if (hex.length !== 6) return 1; // Default to light if invalid
+  const rgb = parseInt(hex, 16);
+  const r = (rgb >> 16) & 0xff;
+  const g = (rgb >>  8) & 0xff;
+  const b = (rgb >>  0) & 0xff;
+  // Perceptual luminance formula
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+};
+
+export const safeApplyTheme = (theme: PPTTheme) => {
+  const root = document.documentElement;
+  const bg = theme.bg_color || '#ffffff';
+  let txt = theme.text_color || '#1e293b';
+  let primary = theme.primary || '#3b82f6';
+  
+  if (theme.bg_color) root.style.setProperty('--ppt-bg', bg);
+  
+  const bgLuma = getLuminance(bg);
+  const txtLuma = getLuminance(txt);
+  
+  // Contrast safety check (If contrast is too low)
+  if (Math.abs(bgLuma - txtLuma) < 0.3) {
+    if (bgLuma > 0.5) { // Light background
+      txt = '#1e293b'; // Force dark text
+      if (getLuminance(primary) > 0.6) primary = '#2563eb'; // Darken primary
+    } else { // Dark background
+      txt = '#f8fafc'; // Force light text
+      if (getLuminance(primary) < 0.4) primary = '#60a5fa'; // Lighten primary
+    }
+  }
+
+  root.style.setProperty('--ppt-text', txt);
+  root.style.setProperty('--ppt-primary', primary);
+  if (theme.secondary) root.style.setProperty('--ppt-secondary', theme.secondary);
+  if (theme.accent) root.style.setProperty('--ppt-accent', theme.accent);
+};
+// -------------------------------------------------------------
+
 export interface PPTStreamState {
   isStreaming: boolean;
   streamPages: PPTPage[];
@@ -85,12 +129,7 @@ class PPTStreamManagerClass {
   }
 
   public applyTheme(theme: PPTTheme) {
-    const root = document.documentElement;
-    if (theme.bg_color) root.style.setProperty('--ppt-bg', theme.bg_color);
-    if (theme.primary) root.style.setProperty('--ppt-primary', theme.primary);
-    if (theme.secondary) root.style.setProperty('--ppt-secondary', theme.secondary);
-    if (theme.accent) root.style.setProperty('--ppt-accent', theme.accent);
-    if (theme.text_color) root.style.setProperty('--ppt-text', theme.text_color);
+    safeApplyTheme(theme);
   }
 
   public clearTheme() {
