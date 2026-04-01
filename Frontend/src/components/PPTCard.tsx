@@ -77,25 +77,34 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       );
     }
 
-    if (el.type === 'text_block') {
+    if (el.type === 'text_block' || el.type === 'subtitle') {
+      if (contentArray.length > 1) {
+        return (
+          <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
+            {contentArray.map((item: string, idx: number) => (
+              <li key={idx}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {item}
+                </ReactMarkdown>
+              </li>
+            ))}
+          </ul>
+        );
+      }
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
-          {contentArray.length > 1 ? (
-            <ul className={styles.contentList}>
-              {contentArray.map((item: string, idx: number) => (
-                <li key={idx}>
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                  >
-                    {item}
-                  </ReactMarkdown>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            contentArray.map((text: string, i: number) => <div key={i} style={{ whiteSpace: 'pre-wrap' }}><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{text}</ReactMarkdown></div>)
-          )}
+          {contentArray.map((text: string, i: number) => (
+            <ReactMarkdown 
+              key={i} 
+              remarkPlugins={[remarkGfm, remarkMath]} 
+              rehypePlugins={[rehypeKatex]}
+            >
+              {text}
+            </ReactMarkdown>
+          ))}
         </div>
       );
     }
