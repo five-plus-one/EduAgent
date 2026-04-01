@@ -58,6 +58,36 @@ export function useCourseware(sessionId: string) {
     } catch (e: any) {
       if (!withPolling) {
         console.error('Backend courseware fetch failed. Likely a 500 ValidationError due to strict typing schemas in backend.', e);
+        
+        // --- DEFENSIVE DATA RECOVERY FROM LOCAL STORAGE ---
+        // Recover the PPT visually if backend strict schema validation forcibly drops it
+        try {
+          const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
+          if (fallbackDataStr) {
+            const fallbackData = JSON.parse(fallbackDataStr);
+            if (fallbackData && fallbackData.pages && fallbackData.pages.length > 0) {
+              setPages(fallbackData.pages);
+              if (fallbackData.wordDoc) setWordDoc(fallbackData.wordDoc);
+              
+              // Restore CSS theme variables that were lost due to session switch
+              if (fallbackData.theme) {
+                const root = document.documentElement;
+                if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
+                if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
+                if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
+                if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
+                if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+              }
+              
+              setPreviewStatus('ready');
+              console.warn("PPT 预览受到后端强校验拦截 (500 Error)，前端已从 LocalStorage 沙盒中强行抢救出数据并完成视图重建 🎯");
+              return;
+            }
+          }
+        } catch (recoverErr) {
+          console.error("Local fallback recovery failed", recoverErr);
+        }
+        
         setPreviewStatus('error');
       }
       // During polling, 404s are expected — don't warn

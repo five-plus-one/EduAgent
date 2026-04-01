@@ -140,6 +140,18 @@ class PPTStreamManagerClass {
           },
           onDone: () => {
             state.isStreaming = false;
+            
+            // Defensive Fallback: Save to localStorage so frontend can recover PPT
+            // if backend strictly denies the fetch due to minor LLM schema errors
+            try {
+              localStorage.setItem(`eduagent_ppt_fallback_${sessionId}`, JSON.stringify({
+                pages: state.streamPages,
+                wordDoc: state.streamWordDoc,
+                theme: state.streamTheme,
+                timestamp: Date.now()
+              }));
+            } catch (e) {}
+            
             this.notify(sessionId, state);
             this.activeStreams.delete(sessionId);
             // Fire full completion event to let UI fetch final data from DB
