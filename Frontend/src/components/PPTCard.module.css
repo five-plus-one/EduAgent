@@ -247,11 +247,7 @@
   font-size: calc(90 * var(--pt)); /* Massive! Backend is 80pt, we scale slightly up for web */
   font-weight: 900;
   color: var(--ppt-accent);
-  background: linear-gradient(135deg, var(--ppt-accent) 0%, var(--ppt-primary) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  text-shadow: 0 10px 40px rgba(0,0,0,0.15);
   margin-bottom: calc(0.2 * var(--in));
   line-height: 1.1;
   text-align: center;
