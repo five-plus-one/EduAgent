@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
-import { safeApplyTheme } from '../utils/pptStreamManager';
+import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManager';
 
 export interface PPTElement {
   element_id: string;
@@ -66,17 +66,21 @@ export function useCourseware(sessionId: string) {
         // ----------------------------------------------------
 
         // --- EXTRACT & RESTORE THEME ---
-        // Backend's strict schema drops the 'theme' object completely in 200 OK responses.
-        // We MUST re-hydrate the theme from localStorage so the cards don't turn invisible/white.
-        try {
-          const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
-          if (fallbackDataStr) {
-            const fallbackData = JSON.parse(fallbackDataStr);
-            if (fallbackData.theme) {
-              safeApplyTheme(fallbackData.theme);
+        // Backend now might return the theme directly, we must prioritize resp.theme!
+        if (resp.theme) {
+          safeApplyTheme(resp.theme);
+        } else {
+          // Fallback legacy behavior if backend validation strips the theme schema
+          try {
+            const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
+            if (fallbackDataStr) {
+              const fallbackData = JSON.parse(fallbackDataStr);
+              if (fallbackData.theme) {
+                safeApplyTheme(fallbackData.theme);
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
 
         if (Array.isArray(pptData)) {
           // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
@@ -136,6 +140,10 @@ export function useCourseware(sessionId: string) {
     setUpdatingPages(new Set());
     setPreviewStatus('idle');
     setIsGenerating(false);
+    
+    // Clear the CSS theme variables globally so a previous session's dark theme
+    // doesn't bleed into the current session if it lacks a theme (falling back to white).
+    GlobalPPTStreamManager.clearTheme();
     
     fetchPreview();
   }, [sessionId, fetchPreview]);
