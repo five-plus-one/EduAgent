@@ -42,7 +42,8 @@ export default function Workspace() {
     streamWordDoc, 
     startStreaming, 
     stopStreaming,
-    streamError
+    streamError,
+    streamThinking
   } = usePPTStream(sessionId);
 
   useEffect(() => {
@@ -58,6 +59,33 @@ export default function Workspace() {
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
+
+  const handleExportWord = () => {
+    if (!wordDoc) return;
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>讲义导出</title>
+        <style>
+          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; }
+          pre { white-space: pre-wrap; font-family: inherit; }
+        </style>
+      </head>
+      <body>
+        <h1>${sessionId === 'new' ? '未命名讲义' : '课件讲义'}</h1>
+        <pre>${wordDoc}</pre>
+      </body>
+      </html>
+    `;
+    const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EduAgent讲义_${sessionId}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   
   useEffect(() => {
     let active = true;
@@ -393,26 +421,42 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className={clsx('button-primary', styles.generateBtn)}
-                onClick={async () => {
-                  setActiveTab('ppt');
-                  await startStreaming([], 'fast');
-                  fetchPreview();
-                }}
-                disabled={isGenerating || isStreaming || sessionId === 'new'}
-              >
-                <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
-                {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
-              </button>
-              <button 
-                className={clsx('button-base', styles.exportBtn)}
-                onClick={exportCourseware}
-                disabled={isExporting || sessionId === 'new'}
-              >
-                <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
-                {isExporting ? '导出中...' : '导出 pptx'}
-              </button>
+              {pages.length === 0 && (
+                <button 
+                  className={clsx('button-primary', styles.generateBtn)}
+                  onClick={async () => {
+                    setActiveTab('ppt');
+                    await startStreaming([], 'fast');
+                    fetchPreview();
+                  }}
+                  disabled={isGenerating || isStreaming || sessionId === 'new'}
+                >
+                  <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
+                  {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
+                </button>
+              )}
+              {pages.length > 0 && (
+                <>
+                  <button 
+                    className={clsx('button-base', styles.exportBtn)}
+                    onClick={exportCourseware}
+                    disabled={isExporting || sessionId === 'new'}
+                  >
+                    <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
+                    {isExporting ? '导出 PPT中...' : '导出 PPT'}
+                  </button>
+                  {wordDoc && (
+                    <button 
+                      className={clsx('button-base', styles.exportBtn)}
+                      onClick={handleExportWord}
+                      disabled={sessionId === 'new'}
+                    >
+                      <FileText size={16} /> 
+                      导出讲义 (.doc)
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </header>
 
