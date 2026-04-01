@@ -69,6 +69,10 @@ export const safeApplyTheme = (sessionId: string, theme: PPTTheme) => {
   root.style.setProperty('--ppt-primary', selectedTheme.primary);
   root.style.setProperty('--ppt-secondary', selectedTheme.secondary);
   root.style.setProperty('--ppt-accent', selectedTheme.accent);
+  
+  // 4. Apply adaptive glassmorphism variables to prevent unreadable text on dark themes
+  root.style.setProperty('--ppt-glass-bg', isLight ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.3)');
+  root.style.setProperty('--ppt-glass-border', isLight ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.1)');
 };
 // -------------------------------------------------------------
 
