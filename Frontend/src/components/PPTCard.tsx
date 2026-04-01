@@ -113,6 +113,20 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
           <h4>{page.title}</h4>
         </div>
       )}
+
+      {/* ---------------- CANVAS DESIGN DECORATIONS ---------------- */}
+      <div className={styles.giantWatermark}>
+        {String(page.page_index).padStart(2, '0')}
+      </div>
+      
+      {page.layout_type === 'two_column' && (
+        <div className={styles.decorativeSvg}>
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <path fill="currentColor" d="M42.7,-73.4C55.9,-67.6,67.6,-57.8,77,-45.5C86.4,-33.1,93.5,-18.3,95.1,-2.9C96.7,12.5,92.8,28.4,84.1,41.9C75.4,55.3,61.9,66.1,47,73.1C32.1,80.1,16.1,83.1,-0.1,83.3C-16.2,83.5,-32.5,80.7,-46.8,73.2C-61.1,65.7,-73.5,53.4,-81.4,38.9C-89.2,24.4,-92.5,7.7,-89.2,-7.6C-85.9,-22.8,-76,-36.5,-63.9,-46C-51.8,-55.5,-37.6,-60.7,-24.5,-66.1C-11.4,-71.4,0.6,-76.8,14.4,-78.3C28.2,-79.8,43.9,-77.3,42.7,-73.4Z" transform="translate(100 100)" />
+          </svg>
+        </div>
+      )}
+      {/* ----------------------------------------------------------- */}
       
       {/* Universal Grid/Flex Stage powered by layout_type */}
       <div className={clsx(styles.stage, styles[`layout_${page.layout_type}`])}>
