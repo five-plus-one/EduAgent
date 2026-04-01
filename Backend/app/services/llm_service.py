@@ -26,14 +26,19 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "UpdateSlide",
-            "description": "【核心工具】当用户对已有PPT（课件预览区）提出局部修改、微调指令时必用。当用户说'修改标题为...'、'把内容换成...'时，通过此工具局部更新。不应重新生成PPT。",
+            "description": "【核心工具】局部更新幻灯片页。当用户要求修改某页时，重新生成该页完整的标题与布局组件，精准覆盖。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "page_index": {"type": "integer", "description": "幻灯片页码（从1开始）"},
-                    "new_content": {"type": "string", "description": "整页需要替换或更新的全新内容段落（包含标题与新正文）"}
+                    "new_title": {"type": "string", "description": "幻灯片单行大标题"},
+                    "new_elements": {
+                        "type": "array",
+                        "description": "全新的一整套页面内部元素数组，替换旧元素。包含 type(text_block/content/list), position, content(字符串数组), is_accent 等。",
+                        "items": { "type": "object" }
+                    }
                 },
-                "required": ["page_index", "new_content"]
+                "required": ["page_index", "new_title", "new_elements"]
             }
         }
     },
@@ -91,6 +96,36 @@ async def stream_chat_response(
             "role": "system",
             "content": f"【当前备课空间已挂载了如下知识库原文档片段，回答时请深度结合以下切片进行研判】：\n{rag_context}"
         })
+
+    if session_id:
+        def _get_cw():
+            from app.db.session import SessionLocal
+            from app.models.generation import Courseware
+            db = SessionLocal()
+            try:
+                cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+                if cw and cw.ppt_data and cw.ppt_data.get("ppt_data"):
+                    pages = []
+                    for page in cw.ppt_data.get("ppt_data"):
+                        pages.append({
+                            "page_index": page.get("page_index"),
+                            "title": page.get("title"),
+                            "elements": page.get("elements", [])
+                        })
+                    return json.dumps(pages, ensure_ascii=False)
+            except Exception:
+                pass
+            finally:
+                db.close()
+            return None
+            
+        import asyncio
+        cw_json = await asyncio.to_thread(_get_cw)
+        if cw_json:
+            messages.append({
+                "role": "system",
+                "content": f"【当前已有课件全局状态（JSON数组，包含所有幻灯片与元素）】：\n{cw_json}\n\n注意：你要基于以上全局视角进行精确工具修改操作！"
+            })
 
     for msg in messages_history:
         role = "user" if msg.role == "user" else "assistant"
@@ -219,17 +254,27 @@ async def stream_chat_response(
                         page_idx = t_args.get("page_index", 1) - 1
                         if 0 <= page_idx < len(slides):
                             target_slide = slides[page_idx]
-                            new_val = t_args.get("new_content", "")
+                            new_title = t_args.get("new_title")
+                            new_elements = t_args.get("new_elements")
                             
-                            # Update title
-                            target_slide["title"] = new_val
-                            
-                            # Also update the first text element if it exists to reflect changes
-                            if "elements" in target_slide and len(target_slide["elements"]) > 0:
-                                for elem in target_slide["elements"]:
-                                    if elem.get("type") in ["text_block", "content", "list"]:
-                                        elem["content"] = [new_val] if isinstance(elem.get("content"), list) else new_val
-                                        break
+                            # Fallback compatibility if LLM still uses old new_content format
+                            if "new_content" in t_args and not new_title and not new_elements:
+                                new_val = t_args.get("new_content", "")
+                                target_slide["title"] = new_val
+                                if "elements" in target_slide and len(target_slide["elements"]) > 0:
+                                    for elem in target_slide["elements"]:
+                                        if elem.get("type") in ["text_block", "content", "list"]:
+                                            elem["content"] = [new_val] if isinstance(elem.get("content"), list) else new_val
+                                            break
+                            else:
+                                if new_title:
+                                    target_slide["title"] = new_title
+                                if new_elements is not None and isinstance(new_elements, list):
+                                    import uuid
+                                    for el in new_elements:
+                                        if "element_id" not in el:
+                                            el["element_id"] = f"e_{uuid.uuid4().hex[:8]}"
+                                    target_slide["elements"] = new_elements
                                         
                     elif t_name in ["addslide", "add_slide"]:
                         pos = t_args.get("insert_after_index", 0)
@@ -259,7 +304,9 @@ async def stream_chat_response(
                             for i, s in enumerate(slides):
                                 s["page_index"] = i + 1
                     # 触发 SQLAlchemy JSON 变更检测
+                    from sqlalchemy.orm.attributes import flag_modified
                     cw.ppt_data = {**cw.ppt_data, "ppt_data": slides}
+                    flag_modified(cw, "ppt_data")
                     db_local.commit()
                     logger.info(f"[TOOL_EXEC] DB updated for session {session_id}")
             except Exception as e:

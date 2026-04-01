@@ -311,27 +311,31 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                 try:
                                     obj, idx = decoder.raw_decode(buffer)
                                     t = obj.get("__type")
+                                    from sqlalchemy.orm.attributes import flag_modified
+                                    
                                     if t == "theme":
                                         obj.pop("__type", None)
-                                        ppt_dict = courseware.ppt_data if isinstance(courseware.ppt_data, dict) else {}
+                                        ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
                                         if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = courseware.ppt_data
+                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
                                         ppt_dict["theme"] = obj
                                         courseware.ppt_data = ppt_dict
+                                        flag_modified(courseware, "ppt_data")
                                         db.commit()
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
                                     elif t == "page":
                                         obj.pop("__type", None)
-                                        ppt_dict = courseware.ppt_data if isinstance(courseware.ppt_data, dict) else {}
+                                        ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
                                         if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = courseware.ppt_data
-                                        current_pages = ppt_dict.get("ppt_data", [])
+                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
+                                        current_pages = list(ppt_dict.get("ppt_data", []))
                                         if not isinstance(current_pages, list):
                                             current_pages = []
                                         current_pages.append(obj)
                                         ppt_dict["ppt_data"] = current_pages
                                         courseware.ppt_data = ppt_dict
+                                        flag_modified(courseware, "ppt_data")
                                         db.commit()
                                         page_count += 1
                                         yield sse("page_chunk", obj)
