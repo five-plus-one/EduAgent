@@ -18,6 +18,7 @@ export function usePPTStream(sessionId: string) {
     streamTheme: null,
     totalHint: 8,
     streamError: null,
+    streamThinking: '',
   });
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export function usePPTStream(sessionId: string) {
     streamTheme: streamState.streamTheme,
     totalHint: streamState.totalHint,
     streamError: streamState.streamError,
+    streamThinking: streamState.streamThinking,
     startStreaming,
     stopStreaming
   };

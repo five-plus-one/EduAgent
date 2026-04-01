@@ -1,18 +1,24 @@
 .pptCard {
   width: 100%;
-  max-width: 800px;
+  max-width: 880px;
   aspect-ratio: 16 / 9;
-  border-radius: var(--radius-md);
-  padding: 6cqi 7cqi;
+  border-radius: 1.8rem;
+  padding: 7.5cqi 8.5cqi;
   display: flex;
   flex-direction: column;
-  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   overflow: hidden;
   container-type: inline-size;
-  background: var(--ppt-bg, #ffffff);
+  background: var(--ppt-bg, rgba(255, 255, 255, 0.85));
+  backdrop-filter: blur(28px) saturate(200%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%);
   color: var(--ppt-text, var(--text-primary));
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.06), 0 0 0 1px rgba(15, 23, 42, 0.03);
+  box-shadow: 
+    0 40px 80px -20px rgba(15, 23, 42, 0.15), 
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    inset 0 10px 40px rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
 .pptCard::before {
@@ -47,11 +53,13 @@
 }
 
 .pptCard h4 {
-  font-size: max(1.2rem, 3.8cqw);
+  font-size: max(1.3rem, 4.2cqw);
   color: var(--ppt-text, var(--text-primary));
-  font-weight: 700;
+  font-weight: 800;
   margin: 0;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.04em;
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  text-transform: capitalize;
 }
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
@@ -75,14 +83,18 @@
 }
 
 .coverTitle {
-  font-size: max(2.5rem, 8.5cqw);
-  font-family: 'Outfit', sans-serif;
+  font-size: max(3.2rem, 10.5cqw);
+  font-family: 'Outfit', system-ui, sans-serif;
   font-weight: 900;
   color: var(--ppt-primary, var(--text-primary));
   margin-bottom: 5cqh;
-  letter-spacing: -1.5px;
-  line-height: 1.1;
-  text-shadow: 0 4px 16px rgba(0,0,0,0.05);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  text-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  background: linear-gradient(135deg, var(--ppt-primary) 0%, var(--ppt-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  padding-bottom: 0.2em; /* 防止背景剪裁导致的字体底部被切 */
 }
 
 .coverSpeaker {
@@ -188,11 +200,45 @@
 .imageWrapper {
   width: 100%;
   height: 100%;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 20px 40px -10px rgba(0,0,0,0.1), 0 0 0 1px rgba(255,255,255,0.4) inset;
   display: flex;
   min-height: 0;
+  background: var(--bg-tertiary, #f8fafc);
+}
+
+.imagePlaceholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 2px dashed rgba(0, 0, 0, 0.08);
+  color: var(--text-tertiary);
+  min-height: 180px;
+  transition: all 0.3s ease;
+}
+
+.imagePlaceholder:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--ppt-primary, var(--accent-primary));
+  color: var(--ppt-primary, var(--accent-primary));
+}
+
+.placeholderIcon {
+  opacity: 0.6;
+  color: inherit;
+}
+
+.placeholderText {
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 .interactiveWrapper {

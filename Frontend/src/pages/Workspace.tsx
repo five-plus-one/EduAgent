@@ -23,6 +23,7 @@ export default function Workspace() {
   const [inputText, setInputText] = useState('');
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const wordDocRef = useRef<HTMLDivElement>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -42,7 +43,8 @@ export default function Workspace() {
     streamWordDoc, 
     startStreaming, 
     stopStreaming,
-    streamError
+    streamError,
+    streamThinking
   } = usePPTStream(sessionId);
 
   useEffect(() => {
@@ -58,6 +60,44 @@ export default function Workspace() {
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
+
+  const handleExportWord = () => {
+    if (!wordDoc) return;
+    
+    let contentHtml = `<pre>${wordDoc}</pre>`;
+    if (wordDocRef.current) {
+        contentHtml = wordDocRef.current.innerHTML;
+    }
+
+    const htmlContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>讲义导出</title>
+        <style>
+          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; color: #333; }
+          h1, h2, h3 { color: #1a1a1a; margin-top: 24px; margin-bottom: 12px; }
+          p { margin-bottom: 12px; }
+          ul, ol { padding-left: 24px; margin-bottom: 16px; margin-top: 8px; }
+          li { margin-bottom: 6px; }
+          strong { font-weight: bold; color: #111; }
+        </style>
+      </head>
+      <body>
+        <h1>${sessionId === 'new' ? '未命名讲义' : '课件讲义'}</h1>
+        <hr/>
+        ${contentHtml}
+      </body>
+      </html>
+    `;
+    const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EduAgent讲义_${sessionId}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   
   useEffect(() => {
     let active = true;
@@ -143,9 +183,19 @@ export default function Workspace() {
     }
   }, [sessionId]);
 
-  // Auto scroll to bottom
+  // Auto scroll to bottom only if user hasn't scrolled up
+  const shouldAutoScroll = useRef(true);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+    shouldAutoScroll.current = isNearBottom;
+  };
+
   useEffect(() => {
-    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (shouldAutoScroll.current) {
+      streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Focus Hijacking: Auto-switch to PPT tab when AI is generating it via tools
@@ -266,7 +316,7 @@ export default function Workspace() {
           </div>
         ) : (
           <>
-            <div className={styles.messageStream}>
+            <div className={styles.messageStream} onScroll={handleScroll}>
               {messages.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
@@ -393,26 +443,42 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className={clsx('button-primary', styles.generateBtn)}
-                onClick={async () => {
-                  setActiveTab('ppt');
-                  await startStreaming([], 'fast');
-                  fetchPreview();
-                }}
-                disabled={isGenerating || isStreaming || sessionId === 'new'}
-              >
-                <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
-                {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
-              </button>
-              <button 
-                className={clsx('button-base', styles.exportBtn)}
-                onClick={exportCourseware}
-                disabled={isExporting || sessionId === 'new'}
-              >
-                <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
-                {isExporting ? '导出中...' : '导出 pptx'}
-              </button>
+              {pages.length === 0 && (
+                <button 
+                  className={clsx('button-primary', styles.generateBtn)}
+                  onClick={async () => {
+                    setActiveTab('ppt');
+                    await startStreaming([], 'fast');
+                    fetchPreview();
+                  }}
+                  disabled={isGenerating || isStreaming || sessionId === 'new'}
+                >
+                  <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
+                  {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
+                </button>
+              )}
+              {pages.length > 0 && (
+                <>
+                  <button 
+                    className={clsx('button-base', styles.exportBtn)}
+                    onClick={exportCourseware}
+                    disabled={isExporting || sessionId === 'new'}
+                  >
+                    <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
+                    {isExporting ? '导出 PPT中...' : '导出 PPT'}
+                  </button>
+                  {wordDoc && (
+                    <button 
+                      className={clsx('button-base', styles.exportBtn)}
+                      onClick={handleExportWord}
+                      disabled={sessionId === 'new'}
+                    >
+                      <FileText size={16} /> 
+                      导出讲义 (.doc)
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </header>
 
@@ -522,7 +588,7 @@ export default function Workspace() {
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
                         <PPTCard 
-                          key={`stream-${page.page_index}`} 
+                          key={page.page_index} 
                           page={page} 
                           isUpdating={false}
                           onIterate={() => {}} // Disabled during stream for stability
@@ -532,7 +598,10 @@ export default function Workspace() {
                   
                   {/* Render the next page skeleton */}
                   {isStreaming && (
-                    <PPTSkeleton pageNumber={(streamPages.length || pages.length) + 1} />
+                    <PPTSkeleton 
+                      pageNumber={(streamPages.length || pages.length) + 1} 
+                      streamThinking={streamThinking}
+                    />
                   )}
 
                   {/* Empty State */}
@@ -567,7 +636,7 @@ export default function Workspace() {
                   </p>
                 </div>
               ) : (streamWordDoc || wordDoc) ? (
-                <div className={styles.markdownWrapper} onMouseUp={handleSelection}>
+                <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     rehypePlugins={[rehypeRaw]}
