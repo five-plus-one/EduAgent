@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 
 import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
+import { safeApplyTheme } from '../utils/pptStreamManager';
 
 export interface PPTElement {
   element_id: string;
@@ -52,12 +53,7 @@ export function useCourseware(sessionId: string) {
                 if (fallbackData.wordDoc) setWordDoc(fallbackData.wordDoc);
                 
                 if (fallbackData.theme) {
-                  const root = document.documentElement;
-                  if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-                  if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-                  if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-                  if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-                  if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+                  safeApplyTheme(fallbackData.theme);
                 }
                 
                 setPreviewStatus('ready');
@@ -77,12 +73,7 @@ export function useCourseware(sessionId: string) {
           if (fallbackDataStr) {
             const fallbackData = JSON.parse(fallbackDataStr);
             if (fallbackData.theme) {
-              const root = document.documentElement;
-              if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-              if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-              if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-              if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-              if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+              safeApplyTheme(fallbackData.theme);
             }
           }
         } catch (e) {}
@@ -118,12 +109,7 @@ export function useCourseware(sessionId: string) {
               
               // Restore CSS theme variables that were lost due to session switch
               if (fallbackData.theme) {
-                const root = document.documentElement;
-                if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-                if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-                if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-                if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-                if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+                safeApplyTheme(fallbackData.theme);
               }
               
               setPreviewStatus('ready');
