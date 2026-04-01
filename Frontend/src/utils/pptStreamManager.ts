@@ -8,8 +8,15 @@ import type { PPTPage } from '../hooks/useCourseware';
 export const PREMIUM_THEMES = {
   modern_minimalist: { bg_color: '#F8FAFC', primary: '#0F172A', secondary: '#64748B', accent: '#3B82F6', text_color: '#1E293B' },
   sunset_boulevard: { bg_color: '#FFF7F0', primary: '#EA580C', secondary: '#FB923C', accent: '#FACC15', text_color: '#431407' },
+  golden_hour: { bg_color: '#FEF3C7', primary: '#B45309', secondary: '#D97706', accent: '#F59E0B', text_color: '#451A03' },
+  forest_canopy: { bg_color: '#F0FDF4', primary: '#15803D', secondary: '#166534', accent: '#22C55E', text_color: '#14532D' },
+  desert_rose: { bg_color: '#FFF1F2', primary: '#BE123C', secondary: '#E11D48', accent: '#F43F5E', text_color: '#4C0519' },
+  arctic_frost: { bg_color: '#F0F9FF', primary: '#0369A1', secondary: '#0284C7', accent: '#38BDF8', text_color: '#082F49' },
+  
   ocean_depths: { bg_color: '#0B192C', primary: '#38BDF8', secondary: '#94A3B8', accent: '#10B981', text_color: '#F8FAFC' },
-  cyber_neon: { bg_color: '#09090B', primary: '#A855F7', secondary: '#EC4899', accent: '#06B6D4', text_color: '#F1F5F9' }
+  cyber_neon: { bg_color: '#09090B', primary: '#A855F7', secondary: '#EC4899', accent: '#06B6D4', text_color: '#F1F5F9' },
+  midnight_galaxy: { bg_color: '#020617', primary: '#6366F1', secondary: '#4F46E5', accent: '#818CF8', text_color: '#F8FAFC' },
+  botanical_garden: { bg_color: '#064E3B', primary: '#A7F3D0', secondary: '#34D399', accent: '#10B981', text_color: '#F0FDF4' }
 };
 
 export const simpleHash = (s: string) => {
@@ -41,8 +48,15 @@ export const safeApplyTheme = (sessionId: string, theme: PPTTheme) => {
   else isLight = getLuminance(rawBg) > 0.5;
   
   // 2. Map to Premium Themes deterministically via Session ID
-  const lightThemes = [PREMIUM_THEMES.modern_minimalist, PREMIUM_THEMES.sunset_boulevard];
-  const darkThemes = [PREMIUM_THEMES.ocean_depths, PREMIUM_THEMES.cyber_neon];
+  const lightThemes = [
+    PREMIUM_THEMES.modern_minimalist, PREMIUM_THEMES.sunset_boulevard, 
+    PREMIUM_THEMES.golden_hour, PREMIUM_THEMES.forest_canopy, 
+    PREMIUM_THEMES.desert_rose, PREMIUM_THEMES.arctic_frost
+  ];
+  const darkThemes = [
+    PREMIUM_THEMES.ocean_depths, PREMIUM_THEMES.cyber_neon, 
+    PREMIUM_THEMES.midnight_galaxy, PREMIUM_THEMES.botanical_garden
+  ];
   
   const hashVal = sessionId ? simpleHash(sessionId) : 0;
   const selectedTheme = isLight 
