@@ -5,6 +5,9 @@ import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface Props {
   page: PPTPage;
@@ -69,7 +72,7 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     if (el.type === 'list' || el.type === 'list_item') {
       return (
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
+          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{b}</ReactMarkdown></li>)}
         </ul>
       );
     }
@@ -79,10 +82,19 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
           {contentArray.length > 1 ? (
             <ul className={styles.contentList}>
-              {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
+              {contentArray.map((item: string, idx: number) => (
+                <li key={idx}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                  >
+                    {item}
+                  </ReactMarkdown>
+                </li>
+              ))}
             </ul>
           ) : (
-            contentArray.map((text: string, i: number) => <div key={i} style={{ whiteSpace: 'pre-wrap' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>)
+            contentArray.map((text: string, i: number) => <div key={i} style={{ whiteSpace: 'pre-wrap' }}><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{text}</ReactMarkdown></div>)
           )}
         </div>
       );
@@ -93,7 +105,14 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)} style={{ marginBottom: '8px' }}>
           <strong>{el.time}</strong>
-          <div style={{ margin: '4px 0 0 0' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{contentArray[0] || el.content}</ReactMarkdown></div>
+          <div style={{ margin: '4px 0 0 0' }}>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {contentArray[0] || el.content}
+            </ReactMarkdown>
+          </div>
         </div>
       );
     }
