@@ -237,6 +237,16 @@ export default function Workspace() {
     };
   }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
 
+  // Bug Fix: Sync Database Changes (like addslide tool execution) to PPT Preview 
+  // Triggered when AI finishes talking / executing tools.
+  useEffect(() => {
+    if (!isSynthesizing && sessionId !== 'new' && sessionId) {
+      console.log('[Sync] AI completed synthesis/tools, checking for PPT updates.');
+      // Adding a slight delay to ensure DB transaction commits before fetch
+      setTimeout(() => fetchPreview(), 500);
+    }
+  }, [isSynthesizing, fetchPreview, sessionId]);
+
   const handleSubmit = () => {
     const text = inputText.trim();
     if (text && !isSynthesizing) {
