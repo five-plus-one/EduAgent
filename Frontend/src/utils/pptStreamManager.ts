@@ -37,6 +37,10 @@ class PPTStreamManagerClass {
 
     return () => {
       listeners.delete(listener);
+      // Cleanup empty listener sets to prevent memory leak
+      if (listeners.size === 0) {
+        this.sessionListeners.delete(sessionId);
+      }
     };
   }
 
@@ -69,6 +73,12 @@ class PPTStreamManagerClass {
       this.notify(sessionId, stream.state);
       this.activeStreams.delete(sessionId);
     }
+  }
+
+  /** Reset stream state for a session — called on session switch to avoid stale pages */
+  public clearStreamState(sessionId: string) {
+    this.activeStreams.delete(sessionId);
+    this.notify(sessionId, this.getEmptyState());
   }
 
   private applyTheme(theme: PPTTheme) {
@@ -131,7 +141,7 @@ class PPTStreamManagerClass {
             state.isStreaming = false;
             this.notify(sessionId, state);
             this.activeStreams.delete(sessionId);
-            // Fire full completion event to let UI fetch final
+            // Fire full completion event to let UI fetch final data from DB
             window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
           },
           onError: (err: any) => {
