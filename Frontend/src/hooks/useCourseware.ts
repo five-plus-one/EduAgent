@@ -1,14 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
 
 import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
+import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManager';
 
 export interface PPTElement {
   element_id: string;
-  type: "text_block" | "image" | string;
+  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | string;
   position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | string;
   content?: string[];
   url?: string;
   alt?: string;
+  is_accent?: boolean;
+  time?: string;
 }
 
 export interface PPTPage {
@@ -52,12 +55,7 @@ export function useCourseware(sessionId: string) {
                 if (fallbackData.wordDoc) setWordDoc(fallbackData.wordDoc);
                 
                 if (fallbackData.theme) {
-                  const root = document.documentElement;
-                  if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-                  if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-                  if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-                  if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-                  if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+                  safeApplyTheme(sessionId, fallbackData.theme);
                 }
                 
                 setPreviewStatus('ready');
@@ -70,22 +68,21 @@ export function useCourseware(sessionId: string) {
         // ----------------------------------------------------
 
         // --- EXTRACT & RESTORE THEME ---
-        // Backend's strict schema drops the 'theme' object completely in 200 OK responses.
-        // We MUST re-hydrate the theme from localStorage so the cards don't turn invisible/white.
-        try {
-          const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
-          if (fallbackDataStr) {
-            const fallbackData = JSON.parse(fallbackDataStr);
-            if (fallbackData.theme) {
-              const root = document.documentElement;
-              if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-              if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-              if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-              if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-              if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+        // Backend now might return the theme directly, we must prioritize resp.theme!
+        if (resp.theme) {
+          safeApplyTheme(sessionId, resp.theme);
+        } else {
+          // Fallback legacy behavior if backend validation strips the theme schema
+          try {
+            const fallbackDataStr = localStorage.getItem(`eduagent_ppt_fallback_${sessionId}`);
+            if (fallbackDataStr) {
+              const fallbackData = JSON.parse(fallbackDataStr);
+              if (fallbackData.theme) {
+                safeApplyTheme(sessionId, fallbackData.theme);
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
 
         if (Array.isArray(pptData)) {
           // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
@@ -118,12 +115,7 @@ export function useCourseware(sessionId: string) {
               
               // Restore CSS theme variables that were lost due to session switch
               if (fallbackData.theme) {
-                const root = document.documentElement;
-                if (fallbackData.theme.bg_color) root.style.setProperty('--ppt-bg', fallbackData.theme.bg_color);
-                if (fallbackData.theme.primary) root.style.setProperty('--ppt-primary', fallbackData.theme.primary);
-                if (fallbackData.theme.secondary) root.style.setProperty('--ppt-secondary', fallbackData.theme.secondary);
-                if (fallbackData.theme.accent) root.style.setProperty('--ppt-accent', fallbackData.theme.accent);
-                if (fallbackData.theme.text_color) root.style.setProperty('--ppt-text', fallbackData.theme.text_color);
+                safeApplyTheme(sessionId, fallbackData.theme);
               }
               
               setPreviewStatus('ready');
@@ -150,6 +142,10 @@ export function useCourseware(sessionId: string) {
     setUpdatingPages(new Set());
     setPreviewStatus('idle');
     setIsGenerating(false);
+    
+    // Clear the CSS theme variables globally so a previous session's dark theme
+    // doesn't bleed into the current session if it lacks a theme (falling back to white).
+    GlobalPPTStreamManager.clearTheme();
     
     fetchPreview();
   }, [sessionId, fetchPreview]);

@@ -24,8 +24,9 @@ export function usePPTStream(sessionId: string) {
   useEffect(() => {
     if (!sessionId || sessionId === 'new') return;
     
-    // Clear stale stream state from any previous session immediately
-    GlobalPPTStreamManager.clearStreamState(sessionId);
+    // We deliberately do NOT call clearStreamState here, 
+    // because if a stream is running in the background for this session, 
+    // we want to securely resume and reattach to it when the user switches back.
 
     const unsubscribe = GlobalPPTStreamManager.subscribe(sessionId, (state) => {
       setStreamState(state);
