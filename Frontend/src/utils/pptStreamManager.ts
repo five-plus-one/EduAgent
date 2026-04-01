@@ -156,6 +156,9 @@ class PPTStreamManagerClass {
             this.activeStreams.delete(sessionId);
             // Fire full completion event to let UI fetch final data from DB
             window.dispatchEvent(new CustomEvent('EduAgent_Refetch_PPT', { detail: { sessionId } }));
+            
+            // 阿里味底层抓手：彻底斩断 fetch-event-source 的底层静默重连死循环
+            controller.abort();
           },
           onError: (err: any) => {
             state.streamError = err.message || 'Stream generation failed';
