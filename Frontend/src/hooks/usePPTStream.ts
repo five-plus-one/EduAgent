@@ -23,6 +23,9 @@ export function usePPTStream(sessionId: string) {
   useEffect(() => {
     if (!sessionId || sessionId === 'new') return;
     
+    // Clear stale stream state from any previous session immediately
+    GlobalPPTStreamManager.clearStreamState(sessionId);
+
     const unsubscribe = GlobalPPTStreamManager.subscribe(sessionId, (state) => {
       setStreamState(state);
     });
