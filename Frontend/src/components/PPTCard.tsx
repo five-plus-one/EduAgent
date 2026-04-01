@@ -131,7 +131,7 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       {/* Universal Grid/Flex Stage powered by layout_type */}
       <div 
         className={clsx(styles.stage, styles[`layout_${page.layout_type}`] || styles.layout_standard)}
-        style={{ '--col-count': Math.min(page.elements?.length || 2, 4) } as React.CSSProperties}
+        style={{ '--col-count': page.layout_type === 'two_column' ? 2 : Math.min(page.elements?.length || 2, 4) } as React.CSSProperties}
       >
         {/* Cover Archetype */}
         {page.layout_type === 'cover' && (
