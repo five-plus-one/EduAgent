@@ -109,6 +109,18 @@ class PPTStreamManagerClass {
     };
   }
 
+  // P8 兜底：实时高频将流落盘持久化，对抗中途 F5 刷新和异常退出的终极防御
+  private saveFallback(sessionId: string, state: PPTStreamState) {
+    try {
+      localStorage.setItem(`eduagent_ppt_fallback_${sessionId}`, JSON.stringify({
+        pages: state.streamPages,
+        wordDoc: state.streamWordDoc,
+        theme: state.streamTheme,
+        timestamp: Date.now()
+      }));
+    } catch (e) {}
+  }
+
   public stopStream(sessionId: string) {
     const stream = this.activeStreams.get(sessionId);
     if (stream) {
@@ -164,6 +176,7 @@ class PPTStreamManagerClass {
             state.totalHint = hint || 8;
             this.applyTheme(theme);
             this.notify(sessionId, state);
+            this.saveFallback(sessionId, state);
           },
           onPage: (page) => {
             const exists = state.streamPages.some(p => p.page_index === page.page_index);
@@ -174,10 +187,13 @@ class PPTStreamManagerClass {
               state.streamPages.sort((a, b) => a.page_index - b.page_index);
             }
             this.notify(sessionId, state);
+            // 实时写盘：绝不在 onDone 才收割，只要生了一页就强制保存一页
+            this.saveFallback(sessionId, state);
           },
           onWordReady: (markdown) => {
             state.streamWordDoc = markdown;
             this.notify(sessionId, state);
+            this.saveFallback(sessionId, state);
           },
           onThinking: (chunk: string) => {
             state.streamThinking += chunk;
@@ -186,16 +202,8 @@ class PPTStreamManagerClass {
           onDone: () => {
             state.isStreaming = false;
             
-            // Defensive Fallback: Save to localStorage so frontend can recover PPT
-            // if backend strictly denies the fetch due to minor LLM schema errors
-            try {
-              localStorage.setItem(`eduagent_ppt_fallback_${sessionId}`, JSON.stringify({
-                pages: state.streamPages,
-                wordDoc: state.streamWordDoc,
-                theme: state.streamTheme,
-                timestamp: Date.now()
-              }));
-            } catch (e) {}
+            // Final backup
+            this.saveFallback(sessionId, state);
             
             this.notify(sessionId, state);
             this.activeStreams.delete(sessionId);
