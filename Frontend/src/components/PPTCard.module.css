@@ -335,6 +335,8 @@
   -webkit-backdrop-filter: blur(8px);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
+  font-size: calc(22 * var(--pt)); /* Unify with textBlock */
+  line-height: 1.6;
 }
 
 .contentList li p,
@@ -348,7 +350,7 @@
 }
 
 .textBlock {
-  font-size: calc(16 * var(--pt));
+  font-size: calc(22 * var(--pt)); /* Increased from 16pt for PPT scale readability */
   line-height: 1.6;
   font-weight: 400;
   margin-bottom: calc(0.1 * var(--in));
