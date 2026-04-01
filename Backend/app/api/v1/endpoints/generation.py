@@ -167,7 +167,8 @@ def iterate_slide(
     payload = {
         "model": settings.LLM_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.3
+        "temperature": 0.3,
+        "thinking": {"type": "disabled"}  # 关闭推理模式，单页修改用快速响应
     }
 
     try:
@@ -175,11 +176,25 @@ def iterate_slide(
         resp.raise_for_status()
         llm_content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
 
-        json_match = re.search(r"\{.*\}", llm_content, re.DOTALL)
-        if not json_match:
-            raise HTTPException(status_code=500, detail="LLM 返回内容无法解析为合法 JSON，请重试")
+        # 稳健 JSON 提取：raw_decode 将找到并解析第一个完整 JSON 对象
+        llm_content = llm_content.strip()
+        if llm_content.startswith("```"):
+            llm_content = "\n".join(
+                l for l in llm_content.splitlines() if not l.startswith("```")
+            ).strip()
 
-        new_page = json.loads(json_match.group(0))
+        decoder = json.JSONDecoder()
+        start = llm_content.find("{")
+        if start == -1:
+            raise HTTPException(status_code=500, detail="LLM 未返回 JSON 结构，请重试")
+        try:
+            new_page, _ = decoder.raw_decode(llm_content, start)
+        except json.JSONDecodeError:
+            json_match = re.search(r"\{[\s\S]*\}", llm_content)
+            if not json_match:
+                raise HTTPException(status_code=500, detail="LLM 返回内容无法解析，请重试")
+            new_page = json.loads(json_match.group(0))
+
         new_page["page_index"] = page_to_update["page_index"]  # 强制保持页码不变
 
         idx = next(i for i, p in enumerate(slides_array) if p.get("page_index") == body.page_index)

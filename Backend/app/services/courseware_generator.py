@@ -210,54 +210,60 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             courseware.word_markdown = ""
             db.commit()
 
-        prompt = f"""你是一位世界顶尖的课件设计大师，将课程内容转化为视觉丰富、层次分明的演示文稿。
+        prompt = f"""你是一位专业的 PPT 课件 JSON 生成器。严格按照以下格式输出，不能有任何偏差。
 
-【聊天上下文】
+# 课程背景
 {history_str}
 
-【RAG参考材料】
+# 参考材料
 {rag_context}
 
-【严格格式要求：每行输出一个独立的完整 JSON 对象，禁止 Markdown 围栏与任何说明文字】
+# 输出格式（NDJSON，每行一个完整合法 JSON，严禁输出 Markdown 围栏、注释、说明文字）
 
-第1行，主题色板：
-{{"__type": "theme", "name": "主题名称", "bg_color": "#1A1A2E", "primary": "#E94560", "secondary": "#0F3460", "accent": "#533483", "text_color": "#EAEAEA"}}
-选色规则：bg_color 使用高级深色（如 #1A1A2E、#0D1117、#162032）或高级浅色（如 #F8FAFC）；primary 为标题主色；accent 为强调色，二者需有鲜明对比。
+第1行必须是主题：
+{{"__type": "theme", "name": "主题名", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}}
 
-其后每页幻灯片一行，字段说明如下：
+每页幻灯片单独一行：
+{{"__type": "page", "page_index": N, "layout_type": "...", "title": "...", "speaker_notes": "...", "elements": [...]}}
 
-【layout_type 选项及适用场景】
-- "cover"：封面页（仅用于第1页）
-- "minimal_list"：简洁要点页，左大标题+右侧要点，适合概念介绍
-- "two_column"：双栏对比，position 用 left / right_top / right_bottom
-- "stat_callout"：数据震撼页，含 huge_number 类型 element（is_accent=true）
-- "image_focus"：图文页，含 image 类型 element
-- "timeline"：时间线/流程页，elements 为 timeline_item 型
-
-【elements 每个元素字段】
-- element_id: 唯一字符串如 "e1"
-- type: "text_block" | "list" | "huge_number" | "subtitle" | "image" | "timeline_item"
-- position: "center" | "left" | "right_top" | "right_bottom" | "top" | "bottom" | "full"
-- content: 字符串数组，**内容中可用 Markdown 加粗**（如 "**关键点**：说明"）
-- is_accent: true 时用 accent 颜色高亮（用于数字、警句、关键词）
-- time: 仅 timeline_item 使用（时间节点字符串）
-
-【生成质量要求】
-1. 整套课件 6-8 页：1封面 + 1目录/导言 + 4-5正文页（混合不同 layout_type）+ 1总结页
-2. 每张正文页的 elements 至少 2 个，有文字、有重点、有视觉焦点
-3. 封面页必须含 subtitle 类型元素（副标题/作者）
-4. stat_callout 页的 huge_number content 用实际数字（如 ["87%"]、["3x"]）
-5. 多用 is_accent: true 突出关键词，形成视觉层次
-6. content 字段大量使用 **加粗** 标注重点
-
-参考示例（格式正确，内容替换为实际课程内容）：
-{{"__type": "page", "page_index": 2, "layout_type": "two_column", "title": "核心对比", "speaker_notes": "重点对比两种方案", "elements": [{{"element_id": "e1", "type": "list", "position": "left", "content": ["**传统方案**：流程繁琐，成本高", "响应延迟超过 **48小时**"], "is_accent": false}}, {{"element_id": "e2", "type": "huge_number", "position": "right_top", "content": ["↑240%"], "is_accent": true}}]}}
-
-所有幻灯片输出完后输出：
+所有页输出完后：
 {{"__type": "word_start"}}
-[输出完整 Word 讲义 Markdown，使用 ## ### 标题，详细展开正文]
+（讲义正文 Markdown，可多行）
 {{"__type": "done"}}
-"""
+
+# layout_type 对照表
+- cover：封面（第1页专用）
+- minimal_list：要点页（多段落列表）
+- two_column：双栏对比页（左右各一组 elements）
+- stat_callout：数据强调页（含大号数字）
+- timeline：时间线/流程页
+
+# elements 结构
+每个 element 是一个 JSON 对象，包含：
+- element_id: 字符串，如 "e1" "e2"（每页内唯一）
+- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item"
+- position: "left" 或 "right_top" 或 "right_bottom" 或 "center" 或 "full"
+- content: 字符串数组（非空，至少1个元素）
+- is_accent: true 或 false
+
+# 完整输出示例（照此结构生成真实内容）：
+{{"__type": "theme", "name": "科技蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#475569", "accent": "#F59E0B", "text_color": "#F1F5F9"}}
+{{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "人工智能基础", "speaker_notes": "开场介绍", "elements": [{{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["主讲：张老师  |  2024年春季"], "is_accent": false}}]}}
+{{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程目标", "speaker_notes": "概述本课程三大目标", "elements": [{{"element_id": "e1", "type": "list", "position": "left", "content": ["理解机器学习的基本概念", "掌握主流算法的应用场景", "能够独立完成数据分析任务"], "is_accent": false}}, {{"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["本课程面向零基础学员，强调实践导向，全程辅以真实案例演练。"], "is_accent": false}}]}}
+{{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "传统 vs AI 方法", "speaker_notes": "对比两种方法的差异", "elements": [{{"element_id": "e1", "type": "list", "position": "left", "content": ["规则硬编码，难以扩展", "需要领域专家持续维护", "对新情况适应性差"], "is_accent": false}}, {{"element_id": "e2", "type": "list", "position": "right_top", "content": ["从数据中自动学习规律", "随数据增长持续优化", "可迁移至多个领域"], "is_accent": false}}, {{"element_id": "e3", "type": "huge_number", "position": "right_bottom", "content": ["↑300% 效率"], "is_accent": true}}]}}
+{{"__type": "page", "page_index": 4, "layout_type": "stat_callout", "title": "行业数据", "speaker_notes": "用数据说话", "elements": [{{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["87%"], "is_accent": true}}, {{"element_id": "e2", "type": "text_block", "position": "bottom", "content": ["的企业已将 AI 纳入核心生产流程（Gartner 2024）"], "is_accent": false}}]}}
+{{"__type": "word_start"}}
+## 人工智能基础讲义
+详细正文内容...
+{{"__type": "done"}}
+
+# 重要规则
+1. 必须生成 6-8 页（第1页 cover，最后一页 minimal_list 总结）
+2. 每页的 elements 数组必须至少包含 1 个元素，且 content 数组非空
+3. 所有字段必须存在，不能缺少 element_id、type、position、content、is_accent
+4. 上面的示例仅供格式参考，请生成关于当前课程主题的真实内容
+5. 主题色板必须根据课程风格选择，不要照抄示例的颜色
+6. 现在开始输出，第一行是 theme JSON"""
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"
@@ -270,8 +276,9 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         payload = {
             "model": "doubao-seed-2-0-pro-260215",
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.4,
-            "stream": True
+            "temperature": 0.3,
+            "stream": True,
+            "thinking": {"type": "disabled"}  # 关闭思考模式，防止生成格式混乱
         }
 
         buffer = ""
