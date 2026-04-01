@@ -183,9 +183,19 @@ export default function Workspace() {
     }
   }, [sessionId]);
 
-  // Auto scroll to bottom
+  // Auto scroll to bottom only if user hasn't scrolled up
+  const shouldAutoScroll = useRef(true);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 100;
+    shouldAutoScroll.current = isNearBottom;
+  };
+
   useEffect(() => {
-    streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (shouldAutoScroll.current) {
+      streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Focus Hijacking: Auto-switch to PPT tab when AI is generating it via tools
@@ -306,7 +316,7 @@ export default function Workspace() {
           </div>
         ) : (
           <>
-            <div className={styles.messageStream}>
+            <div className={styles.messageStream} onScroll={handleScroll}>
               {messages.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
@@ -578,7 +588,7 @@ export default function Workspace() {
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
                         <PPTCard 
-                          key={`stream-${page.page_index}`} 
+                          key={page.page_index} 
                           page={page} 
                           isUpdating={false}
                           onIterate={() => {}} // Disabled during stream for stability

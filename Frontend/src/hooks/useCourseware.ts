@@ -169,9 +169,8 @@ export function useCourseware(sessionId: string) {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
         // Backend commits every page to DB before yielding the SSE event,
-        // so by the time generate_done fires, all data is already in DB.
-        // A single immediate fetch is sufficient — no polling needed.
-        fetchPreview();
+        // but there might be a slight delay. Polling/timeout gives it time.
+        setTimeout(() => fetchPreview(), 1500);
       }
     };
 
@@ -197,16 +196,19 @@ export function useCourseware(sessionId: string) {
       }
 
       // [SILENT REFRESH] Fetch preview without setting isGenerating=true
-      // This allows the UI to stay responsive during incremental tool updates
-      fetchPreview().finally(() => {
-        if (typeof actualPageIndex === 'number') {
-          setUpdatingPages(prev => {
-            const next = new Set(prev);
-            next.delete(actualPageIndex);
-            return next;
-          });
-        }
-      });
+      // This allows the UI to stay responsive during incremental tool updates.
+      // 延迟 1.5s 给后端落库的时间窗口，避免读取到旧数据
+      setTimeout(() => {
+        fetchPreview().finally(() => {
+          if (typeof actualPageIndex === 'number') {
+            setUpdatingPages(prev => {
+              const next = new Set(prev);
+              next.delete(actualPageIndex);
+              return next;
+            });
+          }
+        });
+      }, 1500);
     };
 
     window.addEventListener('EduAgent_Generate_Start', handleStart);
