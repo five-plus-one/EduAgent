@@ -61,6 +61,7 @@ class PPTStreamManagerClass {
       streamTheme: null,
       totalHint: 8,
       streamError: null,
+      streamThinking: '',
     };
   }
 
@@ -137,6 +138,10 @@ class PPTStreamManagerClass {
           },
           onWordReady: (markdown) => {
             state.streamWordDoc = markdown;
+            this.notify(sessionId, state);
+          },
+          onThinking: (chunk: string) => {
+            state.streamThinking += chunk;
             this.notify(sessionId, state);
           },
           onDone: () => {
