@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Send, Loader2, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
@@ -174,9 +174,20 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         ) : page.layout_type === 'stat_callout' ? (
           <>
              {/* Stat Callout Archetype */}
-             {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => (
-                <div key={el.element_id} className={styles.hugeNumber}>{Array.isArray(el.content) ? el.content[0] : el.content}</div>
-             ))}
+             {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => {
+                const text = Array.isArray(el.content) ? el.content[0] : el.content;
+                return (
+                  <div key={el.element_id} className={styles.hugeNumber}>
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={{ p: React.Fragment }}
+                    >
+                      {text}
+                    </ReactMarkdown>
+                  </div>
+                );
+             })}
              <div className={styles.statSubtitle}>
                {page.elements?.filter(e => !(e.is_accent || e.type === 'huge_number' || e.type === 'stat')).map(renderElement)}
              </div>
