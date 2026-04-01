@@ -174,26 +174,40 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         ) : page.layout_type === 'stat_callout' ? (
           <>
              {/* Stat Callout Archetype */}
-             {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => {
-                const text = Array.isArray(el.content) ? el.content[0] : el.content;
-                return (
-                  <div key={el.element_id} className={styles.hugeNumber}>
-                    <ReactMarkdown 
-                      remarkPlugins={[remarkGfm, remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
-                      components={{ p: React.Fragment }}
-                    >
-                      {text}
-                    </ReactMarkdown>
-                  </div>
-                );
-             })}
+             <div className={styles.hugeNumberContainer}>
+               {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => {
+                  const text = Array.isArray(el.content) ? el.content[0] : el.content;
+                  return (
+                    <div key={el.element_id} className={styles.hugeNumber}>
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{ p: React.Fragment }}
+                      >
+                        {text}
+                      </ReactMarkdown>
+                    </div>
+                  );
+               })}
+             </div>
              <div className={styles.statSubtitle}>
                {page.elements?.filter(e => !(e.is_accent || e.type === 'huge_number' || e.type === 'stat')).map(renderElement)}
              </div>
           </>
+        ) : page.layout_type === 'two_column' || page.layout_type === 'minimal_list' ? (
+          /* Proper Columnar Layout Mapping via Position */
+          <>
+            <div className={styles.columnLeft}>
+              {page.elements?.filter(e => e.position === 'left' || e.position === 'left_top' || e.position === 'left_bottom' || !e.position || e.position === 'center').map(renderElement)}
+            </div>
+            {page.elements?.some(e => e.position && e.position.includes('right')) && (
+              <div className={styles.columnRight}>
+                {page.elements?.filter(e => e.position && e.position.includes('right')).map(renderElement)}
+              </div>
+            )}
+          </>
         ) : (
-          /* Default Archetypes (Minimal List, Two Column, Standard) */
+          /* Default Fallback */
           page.elements?.map(renderElement)
         )}
         
