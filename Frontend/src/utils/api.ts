@@ -236,7 +236,7 @@ export const getGenerationStatus = async (taskId: string) => {
 
 /** 4.3 Get slideshow preview data */
 export const getCoursewarePreview = async (sessionId: string) => {
-  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview`);
+  const res = await apiClient.get(`/sessions/${sessionId}/courseware/preview?t=${Date.now()}`);
   return res.data?.data ?? res.data;
 };
 
@@ -334,8 +334,11 @@ export const getExportStatus = async (taskId: string) => {
 };
 
 /** 5.3 Download exported file directly as blob */
-export const downloadExportedFile = async (filename: string) => {
-  const res = await apiClient.get(`/download/${filename}`, {
+export const downloadExportedFile = async (urlOrFilename: string) => {
+  const path = urlOrFilename.startsWith('/') 
+    ? urlOrFilename.replace('/api/v1', '') 
+    : `/export/download/${urlOrFilename}`;
+  const res = await apiClient.get(path, {
     responseType: 'blob'
   });
   return res.data;

@@ -78,10 +78,11 @@ class PPTStreamManagerClass {
   /** Reset stream state for a session — called on session switch to avoid stale pages */
   public clearStreamState(sessionId: string) {
     this.activeStreams.delete(sessionId);
+    this.clearTheme(); // FIX: Prevent theme leaking across session switch
     this.notify(sessionId, this.getEmptyState());
   }
 
-  private applyTheme(theme: PPTTheme) {
+  public applyTheme(theme: PPTTheme) {
     const root = document.documentElement;
     if (theme.bg_color) root.style.setProperty('--ppt-bg', theme.bg_color);
     if (theme.primary) root.style.setProperty('--ppt-primary', theme.primary);
@@ -90,7 +91,7 @@ class PPTStreamManagerClass {
     if (theme.text_color) root.style.setProperty('--ppt-text', theme.text_color);
   }
 
-  private clearTheme() {
+  public clearTheme() {
     const root = document.documentElement;
     ['--ppt-bg', '--ppt-primary', '--ppt-secondary', '--ppt-accent', '--ppt-text'].forEach(prop => {
       root.style.removeProperty(prop);
@@ -139,6 +140,18 @@ class PPTStreamManagerClass {
           },
           onDone: () => {
             state.isStreaming = false;
+            
+            // Defensive Fallback: Save to localStorage so frontend can recover PPT
+            // if backend strictly denies the fetch due to minor LLM schema errors
+            try {
+              localStorage.setItem(`eduagent_ppt_fallback_${sessionId}`, JSON.stringify({
+                pages: state.streamPages,
+                wordDoc: state.streamWordDoc,
+                theme: state.streamTheme,
+                timestamp: Date.now()
+              }));
+            } catch (e) {}
+            
             this.notify(sessionId, state);
             this.activeStreams.delete(sessionId);
             // Fire full completion event to let UI fetch final data from DB

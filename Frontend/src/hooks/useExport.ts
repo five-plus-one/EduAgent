@@ -21,7 +21,7 @@ export function useExport(sessionId: string) {
         const statusData = await getExportStatus(taskId);
         
         if (statusData.status === 'completed') {
-          downloadFilename = statusData.filename;
+          downloadFilename = statusData.download_urls?.ppt_url || statusData.filename;
           break;
         } else if (statusData.status === 'failed' || statusData.status === 'error') {
           throw new Error(statusData.error || 'Export task failed on server');
@@ -35,7 +35,8 @@ export function useExport(sessionId: string) {
         const url = window.URL.createObjectURL(new Blob([blob]));
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', downloadFilename);
+        const actualName = downloadFilename.split('/').pop() || 'export.pptx';
+        link.setAttribute('download', actualName);
         document.body.appendChild(link);
         link.click();
         
