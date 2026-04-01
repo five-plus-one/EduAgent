@@ -170,7 +170,10 @@ def run_export_task(task_id: str, session_id: str):
 
             task.status = "completed"
             task.progress = 100
-            task.result_data = {"download_urls": {"ppt_url": f"/api/v1/export/download/{filename}"}}
+            task.result_data = {
+                "download_urls": {"ppt_url": f"/api/v1/export/download/{filename}"},
+                "filename": filename
+            }
         except Exception as file_exp:
             import traceback
             task.status = "failed"

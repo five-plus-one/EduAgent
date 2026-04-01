@@ -214,7 +214,9 @@ def get_export_status(
         "status": task.status,
         "stage": task.stage,
         "progress": task.progress,
-        "download_urls": task.result_data.get("download_urls") if task.result_data else None
+        "download_urls": task.result_data.get("download_urls") if task.result_data else None,
+        "filename": task.result_data.get("filename") if task.result_data else None,
+        "error": task.result_data.get("error") if task.result_data else None
     }
     
 @router.get("/export/download/{filename}")
