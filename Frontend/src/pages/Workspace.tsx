@@ -576,7 +576,10 @@ export default function Workspace() {
                   
                   {/* Render the next page skeleton */}
                   {isStreaming && (
-                    <PPTSkeleton pageNumber={(streamPages.length || pages.length) + 1} />
+                    <PPTSkeleton 
+                      pageNumber={(streamPages.length || pages.length) + 1} 
+                      streamThinking={streamThinking}
+                    />
                   )}
 
                   {/* Empty State */}
