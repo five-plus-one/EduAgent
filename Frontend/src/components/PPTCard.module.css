@@ -144,16 +144,17 @@
   background-color: var(--ppt-accent, #3b82f6);
 }
 
-/* 2. Grid Column Layouts */
+/* 2. Grid Column Layouts (Dynamic Count) */
 .layout_standard {
   display: flex;
   flex-direction: column;
   gap: calc(0.2 * var(--in));
 }
 
+/* Flexible Grid based on var(--col-count) */
 .layout_two_column, .layout_minimal_list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(var(--col-count, 2), 1fr);
   grid-template-rows: min-content 1fr;
   gap: calc(0.2 * var(--in));
   height: 100%;
@@ -167,6 +168,101 @@
   width: calc(2.2 * var(--in));
   height: calc(0.05 * var(--in));
   background: var(--ppt-accent);
+}
+
+/* 3. Timeline Archetype */
+.layout_timeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  /* Shift content slightly right for the spine */
+}
+
+.timelineSpine {
+  position: absolute;
+  top: calc(0 * var(--in)); /* relative to content area */
+  left: calc(0.95 * var(--in)); /* 1.5inch - 0.55 margin = 0.95 relative */
+  width: calc(0.06 * var(--in));
+  height: calc(100% - 1 * var(--in));
+  background: var(--ppt-secondary, #64748B);
+  opacity: 0.6;
+}
+
+.timelineItem {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  margin-bottom: calc(0.3 * var(--in));
+  flex: 1;
+}
+
+.timelineDot {
+  position: absolute;
+  left: calc(0.95 * var(--in) - 0.1 * var(--in)); /* centered on spine */
+  top: calc(0.12 * var(--in));
+  width: calc(0.26 * var(--in));
+  height: calc(0.26 * var(--in));
+  background: var(--ppt-accent, #3b82f6);
+  border-radius: 50%;
+  box-shadow: 0 0 15px var(--ppt-accent);
+}
+
+.timelineTime {
+  width: calc(1 * var(--in));
+  font-size: calc(18 * var(--pt));
+  font-weight: 800;
+  color: var(--ppt-accent);
+  text-align: right;
+  padding-right: calc(0.4 * var(--in));
+  margin-top: calc(0.08 * var(--in));
+}
+
+.timelineContent {
+  flex: 1;
+  padding-left: calc(1.4 * var(--in));
+}
+
+/* 4. Stat Callout Archetype */
+.layout_stat_callout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.layout_stat_callout::before {
+  content: '';
+  position: absolute;
+  top: calc(-0.2 * var(--in));
+  left: 0;
+  width: calc(1.8 * var(--in));
+  height: calc(0.05 * var(--in));
+  background: var(--ppt-accent);
+}
+
+.hugeNumber {
+  font-size: calc(90 * var(--pt)); /* Massive! Backend is 80pt, we scale slightly up for web */
+  font-weight: 900;
+  color: var(--ppt-accent);
+  background: linear-gradient(135deg, var(--ppt-accent) 0%, var(--ppt-primary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  margin-bottom: calc(0.2 * var(--in));
+  line-height: 1.1;
+  text-align: center;
+}
+
+.statSubtitle {
+  font-size: calc(22 * var(--pt));
+  color: var(--ppt-text);
+  text-align: center;
+  max-width: 80%;
+  margin: 0 auto;
 }
 
 .layout_image_gallery {
