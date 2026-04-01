@@ -208,30 +208,65 @@
   font-weight: 600;
 }
 
-.textBlock {
-  font-size: calc(16 * var(--pt)); /* Map to 16pt */
+.contentList li {
+  position: relative;
+  background: rgba(255, 255, 255, 0.4);
+  border-left: 3px solid var(--ppt-accent, #3b82f6);
+  padding: calc(0.12 * var(--in)) calc(0.2 * var(--in));
+  border-radius: 0 8px 8px 0;
+  margin-bottom: calc(0.08 * var(--in));
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
-  line-height: 1.5;
+}
+
+.textBlock {
+  font-size: calc(16 * var(--pt));
+  line-height: 1.6;
   font-weight: 400;
   margin-bottom: calc(0.1 * var(--in));
-}
-
-.textBlock p {
-  margin-bottom: 0.5em;
-  margin-top: 0;
-}
-
-.contentList {
-  font-size: calc(16 * var(--pt)); /* Map to 16pt */
-  padding-left: calc(0.25 * var(--in));
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
+  
+  /* Glassmorphism Structural Upgrade */
+  background: rgba(255, 255, 255, 0.4);
+  border-left: 3px solid var(--ppt-primary, #1e293b);
+  padding: calc(0.15 * var(--in)) calc(0.25 * var(--in));
+  border-radius: 0 8px 8px 0;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--ppt-text, #334155);
 }
 
-.contentList li::marker {
-  color: var(--ppt-accent, #3b82f6);
+/* ---------------- EDITORIAL AESTHETICS (留白重构) ---------------- */
+.giantWatermark {
+  position: absolute;
+  bottom: calc(-0.4 * var(--in));
+  right: calc(-0.2 * var(--in));
+  font-size: calc(250 * var(--pt));
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  color: var(--ppt-primary, #0f172a);
+  opacity: 0.04;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  letter-spacing: -0.06em;
+  line-height: 0.8;
+}
+
+.decorativeSvg {
+  position: absolute;
+  top: 5cqh;
+  right: -5cqw;
+  width: 50cqi;
+  height: 50cqi;
+  opacity: 0.08;
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(12px);
+  mix-blend-mode: multiply;
 }
 
 /* Media & Interactions */
