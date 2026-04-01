@@ -3,6 +3,8 @@ import { Send, Loader2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Props {
   page: PPTPage;
@@ -59,7 +61,7 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     if (el.type === 'list' || el.type === 'list_item') {
       return (
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-          {contentArray.map((b: string, i: number) => <li key={i}>{b}</li>)}
+          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
         </ul>
       );
     }
@@ -69,10 +71,10 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
           {contentArray.length > 1 ? (
             <ul className={styles.contentList}>
-              {contentArray.map((b: string, i: number) => <li key={i}>{b}</li>)}
+              {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
             </ul>
           ) : (
-            contentArray.map((text: string, i: number) => <p key={i} style={{ whiteSpace: 'pre-wrap' }}>{text}</p>)
+            contentArray.map((text: string, i: number) => <div key={i} style={{ whiteSpace: 'pre-wrap' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>)
           )}
         </div>
       );
@@ -83,7 +85,7 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)} style={{ marginBottom: '8px' }}>
           <strong>{el.time}</strong>
-          <p style={{ margin: '4px 0 0 0' }}>{contentArray[0] || el.content}</p>
+          <div style={{ margin: '4px 0 0 0' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{contentArray[0] || el.content}</ReactMarkdown></div>
         </div>
       );
     }
