@@ -10,7 +10,7 @@ export const API_BASE_URL = 'http://192.168.31.157:8000/api/v1'; // Backend serv
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: 120000, // 2分钟长超时，保证深度思考能力
 });
 
 // Request Interceptor: attach Bearer token if present
