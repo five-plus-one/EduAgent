@@ -491,9 +491,9 @@ export default function Workspace() {
               ) : previewStatus === 'error' && !isStreaming && pages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <span style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</span>
-                  <h3 style={{ marginBottom: '12px' }}>课件生成超时</h3>
+                  <h3 style={{ marginBottom: '12px' }}>课件加载中断</h3>
                   <p style={{ maxWidth: '380px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                    后端处理时间过长（已超过 2 分钟）。这可能是后端服务暂时过载。
+                    此时无法拉取课件预览。这极大可能是后端发生数据严重异常（Validation Error），或者是由于生成的课件结构缺少必需字段而被后端拒绝。
                   </p>
                   <button
                     className='button-primary'

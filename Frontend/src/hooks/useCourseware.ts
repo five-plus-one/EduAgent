@@ -52,9 +52,14 @@ export function useCourseware(sessionId: string) {
         else if (resp.wordDoc) setWordDoc(resp.wordDoc);
 
         if (hasData) setPreviewStatus('ready');
+      } else {
+        setPreviewStatus('idle');
       }
-    } catch (e) {
-      if (!withPolling) console.warn('Backend courseware not ready yet.', e);
+    } catch (e: any) {
+      if (!withPolling) {
+        console.error('Backend courseware fetch failed. Likely a 500 ValidationError due to strict typing schemas in backend.', e);
+        setPreviewStatus('error');
+      }
       // During polling, 404s are expected — don't warn
     }
   }, [sessionId]);
