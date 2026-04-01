@@ -5,11 +5,13 @@ import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManage
 
 export interface PPTElement {
   element_id: string;
-  type: "text_block" | "image" | string;
+  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | string;
   position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | string;
   content?: string[];
   url?: string;
   alt?: string;
+  is_accent?: boolean;
+  time?: string;
 }
 
 export interface PPTPage {
