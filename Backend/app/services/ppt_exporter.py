@@ -147,13 +147,111 @@ def strip_md_plain(text: str) -> str:
     return text.strip()
 
 
+def convert_latex(text: str) -> str:
+    """
+    Convert LaTeX math expressions ($...$  /  $$...$$) to readable Unicode text.
+    Applied to all PPT content before export.
+    """
+    if not text or '$' not in text:
+        return text
+
+    # Symbol → Unicode  (no ambiguous alternation chars in patterns)
+    _SYM = [
+        # Greek lower
+        ('\\\\alpha',   'α'), ('\\\\beta',    'β'), ('\\\\gamma',   'γ'), ('\\\\delta',   'δ'),
+        ('\\\\epsilon', 'ε'), ('\\\\zeta',    'ζ'), ('\\\\eta',     'η'), ('\\\\theta',   'θ'),
+        ('\\\\iota',   'ι'), ('\\\\kappa',   'κ'), ('\\\\lambda',  'λ'), ('\\\\mu',      'μ'),
+        ('\\\\nu',     'ν'), ('\\\\xi',      'ξ'), ('\\\\pi',      'π'), ('\\\\rho',     'ρ'),
+        ('\\\\sigma',  'σ'), ('\\\\tau',     'τ'), ('\\\\upsilon', 'υ'), ('\\\\phi',     'φ'),
+        ('\\\\chi',    'χ'), ('\\\\psi',     'ψ'), ('\\\\omega',   'ω'),
+        # Greek upper
+        ('\\\\Gamma',  'Γ'), ('\\\\Delta',   'Δ'), ('\\\\Theta',   'Θ'), ('\\\\Lambda',  'Λ'),
+        ('\\\\Pi',     'Π'), ('\\\\Sigma',   'Σ'), ('\\\\Phi',     'Φ'), ('\\\\Psi',     'Ψ'),
+        ('\\\\Omega',  'Ω'),
+        # Operators
+        ('\\\\times',  '×'), ('\\\\div',     '÷'), ('\\\\pm',      '±'), ('\\\\mp',      '∓'),
+        ('\\\\cdot',   '·'), ('\\\\cdots',   '⋯'), ('\\\\ldots',   '…'),
+        ('\\\\partial','∂'), ('\\\\nabla',   '∇'), ('\\\\infty',   '∞'),
+        ('\\\\leq',    '≤'), ('\\\\geq',     '≥'), ('\\\\neq',     '≠'), ('\\\\approx',  '≈'),
+        ('\\\\equiv',  '≡'), ('\\\\propto',  '∝'),
+        ('\\\\in',     '∈'), ('\\\\notin',   '∉'), ('\\\\subset',  '⊂'), ('\\\\supset',  '⊃'),
+        ('\\\\cup',    '∪'), ('\\\\cap',     '∩'),
+        ('\\\\sum',    'Σ'), ('\\\\prod',    'Π'), ('\\\\int',     '∫'),
+        ('\\\\sqrt',   '√'), ('\\\\forall',  '∀'), ('\\\\exists',  '∃'),
+        ('\\\\angle',  '∠'), ('\\\\perp',    '⊥'), ('\\\\mid',     '|'),
+        # Arrows
+        ('\\\\xrightarrow',   '→'), ('\\\\xleftarrow',    '←'),  # fallback if not consumed above
+        ('\\\\Rightarrow',    '⇒'), ('\\\\Leftarrow',     '⇐'),
+        ('\\\\rightarrow',    '→'), ('\\\\leftarrow',     '←'),
+        ('\\\\leftrightarrow','↔'), ('\\\\Leftrightarrow','⇔'),
+        ('\\\\uparrow',       '↑'), ('\\\\downarrow',     '↓'),
+        ('\\\\to',            '→'), ('\\\\gets',          '←'),
+    ]
+
+    def _inner(s: str) -> str:
+        """Recursively convert the body of a $...$ expression."""
+        # 1. \xrightarrow{arg}  →  (d/dt)→
+        s = re.sub(r'\\xrightarrow\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}',
+                   lambda m: f"({_inner(m.group(1))})→", s)
+        s = re.sub(r'\\xleftarrow\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}',
+                   lambda m: f"←({_inner(m.group(1))})", s)
+
+        # 2. \frac{num}{den}  →  num/den
+        s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}',
+                   lambda m: f"{_inner(m.group(1))}/{_inner(m.group(2))}", s)
+
+        # 3. \vec{x}  →  x⃗   \hat{x}  →  x̂
+        s = re.sub(r'\\vec\{([^{}]*)\}',  lambda m: m.group(1) + '\u20d7', s)
+        s = re.sub(r'\\hat\{([^{}]*)\}',  lambda m: m.group(1) + '\u0302', s)
+        s = re.sub(r'\\ddot\{([^{}]*)\}', lambda m: m.group(1) + '\u0308', s)
+        s = re.sub(r'\\dot\{([^{}]*)\}',  lambda m: m.group(1) + '\u0307', s)
+        s = re.sub(r'\\tilde\{([^{}]*)\}',lambda m: m.group(1) + '\u0303', s)
+        s = re.sub(r'\\bar\{([^{}]*)\}',  lambda m: m.group(1) + '\u0305', s)
+
+        # 4. ^{exp} and _{sub}
+        s = re.sub(r'\^\{([^{}]*)\}', lambda m: f'^{m.group(1)}', s)
+        s = re.sub(r'_\{([^{}]*)\}',  lambda m: f'_{m.group(1)}', s)
+        s = re.sub(r'\^([A-Za-z0-9])', r'^\1', s)
+        s = re.sub(r'_([A-Za-z0-9])',  r'_\1', s)
+
+        # 5. Symbol table (longest first avoids partial matches)
+        for pat, uni in _SYM:
+            s = re.sub(pat, uni, s)
+
+        # 6. Strip remaining \commands and bare braces
+        s = re.sub(r'\\[A-Za-z]+\*?', '', s)
+        s = s.replace('{', '').replace('}', '')
+        return s.strip()
+
+    # $$...$$  (block math, possibly multiline)
+    text = re.sub(r'\$\$(.+?)\$\$', lambda m: _inner(m.group(1)), text, flags=re.DOTALL)
+    # $...$  (inline math)
+    text = re.sub(r'\$([^$\n]+?)\$', lambda m: _inner(m.group(1)), text)
+    return text
+
+
+def calc_safe_pt(available_h_inches: float, n_lines: int,
+                 base_pt: int = 15, min_pt: int = 10, max_pt: int = 20) -> int:
+    """
+    Return a font size (pt) that makes `n_lines` lines fit within `available_h_inches`.
+    Each line is approximately font_size * 1.6 pt tall (line-height factor).
+    96 dpi: 1 pt = 1/72 inch, so 1 inch = 72 pt.
+    """
+    if n_lines <= 0:
+        return base_pt
+    available_pt = available_h_inches * 72.0
+    line_height_factor = 1.65
+    ideal = int(available_pt / (n_lines * line_height_factor))
+    return max(min_pt, min(ideal, max_pt))
+
+
 def get_content_list(elem: dict) -> list:
-    """Return element content as a list of strings."""
+    """Return element content as a list of strings, with LaTeX converted."""
     raw = elem.get("content", [])
     if isinstance(raw, list):
-        return [str(c) for c in raw if c]
+        return [convert_latex(str(c)) for c in raw if c]
     if raw:
-        return [str(raw)]
+        return [convert_latex(str(raw))]
     return []
 
 
@@ -216,20 +314,26 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bullet_char: str = "•  ") -> None:
     """
-    Render a list element as a single textbox with one paragraph per item.
-    Each item gets a bullet prefix and supports **bold** inline.
+    Render a list element. Never overflows: caps item count,
+    auto-sizes font to available height.
     """
+    # Cap items so they fit without overflow
+    MAX_ITEMS = 8
+    if len(items) > MAX_ITEMS:
+        items = items[:MAX_ITEMS - 1] + [f"… (+{len(items) - MAX_ITEMS + 1} 项)"]
+
+    # Auto-fit font size
+    safe_size = calc_safe_pt(h, len(items), base_pt=size, min_pt=10, max_pt=size)
+
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
 
     for i, item in enumerate(items):
-        # Strip leading markdown list markers from item text
         clean_item = re.sub(r'^[\-\*\+]\s+', '', str(item))
         clean_item = re.sub(r'^\d+\.\s+', '', clean_item)
-        # Add bullet prefix
         line = bullet_char + clean_item
-        add_paragraph_with_bold(tf, line, size, color,
+        add_paragraph_with_bold(tf, line, safe_size, color,
                                  accent_color=accent, first=(i == 0))
 
 
@@ -269,19 +373,25 @@ def render_cover(slide, page: dict, colors: dict):
     add_title_box(slide, title, MARGIN_LEFT, 1.6, CONTENT_W, 2.6, 48, pri, bold=True)
 
     subtitle_y = 4.5
-    for elem in page.get("elements", []):
+    max_subtitle_count = 3   # 封面最多显示3行副文本，防止溢出
+    for elem in list(page.get("elements", []))[:max_subtitle_count]:
         etype = elem.get("type", "text_block")
         items = get_content_list(elem)
         if not items:
             continue
+        # 单行显示，过长截断
         content = " | ".join(items)
+        if len(content) > 80:
+            content = content[:77] + "..."
         if etype == "subtitle":
             add_rich_box(slide, content, MARGIN_LEFT, subtitle_y,
-                         CONTENT_W, 0.65, 22, sec, acc)
+                         CONTENT_W, 0.65, 20, sec, acc)
         else:
             add_rich_box(slide, content, MARGIN_LEFT, subtitle_y,
-                         CONTENT_W, 0.65, 18, txt, acc)
+                         CONTENT_W, 0.65, 16, txt, acc)
         subtitle_y += 0.7
+        if subtitle_y > SLIDE_H - 0.5:  # 安全下边界
+            break
 
 
 def render_minimal_list(slide, page: dict, colors: dict):
@@ -297,25 +407,28 @@ def render_minimal_list(slide, page: dict, colors: dict):
     if not elements:
         return
 
-    # Layout: if only one element, full-width; otherwise split evenly
-    col_count = min(len(elements), 2)
-    col_w = CONTENT_W / col_count - 0.2
+    # Layout: up to 3 elements; beyond that merge remaining into last column
+    col_count = min(len(elements), 3)
+    col_w = (CONTENT_W - (col_count - 1) * 0.15) / col_count
     row_h = CONTENT_H
 
     for col_idx, elem in enumerate(elements[:col_count]):
         etype = elem.get("type", "list")
         items = get_content_list(elem)
-        x = MARGIN_LEFT + col_idx * (col_w + 0.2)
+        x = MARGIN_LEFT + col_idx * (col_w + 0.15)
+        # font size auto-fitted to available height
+        safe_sz = calc_safe_pt(row_h, max(len(items), 1), base_pt=16, min_pt=10, max_pt=18)
 
         if etype == "list" and len(items) > 1:
-            add_list_box(slide, items, x, CONTENT_T, col_w, row_h, 16, txt, acc)
+            add_list_box(slide, items, x, CONTENT_T, col_w, row_h, safe_sz, txt, acc)
         elif etype == "huge_number":
             add_rich_box(slide, items[0] if items else "", x, CONTENT_T,
                          col_w, row_h, 64, acc, acc, bold_default=True,
                          align=PP_ALIGN.CENTER)
         else:
             full = "\n".join(items)
-            add_rich_box(slide, full, x, CONTENT_T, col_w, row_h, 16, txt, acc)
+            safe_sz2 = calc_safe_pt(row_h, max(full.count('\n') + 1, 1), base_pt=16, min_pt=10, max_pt=18)
+            add_rich_box(slide, full, x, CONTENT_T, col_w, row_h, safe_sz2, txt, acc)
 
 
 def render_two_column(slide, page: dict, colors: dict):
