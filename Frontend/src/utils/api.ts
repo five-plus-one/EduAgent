@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 // Core Setup
 // ==========================================
 
-export const API_BASE_URL = 'http://192.168.31.157:8000/api/v1'; // Backend server URL with versioning
+export const API_BASE_URL = 'http://localhost:8000/api/v1'; // Backend server URL with versioning
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -262,7 +262,7 @@ export const streamCoursewareGeneration = async (
   mode: 'fast' | 'depth',
   callbacks: {
     onStart: (theme: any, totalHint: number) => void;
-    onPage:  (page: any) => void;
+    onPage: (page: any) => void;
     onWordReady: (markdown: string) => void;
     onDone: (totalPages: number) => void;
     onError: (err: any) => void;
@@ -312,7 +312,7 @@ export const streamCoursewareGeneration = async (
     },
     onerror(err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        throw err; 
+        throw err;
       }
       callbacks.onError(err);
       throw err;
@@ -339,8 +339,8 @@ export const getExportStatus = async (taskId: string) => {
 
 /** 5.3 Download exported file directly as blob */
 export const downloadExportedFile = async (urlOrFilename: string) => {
-  const path = urlOrFilename.startsWith('/') 
-    ? urlOrFilename.replace('/api/v1', '') 
+  const path = urlOrFilename.startsWith('/')
+    ? urlOrFilename.replace('/api/v1', '')
     : `/export/download/${urlOrFilename}`;
   const res = await apiClient.get(path, {
     responseType: 'blob'
