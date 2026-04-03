@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Send, Loader2, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface Props {
   page: PPTPage;
@@ -69,21 +72,39 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     if (el.type === 'list' || el.type === 'list_item') {
       return (
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
+          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{b}</ReactMarkdown></li>)}
         </ul>
       );
     }
 
-    if (el.type === 'text_block') {
+    if (el.type === 'text_block' || el.type === 'subtitle') {
+      if (contentArray.length > 1) {
+        return (
+          <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
+            {contentArray.map((item: string, idx: number) => (
+              <li key={idx}>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {item}
+                </ReactMarkdown>
+              </li>
+            ))}
+          </ul>
+        );
+      }
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
-          {contentArray.length > 1 ? (
-            <ul className={styles.contentList}>
-              {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm]}>{b}</ReactMarkdown></li>)}
-            </ul>
-          ) : (
-            contentArray.map((text: string, i: number) => <div key={i} style={{ whiteSpace: 'pre-wrap' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown></div>)
-          )}
+          {contentArray.map((text: string, i: number) => (
+            <ReactMarkdown 
+              key={i} 
+              remarkPlugins={[remarkGfm, remarkMath]} 
+              rehypePlugins={[rehypeKatex]}
+            >
+              {text}
+            </ReactMarkdown>
+          ))}
         </div>
       );
     }
@@ -93,7 +114,14 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)} style={{ marginBottom: '8px' }}>
           <strong>{el.time}</strong>
-          <div style={{ margin: '4px 0 0 0' }}><ReactMarkdown remarkPlugins={[remarkGfm]}>{contentArray[0] || el.content}</ReactMarkdown></div>
+          <div style={{ margin: '4px 0 0 0' }}>
+            <ReactMarkdown 
+              remarkPlugins={[remarkGfm, remarkMath]}
+              rehypePlugins={[rehypeKatex]}
+            >
+              {contentArray[0] || el.content}
+            </ReactMarkdown>
+          </div>
         </div>
       );
     }
@@ -155,15 +183,40 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         ) : page.layout_type === 'stat_callout' ? (
           <>
              {/* Stat Callout Archetype */}
-             {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => (
-                <div key={el.element_id} className={styles.hugeNumber}>{Array.isArray(el.content) ? el.content[0] : el.content}</div>
-             ))}
+             <div className={styles.hugeNumberContainer}>
+               {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => {
+                  const text = Array.isArray(el.content) ? el.content[0] : el.content;
+                  return (
+                    <div key={el.element_id} className={styles.hugeNumber}>
+                      <ReactMarkdown 
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[rehypeKatex]}
+                        components={{ p: React.Fragment }}
+                      >
+                        {text}
+                      </ReactMarkdown>
+                    </div>
+                  );
+               })}
+             </div>
              <div className={styles.statSubtitle}>
                {page.elements?.filter(e => !(e.is_accent || e.type === 'huge_number' || e.type === 'stat')).map(renderElement)}
              </div>
           </>
+        ) : page.layout_type === 'two_column' || page.layout_type === 'minimal_list' ? (
+          /* Proper Columnar Layout Mapping via Position */
+          <>
+            <div className={styles.columnLeft}>
+              {page.elements?.filter(e => e.position === 'left' || e.position === 'left_top' || e.position === 'left_bottom' || !e.position || e.position === 'center').map(renderElement)}
+            </div>
+            {page.elements?.some(e => e.position && e.position.includes('right')) && (
+              <div className={styles.columnRight}>
+                {page.elements?.filter(e => e.position && e.position.includes('right')).map(renderElement)}
+              </div>
+            )}
+          </>
         ) : (
-          /* Default Archetypes (Minimal List, Two Column, Standard) */
+          /* Default Fallback */
           page.elements?.map(renderElement)
         )}
         

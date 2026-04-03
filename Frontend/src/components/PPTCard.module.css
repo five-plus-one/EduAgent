@@ -155,9 +155,16 @@
 .layout_two_column, .layout_minimal_list {
   display: grid;
   grid-template-columns: repeat(var(--col-count, 2), 1fr);
-  grid-template-rows: min-content 1fr;
-  gap: calc(0.2 * var(--in));
-  height: 100%;
+  gap: calc(0.5 * var(--in));
+  align-items: start;
+}
+
+/* Logical Grouping Columns */
+.columnLeft, .columnRight {
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.15 * var(--in));
+  height: min-content;
 }
 
 .layout_two_column::before, .layout_minimal_list::before {
@@ -228,8 +235,8 @@
 .layout_stat_callout {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: stretch;
   height: 100%;
 }
 
@@ -243,26 +250,35 @@
   background: var(--ppt-accent);
 }
 
+.hugeNumberContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0 calc(0.5 * var(--in));
+}
+
 .hugeNumber {
-  font-size: calc(90 * var(--pt)); /* Massive! Backend is 80pt, we scale slightly up for web */
+  font-size: calc(65 * var(--pt)); /* Reduced from 90pt to prevent massive Katex expressions from overflowing logic grid */
   font-weight: 900;
   color: var(--ppt-accent);
-  background: linear-gradient(135deg, var(--ppt-accent) 0%, var(--ppt-primary) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  text-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  text-shadow: 0 10px 40px rgba(0,0,0,0.15);
   margin-bottom: calc(0.2 * var(--in));
-  line-height: 1.1;
+  line-height: 1.25;
   text-align: center;
+  word-break: break-all; /* Ensure long equations wrap */
+  white-space: pre-wrap;
 }
 
 .statSubtitle {
-  font-size: calc(22 * var(--pt));
+  font-size: calc(26 * var(--pt));
   color: var(--ppt-text);
   text-align: center;
   max-width: 80%;
   margin: 0 auto;
+  line-height: 1.4;
+  font-weight: 500;
 }
 
 .layout_image_gallery {
@@ -319,10 +335,22 @@
   -webkit-backdrop-filter: blur(8px);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
+  font-size: calc(22 * var(--pt)); /* Unify with textBlock */
+  line-height: 1.6;
+}
+
+.contentList li p,
+.textBlock p {
+  margin: 0;
+}
+
+.contentList li p:not(:last-child),
+.textBlock p:not(:last-child) {
+  margin-bottom: 0.5em;
 }
 
 .textBlock {
-  font-size: calc(16 * var(--pt));
+  font-size: calc(22 * var(--pt)); /* Increased from 16pt for PPT scale readability */
   line-height: 1.6;
   font-weight: 400;
   margin-bottom: calc(0.1 * var(--in));
