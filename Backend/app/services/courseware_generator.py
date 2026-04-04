@@ -203,13 +203,24 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
     history_str, rag_context = await asyncio.to_thread(_sync_init)
     db = SessionLocal() # Keep local DB instance for async loop
+
+    def _luma(hex_str: str) -> float:
+        """WCAG sRGB luminance, used for contrast gate."""
+        try:
+            h = str(hex_str).lstrip("#")
+            if len(h) == 3: h = "".join(c*2 for c in h)
+            r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+            return (0.2126*r + 0.7152*g + 0.0722*b) / 255.0
+        except Exception:
+            return 0.5
+
     try:
         courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
         if courseware:
             # 清空旧数据防止追加模式下出现脏数据和页数翻倍
             courseware.ppt_data = {"version": "v1", "ppt_data": []}
             courseware.word_markdown = ""
-            db.commit()
+            await asyncio.to_thread(db.commit)
 
         prompt = f"""你是一位专业的 PPT 课件 JSON 生成器。严格按照以下格式输出，不能有任何偏差。
 
@@ -324,7 +335,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                     # Write word markdown
                                     clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
                                     courseware.word_markdown = clean_word
-                                    db.commit()
+                                    await asyncio.to_thread(db.commit)
                                     yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     done_sent = True
@@ -347,29 +358,17 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         obj.pop("__type", None)
 
                                         # ── 后端配色安全门 ──────────────────────────
-                                        # 用 WCAG 亮度公式检验 bg / text 对比，
-                                        # 低于 3:1 时自动注入安全 fallback，防止"白字白底"上线
-                                        def _luma(hex_str: str) -> float:
-                                            try:
-                                                h = str(hex_str).lstrip("#")
-                                                if len(h) == 3: h = "".join(c*2 for c in h)
-                                                r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-                                                return (0.2126*r + 0.7152*g + 0.0722*b) / 255.0
-                                            except Exception:
-                                                return 0.5
-
                                         bg_luma  = _luma(obj.get("bg_color",  "#ffffff"))
                                         txt_luma = _luma(obj.get("text_color","#000000"))
                                         L1, L2 = max(bg_luma, txt_luma), min(bg_luma, txt_luma)
                                         contrast_ratio = (L1 + 0.05) / (L2 + 0.05)
 
                                         if contrast_ratio < 3.0:
-                                            # 低对比度：按 bg 亮度翻转 text 颜色
                                             if bg_luma > 0.5:
-                                                obj["text_color"] = "#1E293B"   # 亮背景 → 深字
+                                                obj["text_color"] = "#1E293B"
                                                 obj["primary"]    = "#0F172A"
                                             else:
-                                                obj["text_color"] = "#F8FAFC"   # 暗背景 → 亮字
+                                                obj["text_color"] = "#F8FAFC"
                                                 obj["primary"]    = "#E2E8F0"
                                         # ─────────────────────────────────────────────
 
@@ -379,7 +378,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         ppt_dict["theme"] = obj
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
                                     elif t == "page":
@@ -394,7 +393,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         ppt_dict["ppt_data"] = current_pages
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         page_count += 1
                                         yield sse("page_chunk", obj)
                                     elif t == "word_start":
@@ -419,7 +418,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             word_buffer = "".join(word_lines)
             clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
             courseware.word_markdown = clean_word
-            db.commit()
+            await asyncio.to_thread(db.commit)
             yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
             
