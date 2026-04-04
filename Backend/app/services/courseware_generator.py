@@ -217,10 +217,15 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
     try:
         courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
         if courseware:
-            # 清空旧数据防止追加模式下出现脏数据和页数翻倍
+            # 清空旧数据；先 rollback 以防上次被中断的事务留有脏状态
+            try:
+                db.rollback()
+            except Exception:
+                pass
             courseware.ppt_data = {"version": "v1", "ppt_data": []}
             courseware.word_markdown = ""
-            await asyncio.to_thread(db.commit)
+            db.commit()  # SQLite commit <1ms, safe to call synchronously
+
 
         prompt = f"""你是一位专业的 PPT 课件 JSON 生成器。严格按照以下格式输出，不能有任何偏差。
 

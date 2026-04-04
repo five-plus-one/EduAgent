@@ -370,38 +370,43 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
 # ──────────────────────────────────────────────
 
 def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
-    """Top accent bar + left strip + faded page number + title + underline."""
+    """Slide chrome matching frontend: small accent page-num before title, large faded watermark at bottom-right."""
     from pptx.util import Pt
     from pptx.enum.text import PP_ALIGN
     bg  = colors["bg"]
     pri = colors["pri"]
     acc = colors["acc"]
+    txt = colors["txt"]
 
-    # Top bar
-    line_h(slide, 0, 0, SLIDE_W, 0.12, acc)
+    # Top accent bar
+    line_h(slide, 0, 0, SLIDE_W, 0.10, acc)
 
-    # Left vertical strip
-    line_v(slide, MARGIN_LEFT - 0.07, TITLE_T - 0.05,
-           SLIDE_H - TITLE_T + 0.05 - 0.2, 0.055, acc)
-
-    # Faded giant page number (top-right, ~10% opacity via color blend)
+    # Large faded page number — BOTTOM-RIGHT watermark
     faded_num = blend(pri, bg, 0.12)
     tb = slide.shapes.add_textbox(
-        Inches(SLIDE_W - 2.1), Inches(0.08), Inches(1.95), Inches(1.1))
+        Inches(SLIDE_W - 1.9), Inches(SLIDE_H - 1.3),
+        Inches(1.75), Inches(1.25))
     tf = tb.text_frame
     p = tf.paragraphs[0]
     p.text = str(page_idx).zfill(2)
     p.alignment = PP_ALIGN.RIGHT
-    p.font.size = Pt(70)
+    p.font.size = Pt(80)
     p.font.bold = True
     p.font.color.rgb = faded_num
 
-    # Title
-    tb_plain(slide, title, MARGIN_LEFT, TITLE_T, CONTENT_W - 1.9, TITLE_H,
-             size=28, color=pri, bold=True)
+    # Title row: small accent number + main title (matching frontend)
+    num_w = 0.52
+    tb_plain(slide, str(page_idx).zfill(2),
+             MARGIN_LEFT, TITLE_T + 0.08, num_w, TITLE_H - 0.12,
+             size=16, color=acc, bold=True)
+    tb_plain(slide, title,
+             MARGIN_LEFT + num_w + 0.08, TITLE_T,
+             CONTENT_W - num_w - 0.08 - 1.5, TITLE_H,
+             size=24, color=txt, bold=True)
 
-    # Title underline
-    line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, 2.0, 0.045, acc)
+    # Underline below title
+    line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, CONTENT_W * 0.45, 0.04, acc)
+
 
 
 # ──────────────────────────────────────────────
@@ -475,57 +480,67 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     if not elements:
         return
 
-    list_elems  = [e for e in elements if e.get("type") in ("list", "text_block")]
-    right_elems = [e for e in elements if e.get("type") in
-                   ("huge_number", "stat", "subtitle") or e.get("is_accent")]
-
-    if not list_elems and not right_elems:
-        list_elems = elements
-
     avail_h = SLIDE_H - CONTENT_T - 0.3
 
-    if right_elems:
-        left_w = CONTENT_W * 0.60
-    else:
-        left_w = CONTENT_W
+    # Only genuine short-content stats go to the accent right zone
+    def _is_stat(e):
+        return (e.get("type") in ("huge_number", "stat")
+                and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
-    # Left zone
-    lx, ly = MARGIN_LEFT, CONTENT_T
-    for elem in list_elems[:3]:
+    stat_elems = [e for e in elements if _is_stat(e)]
+    body_elems = [e for e in elements if not _is_stat(e)] or elements
+
+    left_w = CONTENT_W * 0.60 if stat_elems else CONTENT_W
+
+    # ── Body cards (left / full column) ── explode each list item into its own card ──
+    lx = MARGIN_LEFT
+    card_bg_body = blend(acc, bg, 0.10) if dark else blend(pri, bg, 0.05)
+
+    body_cards = []
+    for elem in body_elems[:6]:
         items = get_content_list(elem)
-        etype = elem.get("type", "list")
-        zone_h = avail_h / max(len(list_elems[:3]), 1)
+        etype = elem.get("type", "text_block")
         if etype == "list" and len(items) > 1:
-            add_list_box(slide, items, lx, ly, left_w - 0.15, zone_h - 0.05, 16, txt, acc)
+            for item in items:
+                s = re.sub(r'^[\-\*\+]\s+', '', str(item))
+                s = re.sub(r'^\d+\.\s+', '', s).strip()
+                if s:
+                    body_cards.append(s)
         else:
-            sz = calc_safe_pt(zone_h, max(len(items), 1), 16, 10, 18)
-            add_rich_box(slide, "\n".join(items), lx, ly, left_w - 0.15,
-                         zone_h - 0.05, sz, txt, acc)
-        ly += zone_h
+            text = "\n".join(items).strip()
+            if text:
+                body_cards.append(text)
 
-    # Right highlight zone
-    if right_elems:
-        rx = MARGIN_LEFT + left_w + 0.15
-        rw = CONTENT_W - left_w - 0.15
+    if body_cards:
+        GAP = 0.07
+        n_c = len(body_cards)
+        each_c = max((avail_h - GAP * (n_c - 1)) / n_c, 0.38)
+        for i, card_text in enumerate(body_cards):
+            cy = CONTENT_T + i * (each_c + GAP)
+            rect(slide, lx, cy, left_w - 0.05, each_c, card_bg_body)
+            line_v(slide, lx, cy, each_c, 0.055, acc)
+            clen = len(card_text)
+            max_sz = 14 if clen < 50 else (13 if clen < 100 else 12)
+            sz = calc_safe_pt(each_c - 0.12, 1, max_sz, 9, max_sz)
+            add_rich_box(slide, card_text, lx + 0.14, cy + 0.06,
+                         left_w - 0.22, each_c - 0.12, sz, txt, acc)
+
+    # ── Stat accent zone (right) ────────────────────────────────────────────────
+    if stat_elems:
+        rx = MARGIN_LEFT + left_w + 0.18
+        rw = CONTENT_W - left_w - 0.18
         ry = CONTENT_T
-
-        # Card background
-        card_bg = blend(acc, bg, 0.14) if dark else blend(pri, bg, 0.06)
-        rect(slide, rx - 0.12, ry - 0.08, rw + 0.17, avail_h + 0.08, card_bg)
-        line_h(slide, rx - 0.12, ry - 0.08, rw + 0.17, 0.05, acc)
-
-        each = avail_h / max(len(right_elems), 1)
-        for i, elem in enumerate(right_elems):
+        card_bg_stat = blend(acc, bg, 0.16) if dark else blend(acc, bg, 0.12)
+        rect(slide, rx - 0.08, ry - 0.04, rw + 0.12, avail_h + 0.04, card_bg_stat)
+        line_h(slide, rx - 0.08, ry - 0.04, rw + 0.12, 0.05, acc)
+        each_s = avail_h / max(len(stat_elems), 1)
+        for i, elem in enumerate(stat_elems):
             items = get_content_list(elem)
-            etype = elem.get("type", "list")
-            cy = ry + i * each
-            if etype in ("huge_number", "stat") and items and len(str(items[0])) <= 10:
-                add_rich_box(slide, items[0], rx, cy, rw,
-                             each - 0.05, 52, acc, acc, bold=True, align=PP_ALIGN.CENTER)
-            else:
-                sz = calc_safe_pt(each, max(len(items), 1), 15, 10, 18)
-                add_rich_box(slide, "\n".join(items), rx, cy, rw,
-                             each - 0.05, sz, txt, acc)
+            cy = ry + i * each_s
+            sz_big = min(64, max(28, int(each_s * 36)))
+            add_rich_box(slide, items[0] if items else "", rx, cy + 0.1, rw,
+                         each_s - 0.2, sz_big, acc, acc,
+                         bold=True, align=PP_ALIGN.CENTER)
 
 
 def render_two_column(slide, page: dict, colors: dict) -> None:
@@ -573,31 +588,52 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
-        n = max(len(elems), 1)
-        each_h = avail_h / n
-        for i, elem in enumerate(elems):
-            cy    = CONTENT_T + i * each_h
+        # Explode: each list sub-item becomes its own individual card (matching frontend)
+        cards = []
+        for elem in elems:
             items = get_content_list(elem)
             etype = elem.get("type", "text_block")
-            is_stat = _is_stat(elem)
-            cb = card_bg_stat if is_stat else card_bg_normal
-            rect(slide, col_x - 0.04, cy + 0.04, half_w, each_h - 0.10, cb)
-            if is_stat:
-                val = items[0] if items else ""
-                sz_big = min(56, max(28, int(each_h * 36)))
-                add_rich_box(slide, val, col_x + 0.05, cy + 0.10,
-                             half_w - 0.10, each_h - 0.26,
-                             sz_big, acc, acc, bold=True, align=PP_ALIGN.CENTER)
+            if _is_stat(elem):
+                cards.append({"text": "\n".join(items), "stat": True})
             elif etype == "list" and len(items) > 1:
-                add_list_box(slide, items, col_x + 0.08, cy + 0.10,
-                             half_w - 0.14, each_h - 0.26, 14, txt, acc)
+                for item in items:
+                    s = re.sub(r'^[\-\*\+]\s+', '', str(item))
+                    s = re.sub(r'^\d+\.\s+', '', s).strip()
+                    if s:
+                        cards.append({"text": s, "stat": False})
             else:
-                content = "\n".join(items)
-                clen = len(content)
-                max_sz = 16 if clen < 40 else (14 if clen < 80 else 13)
-                sz = calc_safe_pt(each_h - 0.26, max(len(items), 1), max_sz, 10, max_sz)
-                add_rich_box(slide, content, col_x + 0.08, cy + 0.10,
-                             half_w - 0.14, each_h - 0.26, sz, txt, acc)
+                text = "\n".join(items).strip()
+                if text:
+                    cards.append({"text": text, "stat": False})
+
+        if not cards:
+            return
+
+        GAP = 0.07
+        n = len(cards)
+        each_h = max((avail_h - GAP * (n - 1)) / n, 0.38)
+
+        for i, card in enumerate(cards):
+            cy = CONTENT_T + i * (each_h + GAP)
+            text = card["text"]
+            cb = card_bg_stat if card["stat"] else card_bg_normal
+            # Card fill
+            rect(slide, col_x, cy, half_w - 0.05, each_h, cb)
+            # Left accent border
+            line_v(slide, col_x, cy, each_h, 0.055, acc)
+
+            if card["stat"]:
+                sz_big = min(52, max(24, int(each_h * 36)))
+                add_rich_box(slide, text, col_x + 0.14, cy + 0.06,
+                             half_w - 0.26, each_h - 0.12,
+                             sz_big, acc, acc, bold=True, align=PP_ALIGN.CENTER)
+            else:
+                clen = len(text)
+                max_sz = 14 if clen < 50 else (13 if clen < 100 else 12)
+                sz = calc_safe_pt(each_h - 0.12, 1, max_sz, 9, max_sz)
+                add_rich_box(slide, text, col_x + 0.14, cy + 0.06,
+                             half_w - 0.26, each_h - 0.12, sz, txt, acc)
+
 
     _render_col(left_elems,  lx)
     _render_col(right_elems, rx)
