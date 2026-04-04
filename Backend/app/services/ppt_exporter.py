@@ -54,7 +54,8 @@ def hex_luma(hex_code: str) -> float:
         return 1.0   # unknown → assume light
     try:
         r, g, b = int(code[0:2], 16), int(code[2:4], 16), int(code[4:6], 16)
-        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+        # Match frontend's exact perceptual luminance formula:
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255.0
     except Exception:
         return 1.0
 
@@ -65,8 +66,16 @@ def pick_premium_theme(session_id: str, raw_theme: dict) -> dict:
     Uses the LLM's bg_color luminance to decide dark/light,
     then uses session_id hash to select which specific theme.
     """
-    bg_raw = raw_theme.get("bg_color", "#FFFFFF")
-    is_light = hex_luma(bg_raw) > 0.4
+    bg_raw = str(raw_theme.get("bg_color", "#FFFFFF")).lower()
+    
+    # Match frontend string overrides first before luminance check
+    if "black" in bg_raw or "dark" in bg_raw:
+        is_light = False
+    elif "white" in bg_raw or "light" in bg_raw:
+        is_light = True
+    else:
+        is_light = hex_luma(bg_raw) > 0.5
+        
     keys = LIGHT_THEME_KEYS if is_light else DARK_THEME_KEYS
     idx = simple_hash(session_id or "default") % len(keys)
     return PREMIUM_THEMES[keys[idx]]

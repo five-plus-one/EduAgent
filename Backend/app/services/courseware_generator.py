@@ -348,7 +348,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                 continue
 
                             buffer += delta
-                            decoder = json.JSONDecoder()
+                            decoder = json.JSONDecoder(strict=False)
                             # Key fix: scan for '{' before raw_decode, skipping any
                             # natural-language preamble the LLM may output between JSON objects.
                             while True:
@@ -409,8 +409,14 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                             buffer = ""
                                         break
 
-                                except json.JSONDecodeError:
+                                except json.JSONDecodeError as jde:
                                     # Incomplete JSON — wait for more stream chunks
+                                    # Failsafe: if the buffer is insanely large, the LLM probably emitted
+                                    # unescaped quotes or fatal JSON syntax inside this object.
+                                    if len(buffer) > 4000:
+                                        print(f"[parser] fatal JSON structure detected, skipping to next brace. error: {jde}")
+                                        buffer = buffer[1:] # Drop the starting '{' so we can find the NEXT one
+                                        continue
                                     break
 
                         except json.JSONDecodeError:
@@ -430,7 +436,10 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         print("[SSE] Client disconnected in stream")
     except Exception as e:
         import traceback
-        print(f"[SSE Error] {e}")
+        err_msg = f"[SSE Error] {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        with open("debug_sse.log", "a", encoding="utf-8") as f:
+            f.write(err_msg + "\n")
         traceback.print_exc()
         yield f"data: {json.dumps({'event': 'generate_error', 'data': {'message': str(e)}})}\n\n"
     finally:
