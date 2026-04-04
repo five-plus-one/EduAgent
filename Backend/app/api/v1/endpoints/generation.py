@@ -53,13 +53,18 @@ def trigger_generation_stream(
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
         
-    active_task = db.query(GenerationTask).filter(
-        GenerationTask.session_id == session_id, 
+    # Clean up stale "generating" tasks (e.g. from a previous server session/crash)
+    # so the user can always retry without hitting a phantom 409.
+    stale_tasks = db.query(GenerationTask).filter(
+        GenerationTask.session_id == session_id,
         GenerationTask.status == "generating",
         GenerationTask.task_type == "generate"
-    ).first()
-    if active_task:
-        raise HTTPException(status_code=409, detail="A generation task is already running for this session")
+    ).all()
+    for stale in stale_tasks:
+        stale.status = "failed"
+        stale.result_data = {"error": "Superseded by new generation request"}
+    if stale_tasks:
+        db.commit()
         
     sse_headers = {
         "Cache-Control": "no-cache",

@@ -312,30 +312,30 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                             break
                         try:
                             chunk = json.loads(line_content)
-                            # 安全取 choices — 空 choices:[] 时跳过，防止 IndexError
                             _choices = chunk.get("choices", [])
                             if not _choices or not isinstance(_choices, list):
                                 continue
                             chunk_delta = _choices[0].get("delta", {})
-                            
+
                             reasoning = chunk_delta.get("reasoning_content", "") or chunk_delta.get("thinking", "")
                             delta = chunk_delta.get("content", "")
-                            
-                            # 透传大模型思考过程给前端渲染 Loading Animation
+
                             if reasoning:
                                 yield sse("thinking_chunk", {"text": reasoning})
-                                
+
                             if not delta:
                                 continue
-                            
+
                             if word_mode:
                                 word_lines.append(delta)
                                 word_buffer = "".join(word_lines)
-                                if '{"__type": "done"}' in word_buffer or '{"__type":"done"}' in word_buffer:
-                                    # Write word markdown
-                                    clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+                                done_markers = ['{"__type": "done"}', '{"__type":"done"}']
+                                if any(m in word_buffer for m in done_markers):
+                                    for m in done_markers:
+                                        word_buffer = word_buffer.replace(m, "")
+                                    clean_word = word_buffer.strip()
                                     courseware.word_markdown = clean_word
-                                    await asyncio.to_thread(db.commit)
+                                    db.commit()
                                     yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     done_sent = True
@@ -344,89 +344,89 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
                             buffer += delta
                             decoder = json.JSONDecoder()
-                            while buffer:
-                                buffer = buffer.lstrip()
-                                if not buffer:
-                                    break
-                                
+                            # Key fix: scan for '{' before raw_decode, skipping any
+                            # natural-language preamble the LLM may output between JSON objects.
+                            while True:
+                                brace_pos = buffer.find('{')
+                                if brace_pos == -1:
+                                    break  # no JSON start yet, wait for more chunks
+                                if brace_pos > 0:
+                                    skipped = buffer[:brace_pos]
+                                    if skipped.strip():
+                                        print(f"[parser] skip preamble: {repr(skipped[:60])}")
+                                    buffer = buffer[brace_pos:]
                                 try:
                                     obj, idx = decoder.raw_decode(buffer)
                                     t = obj.get("__type")
                                     from sqlalchemy.orm.attributes import flag_modified
-                                    
+
                                     if t == "theme":
                                         obj.pop("__type", None)
-
-                                        # ── 后端配色安全门 ──────────────────────────
-                                        bg_luma  = _luma(obj.get("bg_color",  "#ffffff"))
-                                        txt_luma = _luma(obj.get("text_color","#000000"))
-                                        L1, L2 = max(bg_luma, txt_luma), min(bg_luma, txt_luma)
-                                        contrast_ratio = (L1 + 0.05) / (L2 + 0.05)
-
-                                        if contrast_ratio < 3.0:
-                                            if bg_luma > 0.5:
+                                        bg_l  = _luma(obj.get("bg_color",  "#ffffff"))
+                                        txt_l = _luma(obj.get("text_color","#000000"))
+                                        L1, L2 = max(bg_l, txt_l), min(bg_l, txt_l)
+                                        if (L1 + 0.05) / (L2 + 0.05) < 3.0:
+                                            if bg_l > 0.5:
                                                 obj["text_color"] = "#1E293B"
                                                 obj["primary"]    = "#0F172A"
                                             else:
                                                 obj["text_color"] = "#F8FAFC"
                                                 obj["primary"]    = "#E2E8F0"
-                                        # ─────────────────────────────────────────────
-
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
-                                        if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
                                         ppt_dict["theme"] = obj
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        await asyncio.to_thread(db.commit)
+                                        db.commit()
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
+
                                     elif t == "page":
                                         obj.pop("__type", None)
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
-                                        if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
-                                        current_pages = list(ppt_dict.get("ppt_data", []))
-                                        if not isinstance(current_pages, list):
-                                            current_pages = []
-                                        current_pages.append(obj)
-                                        ppt_dict["ppt_data"] = current_pages
+                                        pages = list(ppt_dict.get("ppt_data", []))
+                                        pages.append(obj)
+                                        ppt_dict["ppt_data"] = pages
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        await asyncio.to_thread(db.commit)
+                                        db.commit()
                                         page_count += 1
+                                        print(f"[parser] page {page_count}: {obj.get('title','')}")
                                         yield sse("page_chunk", obj)
+
                                     elif t == "word_start":
                                         word_mode = True
-                                        
+
+                                    # Advance buffer past consumed object
                                     buffer = buffer[idx:]
-                                    
                                     if word_mode:
                                         if buffer:
                                             word_lines.append(buffer)
                                             buffer = ""
                                         break
-                                        
+
                                 except json.JSONDecodeError:
-                                    # Need more chunks to complete JSON object
+                                    # Incomplete JSON — wait for more stream chunks
                                     break
+
                         except json.JSONDecodeError:
                             continue
-                            
-        # Final cleanup for word markdown if it didn't cleanly hit done
+
         if word_mode and word_lines and not done_sent:
             word_buffer = "".join(word_lines)
-            clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+            for m in ['{"__type": "done"}', '{"__type":"done"}']:
+                word_buffer = word_buffer.replace(m, "")
+            clean_word = word_buffer.strip()
             courseware.word_markdown = clean_word
-            await asyncio.to_thread(db.commit)
+            db.commit()
             yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
-            
+
     except asyncio.CancelledError:
         print("[SSE] Client disconnected in stream")
     except Exception as e:
+        import traceback
         print(f"[SSE Error] {e}")
+        traceback.print_exc()
         yield f"data: {json.dumps({'event': 'generate_error', 'data': {'message': str(e)}})}\n\n"
     finally:
         db.close()
-
