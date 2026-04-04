@@ -255,49 +255,48 @@ def get_content_list(elem: dict) -> list:
     return []
 
 
-def add_paragraph_with_bold(tf, text: str, font_size: int,
-                             color: "RGBColor", bold_default: bool = False,
-                             accent_color: "RGBColor | None" = None,
-                             align=None, first: bool = False) -> None:
-    """
-    Add a paragraph to a text frame, converting **bold** spans to real bold runs.
-    `first=True` reuses the first (auto-created) paragraph instead of adding.
-    """
-    p = tf.paragraphs[0] if first else tf.add_paragraph()
-    if align:
-        p.alignment = align
-
-    segments = re.split(r'(\*\*[^*]+\*\*)', str(text))
-    for seg in segments:
-        if not seg:
-            continue
-        bold_match = re.match(r'\*\*([^*]+)\*\*', seg)
-        run = p.add_run()
-        if bold_match:
-            run.text = bold_match.group(1)
-            run.font.bold = True
-            run.font.size = Pt(font_size)
-            run.font.color.rgb = accent_color if accent_color else color
-        else:
-            cleaned = re.sub(r'`(.+?)`', r'\1', seg)
-            cleaned = re.sub(r'^>\s+', '', cleaned, flags=re.MULTILINE)
-            run.text = cleaned
-            run.font.bold = bold_default
-            run.font.size = Pt(font_size)
-            run.font.color.rgb = color
-
-    if not p.runs:                          # safety fallback
-        run = p.add_run()
-        run.text = strip_md_plain(text)
-        run.font.size = Pt(font_size)
-        run.font.color.rgb = color
-        run.font.bold = bold_default
 
 
-def add_title_box(slide, text: str, l, t, w, h, size: int,
-                  color: "RGBColor", bold: bool = True,
-                  align=None) -> None:
-    """Simple title textbox, no markdown inside."""
+# ──────────────────────────────────────────────
+# Color utilities
+# ──────────────────────────────────────────────
+
+def blend(fg: "RGBColor", bg: "RGBColor", opacity: float) -> "RGBColor":
+    """Simulate alpha-blend: fg at `opacity` over bg."""
+    r = int(fg[0] * opacity + bg[0] * (1 - opacity))
+    g = int(fg[1] * opacity + bg[1] * (1 - opacity))
+    b = int(fg[2] * opacity + bg[2] * (1 - opacity))
+    return RGBColor(max(0, min(255, r)), max(0, min(255, g)), max(0, min(255, b)))
+
+
+def _is_dark(colors: dict) -> bool:
+    c = colors["bg"]
+    return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255.0 < 0.5
+
+
+# ──────────────────────────────────────────────
+# Low-level drawing primitives
+# ──────────────────────────────────────────────
+
+def rect(slide, l, t, w, h, fill: "RGBColor", shape_id: int = 1) -> None:
+    sp = slide.shapes.add_shape(shape_id, Inches(l), Inches(t), Inches(w), Inches(h))
+    sp.fill.solid()
+    sp.fill.fore_color.rgb = fill
+    sp.line.fill.background()
+
+
+def line_h(slide, l, t, w, thickness: float, color: "RGBColor") -> None:
+    rect(slide, l, t, w, thickness, color)
+
+
+def line_v(slide, l, t, h, thickness: float, color: "RGBColor") -> None:
+    rect(slide, l, t, thickness, h, color)
+
+
+def tb_plain(slide, text: str, l, t, w, h, size: int, color: "RGBColor",
+             bold: bool = False, align=None) -> None:
+    """Plain textbox — no markdown parsing."""
+    from pptx.util import Pt
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
@@ -310,291 +309,412 @@ def add_title_box(slide, text: str, l, t, w, h, size: int,
         p.alignment = align
 
 
-def add_list_box(slide, items: list, l, t, w, h, size: int,
-                 color: "RGBColor", accent: "RGBColor",
-                 bullet_char: str = "•  ") -> None:
-    """
-    Render a list element. Never overflows: caps item count,
-    auto-sizes font to available height.
-    """
-    # Cap items so they fit without overflow
-    MAX_ITEMS = 8
-    if len(items) > MAX_ITEMS:
-        items = items[:MAX_ITEMS - 1] + [f"… (+{len(items) - MAX_ITEMS + 1} 项)"]
-
-    # Auto-fit font size
-    safe_size = calc_safe_pt(h, len(items), base_pt=size, min_pt=10, max_pt=size)
-
-    tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
-    tf = tb.text_frame
-    tf.word_wrap = True
-
-    for i, item in enumerate(items):
-        clean_item = re.sub(r'^[\-\*\+]\s+', '', str(item))
-        clean_item = re.sub(r'^\d+\.\s+', '', clean_item)
-        line = bullet_char + clean_item
-        add_paragraph_with_bold(tf, line, safe_size, color,
-                                 accent_color=accent, first=(i == 0))
+def _add_rich_para(tf, text: str, size: int, color: "RGBColor", accent: "RGBColor",
+                   bold: bool = False, align=None, first: bool = False) -> None:
+    """Add one paragraph with **bold** span support."""
+    from pptx.util import Pt
+    p = tf.paragraphs[0] if first else tf.add_paragraph()
+    if align:
+        p.alignment = align
+    for seg in re.split(r'(\*\*[^*]+\*\*)', str(text)):
+        if not seg:
+            continue
+        m = re.match(r'\*\*([^*]+)\*\*', seg)
+        run = p.add_run()
+        if m:
+            run.text = m.group(1)
+            run.font.bold = True
+            run.font.size = Pt(size)
+            run.font.color.rgb = accent
+        else:
+            run.text = re.sub(r'`(.+?)`', r'\1', seg)
+            run.font.bold = bold
+            run.font.size = Pt(size)
+            run.font.color.rgb = color
+    if not p.runs:
+        run = p.add_run()
+        run.text = strip_md_plain(text)
+        run.font.size = Pt(size)
+        run.font.color.rgb = color
 
 
 def add_rich_box(slide, text: str, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
-                 bold_default: bool = False, align=None) -> None:
-    """Single-paragraph textbox with **bold** support."""
+                 bold: bool = False, align=None) -> None:
+    """Single-paragraph rich textbox."""
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    add_paragraph_with_bold(tf, text, size, color, bold_default,
-                             accent_color=accent, align=align, first=True)
+    _add_rich_para(tf, text, size, color, accent, bold=bold, align=align, first=True)
 
 
-def add_rect(slide, l, t, w, h, fill_color: "RGBColor", shape_id: int = 1):
-    shape = slide.shapes.add_shape(shape_id, Inches(l), Inches(t),
-                                   Inches(w), Inches(h))
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_color
-    shape.line.fill.background()
-    return shape
+def add_list_box(slide, items: list, l, t, w, h, size: int,
+                 color: "RGBColor", accent: "RGBColor",
+                 bullet: str = "•  ") -> None:
+    """Multi-paragraph list textbox, auto-sized to fit."""
+    MAX = 8
+    if len(items) > MAX:
+        items = items[:MAX - 1] + [f"… (+{len(items) - MAX + 1} 项)"]
+    safe = calc_safe_pt(h, len(items), base_pt=size, min_pt=10, max_pt=size)
+    tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    for i, item in enumerate(items):
+        clean = re.sub(r'^[\-\*\+]\s+', '', str(item))
+        clean = re.sub(r'^\d+\.\s+', '', clean)
+        _add_rich_para(tf, bullet + clean, safe, color, accent, first=(i == 0))
+
+
+# ──────────────────────────────────────────────
+# Shared slide chrome
+# ──────────────────────────────────────────────
+
+def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
+    """Top accent bar + left strip + faded page number + title + underline."""
+    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+
+    # Top bar
+    line_h(slide, 0, 0, SLIDE_W, 0.12, acc)
+
+    # Left vertical strip
+    line_v(slide, MARGIN_LEFT - 0.07, TITLE_T - 0.05,
+           SLIDE_H - TITLE_T + 0.05 - 0.2, 0.055, acc)
+
+    # Faded giant page number (top-right, ~10% opacity via color blend)
+    faded_num = blend(pri, bg, 0.12)
+    tb = slide.shapes.add_textbox(
+        Inches(SLIDE_W - 2.1), Inches(0.08), Inches(1.95), Inches(1.1))
+    tf = tb.text_frame
+    p = tf.paragraphs[0]
+    p.text = str(page_idx).zfill(2)
+    p.alignment = PP_ALIGN.RIGHT
+    p.font.size = Pt(70)
+    p.font.bold = True
+    p.font.color.rgb = faded_num
+
+    # Title
+    tb_plain(slide, title, MARGIN_LEFT, TITLE_T, CONTENT_W - 1.9, TITLE_H,
+             size=28, color=pri, bold=True)
+
+    # Title underline
+    line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, 2.0, 0.045, acc)
 
 
 # ──────────────────────────────────────────────
 # Per-layout renderers
 # ──────────────────────────────────────────────
 
-def render_cover(slide, page: dict, colors: dict):
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_cover(slide, page: dict, colors: dict) -> None:
+    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    sec = colors["sec"]
+    acc = colors["acc"]
+    txt = colors["txt"]
 
-    # Top accent bar
-    add_rect(slide, 0, 0, SLIDE_W, 0.32, acc)
-    # Bottom accent bar
-    add_rect(slide, 0, SLIDE_H - 0.22, SLIDE_W, 0.22, pri)
+    # Top stripe (accent color, thick)
+    line_h(slide, 0, 0, SLIDE_W, 0.32, acc)
+    # Secondary stripe (blend)
+    line_h(slide, 0, 0.32, SLIDE_W, 0.1, blend(acc, bg, 0.3))
+    # Bottom bar (primary color)
+    line_h(slide, 0, SLIDE_H - 0.28, SLIDE_W, 0.28, pri)
+    # Left edge block
+    line_v(slide, 0, 0, SLIDE_H, 0.16, pri)
 
     title = page.get("title", "")
-    add_title_box(slide, title, MARGIN_LEFT, 1.6, CONTENT_W, 2.6, 48, pri, bold=True)
+    t_l, t_t, t_w, t_h = 0.9, 1.4, SLIDE_W - 1.4, 2.9
 
-    subtitle_y = 4.5
-    max_subtitle_count = 3   # 封面最多显示3行副文本，防止溢出
-    for elem in list(page.get("elements", []))[:max_subtitle_count]:
-        etype = elem.get("type", "text_block")
+    # Title
+    tb = slide.shapes.add_textbox(Inches(t_l), Inches(t_t), Inches(t_w), Inches(t_h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.text = strip_md_plain(title)
+    p.alignment = PP_ALIGN.LEFT
+    p.font.size = Pt(52)
+    p.font.bold = True
+    p.font.color.rgb = pri
+
+    # Accent underline under title
+    line_h(slide, t_l, t_t + t_h - 0.5, 3.2, 0.06, acc)
+
+    # Subtitle / elements
+    sub_y = t_t + t_h + 0.05
+    for elem in list(page.get("elements", []))[:3]:
         items = get_content_list(elem)
         if not items:
             continue
-        # 单行显示，过长截断
         content = " | ".join(items)
-        if len(content) > 80:
-            content = content[:77] + "..."
-        if etype == "subtitle":
-            add_rich_box(slide, content, MARGIN_LEFT, subtitle_y,
-                         CONTENT_W, 0.65, 20, sec, acc)
-        else:
-            add_rich_box(slide, content, MARGIN_LEFT, subtitle_y,
-                         CONTENT_W, 0.65, 16, txt, acc)
-        subtitle_y += 0.7
-        if subtitle_y > SLIDE_H - 0.5:  # 安全下边界
+        if len(content) > 90:
+            content = content[:87] + "…"
+        etype = elem.get("type", "")
+        color = sec if etype == "subtitle" else txt
+        sz    = 22 if etype == "subtitle" else 17
+        tb_plain(slide, content, t_l, sub_y, t_w, 0.6, sz, color)
+        sub_y += 0.7
+        if sub_y > SLIDE_H - 0.45:
             break
 
 
-def render_minimal_list(slide, page: dict, colors: dict):
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_minimal_list(slide, page: dict, colors: dict) -> None:
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+    txt = colors["txt"]
+    dark = _is_dark(colors)
 
-    # Title bar accent line
-    add_rect(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.05, 2.2, 0.05, acc)
-
-    add_title_box(slide, page.get("title", ""),
-                  MARGIN_LEFT, TITLE_T, CONTENT_W, TITLE_H, 30, pri, bold=True)
+    draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
     if not elements:
         return
 
-    # Layout: up to 3 elements; beyond that merge remaining into last column
-    col_count = min(len(elements), 3)
-    col_w = (CONTENT_W - (col_count - 1) * 0.15) / col_count
-    row_h = CONTENT_H
+    list_elems  = [e for e in elements if e.get("type") in ("list", "text_block")]
+    right_elems = [e for e in elements if e.get("type") in
+                   ("huge_number", "stat", "subtitle") or e.get("is_accent")]
 
-    for col_idx, elem in enumerate(elements[:col_count]):
-        etype = elem.get("type", "list")
+    if not list_elems and not right_elems:
+        list_elems = elements
+
+    avail_h = SLIDE_H - CONTENT_T - 0.3
+
+    if right_elems:
+        left_w = CONTENT_W * 0.60
+    else:
+        left_w = CONTENT_W
+
+    # Left zone
+    lx, ly = MARGIN_LEFT, CONTENT_T
+    for elem in list_elems[:3]:
         items = get_content_list(elem)
-        x = MARGIN_LEFT + col_idx * (col_w + 0.15)
-        # font size auto-fitted to available height
-        safe_sz = calc_safe_pt(row_h, max(len(items), 1), base_pt=16, min_pt=10, max_pt=18)
-
+        etype = elem.get("type", "list")
+        zone_h = avail_h / max(len(list_elems[:3]), 1)
         if etype == "list" and len(items) > 1:
-            add_list_box(slide, items, x, CONTENT_T, col_w, row_h, safe_sz, txt, acc)
-        elif etype == "huge_number":
-            add_rich_box(slide, items[0] if items else "", x, CONTENT_T,
-                         col_w, row_h, 64, acc, acc, bold_default=True,
-                         align=PP_ALIGN.CENTER)
+            add_list_box(slide, items, lx, ly, left_w - 0.15, zone_h - 0.05, 16, txt, acc)
         else:
-            full = "\n".join(items)
-            safe_sz2 = calc_safe_pt(row_h, max(full.count('\n') + 1, 1), base_pt=16, min_pt=10, max_pt=18)
-            add_rich_box(slide, full, x, CONTENT_T, col_w, row_h, safe_sz2, txt, acc)
+            sz = calc_safe_pt(zone_h, max(len(items), 1), 16, 10, 18)
+            add_rich_box(slide, "\n".join(items), lx, ly, left_w - 0.15,
+                         zone_h - 0.05, sz, txt, acc)
+        ly += zone_h
+
+    # Right highlight zone
+    if right_elems:
+        rx = MARGIN_LEFT + left_w + 0.15
+        rw = CONTENT_W - left_w - 0.15
+        ry = CONTENT_T
+
+        # Card background
+        card_bg = blend(acc, bg, 0.14) if dark else blend(pri, bg, 0.06)
+        rect(slide, rx - 0.12, ry - 0.08, rw + 0.17, avail_h + 0.08, card_bg)
+        line_h(slide, rx - 0.12, ry - 0.08, rw + 0.17, 0.05, acc)
+
+        each = avail_h / max(len(right_elems), 1)
+        for i, elem in enumerate(right_elems):
+            items = get_content_list(elem)
+            etype = elem.get("type", "list")
+            cy = ry + i * each
+            if etype in ("huge_number", "stat") or elem.get("is_accent"):
+                add_rich_box(slide, items[0] if items else "", rx, cy, rw,
+                             each - 0.05, 52, acc, acc, bold=True, align=PP_ALIGN.CENTER)
+            else:
+                sz = calc_safe_pt(each, max(len(items), 1), 15, 10, 18)
+                add_rich_box(slide, "\n".join(items), rx, cy, rw,
+                             each - 0.05, sz, txt, acc)
 
 
-def render_two_column(slide, page: dict, colors: dict):
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_two_column(slide, page: dict, colors: dict) -> None:
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+    txt = colors["txt"]
+    dark = _is_dark(colors)
 
-    # Left accent strip
-    add_rect(slide, MARGIN_LEFT, TITLE_T, 0.07, SLIDE_H - TITLE_T - 0.3, acc)
-
-    title_l = MARGIN_LEFT + 0.18
-    add_title_box(slide, page.get("title", ""),
-                  title_l, TITLE_T, CONTENT_W - 0.18, TITLE_H, 28, txt, bold=True)
+    draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
     left_elems  = [e for e in elements if e.get("position", "left") == "left"]
     right_elems = [e for e in elements if "right" in str(e.get("position", ""))]
     if not left_elems and not right_elems:
-        left_elems  = elements[:max(1, len(elements) // 2)]
-        right_elems = elements[max(1, len(elements) // 2):]
+        half = max(len(elements) // 2, 1)
+        left_elems, right_elems = elements[:half], elements[half:]
 
-    half_w = CONTENT_W / 2 - 0.25
-    left_x  = MARGIN_LEFT + 0.18
-    right_x = MARGIN_LEFT + 0.18 + half_w + 0.35
+    half_w  = (CONTENT_W - 0.35) / 2
+    lx      = MARGIN_LEFT
+    rx      = MARGIN_LEFT + half_w + 0.35
+    avail_h = SLIDE_H - CONTENT_T - 0.3
 
-    # ── Left column ──
-    y = CONTENT_T
-    each_h = CONTENT_H / max(len(left_elems), 1)
-    for elem in left_elems:
+    # Left column
+    each_l = avail_h / max(len(left_elems), 1)
+    for i, elem in enumerate(left_elems):
         items = get_content_list(elem)
-        etype = elem.get("type", "list")
-        if etype == "list" and len(items) > 1:
-            add_list_box(slide, items, left_x, y, half_w, each_h - 0.1, 15, txt, acc)
+        cy = CONTENT_T + i * each_l
+        if elem.get("type") == "list" and len(items) > 1:
+            add_list_box(slide, items, lx, cy, half_w, each_l - 0.05, 15, txt, acc)
         else:
-            add_rich_box(slide, "\n".join(items), left_x, y,
-                         half_w, each_h - 0.1, 15, txt, acc)
-        y += each_h
+            sz = calc_safe_pt(each_l, max(len(items), 1), 15, 10, 18)
+            add_rich_box(slide, "\n".join(items), lx, cy, half_w, each_l - 0.05, sz, txt, acc)
 
-    # ── Right column ──
-    y = CONTENT_T
-    each_h = CONTENT_H / max(len(right_elems), 1)
-    for elem in right_elems:
+    # Right column with card backgrounds
+    each_r = avail_h / max(len(right_elems), 1)
+    for i, elem in enumerate(right_elems):
         items = get_content_list(elem)
-        etype = elem.get("type", "list")
-        is_big = elem.get("is_accent", False) or etype == "huge_number"
+        cy = CONTENT_T + i * each_r
+        is_big = elem.get("is_accent", False) or elem.get("type") in ("huge_number", "stat")
 
         if is_big:
-            add_rich_box(slide, items[0] if items else "", right_x, y,
-                         half_w, each_h - 0.1, 52, acc, acc,
-                         bold_default=True, align=PP_ALIGN.CENTER)
+            card_bg = blend(acc, bg, 0.16)
+            rect(slide, rx - 0.1, cy, half_w + 0.1, each_r - 0.07, card_bg)
+            line_h(slide, rx - 0.1, cy, half_w + 0.1, 0.05, acc)
+            add_rich_box(slide, items[0] if items else "", rx, cy + 0.1,
+                         half_w - 0.1, each_r - 0.25, 52, acc, acc,
+                         bold=True, align=PP_ALIGN.CENTER)
         else:
-            # Card background
-            add_rect(slide, right_x - 0.1, y, half_w + 0.2, each_h - 0.12, pri)
+            card_bg = blend(pri, bg, 0.07) if not dark else blend(pri, bg, 0.22)
+            rect(slide, rx - 0.1, cy, half_w + 0.1, each_r - 0.07, card_bg)
+            etype = elem.get("type", "list")
             if etype == "list" and len(items) > 1:
-                add_list_box(slide, items, right_x, y + 0.1,
-                             half_w, each_h - 0.3, 14, bg, bg)
+                add_list_box(slide, items, rx, cy + 0.08, half_w - 0.1,
+                             each_r - 0.22, 14, txt, acc)
             else:
-                add_rich_box(slide, "\n".join(items), right_x, y + 0.1,
-                             half_w, each_h - 0.3, 14, bg, bg)
-        y += each_h
+                sz = calc_safe_pt(each_r, max(len(items), 1), 14, 10, 17)
+                add_rich_box(slide, "\n".join(items), rx, cy + 0.08,
+                             half_w - 0.1, each_r - 0.22, sz, txt, acc)
 
 
-def render_stat_callout(slide, page: dict, colors: dict):
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_stat_callout(slide, page: dict, colors: dict) -> None:
+    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+    txt = colors["txt"]
+    dark = _is_dark(colors)
 
-    add_title_box(slide, page.get("title", ""),
-                  MARGIN_LEFT, TITLE_T, CONTENT_W, TITLE_H, 30, txt, bold=True)
-    add_rect(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.05, 1.8, 0.05, acc)
+    draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    big_elems   = [e for e in elements if e.get("is_accent") or e.get("type") in ("huge_number", "stat")]
-    other_elems = [e for e in elements if e not in big_elems]
+    big   = [e for e in elements if e.get("is_accent") or e.get("type") in ("huge_number", "stat")]
+    other = [e for e in elements if e not in big]
 
-    # Big number(s) centred
-    big_y  = CONTENT_T + 0.3
-    big_h  = 2.5
-    for elem in big_elems:
+    big_y = CONTENT_T + 0.2
+    for elem in big[:1]:
         items = get_content_list(elem)
-        add_rich_box(slide, items[0] if items else "",
-                     MARGIN_LEFT, big_y, CONTENT_W, big_h,
-                     80, acc, acc, bold_default=True, align=PP_ALIGN.CENTER)
-        big_y += big_h
+        val = items[0] if items else ""
+        sz = 2.6
+        cx = (SLIDE_W - sz) / 2
+        # Decorative bg circle
+        circ_bg = blend(acc, bg, 0.14)
+        sp = slide.shapes.add_shape(9, Inches(cx), Inches(big_y), Inches(sz), Inches(sz))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = circ_bg
+        sp.line.fill.background()
+        # Stat number
+        tb = slide.shapes.add_textbox(
+            Inches(cx - 0.6), Inches(big_y + 0.05), Inches(sz + 1.2), Inches(sz - 0.1))
+        tf = tb.text_frame
+        p = tf.paragraphs[0]
+        p.text = val
+        p.alignment = PP_ALIGN.CENTER
+        p.font.size = Pt(80)
+        p.font.bold = True
+        p.font.color.rgb = acc
+        big_y += sz + 0.2
 
-    # Supporting text below
-    sup_y = big_y + 0.1
-    sup_h = (SLIDE_H - sup_y - 0.3) / max(len(other_elems), 1)
-    for elem in other_elems:
+    sup_y = max(big_y, CONTENT_T + 3.3)
+    each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
+    for elem in other:
         items = get_content_list(elem)
         add_rich_box(slide, " ".join(items), MARGIN_LEFT, sup_y,
-                     CONTENT_W, max(sup_h - 0.1, 0.5), 18, txt, acc,
-                     align=PP_ALIGN.CENTER)
-        sup_y += sup_h
+                     CONTENT_W, each_h - 0.05, 17, txt, acc, align=PP_ALIGN.CENTER)
+        sup_y += each_h
 
 
-def render_timeline(slide, page: dict, colors: dict):
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_timeline(slide, page: dict, colors: dict) -> None:
+    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+    txt = colors["txt"]
+    dark = _is_dark(colors)
 
-    add_title_box(slide, page.get("title", ""),
-                  MARGIN_LEFT, TITLE_T, CONTENT_W, TITLE_H, 28, txt, bold=True)
+    draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    spine_x  = MARGIN_LEFT + 1.5
-    spine_t  = CONTENT_T + 0.05
-    spine_h  = CONTENT_H - 0.1
-    add_rect(slide, spine_x, spine_t, 0.06, spine_h, sec)
+    spine_x = MARGIN_LEFT + 1.75
+    spine_t = CONTENT_T + 0.05
+    avail_h = SLIDE_H - spine_t - 0.35
+    spine_col = blend(acc, bg, 0.45)
+    line_v(slide, spine_x, spine_t, avail_h, 0.04, spine_col)
 
-    each_h = spine_h / max(len(elements), 1)
-    for idx, elem in enumerate(elements):
-        y      = spine_t + idx * each_h
-        dot_y  = y + each_h * 0.35
+    each_h = avail_h / max(len(elements), 1)
+    for i, elem in enumerate(elements):
+        ey = spine_t + i * each_h
+        dot_y = ey + each_h * 0.28
+        dot_sz = 0.2
+        sp = slide.shapes.add_shape(9,
+            Inches(spine_x - dot_sz / 2 + 0.02),
+            Inches(dot_y - dot_sz / 2),
+            Inches(dot_sz), Inches(dot_sz))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = acc
+        sp.line.fill.background()
 
-        # Timeline dot
-        add_rect(slide, spine_x - 0.1, dot_y - 0.1, 0.26, 0.26, acc, shape_id=9)
+        time_label = elem.get("time", str(i + 1))
+        tb_plain(slide, time_label, MARGIN_LEFT, dot_y - 0.16,
+                 1.55, 0.33, 12, acc, bold=True, align=PP_ALIGN.RIGHT)
 
-        # Time label
-        time_label = elem.get("time", str(idx + 1))
-        add_title_box(slide, time_label,
-                      MARGIN_LEFT, dot_y - 0.12,
-                      1.3, 0.4, 13, acc, bold=True)
-
-        # Content
+        cx = spine_x + 0.2
+        cw = SLIDE_W - cx - MARGIN_RIGHT
         items = get_content_list(elem)
         if len(items) > 1:
-            add_list_box(slide, items, spine_x + 0.22, y,
-                         CONTENT_W - 1.55 - 0.22, each_h - 0.05, 14, txt, acc,
-                         bullet_char="― ")
-        else:
-            add_rich_box(slide, items[0] if items else "",
-                         spine_x + 0.22, y,
-                         CONTENT_W - 1.55 - 0.22, each_h - 0.05, 14, txt, acc)
+            add_list_box(slide, items, cx, ey, cw, each_h - 0.08, 13, txt, acc, bullet="― ")
+        elif items:
+            sz = calc_safe_pt(each_h, 1, 14, 10, 16)
+            add_rich_box(slide, items[0], cx, ey, cw, each_h - 0.08, sz, txt, acc)
 
 
-def render_default(slide, page: dict, colors: dict):
-    """Fallback / minimal_list-style full-page layout."""
-    bg, pri, sec, acc, txt = (colors[k] for k in ("bg", "pri", "sec", "acc", "txt"))
+def render_default(slide, page: dict, colors: dict) -> None:
+    from pptx.enum.text import PP_ALIGN
+    bg  = colors["bg"]
+    pri = colors["pri"]
+    acc = colors["acc"]
+    txt = colors["txt"]
+    dark = _is_dark(colors)
 
-    add_rect(slide, 0, 0, SLIDE_W, 0.16, pri)
-    add_title_box(slide, page.get("title", ""),
-                  MARGIN_LEFT, TITLE_T, CONTENT_W, TITLE_H, 28, pri, bold=True)
+    draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    each_h = CONTENT_H / max(len(elements), 1)
-    y = CONTENT_T
+    avail_h = SLIDE_H - CONTENT_T - 0.35
+    each_h = avail_h / max(len(elements), 1)
 
-    for elem in elements:
+    for i, elem in enumerate(elements):
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
-        is_accent = elem.get("is_accent", False) or etype == "huge_number"
+        is_acc = elem.get("is_accent", False) or etype in ("huge_number", "stat")
+        cy = CONTENT_T + i * each_h
 
-        if is_accent:
-            add_rich_box(slide, items[0] if items else "",
-                         MARGIN_LEFT, y, CONTENT_W, each_h - 0.1,
-                         40, acc, acc, bold_default=True, align=PP_ALIGN.CENTER)
+        if is_acc:
+            add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, CONTENT_W,
+                         each_h - 0.05, min(52, max(24, int(each_h * 28))),
+                         acc, acc, bold=True, align=PP_ALIGN.CENTER)
         elif etype == "list" and len(items) > 1:
-            add_list_box(slide, items, MARGIN_LEFT + 0.25, y,
-                         CONTENT_W - 0.25, each_h - 0.1, 15, txt, acc)
+            add_list_box(slide, items, MARGIN_LEFT, cy, CONTENT_W, each_h - 0.05, 15, txt, acc)
         else:
-            # Dot bullet
-            dot_y = y + (each_h - 0.1) / 2 - 0.06
-            add_rect(slide, MARGIN_LEFT, dot_y, 0.12, 0.12, acc, shape_id=9)
-            add_rich_box(slide, "\n".join(items),
-                         MARGIN_LEFT + 0.25, y,
-                         CONTENT_W - 0.25, each_h - 0.1, 15, txt, acc)
-        y += each_h
+            sz = calc_safe_pt(each_h, max(len(items), 1), 15, 10, 18)
+            add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, CONTENT_W,
+                         each_h - 0.05, sz, txt, acc)
 
 
 # ──────────────────────────────────────────────
-# Main export task
+# Layout dispatch table
 # ──────────────────────────────────────────────
 
 LAYOUT_RENDERERS = {
@@ -603,9 +723,14 @@ LAYOUT_RENDERERS = {
     "two_column":   render_two_column,
     "stat_callout": render_stat_callout,
     "timeline":     render_timeline,
-    "minimal_list": render_default,
+    "minimal_list": render_minimal_list,
+    "image_focus":  render_default,
 }
 
+
+# ──────────────────────────────────────────────
+# Main export entry point
+# ──────────────────────────────────────────────
 
 def run_export_task(task_id: str, session_id: str):
     db: Session = SessionLocal()
@@ -631,10 +756,9 @@ def run_export_task(task_id: str, session_id: str):
 
         try:
             prs = Presentation()
-            # ← 强制 16:9
             prs.slide_width  = Inches(SLIDE_W)
             prs.slide_height = Inches(SLIDE_H)
-            blank_layout = prs.slide_layouts[6]    # completely blank
+            blank_layout = prs.slide_layouts[6]
 
             import json as _json
             raw_data = courseware.ppt_data
@@ -644,13 +768,12 @@ def run_export_task(task_id: str, session_id: str):
                 except Exception:
                     raw_data = {}
 
-            theme       = raw_data.get("theme", {}) if isinstance(raw_data, dict) else {}
-            slides_arr  = raw_data.get("ppt_data", []) if isinstance(raw_data, dict) else raw_data
+            theme      = raw_data.get("theme", {}) if isinstance(raw_data, dict) else {}
+            slides_arr = raw_data.get("ppt_data", []) if isinstance(raw_data, dict) else raw_data
             if not isinstance(slides_arr, list):
                 slides_arr = []
 
-            # Use premium theme (deterministic by session_id + LLM intent luminance)
-            # This mirrors the frontend PREMIUM_THEMES selection exactly
+            # Use premium theme (deterministic by session_id + LLM luminance intent)
             sel = pick_premium_theme(session_id, theme)
             colors = {
                 "bg":  hex2rgb(sel["bg_color"]),
@@ -663,7 +786,6 @@ def run_export_task(task_id: str, session_id: str):
             for page in slides_arr:
                 slide = prs.slides.add_slide(blank_layout)
 
-                # Fill background
                 bg_fill = slide.background.fill
                 bg_fill.solid()
                 bg_fill.fore_color.rgb = colors["bg"]
