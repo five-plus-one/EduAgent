@@ -635,6 +635,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
             return
 
         # Dynamic heights: natural (text-fitted), expand up to 1.5x to fill slide
+        GAP = 0.07
+        n = len(cards)
         text_w_est = half_w - 0.26
         nat = [_est_card_h(c["text"], text_w_est) if not c["stat"] else 0.60
                for c in cards]
