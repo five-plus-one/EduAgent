@@ -257,6 +257,18 @@ def get_content_list(elem: dict) -> list:
 
 
 
+def _est_card_h(text: str, text_w_inches: float, font_sz: int = 14) -> float:
+    """Estimate compact card height for text at font_sz pt in a text_w_inches-wide box.
+    CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation."""
+    s = str(text)
+    cjk = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
+    other = len(s) - cjk
+    eff = cjk + other * 0.55            # CJK-equivalent length
+    cpl = max(1.0, (text_w_inches * 72.0) / font_sz)  # CJK chars per line
+    lines = max(1, int(eff / cpl + 0.99))              # ceiling division
+    return lines * (font_sz * 1.5 / 72.0) + 0.22       # text height + padding
+
+
 # ──────────────────────────────────────────────
 # Color utilities
 # ──────────────────────────────────────────────
@@ -514,16 +526,29 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     if body_cards:
         GAP = 0.07
         n_c = len(body_cards)
-        each_c = max((avail_h - GAP * (n_c - 1)) / n_c, 0.38)
+        text_w_est = left_w - 0.22
+        nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
+        avail_c = avail_h - GAP * (n_c - 1)
+        total_nat_c = sum(nat_c)
+        if total_nat_c <= avail_c:
+            factor_c = min(avail_c / max(total_nat_c, 0.01), 1.5)
+            heights_c = [max(0.38, h * factor_c) for h in nat_c]
+        else:
+            scale_c = avail_c / max(total_nat_c, 0.01)
+            heights_c = [max(0.38, h * scale_c) for h in nat_c]
+
+        cy_m = CONTENT_T
         for i, card_text in enumerate(body_cards):
-            cy = CONTENT_T + i * (each_c + GAP)
-            rect(slide, lx, cy, left_w - 0.05, each_c, card_bg_body)
-            line_v(slide, lx, cy, each_c, 0.055, acc)
+            each_c = heights_c[i]
+            rect(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body)
+            line_v(slide, lx, cy_m, each_c, 0.055, acc)
             clen = len(card_text)
             max_sz = 14 if clen < 50 else (13 if clen < 100 else 12)
             sz = calc_safe_pt(each_c - 0.12, 1, max_sz, 9, max_sz)
-            add_rich_box(slide, card_text, lx + 0.14, cy + 0.06,
+            add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.06,
                          left_w - 0.22, each_c - 0.12, sz, txt, acc)
+            cy_m += each_c + GAP
+
 
     # ── Stat accent zone (right) ────────────────────────────────────────────────
     if stat_elems:
@@ -609,12 +634,22 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
         if not cards:
             return
 
-        GAP = 0.07
-        n = len(cards)
-        each_h = max((avail_h - GAP * (n - 1)) / n, 0.38)
+        # Dynamic heights: natural (text-fitted), expand up to 1.5x to fill slide
+        text_w_est = half_w - 0.26
+        nat = [_est_card_h(c["text"], text_w_est) if not c["stat"] else 0.60
+               for c in cards]
+        avail_c = avail_h - GAP * (n - 1)
+        total_nat = sum(nat)
+        if total_nat <= avail_c:
+            factor = min(avail_c / max(total_nat, 0.01), 1.5)
+            heights = [max(0.38, h * factor) for h in nat]
+        else:
+            scale = avail_c / max(total_nat, 0.01)
+            heights = [max(0.38, h * scale) for h in nat]
 
+        cy = CONTENT_T
         for i, card in enumerate(cards):
-            cy = CONTENT_T + i * (each_h + GAP)
+            each_h = heights[i]
             text = card["text"]
             cb = card_bg_stat if card["stat"] else card_bg_normal
             # Card fill
@@ -633,6 +668,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                 sz = calc_safe_pt(each_h - 0.12, 1, max_sz, 9, max_sz)
                 add_rich_box(slide, text, col_x + 0.14, cy + 0.06,
                              half_w - 0.26, each_h - 0.12, sz, txt, acc)
+            cy += each_h + GAP
+
 
 
     _render_col(left_elems,  lx)
