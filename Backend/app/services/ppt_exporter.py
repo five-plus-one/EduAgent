@@ -114,14 +114,14 @@ SLIDE_W = 13.333   # inches
 SLIDE_H = 7.5      # inches
 
 # Safe content area (leaving margins)
-MARGIN_LEFT   = 0.55
+MARGIN_LEFT   = 0.75
 MARGIN_TOP    = 0.5
-MARGIN_RIGHT  = 0.55
-CONTENT_W     = SLIDE_W - MARGIN_LEFT - MARGIN_RIGHT   # ≈ 12.23"
+MARGIN_RIGHT  = 0.75
+CONTENT_W     = SLIDE_W - MARGIN_LEFT - MARGIN_RIGHT   # ≈ 11.83"
 TITLE_H       = 0.85
 TITLE_T       = 0.3
-CONTENT_T     = TITLE_T + TITLE_H + 0.2               # ≈ 1.35"
-CONTENT_H     = SLIDE_H - CONTENT_T - 0.35            # ≈ 5.8"
+CONTENT_T     = TITLE_T + TITLE_H + 0.22               # ≈ 1.37"
+CONTENT_H     = SLIDE_H - CONTENT_T - 0.40             # ≈ 5.73"
 
 
 # ──────────────────────────────────────────────
@@ -221,35 +221,9 @@ def _build_cases_omath(lines: list) -> 'etree._Element':
     return omath
 
 
-def _insert_omath_in_para(p_elem, omath_elem, fallback_text: str):
-    """
-    Insert an OMML <m:oMath> into an existing paragraph lxml element (a:p)
-    using mc:AlternateContent so older renderers see the fallback text.
-    """
-    from lxml import etree
-    mc  = _NS_MC
-    a14 = _NS_A14
-    m   = _NS_M
-    a   = _NS_A
-
-    # Wrap oMath in oMathPara
-    oMathPara = etree.Element(f'{{{m}}}oMathPara', nsmap={'m': m})
-    oMathPara.append(omath_elem)
-
-    # AlternateContent > Choice requires="a14" > a14:m > oMathPara
-    ac = etree.SubElement(p_elem, f'{{{mc}}}AlternateContent',
-                          nsmap={'mc': mc})
-    choice = etree.SubElement(ac, f'{{{mc}}}Choice')
-    choice.set('Requires', 'a14')
-    a14_m = etree.SubElement(choice, f'{{{a14}}}m',
-                              nsmap={'a14': a14})
-    a14_m.append(oMathPara)
-
-    # Fallback: plain text run
-    fb = etree.SubElement(ac, f'{{{mc}}}Fallback')
-    r_fb = etree.SubElement(fb, f'{{{a}}}r')
-    t_fb = etree.SubElement(r_fb, f'{{{a}}}t')
-    t_fb.text = fallback_text
+# _insert_omath_in_para removed: it used mc:AlternateContent which is
+# the Word/.docx approach. In PPTX, use <a14:m> directly in <a:p>.
+# See add_cases_math_box for the correct implementation.
 
 
 def parse_cases_env(text: str):
@@ -289,9 +263,24 @@ def parse_cases_env(text: str):
 def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
                        color: 'RGBColor', accent: 'RGBColor') -> bool:
     """
-    Render text containing \\begin{cases} as a real PPT math equation.
-    Structural rule: OMML AlternateContent must be the ONLY child of <a:p>.
-    Therefore: pre_text -> paragraph 0, OMML -> paragraph 1 (clean), post_text -> paragraph 2.
+    Render text containing \\begin{cases} as a real PPT math equation (OMML).
+
+    PPTX math structure (NOT Word/.docx):
+        <a:p>
+            <a14:m>                <- DIRECT child of <a:p>, no mc:AlternateContent!
+                <m:oMathPara>
+                    <m:oMath>
+                        <m:d>  <- delimiter {
+                            <m:eqArr>
+                                <m:e> x=x(t) </m:e>
+                                <m:e> y=y(t) </m:e>
+                            </m:eqArr>
+                        </m:d>
+                    </m:oMath>
+                </m:oMathPara>
+            </a14:m>
+        </a:p>
+
     Returns True if handled, False if no cases found (caller falls back).
     """
     from pptx.util import Pt
@@ -303,75 +292,50 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
 
     pre_text, lines, post_text = parsed
 
-    # Estimate height needed: base + one line per case row
-    n_lines = len(lines)
+    A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
 
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    tf.margin_left = tf.margin_right = Inches(0.05)
-    tf.margin_top = tf.margin_bottom = Inches(0.02)
+    from pptx.enum.text import MSO_AUTO_SIZE
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
 
-    a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-    mc_ns = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
-    a14_ns = 'http://schemas.microsoft.com/office/drawing/2010/main'
-    m_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
-
-    def _make_run_para(tf, text_str, is_first=False):
-        """Add a paragraph with a single text run."""
-        p = tf.paragraphs[0] if is_first else tf.add_paragraph()
-        if text_str:
-            run = p.add_run()
-            run.text = convert_latex(text_str)
-            run.font.size = Pt(size)
-            run.font.color.rgb = color
-        return p
-
-    def _make_math_para(tf):
-        """Add a CLEAN paragraph intended only for OMML (no runs)."""
-        p = tf.add_paragraph()
-        return p
-
-    # ── Build paragraphs ──────────────────────────────────────────
+    # ── Paragraph 0: pre-text (plain run) ─────────────────────────
     if pre_text:
-        _make_run_para(tf, pre_text, is_first=True)
-        p_math = _make_math_para(tf)
+        p0 = tf.paragraphs[0]
+        run0 = p0.add_run()
+        run0.text = convert_latex(pre_text)
+        run0.font.size = Pt(size)
+        run0.font.color.rgb = color
+        p_math = tf.add_paragraph()
     else:
-        # First paragraph is the math paragraph
         p_math = tf.paragraphs[0]
 
-    # ── Insert OMML into p_math (must be the ONLY content) ────────
-    omath = _build_cases_omath(lines)
+    # ── Paragraph 1: pure math — <a:p><a14:m>...</a14:m></a:p> ───
+    # Set paragraph color via defRPr so math runs inherit the right color
+    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    pPr = etree.SubElement(p_math._p, f'{{{A_NS}}}pPr')
+    defRPr = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
+    defRPr.set('sz', str(size * 100))  # sz is in hundredths of a point
+    defRPr.set('b', '0')
+    solidFill = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
+    srgbClr   = etree.SubElement(solidFill, f'{{{A_NS}}}srgbClr')
+    srgbClr.set('val', str(color).upper())  # str(RGBColor) = 'RRGGBB'
 
-    # Wrap in oMathPara
-    oMathPara = etree.Element(f'{{{m_ns}}}oMathPara', nsmap={'m': m_ns})
+    omath = _build_cases_omath(lines)
+    oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
     oMathPara.append(omath)
 
-    # AlternateContent > Choice(Requires=a14) > a14:m > oMathPara
-    ac = etree.SubElement(
+    # <a14:m> goes DIRECTLY into <a:p> — PPTX math, NOT mc:AlternateContent
+    a14_m = etree.SubElement(
         p_math._p,
-        f'{{{mc_ns}}}AlternateContent',
-        nsmap={'mc': mc_ns}
+        f'{{{A14_NS}}}m',
+        nsmap={'a14': A14_NS, 'm': M_NS}
     )
-    choice = etree.SubElement(ac, f'{{{mc_ns}}}Choice')
-    choice.set('Requires', 'a14')
-    a14_m = etree.SubElement(choice, f'{{{a14_ns}}}m', nsmap={'a14': a14_ns})
     a14_m.append(oMathPara)
 
-    # Fallback: plain semicolons, same font/color as surrounding text
-    fb = etree.SubElement(ac, f'{{{mc_ns}}}Fallback')
-    # Build a proper a:r run inside the fallback
-    r_fb = etree.SubElement(fb, f'{{{a_ns}}}r')
-    rPr_fb = etree.SubElement(r_fb, f'{{{a_ns}}}rPr')
-    rPr_fb.set('lang', 'zh-CN')
-    sz_fb = etree.SubElement(rPr_fb, f'{{{a_ns}}}solidFill')
-    srgb_fb = etree.SubElement(sz_fb, f'{{{a_ns}}}srgbClr')
-    # str(RGBColor) returns hex like 'F8FAFC'
-    srgb_fb.set('val', str(color).upper())
-    t_fb = etree.SubElement(r_fb, f'{{{a_ns}}}t')
-    t_fb.text = '{ ' + ' ; '.join(lines)
-
-    # ── Post-text paragraph ────────────────────────────────────────
+    # ── Paragraph 2: post-text (plain run) ────────────────────────
     if post_text:
         p_post = tf.add_paragraph()
         run3 = p_post.add_run()
@@ -380,7 +344,6 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
         run3.font.color.rgb = color
 
     return True
-
 
 
 def convert_latex(text: str) -> str:
@@ -563,7 +526,8 @@ def calc_safe_pt(available_h_inches: float, n_lines: int,
 
 def get_content_list(elem: dict) -> list:
     """Return element content as a list of strings, with LaTeX converted.
-    Items containing \n (from cases environment) are split into multiple entries.
+    IMPORTANT: do NOT split on \\n from cases environments - that would create
+    phantom cards from equation lines.
     """
     raw = elem.get("content", [])
     if not isinstance(raw, list):
@@ -573,9 +537,7 @@ def get_content_list(elem: dict) -> list:
         if not c:
             continue
         converted = convert_latex(str(c))
-        # Split on newlines produced by cases/aligned environments
-        sub_items = [s for s in converted.split("\n") if s.strip()]
-        result.extend(sub_items if sub_items else [converted])
+        result.append(converted)
     return result
 
 
@@ -596,14 +558,33 @@ def get_raw_content_list(elem: dict) -> list:
 
 def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     """Estimate compact card height for text at font_sz pt in a text_w_inches-wide box.
-    CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation."""
+    CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation.
+    Handles \\begin{cases} environments by adding height per equation row.
+    """
     s = str(text)
-    cjk = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
+    line_h = font_sz * 1.5 / 72.0   # height per text line, in inches
+    extra_h = 0.0
+
+    # Detect cases environment and count rows
+    cases_match = re.search(r'\\begin\{cases\}(.*?)\\end\{cases\}', s, re.DOTALL)
+    if cases_match:
+        body = cases_match.group(1)
+        n_rows = len([r for r in re.split(r'\\\\', body) if r.strip()])
+        # Each OMML row is ~1.9x a normal text line (larger brace + inter-row spacing)
+        math_line_h = font_sz * 1.9 / 72.0
+        extra_h = n_rows * math_line_h + 0.10   # +top/bottom math margin
+        # Remove the cases block (pre + $..$ + post) from the normal text estimate
+        s = re.sub(r'\$\s*\\begin\{cases\}.*?\\end\{cases\}\s*\$', '', s, flags=re.DOTALL)
+        s = re.sub(r'\$\$\s*\\begin\{cases\}.*?\\end\{cases\}\s*\$\$', '', s, flags=re.DOTALL)
+        s = s.strip()
+
+    cjk   = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
     other = len(s) - cjk
-    eff = cjk + other * 0.55            # CJK-equivalent length
-    cpl = max(1.0, (text_w_inches * 72.0) / font_sz)  # CJK chars per line
-    lines = max(1, int(eff / cpl + 0.99))              # ceiling division
-    return lines * (font_sz * 1.5 / 72.0) + 0.28       # text height + top+bottom padding
+    eff   = cjk + other * 0.55           # CJK-equivalent length
+    cpl   = max(1.0, (text_w_inches * 72.0) / font_sz)  # chars per line
+    lines = max(0, int(eff / cpl + 0.99))                # text lines (0 if only math)
+    return lines * line_h + extra_h + 0.28               # text + math + padding
+
 
 
 # ──────────────────────────────────────────────
@@ -788,12 +769,15 @@ def add_rich_box(slide, text: str, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bold: bool = False, align=None) -> None:
     """Single-paragraph rich textbox. Auto-routes to OMML for \\begin{cases}."""
+    from pptx.enum.text import MSO_AUTO_SIZE
     # Try OMML math rendering first (handles \begin{cases}...\end{cases})
     if add_cases_math_box(slide, text, l, t, w, h, size, color, accent):
         return
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
+    # Shrink textbox vertically to hug content — card bg rect controls the visual area
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
     _add_rich_para(tf, text, size, color, accent, bold=bold, align=align, first=True)
 
 
@@ -801,6 +785,7 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bullet: str = "•  ") -> None:
     """Multi-paragraph list textbox, auto-sized to fit."""
+    from pptx.enum.text import MSO_AUTO_SIZE
     MAX = 8
     if len(items) > MAX:
         items = items[:MAX - 1] + [f"… (+{len(items) - MAX + 1} 项)"]
@@ -808,6 +793,7 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
     for i, item in enumerate(items):
         clean = re.sub(r'^[\-\*\+]\s+', '', str(item))
         clean = re.sub(r'^\d+\.\s+', '', clean)
