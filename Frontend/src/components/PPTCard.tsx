@@ -9,13 +9,49 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
+// ── Error isolation: one bad card must NOT crash siblings ─────────────────
+class PPTCardErrorBoundary extends React.Component<
+  { page: PPTPage; children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className={styles.errorFallback}>
+          <span>⚠️ 第 {this.props.page.page_index} 页渲染异常</span>
+          <small style={{ opacity: 0.5, fontSize: '11px' }}>{this.state.error?.message?.slice(0, 80)}</small>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────
+
+const REMARK_PLUGINS = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS = [[rehypeKatex, { throwOnError: false, strict: false }] as any];
+
+/** Coerce any content value to a string array safe for ReactMarkdown */
+function toStringArray(content: unknown): string[] {
+  if (Array.isArray(content)) return content.map(c => (c == null ? '' : String(c))).filter(Boolean);
+  if (content == null) return [];
+  return [String(content)];
+}
+
 interface Props {
   page: PPTPage;
   isUpdating: boolean;
   onIterate: (instruction: string) => void;
 }
 
-export default function PPTCard({ page, isUpdating, onIterate }: Props) {
+function PPTCardInner({ page, isUpdating, onIterate }: Props) {
   const [instruction, setInstruction] = useState('');
   const [showIterate, setShowIterate] = useState(false);
 
@@ -28,8 +64,8 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
   };
 
   const renderElement = (el: any) => {
-    // Map JSON position (left, right_top) to CSS Module class (pos_left, pos_right_top)
     const positionClass = styles[`pos_${el.position}`] || '';
+    const contentArray = toStringArray(el.content);
 
     if (el.type === 'image') {
       if (!el.url) {
@@ -59,8 +95,6 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       );
     }
 
-    const contentArray = Array.isArray(el.content) ? el.content : (typeof el.content === 'string' ? [el.content] : []);
-
     if (el.type === 'title') {
       return <h2 key={el.element_id} className={clsx(styles.elementTitle, positionClass)}>{contentArray[0]}</h2>;
     }
@@ -72,7 +106,11 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
     if (el.type === 'list' || el.type === 'list_item') {
       return (
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-          {contentArray.map((b: string, i: number) => <li key={i}><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{b}</ReactMarkdown></li>)}
+          {contentArray.map((b, i) => (
+            <li key={i}>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{b}</ReactMarkdown>
+            </li>
+          ))}
         </ul>
       );
     }
@@ -81,46 +119,40 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
       if (contentArray.length > 1) {
         return (
           <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-            {contentArray.map((item: string, idx: number) => (
+            {contentArray.map((item, idx) => (
               <li key={idx}>
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                >
-                  {item}
-                </ReactMarkdown>
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{item}</ReactMarkdown>
               </li>
             ))}
           </ul>
         );
       }
+      const singleText = contentArray[0] ?? '';
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
-          {contentArray.map((text: string, i: number) => (
-            <ReactMarkdown 
-              key={i} 
-              remarkPlugins={[remarkGfm, remarkMath]} 
-              rehypePlugins={[rehypeKatex]}
-            >
-              {text}
-            </ReactMarkdown>
-          ))}
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{singleText}</ReactMarkdown>
         </div>
       );
     }
-    
-    // Timeline Item Fallback
+
+    // huge_number / stat: render anywhere, not just in stat_callout pages
+    if (el.type === 'huge_number' || el.type === 'stat') {
+      const numText = contentArray[0] ?? '';
+      return (
+        <div key={el.element_id} className={clsx(styles.hugeNumber, positionClass)}>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} components={{ p: React.Fragment as any }}>{numText}</ReactMarkdown>
+        </div>
+      );
+    }
+
+    // Timeline Item
     if (el.type === 'timeline_item') {
+      const text = contentArray[0] ?? '';
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)} style={{ marginBottom: '8px' }}>
           <strong>{el.time}</strong>
           <div style={{ margin: '4px 0 0 0' }}>
-            <ReactMarkdown 
-              remarkPlugins={[remarkGfm, remarkMath]}
-              rehypePlugins={[rehypeKatex]}
-            >
-              {contentArray[0] || el.content}
-            </ReactMarkdown>
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{text}</ReactMarkdown>
           </div>
         </div>
       );
@@ -185,13 +217,13 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
              {/* Stat Callout Archetype */}
              <div className={styles.hugeNumberContainer}>
                {page.elements?.filter(e => e.is_accent || e.type === 'huge_number' || e.type === 'stat').map((el: any) => {
-                  const text = Array.isArray(el.content) ? el.content[0] : el.content;
+                  const text = toStringArray(el.content)[0] ?? '';
                   return (
                     <div key={el.element_id} className={styles.hugeNumber}>
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm, remarkMath]}
-                        rehypePlugins={[rehypeKatex]}
-                        components={{ p: React.Fragment }}
+                      <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        rehypePlugins={REHYPE_PLUGINS}
+                        components={{ p: React.Fragment as any }}
                       >
                         {text}
                       </ReactMarkdown>
@@ -259,5 +291,15 @@ export default function PPTCard({ page, isUpdating, onIterate }: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Exported PPTCard wraps the inner implementation with an error boundary
+ *  so a render crash in one card doesn't take down the whole preview list. */
+export default function PPTCard(props: Props) {
+  return (
+    <PPTCardErrorBoundary page={props.page}>
+      <PPTCardInner {...props} />
+    </PPTCardErrorBoundary>
   );
 }

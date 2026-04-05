@@ -364,7 +364,19 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         print(f"[parser] skip preamble: {repr(skipped[:60])}")
                                     buffer = buffer[brace_pos:]
                                 try:
-                                    obj, idx = decoder.raw_decode(buffer)
+                                    import re
+                                    def _escape_fixer(m):
+                                        val = m.group(0)
+                                        if val in ['\\"', '\\\\', '\\n'] or val.startswith('\\u'):
+                                            return val
+                                        return '\\\\' + val[1:]
+                                    
+                                    # Fix invalid escapes (like \vec, \Delta) but keep valid ones (like \\, \n, \")
+                                    sanitized_buffer = re.sub(r'\\.', _escape_fixer, buffer)
+                                    
+                                    obj, idx = decoder.raw_decode(sanitized_buffer)
+                                    buffer = sanitized_buffer
+                                    
                                     t = obj.get("__type")
                                     print(f"[parser] parsed __type={t!r} buffer_len={len(buffer)} idx={idx}")
                                     from sqlalchemy.orm.attributes import flag_modified

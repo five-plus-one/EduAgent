@@ -404,6 +404,7 @@ def tb_plain(slide, text: str, l, t, w, h, size: int, color: "RGBColor",
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
+    tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
     p = tf.paragraphs[0]
     p.text = strip_md_plain(str(text))
     p.font.size = Pt(size)
@@ -515,18 +516,18 @@ def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
     num_w = 0.52
     tb_plain(slide, str(page_idx).zfill(2),
              MARGIN_LEFT, TITLE_T, num_w, TITLE_H,
-             size=16, color=num_color, bold=True,
+             size=24, color=num_color, bold=True,
              v_anchor='b', fixed_h=True)
 
-    # Main title: text_color, bold, bottom-anchored so it kisses the underline
+    # Main title: primary_color, bold, bottom-anchored so it kisses the underline
     tb_plain(slide, title,
              MARGIN_LEFT + num_w + 0.08, TITLE_T,
              CONTENT_W - num_w - 0.08 - 1.5, TITLE_H,
-             size=24, color=txt, bold=True,
+             size=30, color=pri, bold=True,
              v_anchor='b', fixed_h=True)
 
-    # Underline immediately below title zone (accent color)
-    line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, CONTENT_W * 0.45, 0.04, acc)
+    # Underline immediately below title zone (accent color), length matches frontend 2.2in
+    line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, 2.2, 0.04, acc)
 
 
 
