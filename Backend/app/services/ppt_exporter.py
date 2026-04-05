@@ -266,7 +266,7 @@ def get_content_list(elem: dict) -> list:
 
 
 
-def _est_card_h(text: str, text_w_inches: float, font_sz: int = 14) -> float:
+def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     """Estimate compact card height for text at font_sz pt in a text_w_inches-wide box.
     CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation."""
     s = str(text)
@@ -275,7 +275,7 @@ def _est_card_h(text: str, text_w_inches: float, font_sz: int = 14) -> float:
     eff = cjk + other * 0.55            # CJK-equivalent length
     cpl = max(1.0, (text_w_inches * 72.0) / font_sz)  # CJK chars per line
     lines = max(1, int(eff / cpl + 0.99))              # ceiling division
-    return lines * (font_sz * 1.5 / 72.0) + 0.22       # text height + padding
+    return lines * (font_sz * 1.5 / 72.0) + 0.28       # text height + top+bottom padding
 
 
 # ──────────────────────────────────────────────
@@ -301,6 +301,49 @@ def _is_dark(colors: dict) -> bool:
 
 def rect(slide, l, t, w, h, fill: "RGBColor", shape_id: int = 1) -> None:
     sp = slide.shapes.add_shape(shape_id, Inches(l), Inches(t), Inches(w), Inches(h))
+    sp.fill.solid()
+    sp.fill.fore_color.rgb = fill
+    sp.line.fill.background()
+
+
+def rect_rounded(slide, l, t, w, h, fill: "RGBColor", radius_pt: float = 8.0) -> None:
+    """Rectangle with ONLY the right two corners rounded (left stays square).
+    Matches CSS: border-radius: 0 8px 8px 0 — as used in the frontend preview cards.
+    Uses OOXML custGeom for precise per-corner control.
+    """
+    W_emu = int(Inches(w))
+    H_emu = int(Inches(h))
+    r_emu = int(Pt(radius_pt))
+    r_emu = min(r_emu, H_emu // 2, W_emu // 4)  # clamp to sensible max
+
+    NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    # Path: top-left and bottom-left are square; top-right and bottom-right are arc'd
+    cg_xml = (
+        f'<a:custGeom xmlns:a="{NS_A}">'
+        f'<a:avLst/><a:gdLst/>'
+        f'<a:pathLst>'
+        f'<a:path w="{W_emu}" h="{H_emu}">'
+        f'<a:moveTo><a:pt x="0" y="0"/></a:moveTo>'
+        f'<a:lnTo><a:pt x="{W_emu - r_emu}" y="0"/></a:lnTo>'
+        f'<a:arcTo wR="{r_emu}" hR="{r_emu}" stAng="-5400000" swAng="5400000"/>'
+        f'<a:lnTo><a:pt x="{W_emu}" y="{H_emu - r_emu}"/></a:lnTo>'
+        f'<a:arcTo wR="{r_emu}" hR="{r_emu}" stAng="0" swAng="5400000"/>'
+        f'<a:lnTo><a:pt x="0" y="{H_emu}"/></a:lnTo>'
+        f'<a:close/>'
+        f'</a:path></a:pathLst>'
+        f'</a:custGeom>'
+    )
+
+    sp = slide.shapes.add_shape(1, Inches(l), Inches(t), Inches(w), Inches(h))
+    sp_el = sp._element
+    # Swap prstGeom → custGeom
+    prstGeom = sp_el.find('.//' + qn('a:prstGeom'))
+    if prstGeom is not None:
+        parent = prstGeom.getparent()
+        idx = list(parent).index(prstGeom)
+        parent.remove(prstGeom)
+        parent.insert(idx, etree.fromstring(cg_xml))
+
     sp.fill.solid()
     sp.fill.fore_color.rgb = fill
     sp.line.fill.background()
@@ -515,7 +558,12 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
 
     # ── Body cards (left / full column) ── explode each list item into its own card ──
     lx = MARGIN_LEFT
-    card_bg_body = blend(acc, bg, 0.10) if dark else blend(pri, bg, 0.05)
+    # Card background: match frontend glassmorphism formula.
+    # Dark themes: 30% black overlay = card DARKER than bg (rgba(0,0,0,0.3) in CSS)
+    # Light themes: 40% white overlay = card LIGHTER than bg (rgba(255,255,255,0.4) in CSS)
+    _W = RGBColor(0xFF, 0xFF, 0xFF)
+    _B = RGBColor(0x00, 0x00, 0x00)
+    card_bg_body = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
 
     body_cards = []
     for elem in body_elems[:6]:
@@ -549,13 +597,13 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         cy_m = CONTENT_T
         for i, card_text in enumerate(body_cards):
             each_c = heights_c[i]
-            rect(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body)
+            rect_rounded(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body)
             line_v(slide, lx, cy_m, each_c, 0.055, acc)
             clen = len(card_text)
-            max_sz = 14 if clen < 50 else (13 if clen < 100 else 12)
-            sz = calc_safe_pt(each_c - 0.12, 1, max_sz, 9, max_sz)
-            add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.06,
-                         left_w - 0.22, each_c - 0.12, sz, txt, acc)
+            max_sz = 18 if clen < 50 else (17 if clen < 100 else 16)
+            sz = calc_safe_pt(each_c - 0.16, 1, max_sz, 13, max_sz)
+            add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.08,
+                         left_w - 0.22, each_c - 0.16, sz, txt, acc)
             cy_m += each_c + GAP
 
 
@@ -618,7 +666,9 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
         return (e.get("type") in ("huge_number", "stat")
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
-    card_bg_normal = blend(acc, bg, 0.10) if dark else blend(pri, bg, 0.05)
+    _W = RGBColor(0xFF, 0xFF, 0xFF)
+    _B = RGBColor(0x00, 0x00, 0x00)
+    card_bg_normal = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
@@ -664,7 +714,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
             text = card["text"]
             cb = card_bg_stat if card["stat"] else card_bg_normal
             # Card fill
-            rect(slide, col_x, cy, half_w - 0.05, each_h, cb)
+            rect_rounded(slide, col_x, cy, half_w - 0.05, each_h, cb)
             # Left accent border
             line_v(slide, col_x, cy, each_h, 0.055, acc)
 
@@ -675,10 +725,10 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                              sz_big, acc, acc, bold=True, align=PP_ALIGN.CENTER)
             else:
                 clen = len(text)
-                max_sz = 14 if clen < 50 else (13 if clen < 100 else 12)
-                sz = calc_safe_pt(each_h - 0.12, 1, max_sz, 9, max_sz)
-                add_rich_box(slide, text, col_x + 0.14, cy + 0.06,
-                             half_w - 0.26, each_h - 0.12, sz, txt, acc)
+                max_sz = 18 if clen < 50 else (17 if clen < 100 else 16)
+                sz = calc_safe_pt(each_h - 0.16, 1, max_sz, 13, max_sz)
+                add_rich_box(slide, text, col_x + 0.14, cy + 0.08,
+                             half_w - 0.26, each_h - 0.16, sz, txt, acc)
             cy += each_h + GAP
 
 
@@ -749,37 +799,72 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    spine_x = MARGIN_LEFT + 1.75
-    spine_t = CONTENT_T + 0.05
-    avail_h = SLIDE_H - spine_t - 0.35
-    spine_col = blend(acc, bg, 0.45)
-    line_v(slide, spine_x, spine_t, avail_h, 0.04, spine_col)
+    if not elements:
+        return
 
-    each_h = avail_h / max(len(elements), 1)
+    # ── Layout geometry ──────────────────────────────────────────
+    spine_x  = MARGIN_LEFT + 2.1       # spine vertical line
+    spine_t  = CONTENT_T + 0.1
+    avail_h  = SLIDE_H - spine_t - 0.45
+    each_h   = avail_h / max(len(elements), 1)
+
+    card_x   = spine_x + 0.38          # gap between spine and card
+    card_w   = SLIDE_W - card_x - MARGIN_RIGHT - 0.10
+    v_gap    = 0.13                    # vertical breathing room per row
+
+    # ── Spine vertical line ───────────────────────────────────────
+    spine_col = blend(acc, bg, 0.55) if dark else blend(acc, bg, 0.40)
+    line_v(slide, spine_x, spine_t, avail_h, 0.05, spine_col)
+
+    # ── Card background (matches other layouts) ─────────────────────
+    _W = RGBColor(0xFF, 0xFF, 0xFF)
+    _B = RGBColor(0x00, 0x00, 0x00)
+    card_bg = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
+
     for i, elem in enumerate(elements):
-        ey = spine_t + i * each_h
-        dot_y = ey + each_h * 0.28
-        dot_sz = 0.2
+        row_y   = spine_t + i * each_h
+        dot_cy  = row_y + each_h * 0.50   # dot centred in its row
+
+        # ── Dot on spine ───────────────────────────────────────
+        dot_sz = 0.23
         sp = slide.shapes.add_shape(9,
-            Inches(spine_x - dot_sz / 2 + 0.02),
-            Inches(dot_y - dot_sz / 2),
+            Inches(spine_x - dot_sz / 2 + 0.025),
+            Inches(dot_cy - dot_sz / 2),
             Inches(dot_sz), Inches(dot_sz))
         sp.fill.solid()
         sp.fill.fore_color.rgb = acc
         sp.line.fill.background()
 
-        time_label = elem.get("time", str(i + 1))
-        tb_plain(slide, time_label, MARGIN_LEFT, dot_y - 0.16,
-                 1.55, 0.33, 12, acc, bold=True, align=PP_ALIGN.RIGHT)
+        # ── Step number label (right-aligned, left of spine) ─────────────
+        raw_label = elem.get("time", f"{i + 1:02d}")
+        raw_label = str(raw_label)
+        if raw_label.isdigit() and len(raw_label) < 2:
+            raw_label = raw_label.zfill(2)
+        lbl_w = 1.45
+        lbl_h = 0.42
+        tb_plain(slide, raw_label,
+                 MARGIN_LEFT, dot_cy - lbl_h / 2,
+                 lbl_w, lbl_h, 14, acc, bold=True, align=PP_ALIGN.RIGHT)
 
-        cx = spine_x + 0.2
-        cw = SLIDE_W - cx - MARGIN_RIGHT
+        # ── Card: background rect + left accent border ────────────────
+        card_h = max(0.42, each_h - v_gap * 2)
+        card_y = row_y + v_gap
+
+        rect_rounded(slide, card_x, card_y, card_w, card_h, card_bg)
+        line_v(slide, card_x, card_y, card_h, 0.07, acc)
+
+        # ── Content text ───────────────────────────────────────
         items = get_content_list(elem)
-        if len(items) > 1:
-            add_list_box(slide, items, cx, ey, cw, each_h - 0.08, 13, txt, acc, bullet="― ")
-        elif items:
-            sz = calc_safe_pt(each_h, 1, 14, 10, 16)
-            add_rich_box(slide, items[0], cx, ey, cw, each_h - 0.08, sz, txt, acc)
+        if not items:
+            continue
+        text = items[0] if len(items) == 1 else "；".join(items)
+        clen   = len(text)
+        max_sz = 18 if clen < 50 else (17 if clen < 100 else 16)
+        sz     = calc_safe_pt(card_h - 0.14, 1, max_sz, 13, max_sz)
+        add_rich_box(slide, text,
+                     card_x + 0.20, card_y + 0.07,
+                     card_w - 0.28, card_h - 0.14,
+                     sz, txt, acc)
 
 
 def render_default(slide, page: dict, colors: dict) -> None:

@@ -1,70 +1,41 @@
-{"__type": "theme", "name": "物理学科蓝", "bg_color": "#0C1A30", "primary": "#2563EB", "secondary": "#94A3B8", "accent": "#F97316", "text_color": "#F8FAFC"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "大学物理核心概念：运动学基础", "speaker_notes": "本次课我们将系统梳理运动学中的核心矢量、圆周运动参数以及加速度分解等基础知识点，为后续力学学习筑牢根基。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["物理基础课程 | 2024学年"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "位置与位移相关概念", "speaker_notes": "首先我们来认识描述质点位置和位置变化的基础物理量，注意区分矢量和标量的差异。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["位置矢量（位矢）：$\\vec{r}=x \\vec{i}+y \\vec{j}+z \\vec{k}$，本质为空间向量，运动方程可写为$\\vec{r}(t)=x(t) \\vec{i}+y(t) \\vec{j}+z(t) \\vec{k}$", "位移矢量：$\\Delta \\vec{r}=\\Delta x \\vec{i}+ \\Delta y \\vec{j}+ \\Delta z \\vec{k}$，表示质点位置的变化量", "路程s：标量，一般$s\\geq |\\Delta \\vec{r}|$，微分形式满足$ds=|d\\vec{r}|$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["消去运动方程的参数t即可得到质点的轨迹方程，用于描述运动的空间路径。"], "is_accent": true}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "速度与加速度的定义", "speaker_notes": "接下来是描述运动快慢和变化快慢的物理量，注意瞬时量是平均量的极限，本质为导数。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["平均速度：$\\bar{\\vec{v}}=  \\frac{\\Delta \\vec{r}}{\\Delta t}$，反映一段时间内的平均运动快慢", "瞬时速度：$\\vec{v}=\\lim_{ \\Delta t \\to 0 }\\frac{\\Delta \\vec{r}}{\\Delta t}=\\frac{d \\vec{r}}{dt}$，是位矢对时间的一阶导数"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["平均加速度：$\\bar{\\vec{a}}= \\frac{\\Delta \\vec{v}}{\\Delta t}$，反映速度的平均变化快慢", "瞬时加速度：$\\vec{a}=\\frac{d \\vec{v}}{dt}$，是速度对时间的一阶导数"], "is_accent": false}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["位矢、速度是运动状态量，加速度是运动状态变化量，二者物理意义有本质区别。"], "is_accent": true}]}
-{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "自然坐标系下的加速度分解", "speaker_notes": "在曲线运动中我们常用自然坐标系将加速度分解，更清晰地描述速度大小和方向的变化。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["自然坐标系：沿轨迹切线（$\\vec{e_t}$，指向运动方向）、法线（$\\vec{e_n}$，指向曲线凹侧）建立正交坐标轴", "切向加速度：$\\vec{a}_{t}=\\frac{dv}{dt}\\vec{e}_{t}$，描述速度大小的变化快慢", "法向加速度：$\\vec{a}_{n}=\\frac{v^2}{\\rho}\\vec{e}_{n}$，$\\rho$为轨迹曲率半径，描述速度方向的变化快慢"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["总加速度矢量满足$\\vec{a}=\\vec{a_t}+\\vec{a_n}$，二者互相垂直，可分别独立分析。"], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "minimal_list", "title": "圆周运动的角量描述", "speaker_notes": "圆周运动是特殊的曲线运动，我们可以用角量来简化描述，注意角量和线量的对应关系。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角位移$\\Delta \\theta$：逆时针为正，线位移关系为$\\Delta s=R\\Delta \\theta$，R为圆周半径", "角速度$\\omega=\\frac{d\\theta}{dt}$，单位rad/s，线速率关系为$v=R\\omega$", "角加速度$\\alpha =\\frac{d^2\\theta}{dt^2}$，切向加速度关系为$a_t=R\\alpha$", "矢量角速度方向遵循右手螺旋定则，线速度矢量关系为$\\vec{v}=\\vec{\\omega}\\times \\vec{r}$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["圆周运动的法向加速度也称为向心加速度，公式可写为$a_n=\\frac{v^2}{R}=\\omega^2 R$。"], "is_accent": true}]}
-{"__type": "page", "page_index": 6, "layout_type": "stat_callout", "title": "核心关系梳理", "speaker_notes": "我们可以通过导数关系把线量和角量的逻辑串联起来，方便大家记忆。", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["2次求导"], "is_accent": true}, {"element_id": "e2", "type": "text_block", "position": "bottom", "content": ["位矢$\\vec{r}(t)$一次求导得速度$\\vec{v}$，二次求导得加速度$\\vec{a}$；角位置$\\theta(t)$一次求导得角速度$\\omega$，二次求导得角加速度$\\alpha$，二者逻辑完全对应。"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程要点总结", "speaker_notes": "最后我们把本次课的重点内容做个总结，大家课后要注意区分各个物理量的矢量性和物理意义。", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["区分位矢、位移、路程的矢量/标量属性，掌握运动方程与轨迹方程的推导", "理解速度、加速度的导数定义，明确状态量与状态变化量的差异", "掌握自然坐标系下切向、法向加速度的物理意义和计算方法", "掌握圆周运动角量描述，以及角量与线量的对应转换关系"], "is_accent": false}]}
+{"__type": "theme", "name": "物理专业蓝", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#FB923C", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "质点运动学核心物理量", "speaker_notes": "本次课程我们将系统学习质点运动学中的核心物理量，包括线量和角量的定义、关系以及应用场景", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 · 力学模块"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "位矢、位移与路程", "speaker_notes": "首先我们学习描述质点位置和位置变化的三个基础物理量：位矢、位移和路程", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["位矢$\\vec{r}$：描述质点空间位置的矢量，表达式为$\\vec{r}=x \\vec{i}+y \\vec{j}+z \\vec{k}$，随时间变化的函数$\\vec{r}(t)$为运动方程，消去参数$t$可得轨迹方程", "位移$\\Delta \\vec{r}$：描述质点位置变化的矢量，表达式为$\\Delta \\vec{r}=\\Delta x \\cdot \\vec{i}+ \\Delta y \\cdot \\vec{j}+ \\Delta z \\cdot \\vec{k}$，是末位矢与初位矢的差值", "路程$s$：质点运动轨迹的长度，为标量，一般$s\\geq |\\Delta \\vec{r}|$，微元情况下满足$ds=|d\\vec{r}|$"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "minimal_list", "title": "速度与加速度", "speaker_notes": "接下来学习描述运动快慢和运动变化快慢的物理量：速度和加速度", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["平均速度：$\\bar{\\vec{v}}=\\frac{\\Delta \\vec{r}}{\\Delta t}$，对应一段时间内的平均运动快慢和方向", "瞬时速度：$\\vec{v}=\\lim_{ \\Delta t \\to 0 }\\frac{\\Delta \\vec{r}}{\\Delta t}=\\frac{d \\vec{r}}{dt}$，是位矢对时间的一阶导数，对应某一时刻的运动状态", "平均加速度：$\\bar{\\vec{a}}=\\frac{\\Delta \\vec{v}}{\\Delta t}$，对应一段时间内速度的平均变化率", "瞬时加速度：$\\vec{a}=\\frac{d \\vec{v}}{dt}$，是速度对时间的一阶导数，描述速度变化的快慢和方向"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["注意：位矢和速度是运动状态量，加速度是状态变化量，二者物理意义有本质区别"], "is_accent": true}]}
+{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "自然坐标系下的加速度分解", "speaker_notes": "在曲线运动中，我们通常将加速度分解为切向和法向两个分量，便于分析运动的变化特点", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["自然坐标系定义：沿运动轨迹的切线方向（单位矢量$\\vec{e_{t}}$，指向前进方向）和法线方向（单位矢量$\\vec{e_{n}}$，指向曲线凹侧）建立的正交坐标系", "切向加速度$\\vec{a}_{t}=\\frac{dv}{dt}\\vec{e}_{t}$：描述速度大小的变化快慢，方向沿轨迹切线方向", "法向加速度$\\vec{a}_{n}=\\frac{v^2}{\\rho}\\vec{e}_{n}$：描述速度方向的变化快慢，方向指向轨迹曲率中心，$\\rho$为轨迹的曲率半径"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["自然坐标系下总加速度：$\\vec{a}=\\vec{a}_{t}+\\vec{a}_{n}$"], "is_accent": true}]}
+{"__type": "page", "page_index": 5, "layout_type": "minimal_list", "title": "圆周运动的角量描述", "speaker_notes": "对于圆周运动这类特殊的曲线运动，我们可以用角量来更简洁地描述其运动状态", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角位置$\\theta(t)$：描述圆周运动质点的位置，逆时针为正方向", "角位移$\\Delta \\theta$：一段时间内角位置的变化量，满足弧长关系$\\Delta s=R\\Delta \\theta$，$R$为圆周半径", "角速度$\\omega$：角位置对时间的一阶导数，$\\omega=\\frac{d\\theta}{dt}$，单位为rad/s，与线速率的关系为$v=R\\omega$", "角加速度$\\alpha$：角速度对时间的一阶导数，$\\alpha =\\frac{d^2\\theta}{dt^2}$，单位为rad/s²，与切向加速度的关系为$a_{t}=R\\alpha$"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "角量的矢量性质与线角量关系", "speaker_notes": "最后我们学习角量的矢量属性，以及线量和角量的普遍矢量关系", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["矢量角速度$\\vec{\\omega}$：方向遵循右手螺旋定则，四指沿旋转方向，大拇指指向即为角速度方向", "线速度与角速度的矢量关系：$\\vec{v}=\\vec{\\omega}\\times \\vec{r}$，其中$\\vec{r}$为质点相对于转轴的位矢", "法向加速度与角速度的关系：代入$v=R\\omega$可得法向加速度大小$a_{n}=\\omega^2 R$，方向指向圆心"], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "我们来回顾本次课程的核心知识点", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["线量体系：位矢→位移→速度→加速度，描述质点的一般运动", "加速度分解：自然坐标系下分为切向加速度（描述速度大小变化）和法向加速度（描述速度方向变化）", "角量体系：角位置→角位移→角速度→角加速度，适合描述圆周、转动类运动", "线角量关联：$v=R\\omega$、$a_t=R\\alpha$、$a_n=\\omega^2 R$，矢量关系满足$\\vec{v}=\\vec{\\omega}\\times \\vec{r}$"], "is_accent": false}]}
 {"__type": "word_start"}
-# 大学物理运动学基础讲义
-## 一、位置与位移相关概念
-### 1. 位置矢量（位矢）
-用于描述质点在空间中的位置，本质是空间向量，表达式为：
-$$\vec{r}=x \vec{i}+y \vec{j}+z \vec{k}$$
-当质点随时间运动时，位矢是时间的函数，即运动方程：
-$$\vec{r}(t)=x(t) \cdot \vec{i}+y(t) \cdot \vec{j}+z(t) \cdot \vec{k}$$
-如果将运动方程的参数t消去，得到的x、y、z的关系式即为质点的轨迹方程，用于描述运动的空间路径。
+## 质点运动学核心物理量讲义
+### 一、线量基本概念
+1. **位矢**：即位置矢量，是描述质点在空间中位置的矢量，表达式为$\vec{r}=x \vec{i}+y \vec{j}+z \vec{k}$，其中$x,y,z$为质点在直角坐标系三个坐标轴上的坐标，$\vec{i},\vec{j},\vec{k}$分别为三个坐标轴方向的单位矢量。如果位矢是时间的函数$\vec{r}(t)=x(t) \cdot \vec{i}+y(t) \cdot \vec{j}+z(t) \cdot \vec{k}$，该式称为质点的运动方程；消去运动方程中的时间参数$t$，得到的$x,y,z$的关系式即为质点的轨迹方程。
+2. **位移**：描述质点在一段时间内位置变化的矢量，等于末时刻位矢减去初时刻位矢，表达式为$\Delta \vec{r}=\\Delta x \\cdot \\vec{i}+ \\Delta y \\cdot \\vec{j}+ \\Delta z \\cdot \\vec{k}$，位移的大小是质点初末位置的直线距离，方向由初位置指向末位置。
+3. **路程**：质点在一段时间内运动轨迹的实际长度，是标量，只有大小没有方向。一般情况下路程大于等于位移的大小，只有当质点做单向直线运动时二者大小相等；在时间微元的极限情况下，路程微元等于位移微元的大小，即$ds=|d\\vec{r}|$。
+4. **速度**：描述质点运动快慢和方向的物理量，是运动状态量。
+   - 平均速度：对应一段时间内的平均运动情况，$\bar{\\vec{v}}=\\frac{\\Delta \\vec{r}}{\\Delta t}$，方向与位移方向一致。
+   - 瞬时速度：简称速度，对应某一时刻的运动状态，是位矢对时间的一阶导数，$\vec{v}=\\lim_{ \\Delta t \\to 0 }\\frac{\\Delta \\vec{r}}{\\Delta t}=\\frac{d \\vec{r}}{dt}$，方向沿轨迹的切线方向。
+5. **加速度**：描述质点速度变化快慢和方向的物理量，是状态变化量。
+   - 平均加速度：对应一段时间内速度的平均变化情况，$\bar{\\vec{a}}=\\frac{\\Delta \\vec{v}}{\\Delta t}$，方向与速度变化量的方向一致。
+   - 瞬时加速度：简称加速度，对应某一时刻的速度变化率，是速度对时间的一阶导数，$\vec{a}=\\frac{d \\vec{v}}{dt}$。
 
-### 2. 位移矢量
-表示质点位置的变化量，是末位矢与初位矢的差值，表达式为：
-$$\Delta \vec{r}=\Delta x \cdot \vec{i}+ \Delta y \cdot \vec{j}+ \Delta z \cdot \vec{k}$$
-位移是矢量，同时包含位置变化的大小和方向。
+### 二、自然坐标系与加速度分解
+对于曲线运动，我们通常采用自然坐标系来分解加速度，便于分别分析速度大小和方向的变化：
+1. **自然坐标系定义**：在质点的运动轨迹上任取一点为原点，建立两个正交的坐标轴：一个沿轨迹的切线方向，指向质点前进的方向，称为切向坐标轴，单位矢量为$\vec{e_{t}}$；另一个沿轨迹的法线方向，指向曲线的凹侧，称为法向坐标轴，单位矢量为$\vec{e_{n}}$。
+2. **加速度分量**：
+   - 切向加速度$\vec{a}_{t}=\\frac{dv}{dt}\\vec{e}_{t}$：由速度大小的变化产生，方向沿轨迹切线方向，大小等于速率对时间的导数。
+   - 法向加速度$\vec{a}_{n}=\\frac{v^2}{\\rho}\\vec{e}_{n}$：由速度方向的变化产生，方向指向轨迹的曲率中心，大小等于速率平方除以轨迹在该点的曲率半径$\rho$。
+   - 总加速度为两个分量的矢量和：$\vec{a}=\\vec{a}_{t}+\\vec{a}_{n}$。
 
-### 3. 路程
-质点运动轨迹的长度，是标量，只有大小没有方向。一般情况下路程大于等于位移的大小，即$s\geq |\Delta \vec{r}|$，仅当质点做单向直线运动时二者相等。微分形式下路程微元等于位矢微元的模长：$ds=|d\vec{r}|$。
+### 三、圆周运动的角量描述
+圆周运动是特殊的曲线运动，除了用线量描述外，还可以用角量来更简洁地描述：
+1. **角位置$\theta(t)$**：描述做圆周运动的质点相对于转轴的角度位置，通常规定逆时针方向为正方向，单位为弧度（rad）。
+2. **角位移$\Delta \theta$**：一段时间内角位置的变化量，角位移与对应的弧长满足$\Delta s=R\\Delta \theta$，其中$R$为圆周运动的半径。
+3. **角速度$\omega$**：描述质点旋转的快慢，是角位置对时间的一阶导数，$\omega=\\frac{d\\theta}{dt}$，单位为rad/s，与线速率的关系为$v=R\\omega$。
+4. **角加速度$\alpha$**：描述角速度变化的快慢，是角速度对时间的一阶导数，$\alpha =\\frac{d^2\\theta}{dt^2}$，单位为rad/s²，与切向加速度的关系为$a_{t}=R\\alpha$。
 
-## 二、速度与加速度
-### 1. 速度
-- 平均速度：一段时间内位移与时间的比值，反映这段时间内质点运动的平均快慢和方向：
-  $$\bar{\vec{v}}=  \frac{\Delta \vec{r}}{\Delta t}$$
-- 瞬时速度：当时间间隔趋近于0时平均速度的极限，本质是位矢对时间的一阶导数，反映某一时刻质点的真实运动状态：
-  $$\vec{v}=\lim_{ \Delta t \to 0 }\frac{\Delta \vec{r}}{\Delta t}=\frac{d \vec{r}}{dt}$$
-
-### 2. 加速度
-- 平均加速度：一段时间内速度变化量与时间的比值，反映这段时间内速度的平均变化快慢：
-  $$\bar{\vec{a}}= \frac{\Delta \vec{v}}{\Delta t}$$
-- 瞬时加速度：当时间间隔趋近于0时平均加速度的极限，本质是速度对时间的一阶导数：
-  $$\vec{a}=\frac{d \vec{v}}{dt}$$
-
-> 注意：位矢、速度属于运动状态量，描述某一时刻质点的运动状态；加速度属于运动状态变化量，描述速度的变化趋势，三者物理意义有本质区别。
-
-## 三、自然坐标系下的加速度分解
-在曲线运动中，为了更清晰地描述速度大小和方向的变化，我们引入自然坐标系：
-1. 在运动轨迹上任选原点，沿轨道切线方向建立切向坐标轴，单位矢量为$\vec{e_t}$，指向质点前进方向；
-2. 沿轨道法线方向建立法向坐标轴，单位矢量为$\vec{e_n}$，指向曲线凹侧。
-
-在自然坐标系下，加速度可分解为两个互相垂直的分量：
-- 切向加速度：描述速度大小的变化快慢，表达式为：
-  $$\vec{a}_{t}=\frac{dv}{dt}\vec{e}_{t}$$
-- 法向加速度：描述速度方向的变化快慢，表达式为：
-  $$\vec{a}_{n}=\frac{v^2}{\rho}\vec{e}_{n}$$
-  其中$\rho$为轨迹在该点的曲率半径，对于圆周运动来说$\rho$就是圆周的半径R。
-
-总加速度为两个分量的矢量和：$\vec{a}=\vec{a_t}+\vec{a_n}$，两个分量互相独立，可以分别分析计算。
-
-## 四、圆周运动的角量描述
-对于圆周运动，我们可以用角量来简化描述，角量和线量存在一一对应的关系：
-1. 角位置$\theta(t)$：描述质点在圆周上的位置，对应线量中的位矢；
-2. 角位移$\Delta \theta$：描述质点角位置的变化，通常规定逆时针方向为正，对应线位移的关系为$\Delta s=R\Delta \theta$，R为圆周半径；
-3. 角速度$\omega$：角位置对时间的一阶导数，单位为rad/s，对应线速率的关系为$v=R\omega$：
-   $$\omega=\frac{d\theta}{dt}$$
-   角速度也可以定义为矢量，方向遵循右手螺旋定则，此时线速度的矢量关系为$\vec{v}=\vec{\omega}\times \vec{r}$。
-4. 角加速度$\alpha$：角位置对时间的二阶导数，或者角速度对时间的一阶导数，对应切向加速度的关系为$a_t=R\alpha$：
-   $$\alpha =\frac{d^2\theta}{dt^2}$$
-
-圆周运动的法向加速度也称为向心加速度，用角量可表示为$a_n=\omega^2 R$。
-
-## 五、核心逻辑与学习要点
-线量和角量的描述逻辑完全一致：位矢/角位置一次求导得到速度/角速度，二次求导得到加速度/角加速度。学习过程中要注意区分各个物理量的矢量性，明确每个公式的适用场景，同时结合具体的运动案例加深理解，为后续动力学、刚体力学等内容的学习打好基础。
+### 四、角量的矢量性质与普遍关系
+1. **矢量角速度**：角速度本质是矢量，其方向遵循右手螺旋定则：右手四指沿质点旋转的方向弯曲，大拇指所指的方向即为角速度$\vec{\\omega}$的方向。
+2. **线速度与角速度的矢量关系**：$\vec{v}=\\vec{\\omega}\\times \\vec{r}$，其中$\vec{r}$为质点相对于转轴的位矢，该式对于任意转动场景下的线速度计算都成立。
+3. 圆周运动的法向加速度还可以表示为$a_{n}=\\omega^2 R$，方向始终指向圆心，也称为向心加速度。
 {"__type": "done"}
