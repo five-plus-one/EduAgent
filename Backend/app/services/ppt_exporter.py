@@ -156,6 +156,233 @@ def strip_md_plain(text: str) -> str:
     return text.strip()
 
 
+# ──────────────────────────────────────────────
+# OMML Math Equation Helpers
+# Embeds real PowerPoint math equations (Office Math Markup Language)
+# for \begin{cases}...\end{cases} environments.
+# ──────────────────────────────────────────────
+
+# OMML/DrawingML namespace constants
+_NS_M   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+_NS_A   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+_NS_MC  = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
+_NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main'
+
+
+def _latex_line_to_omml(line: str):
+    """Convert a simple LaTeX line to OMML lxml element sequence inside <m:e>."""
+    from lxml import etree
+    m = _NS_M
+    # Very naive: just put raw text for now; PowerPoint will render as math italic
+    # Strip remaining LaTeX commands for the fallback text
+    clean = re.sub(r'\\[A-Za-z]+\*?', '', line)
+    clean = clean.replace('{', '').replace('}', '').strip()
+
+    e_elem = etree.Element(f'{{{m}}}e')
+    r_elem = etree.SubElement(e_elem, f'{{{m}}}r')
+    rPr   = etree.SubElement(r_elem, f'{{{m}}}rPr')
+    sty   = etree.SubElement(rPr,   f'{{{m}}}sty')
+    sty.set(f'{{{m}}}val', 'p')   # plain (not italic) style
+    t_elem = etree.SubElement(r_elem, f'{{{m}}}t')
+    t_elem.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    t_elem.text = clean
+    return e_elem
+
+
+def _build_cases_omath(lines: list) -> 'etree._Element':
+    """
+    Build an <m:oMath> element representing a \begin{cases} environment:
+    A left curly brace delimiter with stacked equation lines.
+    """
+    from lxml import etree
+    m = _NS_M
+
+    omath = etree.Element(f'{{{m}}}oMath',
+                          nsmap={'m': m})
+    d_elem = etree.SubElement(omath, f'{{{m}}}d')
+
+    # Delimiter properties: { on left, nothing on right
+    dPr = etree.SubElement(d_elem, f'{{{m}}}dPr')
+    begChr = etree.SubElement(dPr, f'{{{m}}}begChr')
+    begChr.set(f'{{{m}}}val', '{')
+    endChr = etree.SubElement(dPr, f'{{{m}}}endChr')
+    endChr.set(f'{{{m}}}val', '')
+    sepChr = etree.SubElement(dPr, f'{{{m}}}sepChr')
+    sepChr.set(f'{{{m}}}val', '')
+
+    # One <m:e> containing an equation array <m:eqArr>
+    e_outer = etree.SubElement(d_elem, f'{{{m}}}e')
+    eqArr = etree.SubElement(e_outer, f'{{{m}}}eqArr')
+
+    for line in lines:
+        e_inner = _latex_line_to_omml(line)
+        eqArr.append(e_inner)
+
+    return omath
+
+
+def _insert_omath_in_para(p_elem, omath_elem, fallback_text: str):
+    """
+    Insert an OMML <m:oMath> into an existing paragraph lxml element (a:p)
+    using mc:AlternateContent so older renderers see the fallback text.
+    """
+    from lxml import etree
+    mc  = _NS_MC
+    a14 = _NS_A14
+    m   = _NS_M
+    a   = _NS_A
+
+    # Wrap oMath in oMathPara
+    oMathPara = etree.Element(f'{{{m}}}oMathPara', nsmap={'m': m})
+    oMathPara.append(omath_elem)
+
+    # AlternateContent > Choice requires="a14" > a14:m > oMathPara
+    ac = etree.SubElement(p_elem, f'{{{mc}}}AlternateContent',
+                          nsmap={'mc': mc})
+    choice = etree.SubElement(ac, f'{{{mc}}}Choice')
+    choice.set('Requires', 'a14')
+    a14_m = etree.SubElement(choice, f'{{{a14}}}m',
+                              nsmap={'a14': a14})
+    a14_m.append(oMathPara)
+
+    # Fallback: plain text run
+    fb = etree.SubElement(ac, f'{{{mc}}}Fallback')
+    r_fb = etree.SubElement(fb, f'{{{a}}}r')
+    t_fb = etree.SubElement(r_fb, f'{{{a}}}t')
+    t_fb.text = fallback_text
+
+
+def parse_cases_env(text: str):
+    """
+    Parse text containing $\begin{cases}...\end{cases}$ or $$...$$.
+    Returns (pre_text, cases_lines, post_text) or None if not found.
+    cases_lines is a list of equation strings (one per row).
+    """
+    if r'\begin{cases}' not in text:
+        return None
+
+    # Try $$...$$ FIRST (must come before single-$ check to avoid false match)
+    pat_block = re.compile(
+        r'(.*?)\$\$\s*\\begin\{cases\}(.*?)\\end\{cases\}\s*\$\$(.*)',
+        re.DOTALL
+    )
+    # Then $...$
+    pat_inline = re.compile(
+        r'(.*?)(?<!\$)\$(?!\$)\s*\\begin\{cases\}(.*?)\\end\{cases\}\s*\$(?!\$)(.*)',
+        re.DOTALL
+    )
+
+    m = pat_block.match(text) or pat_inline.match(text)
+    if not m:
+        return None
+
+    pre   = m.group(1).strip()
+    body  = m.group(2)
+    post  = m.group(3).strip()
+
+    # Split on \\ (LaTeX newline)
+    raw_lines = re.split(r'\\\\', body)
+    lines = [l.strip().lstrip('&').strip() for l in raw_lines if l.strip()]
+    return pre, lines, post
+
+
+def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
+                       color: 'RGBColor', accent: 'RGBColor') -> bool:
+    """
+    Render text containing \\begin{cases} as a real PPT math equation.
+    Structural rule: OMML AlternateContent must be the ONLY child of <a:p>.
+    Therefore: pre_text -> paragraph 0, OMML -> paragraph 1 (clean), post_text -> paragraph 2.
+    Returns True if handled, False if no cases found (caller falls back).
+    """
+    from pptx.util import Pt
+    from lxml import etree
+
+    parsed = parse_cases_env(text)
+    if parsed is None:
+        return False
+
+    pre_text, lines, post_text = parsed
+
+    # Estimate height needed: base + one line per case row
+    n_lines = len(lines)
+
+    tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = tf.margin_right = Inches(0.05)
+    tf.margin_top = tf.margin_bottom = Inches(0.02)
+
+    a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    mc_ns = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
+    a14_ns = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    m_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+
+    def _make_run_para(tf, text_str, is_first=False):
+        """Add a paragraph with a single text run."""
+        p = tf.paragraphs[0] if is_first else tf.add_paragraph()
+        if text_str:
+            run = p.add_run()
+            run.text = convert_latex(text_str)
+            run.font.size = Pt(size)
+            run.font.color.rgb = color
+        return p
+
+    def _make_math_para(tf):
+        """Add a CLEAN paragraph intended only for OMML (no runs)."""
+        p = tf.add_paragraph()
+        return p
+
+    # ── Build paragraphs ──────────────────────────────────────────
+    if pre_text:
+        _make_run_para(tf, pre_text, is_first=True)
+        p_math = _make_math_para(tf)
+    else:
+        # First paragraph is the math paragraph
+        p_math = tf.paragraphs[0]
+
+    # ── Insert OMML into p_math (must be the ONLY content) ────────
+    omath = _build_cases_omath(lines)
+
+    # Wrap in oMathPara
+    oMathPara = etree.Element(f'{{{m_ns}}}oMathPara', nsmap={'m': m_ns})
+    oMathPara.append(omath)
+
+    # AlternateContent > Choice(Requires=a14) > a14:m > oMathPara
+    ac = etree.SubElement(
+        p_math._p,
+        f'{{{mc_ns}}}AlternateContent',
+        nsmap={'mc': mc_ns}
+    )
+    choice = etree.SubElement(ac, f'{{{mc_ns}}}Choice')
+    choice.set('Requires', 'a14')
+    a14_m = etree.SubElement(choice, f'{{{a14_ns}}}m', nsmap={'a14': a14_ns})
+    a14_m.append(oMathPara)
+
+    # Fallback: plain semicolons, same font/color as surrounding text
+    fb = etree.SubElement(ac, f'{{{mc_ns}}}Fallback')
+    # Build a proper a:r run inside the fallback
+    r_fb = etree.SubElement(fb, f'{{{a_ns}}}r')
+    rPr_fb = etree.SubElement(r_fb, f'{{{a_ns}}}rPr')
+    rPr_fb.set('lang', 'zh-CN')
+    sz_fb = etree.SubElement(rPr_fb, f'{{{a_ns}}}solidFill')
+    srgb_fb = etree.SubElement(sz_fb, f'{{{a_ns}}}srgbClr')
+    # str(RGBColor) returns hex like 'F8FAFC'
+    srgb_fb.set('val', str(color).upper())
+    t_fb = etree.SubElement(r_fb, f'{{{a_ns}}}t')
+    t_fb.text = '{ ' + ' ; '.join(lines)
+
+    # ── Post-text paragraph ────────────────────────────────────────
+    if post_text:
+        p_post = tf.add_paragraph()
+        run3 = p_post.add_run()
+        run3.text = convert_latex(post_text)
+        run3.font.size = Pt(size)
+        run3.font.color.rgb = color
+
+    return True
+
+
+
 def convert_latex(text: str) -> str:
     """
     Convert LaTeX math expressions ($...$  /  $$...$$) to readable Unicode text.
@@ -356,6 +583,17 @@ def get_content_list(elem: dict) -> list:
 
 
 
+
+def get_raw_content_list(elem: dict) -> list:
+    """Return element content as raw strings WITHOUT converting LaTeX.
+    Used when we need to preserve \\begin{cases} etc. for OMML rendering.
+    """
+    raw = elem.get("content", [])
+    if not isinstance(raw, list):
+        raw = [str(raw)] if raw else []
+    return [str(c) for c in raw if c]
+
+
 def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     """Estimate compact card height for text at font_sz pt in a text_w_inches-wide box.
     CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation."""
@@ -549,7 +787,10 @@ def _add_rich_para(tf, text: str, size: int, color: "RGBColor", accent: "RGBColo
 def add_rich_box(slide, text: str, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bold: bool = False, align=None) -> None:
-    """Single-paragraph rich textbox."""
+    """Single-paragraph rich textbox. Auto-routes to OMML for \\begin{cases}."""
+    # Try OMML math rendering first (handles \begin{cases}...\end{cases})
+    if add_cases_math_box(slide, text, l, t, w, h, size, color, accent):
+        return
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
@@ -715,18 +956,29 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     body_cards = []
     MAX_CARDS = 9  # hard cap to prevent overflow
     for elem in body_elems[:MAX_CARDS]:
-        items = get_content_list(elem)
+        # Use raw content list to preserve \begin{cases} for OMML rendering
+        raw_items = get_raw_content_list(elem)
+        items_converted = get_content_list(elem)
         etype = elem.get("type", "text_block")
-        if etype == "list" and len(items) > 1:
-            for item in items:
-                s = re.sub(r'^[\-\*\+]\s+', '', str(item))
-                s = re.sub(r'^\d+\.\s+', '', s).strip()
-                if s:
-                    body_cards.append(s)
+        if etype == "list" and len(raw_items) > 1:
+            for raw_item, conv_item in zip(raw_items, items_converted):
+                # If item contains cases environment, store raw; else store converted
+                if parse_cases_env(str(raw_item)) is not None:
+                    body_cards.append(str(raw_item))
+                else:
+                    s = re.sub(r'^[\-\*\+]\s+', '', str(conv_item))
+                    s = re.sub(r'^\d+\.\s+', '', s).strip()
+                    if s:
+                        body_cards.append(s)
         else:
-            text = "\n".join(items).strip()
-            if text:
-                body_cards.append(text)
+            # Check if any raw item has cases
+            has_cases = any(parse_cases_env(str(r)) is not None for r in raw_items)
+            if has_cases:
+                body_cards.append("\n".join(str(r) for r in raw_items).strip())
+            else:
+                text = "\n".join(items_converted).strip()
+                if text:
+                    body_cards.append(text)
 
     # Trim cards to fit available space
     if len(body_cards) > MAX_CARDS:
