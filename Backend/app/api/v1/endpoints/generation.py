@@ -156,15 +156,42 @@ def iterate_slide(
     import requests, json, re
     from app.core.config import settings
     from sqlalchemy.orm.attributes import flag_modified
+    
+    PAGE_SCHEMA = f"""
+【单页数据结构要求】
+如果只是修改该页内容，输出一个单独的 JSON 对象：
+{{
+  "page_index": {page_to_update['page_index']},
+  "layout_type": "cover"|"minimal_list"|"two_column"|"stat_callout"|"timeline",
+  "title": "（保持与原标题相同，除非用户明确要求修改标题）",
+  "speaker_notes": "演讲者注记",
+  "elements": [...]
+}}
+
+如果需要将该页拆为多页，则输出一个 JSON 数组，每页格式相同：
+[
+  {{ "page_index": {page_to_update['page_index']}, "title": "原标题（与原页相同）", ... }},
+  {{ "page_index": {page_to_update['page_index'] + 1}, "title": "原标题（与原页相同，不要起名为"新增页"）", ... }}
+]
+
+【重要规则】
+- 新增页的 title 必须与原始页标题「{page_to_update.get('title', '')}」保持相同，除非用户明确要求改标题
+- content 必须是字符串数组，不能是单个字符串
+- elements 必须至少包含 1 个元素
+- 每个 element 必须有 element_id, type, position, content, is_accent 五个字段
+- position: "left"|"right_top"|"right_bottom"|"center"|"full"
+- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"
+- 严禁输出 Markdown 围栏、注释、额外文本
+"""
 
     prompt = (
-        "你是一位高级课件排版专家。请根据用户的\u300c局部修改指令\u300d，重新输出覆盖该单页PPT的内容。\n"
-        "只输出单个页面合法的JSON对象，不要带任何Markdown围栏或开场白！\n\n"
+        "你是一位高级课件排版专家。请根据用户的「局部修改指令」，重新输出覆盖该单页PPT的内容。\n"
+        "只输出合法的JSON对象或数组，不要带任何Markdown围栏或开场白！\n\n"
         "【原始该页数据 JSON】\n"
         + json.dumps(page_to_update, ensure_ascii=False, indent=2)
         + "\n\n【用户修改指令】\n"
         + body.instruction
-        + "\n\n【操作要求】\n输出修改后的全新单页JSON结构。保持 page_index 固定不变，可调整 layout_type、title、speaker_notes 或增删 elements。"
+        + "\n\n" + PAGE_SCHEMA
     )
 
     url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
@@ -191,22 +218,58 @@ def iterate_slide(
                 l for l in llm_content.splitlines() if not l.startswith("```")
             ).strip()
 
+        # Fix invalid LaTeX escapes (like \vec, \frac) from LLM output
+        def _escape_fixer(m):
+            val = m.group(0)
+            if val in ['\\"', '\\\\', '\\n'] or val.startswith('\\u'):
+                return val
+            return '\\\\' + val[1:]
+        llm_content = re.sub(r'\\.', _escape_fixer, llm_content)
+
+        # Support both single page JSON object and JSON array (page split)
         decoder = json.JSONDecoder()
-        start = llm_content.find("{")
-        if start == -1:
-            raise HTTPException(status_code=500, detail="LLM 未返回 JSON 结构，请重试")
-        try:
-            new_page, _ = decoder.raw_decode(llm_content, start)
-        except json.JSONDecodeError:
-            json_match = re.search(r"\{[\s\S]*\}", llm_content)
-            if not json_match:
-                raise HTTPException(status_code=500, detail="LLM 返回内容无法解析，请重试")
-            new_page = json.loads(json_match.group(0))
+        # Try array first (page split case)
+        arr_start = llm_content.find("[")
+        obj_start = llm_content.find("{")
+        
+        parsed_result = None
+        if arr_start != -1 and (obj_start == -1 or arr_start < obj_start):
+            try:
+                parsed_result, _ = decoder.raw_decode(llm_content, arr_start)
+            except json.JSONDecodeError:
+                pass
+        
+        if parsed_result is None:
+            start = obj_start if obj_start != -1 else -1
+            if start == -1:
+                raise HTTPException(status_code=500, detail="LLM 未返回 JSON 结构，请重试")
+            try:
+                parsed_result, _ = decoder.raw_decode(llm_content, start)
+            except json.JSONDecodeError:
+                json_match = re.search(r"\{[\s\S]*\}", llm_content)
+                if not json_match:
+                    raise HTTPException(status_code=500, detail="LLM 返回内容无法解析，请重试")
+                parsed_result = json.loads(json_match.group(0))
 
-        new_page["page_index"] = page_to_update["page_index"]  # 强制保持页码不变
-
-        idx = next(i for i, p in enumerate(slides_array) if p.get("page_index") == body.page_index)
-        slides_array[idx] = new_page
+        # Handle single page or multi-page (split) results
+        if isinstance(parsed_result, list):
+            # Page split: replace original with multiple pages, re-index all
+            new_pages = parsed_result
+            for i, p in enumerate(new_pages):
+                p["page_index"] = page_to_update["page_index"] + i
+                if not p.get("title"):
+                    p["title"] = page_to_update.get("title", "")
+            idx = next(i for i, p in enumerate(slides_array) if p.get("page_index") == body.page_index)
+            slides_array = slides_array[:idx] + new_pages + slides_array[idx+1:]
+            # Re-index all subsequent pages
+            for i, p in enumerate(slides_array):
+                p["page_index"] = i + 1
+            new_page = new_pages[0]  # return first page for response
+        else:
+            new_page = parsed_result
+            new_page["page_index"] = page_to_update["page_index"]  # 强制保持页码不变
+            idx = next(i for i, p in enumerate(slides_array) if p.get("page_index") == body.page_index)
+            slides_array[idx] = new_page
 
     except HTTPException:
         raise
@@ -214,14 +277,14 @@ def iterate_slide(
         raise HTTPException(status_code=500, detail=f"单页修改失败：{str(e)}")
 
     # 用 flag_modified 强制触发 SQLAlchemy JSON 变更检测
-    # Use cw_data_raw (already guaranteed dict) rather than re-reading cw.ppt_data which may be string
     new_data = dict(cw_data_raw) if isinstance(cw_data_raw, dict) else {}
     new_data["ppt_data"] = slides_array
     cw.ppt_data = new_data
     flag_modified(cw, "ppt_data")
     db.commit()
     db.refresh(cw)
-    return new_page
+    # Return all updated pages (frontend will refresh all slides)
+    return {"updated_pages": slides_array, "page": new_page}
 
 # ---------------- EXPORT ----------------
 

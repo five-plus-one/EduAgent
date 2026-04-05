@@ -159,9 +159,10 @@ def strip_md_plain(text: str) -> str:
 def convert_latex(text: str) -> str:
     """
     Convert LaTeX math expressions ($...$  /  $$...$$) to readable Unicode text.
+    Also converts bare subscript/superscript notation like a_t or v^2 outside $ delimiters.
     Applied to all PPT content before export.
     """
-    if not text or '$' not in text:
+    if not text:
         return text
 
     # Symbol → Unicode  (no ambiguous alternation chars in patterns)
@@ -218,10 +219,29 @@ def convert_latex(text: str) -> str:
         s = re.sub(r'\\bar\{([^{}]*)\}',  lambda m: m.group(1) + '\u0305', s)
 
         # 4. ^{exp} and _{sub}
-        s = re.sub(r'\^\{([^{}]*)\}', lambda m: f'^{m.group(1)}', s)
-        s = re.sub(r'_\{([^{}]*)\}',  lambda m: f'_{m.group(1)}', s)
-        s = re.sub(r'\^([A-Za-z0-9])', r'^\1', s)
-        s = re.sub(r'_([A-Za-z0-9])',  r'_\1', s)
+        _SUB_MAP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()nrtsei',
+                                 '₀₁₂₃₄₅₆₇₈₉ₐᵦ꜀ᵈₑ꜁ᵍₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ꜃ₓᵧ꜀ₐᴮᶜᴰᴱᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁᵛᵂˣʸᶻ₊₋₌₍₎ₙᵣₜₛₑᵢ')
+        _SUP_MAP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()n',
+                                 '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𝚚ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ⁿ')
+
+        def _to_sub(s: str) -> str:
+            result = []
+            for c in s:
+                sub = c.translate(_SUB_MAP)
+                result.append(sub if sub != c or c in '₀₁₂₃₄₅₆₇₈₉' else '_' + c)
+            return ''.join(result)
+
+        def _to_sup(s: str) -> str:
+            result = []
+            for c in s:
+                sup = c.translate(_SUP_MAP)
+                result.append(sup if sup != c or c in '⁰¹²³⁴⁵⁶⁷⁸⁹' else '^' + c)
+            return ''.join(result)
+
+        s = re.sub(r'\^\{([^{}]*)\}', lambda m: _to_sup(m.group(1)), s)
+        s = re.sub(r'_\{([^{}]*)\}',  lambda m: _to_sub(m.group(1)), s)
+        s = re.sub(r'\^([A-Za-z0-9])', lambda m: _to_sup(m.group(1)), s)
+        s = re.sub(r'_([A-Za-z0-9])',  lambda m: _to_sub(m.group(1)), s)
 
         # 5. Symbol table (longest first avoids partial matches)
         for pat, uni in _SYM:
@@ -236,6 +256,18 @@ def convert_latex(text: str) -> str:
     text = re.sub(r'\$\$(.+?)\$\$', lambda m: _inner(m.group(1)), text, flags=re.DOTALL)
     # $...$  (inline math)
     text = re.sub(r'\$([^$\n]+?)\$', lambda m: _inner(m.group(1)), text)
+
+    # Handle bare sub/superscripts outside $...$  e.g. a_t, v^2, a_n
+    _SUB_M = str.maketrans('0123456789aeijorstun', '₀₁₂₃₄₅₆₇₈₉ₐₑᵢⱼₒᵣₛₜᵤₙ')
+    _SUP_M = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzn', '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻⁿ')
+    def _bare_sub(s):
+        return ''.join((c.translate(_SUB_M) if c.translate(_SUB_M) != c else c) for c in s)
+    def _bare_sup(s):
+        return ''.join((c.translate(_SUP_M) if c.translate(_SUP_M) != c else c) for c in s)
+    text = re.sub(r'([A-Za-z0-9])_\{([^}]+)\}', lambda m: m.group(1) + _bare_sub(m.group(2)), text)
+    text = re.sub(r'([A-Za-z0-9])\^\{([^}]+)\}', lambda m: m.group(1) + _bare_sup(m.group(2)), text)
+    text = re.sub(r'([A-Za-z0-9])_([A-Za-z0-9])', lambda m: m.group(1) + _bare_sub(m.group(2)), text)
+    text = re.sub(r'([A-Za-z0-9])\^([A-Za-z0-9])', lambda m: m.group(1) + _bare_sup(m.group(2)), text)
     return text
 
 
@@ -312,9 +344,12 @@ def _card_bg(bg: "RGBColor", acc: "RGBColor", dark: bool) -> "RGBColor":
     _W = RGBColor(0xFF, 0xFF, 0xFF)
     _B = RGBColor(0x00, 0x00, 0x00)
     if dark:
-        if _lum(bg) < 0.08:          # very dark bg — darkening is useless
-            return blend(acc, bg, 0.20)  # accent tint for visible contrast
-        return blend(_B, bg, 0.28)   # darken 28% (CSS rgba(0,0,0,0.3) equivalent)
+        bg_lum = _lum(bg)
+        if bg_lum < 0.05:          # near-black bg — use a medium dark overlay
+            return blend(RGBColor(0x00, 0x00, 0x00), bg, 0.40)  # slightly visible dark card
+        if bg_lum < 0.15:          # dark bg — darken significantly for visible contrast
+            return blend(_B, bg, 0.50)   # 50% darken — strong contrast card
+        return blend(_B, bg, 0.35)   # moderate dark bg: darken 35%
     return blend(_W, bg, 0.55)       # light bg: card is clearly lighter
 
 
@@ -620,7 +655,8 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     card_border  = _card_border(bg, dark)
 
     body_cards = []
-    for elem in body_elems[:6]:
+    MAX_CARDS = 9  # hard cap to prevent overflow
+    for elem in body_elems[:MAX_CARDS]:
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
         if etype == "list" and len(items) > 1:
@@ -634,19 +670,25 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
             if text:
                 body_cards.append(text)
 
+    # Trim cards to fit available space
+    if len(body_cards) > MAX_CARDS:
+        body_cards = body_cards[:MAX_CARDS]
+
     if body_cards:
-        GAP = 0.07
+        GAP = 0.06
         n_c = len(body_cards)
-        text_w_est = left_w - 0.22
+        text_w_est = left_w - 0.24
         nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
         avail_c = avail_h - GAP * (n_c - 1)
         total_nat_c = sum(nat_c)
         if total_nat_c <= avail_c:
-            factor_c = min(avail_c / max(total_nat_c, 0.01), 1.5)
-            heights_c = [max(0.38, h * factor_c) for h in nat_c]
+            # Don't expand more than 1.2x to avoid cards looking too tall
+            factor_c = min(avail_c / max(total_nat_c, 0.01), 1.2)
+            heights_c = [max(0.32, h * factor_c) for h in nat_c]
         else:
+            # Scale down, but keep minimum viable height
             scale_c = avail_c / max(total_nat_c, 0.01)
-            heights_c = [max(0.38, h * scale_c) for h in nat_c]
+            heights_c = [max(0.28, h * scale_c) for h in nat_c]
 
         cy_m = CONTENT_T
         for i, card_text in enumerate(body_cards):
@@ -654,10 +696,16 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
             rect_rounded(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body, card_border)
             line_v(slide, lx, cy_m, each_c, 0.055, acc)
             clen = len(card_text)
-            max_sz = 18 if clen < 50 else (17 if clen < 100 else 16)
-            sz = calc_safe_pt(each_c - 0.16, 1, max_sz, 13, max_sz)
-            add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.08,
-                         left_w - 0.22, each_c - 0.16, sz, txt, acc)
+            # More aggressive font scaling for dense slides
+            if n_c >= 7:
+                max_sz = 13
+            elif n_c >= 5:
+                max_sz = 15 if clen < 50 else 13
+            else:
+                max_sz = 17 if clen < 50 else (15 if clen < 100 else 14)
+            sz = calc_safe_pt(each_c - 0.12, max(1, clen // 40), max_sz, 10, max_sz)
+            add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.06,
+                         left_w - 0.24, each_c - 0.12, sz, txt, acc)
             cy_m += each_c + GAP
 
 

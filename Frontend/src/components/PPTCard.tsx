@@ -115,7 +115,7 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
       );
     }
 
-    if (el.type === 'text_block' || el.type === 'subtitle') {
+    if (el.type === 'text_block') {
       if (contentArray.length > 1) {
         return (
           <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
@@ -237,16 +237,21 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
           </>
         ) : page.layout_type === 'two_column' || page.layout_type === 'minimal_list' ? (
           /* Proper Columnar Layout Mapping via Position */
-          <>
-            <div className={styles.columnLeft}>
-              {page.elements?.filter(e => e.position === 'left' || e.position === 'left_top' || e.position === 'left_bottom' || !e.position || e.position === 'center').map(renderElement)}
-            </div>
-            {page.elements?.some(e => e.position && e.position.includes('right')) && (
-              <div className={styles.columnRight}>
-                {page.elements?.filter(e => e.position && e.position.includes('right')).map(renderElement)}
-              </div>
-            )}
-          </>
+          (() => {
+            const hasRight = page.elements?.some((e: any) => e.position && String(e.position).includes('right'));
+            return (
+              <>
+                <div className={styles.columnLeft}>
+                  {page.elements?.filter((e: any) => !e.position || String(e.position).includes('left') || e.position === 'center' || e.position === 'full' || (!String(e.position).includes('right'))).map(renderElement)}
+                </div>
+                {hasRight && (
+                  <div className={styles.columnRight}>
+                    {page.elements?.filter((e: any) => e.position && String(e.position).includes('right')).map(renderElement)}
+                  </div>
+                )}
+              </>
+            );
+          })()
         ) : (
           /* Default Fallback */
           page.elements?.map(renderElement)

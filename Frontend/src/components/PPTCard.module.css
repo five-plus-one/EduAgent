@@ -89,6 +89,8 @@
   z-index: 2;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* prevent content from exceeding slide height */
+  min-height: 0;   /* allow flex children to shrink */
 }
 
 /* 1. Cover Layout Matrix */
@@ -157,14 +159,17 @@
   grid-template-columns: repeat(var(--col-count, 2), 1fr);
   gap: calc(0.5 * var(--in));
   align-items: start;
+  overflow: hidden;
 }
 
 /* Logical Grouping Columns */
 .columnLeft, .columnRight {
   display: flex;
   flex-direction: column;
-  gap: calc(0.15 * var(--in));
+  gap: calc(0.12 * var(--in));
   height: min-content;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .layout_two_column::before, .layout_minimal_list::before {
@@ -327,16 +332,16 @@
   border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  padding: calc(0.12 * var(--in)) calc(0.2 * var(--in));
+  padding: calc(0.10 * var(--in)) calc(0.18 * var(--in));
   border-radius: 0 8px 8px 0;
-  margin-bottom: calc(0.08 * var(--in));
+  margin-bottom: calc(0.06 * var(--in));
   box-shadow: 0 4px 15px rgba(0,0,0,0.03);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
-  font-size: calc(22 * var(--pt)); /* Unify with textBlock */
-  line-height: 1.6;
+  font-size: calc(min(20, var(--dynamic-font, 20)) * var(--pt));
+  line-height: 1.5;
 }
 
 .contentList li p,
@@ -350,10 +355,10 @@
 }
 
 .textBlock {
-  font-size: calc(22 * var(--pt)); /* Increased from 16pt for PPT scale readability */
-  line-height: 1.6;
+  font-size: calc(20 * var(--pt));
+  line-height: 1.5;
   font-weight: 400;
-  margin-bottom: calc(0.1 * var(--in));
+  margin-bottom: calc(0.08 * var(--in));
   
   /* Glassmorphism Structural Upgrade */
   background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
@@ -361,7 +366,7 @@
   border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
   border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  padding: calc(0.15 * var(--in)) calc(0.25 * var(--in));
+  padding: calc(0.12 * var(--in)) calc(0.22 * var(--in));
   border-radius: 0 8px 8px 0;
   box-shadow: 0 4px 15px rgba(0,0,0,0.03);
   backdrop-filter: blur(8px);

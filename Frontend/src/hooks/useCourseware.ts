@@ -245,9 +245,17 @@ export function useCourseware(sessionId: string) {
     setUpdatingPages(prev => new Set(prev).add(pageIndex));
 
     try {
-      const updatedPage = await iterateCoursewarePage(sessionId, 'ppt', pageIndex, instruction);
-      if (updatedPage) {
-        setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, ...updatedPage } : p));
+      const result = await iterateCoursewarePage(sessionId, 'ppt', pageIndex, instruction);
+      if (result) {
+        // New API returns {updated_pages, page} — support both single page and page splits
+        if (result.updated_pages && Array.isArray(result.updated_pages)) {
+          // Full slide list was updated (supports page splits with re-indexing)
+          setPages(result.updated_pages);
+        } else {
+          // Backward compat: old API returned the page object directly
+          const updatedPage = result.page ?? result;
+          setPages(prev => prev.map(p => p.page_index === pageIndex ? { ...p, ...updatedPage } : p));
+        }
       }
     } catch (e: any) {
       console.error('Failed to iterate page', pageIndex, e);
