@@ -295,6 +295,38 @@ def _is_dark(colors: dict) -> bool:
     return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255.0 < 0.5
 
 
+def _lum(c: "RGBColor") -> float:
+    """Perceptual relative luminance of an RGBColor (0–1)."""
+    return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255.0
+
+
+def _card_bg(bg: "RGBColor", acc: "RGBColor", dark: bool) -> "RGBColor":
+    """Luminance-aware card background, matching frontend glassmorphism logic.
+
+    CSS for dark themes: rgba(0,0,0,0.3) overlay = card is DARKER than bg.
+    But for extremely dark bgs (lum < 0.08) darkening yields indistinguishable
+    near-black, so we fall back to a subtle accent tint instead.
+
+    For light themes: rgba(255,255,255,0.55) = card is lighter than bg.
+    """
+    _W = RGBColor(0xFF, 0xFF, 0xFF)
+    _B = RGBColor(0x00, 0x00, 0x00)
+    if dark:
+        if _lum(bg) < 0.08:          # very dark bg — darkening is useless
+            return blend(acc, bg, 0.20)  # accent tint for visible contrast
+        return blend(_B, bg, 0.28)   # darken 28% (CSS rgba(0,0,0,0.3) equivalent)
+    return blend(_W, bg, 0.55)       # light bg: card is clearly lighter
+
+
+def _card_border(bg: "RGBColor", dark: bool) -> "RGBColor | None":
+    """Thin glassy card border matching CSS border: 1px solid rgba(255,255,255,0.15).
+    Returns None for light themes (no border needed).
+    """
+    if not dark:
+        return None
+    return blend(RGBColor(0xFF, 0xFF, 0xFF), bg, 0.18)
+
+
 # ──────────────────────────────────────────────
 # Low-level drawing primitives
 # ──────────────────────────────────────────────
@@ -583,11 +615,8 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
 
     # ── Body cards (left / full column) ── explode each list item into its own card ──
     lx = MARGIN_LEFT
-    # Card background: accent-tinted bg — adds color diversity AND stays visible on any dark bg.
-    # CSS equivalent: rgba(accent, 0.22) over bg in dark; rgba(white, 0.55) over bg in light.
-    _W = RGBColor(0xFF, 0xFF, 0xFF)
-    card_bg_body   = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
-    card_border = blend(_W, bg, 0.20) if dark else None
+    card_bg_body = _card_bg(bg, acc, dark)
+    card_border  = _card_border(bg, dark)
 
     body_cards = []
     for elem in body_elems[:6]:
@@ -690,9 +719,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
         return (e.get("type") in ("huge_number", "stat")
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
-    _W = RGBColor(0xFF, 0xFF, 0xFF)
-    card_bg_normal = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
-    card_border    = blend(_W, bg, 0.20) if dark else None
+    card_bg_normal = _card_bg(bg, acc, dark)
+    card_border    = _card_border(bg, dark)
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
@@ -841,9 +869,8 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     line_v(slide, spine_x, spine_t, avail_h, 0.05, spine_col)
 
     # ── Card background (matches other layouts) ─────────────────────
-    _W = RGBColor(0xFF, 0xFF, 0xFF)
-    card_bg   = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
-    card_border = blend(_W, bg, 0.20) if dark else None
+    card_bg     = _card_bg(bg, acc, dark)
+    card_border = _card_border(bg, dark)
 
     for i, elem in enumerate(elements):
         row_y   = spine_t + i * each_h
