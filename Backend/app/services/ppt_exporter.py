@@ -306,18 +306,19 @@ def rect(slide, l, t, w, h, fill: "RGBColor", shape_id: int = 1) -> None:
     sp.line.fill.background()
 
 
-def rect_rounded(slide, l, t, w, h, fill: "RGBColor", radius_pt: float = 8.0) -> None:
+def rect_rounded(slide, l, t, w, h, fill: "RGBColor",
+                 border_col: "RGBColor | None" = None,
+                 radius_pt: float = 8.0) -> None:
     """Rectangle with ONLY the right two corners rounded (left stays square).
-    Matches CSS: border-radius: 0 8px 8px 0 — as used in the frontend preview cards.
-    Uses OOXML custGeom for precise per-corner control.
+    Matches CSS: border-radius: 0 8px 8px 0.
+    border_col: if given, draw a 0.75pt border line (for dark theme card outline).
     """
     W_emu = int(Inches(w))
     H_emu = int(Inches(h))
     r_emu = int(Pt(radius_pt))
-    r_emu = min(r_emu, H_emu // 2, W_emu // 4)  # clamp to sensible max
+    r_emu = min(r_emu, H_emu // 2, W_emu // 4)
 
     NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main"
-    # Path: top-left and bottom-left are square; top-right and bottom-right are arc'd
     cg_xml = (
         f'<a:custGeom xmlns:a="{NS_A}">'
         f'<a:avLst/><a:gdLst/>'
@@ -336,7 +337,6 @@ def rect_rounded(slide, l, t, w, h, fill: "RGBColor", radius_pt: float = 8.0) ->
 
     sp = slide.shapes.add_shape(1, Inches(l), Inches(t), Inches(w), Inches(h))
     sp_el = sp._element
-    # Swap prstGeom → custGeom
     prstGeom = sp_el.find('.//' + qn('a:prstGeom'))
     if prstGeom is not None:
         parent = prstGeom.getparent()
@@ -346,7 +346,11 @@ def rect_rounded(slide, l, t, w, h, fill: "RGBColor", radius_pt: float = 8.0) ->
 
     sp.fill.solid()
     sp.fill.fore_color.rgb = fill
-    sp.line.fill.background()
+    if border_col is not None:
+        sp.line.color.rgb = border_col
+        sp.line.width = Pt(0.75)
+    else:
+        sp.line.fill.background()
 
 
 def line_h(slide, l, t, w, thickness: float, color: "RGBColor") -> None:
@@ -358,8 +362,12 @@ def line_v(slide, l, t, h, thickness: float, color: "RGBColor") -> None:
 
 
 def tb_plain(slide, text: str, l, t, w, h, size: int, color: "RGBColor",
-             bold: bool = False, align=None) -> None:
-    """Plain textbox — no markdown parsing."""
+             bold: bool = False, align=None,
+             v_anchor: str = 't', fixed_h: bool = False) -> None:
+    """Plain textbox.
+    v_anchor: 't'=top (default), 'ctr'=center, 'b'=bottom aligned text.
+    fixed_h: if True, sets noAutofit so the text box keeps the given height.
+    """
     from pptx.util import Pt
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
@@ -371,6 +379,16 @@ def tb_plain(slide, text: str, l, t, w, h, size: int, color: "RGBColor",
     p.font.color.rgb = color
     if align:
         p.alignment = align
+    # Vertical anchor + optional fixed height
+    bodyPr = tf._txBody.bodyPr
+    if v_anchor != 't':
+        bodyPr.set('anchor', v_anchor)
+    if fixed_h:
+        for tag in ('a:spAutoFit', 'a:normAutofit', 'a:noAutofit'):
+            el = bodyPr.find(qn(tag))
+            if el is not None:
+                bodyPr.remove(el)
+        etree.SubElement(bodyPr, qn('a:noAutofit'))
 
 
 def _add_rich_para(tf, text: str, size: int, color: "RGBColor", accent: "RGBColor",
@@ -434,7 +452,8 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
 # ──────────────────────────────────────────────
 
 def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
-    """Slide chrome matching frontend: small accent page-num before title, large faded watermark at bottom-right."""
+    """Slide chrome: page number in muted primary (opacity ~0.45), bold title bottom-anchored
+    above the accent underline, and large faded watermark in bottom-right."""
     from pptx.util import Pt
     from pptx.enum.text import PP_ALIGN
     bg  = colors["bg"]
@@ -442,10 +461,10 @@ def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
     acc = colors["acc"]
     txt = colors["txt"]
 
-    # Top accent bar
+    # Top accent bar (thin chromic strip)
     line_h(slide, 0, 0, SLIDE_W, 0.10, acc)
 
-    # Large faded page number — BOTTOM-RIGHT watermark
+    # Large faded page number — BOTTOM-RIGHT watermark (12% primary blended with bg)
     faded_num = blend(pri, bg, 0.12)
     tb = slide.shapes.add_textbox(
         Inches(SLIDE_W - 1.9), Inches(SLIDE_H - 1.3),
@@ -458,17 +477,23 @@ def draw_chrome(slide, page_idx: int, title: str, colors: dict) -> None:
     p.font.bold = True
     p.font.color.rgb = faded_num
 
-    # Title row: small accent number + main title (matching frontend)
+    # ── Title row ────────────────────────────────────────────────────────────
+    # Small page-index number: muted primary (like CSS opacity:0.45 on primary)
+    num_color = blend(pri, bg, 0.45)
     num_w = 0.52
     tb_plain(slide, str(page_idx).zfill(2),
-             MARGIN_LEFT, TITLE_T + 0.08, num_w, TITLE_H - 0.12,
-             size=16, color=acc, bold=True)
+             MARGIN_LEFT, TITLE_T, num_w, TITLE_H,
+             size=16, color=num_color, bold=True,
+             v_anchor='b', fixed_h=True)
+
+    # Main title: text_color, bold, bottom-anchored so it kisses the underline
     tb_plain(slide, title,
              MARGIN_LEFT + num_w + 0.08, TITLE_T,
              CONTENT_W - num_w - 0.08 - 1.5, TITLE_H,
-             size=24, color=txt, bold=True)
+             size=24, color=txt, bold=True,
+             v_anchor='b', fixed_h=True)
 
-    # Underline below title
+    # Underline immediately below title zone (accent color)
     line_h(slide, MARGIN_LEFT, TITLE_T + TITLE_H + 0.02, CONTENT_W * 0.45, 0.04, acc)
 
 
@@ -558,12 +583,11 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
 
     # ── Body cards (left / full column) ── explode each list item into its own card ──
     lx = MARGIN_LEFT
-    # Card background: match frontend glassmorphism formula.
-    # Dark themes: 30% black overlay = card DARKER than bg (rgba(0,0,0,0.3) in CSS)
-    # Light themes: 40% white overlay = card LIGHTER than bg (rgba(255,255,255,0.4) in CSS)
+    # Card background: accent-tinted bg — adds color diversity AND stays visible on any dark bg.
+    # CSS equivalent: rgba(accent, 0.22) over bg in dark; rgba(white, 0.55) over bg in light.
     _W = RGBColor(0xFF, 0xFF, 0xFF)
-    _B = RGBColor(0x00, 0x00, 0x00)
-    card_bg_body = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
+    card_bg_body   = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
+    card_border = blend(_W, bg, 0.20) if dark else None
 
     body_cards = []
     for elem in body_elems[:6]:
@@ -597,7 +621,7 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         cy_m = CONTENT_T
         for i, card_text in enumerate(body_cards):
             each_c = heights_c[i]
-            rect_rounded(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body)
+            rect_rounded(slide, lx, cy_m, left_w - 0.05, each_c, card_bg_body, card_border)
             line_v(slide, lx, cy_m, each_c, 0.055, acc)
             clen = len(card_text)
             max_sz = 18 if clen < 50 else (17 if clen < 100 else 16)
@@ -667,8 +691,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
     _W = RGBColor(0xFF, 0xFF, 0xFF)
-    _B = RGBColor(0x00, 0x00, 0x00)
-    card_bg_normal = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
+    card_bg_normal = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
+    card_border    = blend(_W, bg, 0.20) if dark else None
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
@@ -714,7 +738,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
             text = card["text"]
             cb = card_bg_stat if card["stat"] else card_bg_normal
             # Card fill
-            rect_rounded(slide, col_x, cy, half_w - 0.05, each_h, cb)
+            rect_rounded(slide, col_x, cy, half_w - 0.05, each_h, cb, card_border)
             # Left accent border
             line_v(slide, col_x, cy, each_h, 0.055, acc)
 
@@ -818,8 +842,8 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
 
     # ── Card background (matches other layouts) ─────────────────────
     _W = RGBColor(0xFF, 0xFF, 0xFF)
-    _B = RGBColor(0x00, 0x00, 0x00)
-    card_bg = blend(_B, bg, 0.30) if dark else blend(_W, bg, 0.40)
+    card_bg   = blend(acc, bg, 0.22) if dark else blend(_W, bg, 0.55)
+    card_border = blend(_W, bg, 0.20) if dark else None
 
     for i, elem in enumerate(elements):
         row_y   = spine_t + i * each_h
@@ -850,7 +874,7 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
         card_h = max(0.42, each_h - v_gap * 2)
         card_y = row_y + v_gap
 
-        rect_rounded(slide, card_x, card_y, card_w, card_h, card_bg)
+        rect_rounded(slide, card_x, card_y, card_w, card_h, card_bg, card_border)
         line_v(slide, card_x, card_y, card_h, 0.07, acc)
 
         # ── Content text ───────────────────────────────────────
