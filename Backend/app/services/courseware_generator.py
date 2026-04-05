@@ -304,6 +304,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         page_count = 0
         theme_saved = False
         done_sent = False
+        _raw_llm_output = []  # debug: capture full raw LLM text
 
         import httpx
         timeout_config = httpx.Timeout(connect=15.0, read=600.0, write=15.0, pool=20.0)
@@ -330,6 +331,8 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
                             if not delta:
                                 continue
+                            
+                            _raw_llm_output.append(delta)  # debug log
 
                             if word_mode:
                                 word_lines.append(delta)
@@ -363,6 +366,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                 try:
                                     obj, idx = decoder.raw_decode(buffer)
                                     t = obj.get("__type")
+                                    print(f"[parser] parsed __type={t!r} buffer_len={len(buffer)} idx={idx}")
                                     from sqlalchemy.orm.attributes import flag_modified
 
                                     if t == "theme":
@@ -421,6 +425,11 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
                         except json.JSONDecodeError:
                             continue
+
+        # Write raw LLM output to debug file
+        with open("debug_llm.log", "w", encoding="utf-8") as _f:
+            _f.write("".join(_raw_llm_output))
+        print(f"[debug] raw LLM output written to debug_llm.log ({len(_raw_llm_output)} chunks)")
 
         if word_mode and word_lines and not done_sent:
             word_buffer = "".join(word_lines)

@@ -95,6 +95,8 @@ class PPTStreamManagerClass {
   }>();
 
   private sessionListeners = new Map<string, Set<PPTStreamListener>>();
+  // Prevent duplicate re-trigger within 10s of last successful generation
+  private lastCompletionTime = new Map<string, number>();
 
   public subscribe(sessionId: string, listener: PPTStreamListener): () => void {
     if (!this.sessionListeners.has(sessionId)) {
@@ -181,7 +183,16 @@ class PPTStreamManagerClass {
     });
   }
 
-  public async startStream(sessionId: string, selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast') {
+  public async startStream(sessionId: string, selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast', force = false) {
+    // Guard: block re-trigger within 10 seconds of last successful completion (unless forced)
+    if (!force) {
+      const lastDone = this.lastCompletionTime.get(sessionId) ?? 0;
+      if (Date.now() - lastDone < 10000) {
+        console.warn(`[PPTStream] Blocking duplicate startStream for ${sessionId} — last completed ${Date.now() - lastDone}ms ago. Use force=true to override.`);
+        return;
+      }
+    }
+
     if (this.activeStreams.has(sessionId)) {
       this.stopStream(sessionId);
     }
@@ -231,6 +242,7 @@ class PPTStreamManagerClass {
           },
           onDone: () => {
             state.isStreaming = false;
+            this.lastCompletionTime.set(sessionId, Date.now()); // record for cooldown guard
             
             // Final backup
             this.saveFallback(sessionId, state);

@@ -37,9 +37,9 @@ export function usePPTStream(sessionId: string) {
     };
   }, [sessionId]);
 
-  const startStreaming = useCallback(async (selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast') => {
+  const startStreaming = useCallback(async (selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast', force = false) => {
     if (sessionId === 'new') return;
-    await GlobalPPTStreamManager.startStream(sessionId, selectedFileIds, mode);
+    await GlobalPPTStreamManager.startStream(sessionId, selectedFileIds, mode, force);
   }, [sessionId]);
 
   const stopStreaming = useCallback(() => {

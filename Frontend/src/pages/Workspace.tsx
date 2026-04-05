@@ -458,7 +458,7 @@ export default function Workspace() {
                   className={clsx('button-primary', styles.generateBtn)}
                   onClick={async () => {
                     setActiveTab('ppt');
-                    await startStreaming([], 'fast');
+                    await startStreaming([], 'fast', true);
                     fetchPreview();
                   }}
                   disabled={isGenerating || isStreaming || sessionId === 'new'}
@@ -573,7 +573,7 @@ export default function Workspace() {
                   </p>
                   <button
                     className='button-primary'
-                    onClick={() => startStreaming(Array.from(linkedDocs), 'fast')}
+                    onClick={() => startStreaming(Array.from(linkedDocs), 'fast', true)}
                     disabled={sessionId === 'new'}
                     style={{ padding: '10px 24px' }}
                   >
