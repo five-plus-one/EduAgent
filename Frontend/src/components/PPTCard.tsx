@@ -46,18 +46,28 @@ function toStringArray(content: unknown): string[] {
 }
 
 /**
- * Pre-process markdown text: upgrade inline $...$ that contain multi-line
- * LaTeX environments (cases, aligned, array, pmatrix, etc.) to display $$...$$.
+ * Pre-process markdown text:
+ * 1. Wrap bare \begin{cases}...\end{cases} (no dollar signs) in $$...$$
+ * 2. Upgrade inline $...$ containing multi-line LaTeX environments to $$...$$
  * This allows KaTeX to render them in block mode with proper line breaks.
  */
 function preprocessMath(text: string): string {
-  // Upgrade inline $...$ containing \begin{...} to display $$...$$
-  return text.replace(/\$([^$]+)\$/g, (full, inner) => {
+  // Step 1: Wrap bare \begin{cases}...\end{cases} with no surrounding $ in $$...$$
+  let result = text.replace(
+    /(?<!\$)\\begin\{(cases|aligned|align|array|pmatrix|bmatrix|vmatrix|matrix)\}[\s\S]*?\\end\{\1\}(?!\$)/g,
+    (match) => `$$${match}$$`
+  );
+
+  // Step 2: Upgrade INLINE $...$ (not $$...$$) containing \begin{...} to $$...$$
+  // Match single $ not preceded/followed by another $ 
+  result = result.replace(/(?<!\$)\$(?!\$)([\s\S]+?)(?<!\$)\$(?!\$)/g, (full, inner) => {
     if (/\\begin\{(cases|aligned|align|array|pmatrix|bmatrix|vmatrix|matrix)\}/.test(inner)) {
       return `$$${inner}$$`;
     }
     return full;
   });
+
+  return result;
 }
 
 

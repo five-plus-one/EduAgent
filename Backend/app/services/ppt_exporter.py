@@ -200,12 +200,23 @@ def convert_latex(text: str) -> str:
 
     def _inner(s: str) -> str:
         """Convert LaTeX math body to readable Unicode text."""
-        # 1. \begin{cases}...\end{cases}  ->  { line1; line2; ... }
+        # 1. \begin{cases}...\end{cases}  ->  multi-line with Unicode brace chars
         def _do_cases(m):
             body = m.group(1)
-            lines = re.split(r'\\\\', body)
-            parts = [_inner(ln.strip().lstrip('&').strip()) for ln in lines if ln.strip()]
-            return '{ ' + '; '.join(parts)
+            rows = re.split(r'\\\\', body)
+            parts = [_inner(ln.strip().lstrip('&').strip()) for ln in rows if ln.strip()]
+            if len(parts) == 0:
+                return ''
+            elif len(parts) == 1:
+                return '\u23a7 ' + parts[0]
+            elif len(parts) == 2:
+                return '\u23a7 ' + parts[0] + '\n\u23a9 ' + parts[1]
+            else:
+                out = '\u23a7 ' + parts[0]
+                for mid in parts[1:-1]:
+                    out += '\n\u23aa ' + mid
+                out += '\n\u23a9 ' + parts[-1]
+                return out
         s = re.sub(r'\\begin\{cases\}(.*?)\\end\{cases\}', _do_cases, s, flags=re.DOTALL)
 
         # 2. \frac{num}{den}  ->  num/den
@@ -324,13 +335,23 @@ def calc_safe_pt(available_h_inches: float, n_lines: int,
 
 
 def get_content_list(elem: dict) -> list:
-    """Return element content as a list of strings, with LaTeX converted."""
+    """Return element content as a list of strings, with LaTeX converted.
+    Items containing \n (from cases environment) are split into multiple entries.
+    """
     raw = elem.get("content", [])
-    if isinstance(raw, list):
-        return [convert_latex(str(c)) for c in raw if c]
-    if raw:
-        return [convert_latex(str(raw))]
-    return []
+    if not isinstance(raw, list):
+        raw = [str(raw)] if raw else []
+    result = []
+    for c in raw:
+        if not c:
+            continue
+        converted = convert_latex(str(c))
+        # Split on newlines produced by cases/aligned environments
+        sub_items = [s for s in converted.split("\n") if s.strip()]
+        result.extend(sub_items if sub_items else [converted])
+    return result
+
+
 
 
 
