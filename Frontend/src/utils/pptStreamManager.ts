@@ -97,6 +97,8 @@ class PPTStreamManagerClass {
   private sessionListeners = new Map<string, Set<PPTStreamListener>>();
   // Prevent duplicate re-trigger within 10s of last successful generation
   private lastCompletionTime = new Map<string, number>();
+  // Throttle counter for thinking chunks per session
+  private _thinkCounter = new Map<string, number>();
 
   public subscribe(sessionId: string, listener: PPTStreamListener): () => void {
     if (!this.sessionListeners.has(sessionId)) {
@@ -194,6 +196,13 @@ class PPTStreamManagerClass {
     }
 
     if (this.activeStreams.has(sessionId)) {
+      // Only interrupt an existing stream when the caller explicitly forces it.
+      // Non-forced calls (e.g. auto-triggers from useEffect) must NOT kill an
+      // in-progress generation — that's what causes the "stuck after page 1" bug.
+      if (!force) {
+        console.warn(`[PPTStream] startStream ignored — already streaming for ${sessionId}. Pass force=true to restart.`);
+        return;
+      }
       this.stopStream(sessionId);
     }
 
@@ -238,7 +247,10 @@ class PPTStreamManagerClass {
           },
           onThinking: (chunk: string) => {
             state.streamThinking += chunk;
-            this.notify(sessionId, state);
+            // Throttle: notify every 6 chunks to avoid flooding React with re-renders
+            const n = (this._thinkCounter.get(sessionId) ?? 0) + 1;
+            this._thinkCounter.set(sessionId, n);
+            if (n % 6 === 0) this.notify(sessionId, state);
           },
           onDone: () => {
             state.isStreaming = false;

@@ -281,6 +281,10 @@ export const streamCoursewareGeneration = async (
     },
     body: JSON.stringify({ selected_file_ids: selectedFileIds, mode }),
     signal,
+    // CRITICAL: prevent fetch-event-source from closing the SSE connection
+    // when the browser tab loses focus or visibility (which is the default behavior).
+    // Without this, switching windows/tabs kills the stream after page 1.
+    openWhenHidden: true,
     onmessage(ev) {
       try {
         const payload = JSON.parse(ev.data);
