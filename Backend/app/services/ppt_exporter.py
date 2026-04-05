@@ -199,58 +199,88 @@ def convert_latex(text: str) -> str:
     ]
 
     def _inner(s: str) -> str:
-        """Recursively convert the body of a $...$ expression."""
-        # 1. \xrightarrow{arg}  →  (d/dt)→
-        s = re.sub(r'\\xrightarrow\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}',
-                   lambda m: f"({_inner(m.group(1))})→", s)
-        s = re.sub(r'\\xleftarrow\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}',
-                   lambda m: f"←({_inner(m.group(1))})", s)
+        """Convert LaTeX math body to readable Unicode text."""
+        # 1. \begin{cases}...\end{cases}  ->  { line1; line2; ... }
+        def _do_cases(m):
+            body = m.group(1)
+            lines = re.split(r'\\\\', body)
+            parts = [_inner(ln.strip().lstrip('&').strip()) for ln in lines if ln.strip()]
+            return '{ ' + '; '.join(parts)
+        s = re.sub(r'\\begin\{cases\}(.*?)\\end\{cases\}', _do_cases, s, flags=re.DOTALL)
 
-        # 2. \frac{num}{den}  →  num/den
+        # 2. \frac{num}{den}  ->  num/den
         s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}',
                    lambda m: f"{_inner(m.group(1))}/{_inner(m.group(2))}", s)
 
-        # 3. \vec{x}  →  x⃗   \hat{x}  →  x̂
-        s = re.sub(r'\\vec\{([^{}]*)\}',  lambda m: m.group(1) + '\u20d7', s)
-        s = re.sub(r'\\hat\{([^{}]*)\}',  lambda m: m.group(1) + '\u0302', s)
-        s = re.sub(r'\\ddot\{([^{}]*)\}', lambda m: m.group(1) + '\u0308', s)
-        s = re.sub(r'\\dot\{([^{}]*)\}',  lambda m: m.group(1) + '\u0307', s)
-        s = re.sub(r'\\tilde\{([^{}]*)\}',lambda m: m.group(1) + '\u0303', s)
-        s = re.sub(r'\\bar\{([^{}]*)\}',  lambda m: m.group(1) + '\u0305', s)
+        # 3. \xrightarrow, \xleftarrow
+        s = re.sub(r'\\xrightarrow\{([^{}]*)\}', lambda m: f"({_inner(m.group(1))})\u2192", s)
+        s = re.sub(r'\\xleftarrow\{([^{}]*)\}',  lambda m: f"\u2190({_inner(m.group(1))})", s)
 
-        # 4. ^{exp} and _{sub}
-        _SUB_MAP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()nrtsei',
-                                 '₀₁₂₃₄₅₆₇₈₉ₐᵦ꜀ᵈₑ꜁ᵍₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ꜃ₓᵧ꜀ₐᴮᶜᴰᴱᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁᵛᵂˣʸᶻ₊₋₌₍₎ₙᵣₜₛₑᵢ')
-        _SUP_MAP = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-=()n',
-                                 '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖ𝚚ʳˢᵗᵘᵛʷˣʸᶻᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁᵛᵂˣʸᶻ⁺⁻⁼⁽⁾ⁿ')
+        # 4. Decorated letters (recurse into arg so \Delta inside works)
+        s = re.sub(r'\\vec\{([^{}]*)\}',   lambda m: _inner(m.group(1)) + '\u20d7', s)
+        s = re.sub(r'\\hat\{([^{}]*)\}',   lambda m: _inner(m.group(1)) + '\u0302', s)
+        s = re.sub(r'\\ddot\{([^{}]*)\}',  lambda m: _inner(m.group(1)) + '\u0308', s)
+        s = re.sub(r'\\dot\{([^{}]*)\}',   lambda m: _inner(m.group(1)) + '\u0307', s)
+        s = re.sub(r'\\tilde\{([^{}]*)\}', lambda m: _inner(m.group(1)) + '\u0303', s)
+        s = re.sub(r'\\bar\{([^{}]*)\}',   lambda m: _inner(m.group(1)) + '\u0305', s)
+        s = re.sub(r'\\vec\s+([A-Za-z])',  lambda m: m.group(1) + '\u20d7', s)
 
-        def _to_sub(s: str) -> str:
-            result = []
-            for c in s:
-                sub = c.translate(_SUB_MAP)
-                result.append(sub if sub != c or c in '₀₁₂₃₄₅₆₇₈₉' else '_' + c)
-            return ''.join(result)
+        # 5. SYMBOL TABLE -- must run BEFORE ^_{} subscript expansion
+        #    so \Delta inside _{} becomes \u0394 first, not garbled subscript chars
+        for pat, uni in _SYM:
+            s = re.sub(pat, uni, s)
 
-        def _to_sup(s: str) -> str:
-            result = []
-            for c in s:
-                sup = c.translate(_SUP_MAP)
-                result.append(sup if sup != c or c in '⁰¹²³⁴⁵⁶⁷⁸⁹' else '^' + c)
-            return ''.join(result)
+        # 6. Function names: strip backslash, keep text
+        for fn in ('lim','sin','cos','tan','cot','sec','csc',
+                   'log','ln','exp','max','min','sup','inf',
+                   'det','dim','ker','deg','gcd','arcsin','arccos','arctan'):
+            s = re.sub(r'\\' + fn + r'\b', fn, s)
+
+        # 7. ^{exp} and _{sub} -- dict-based, works for single chars
+        #    For long subscripts (e.g. {\Delta t \to 0}), wrap in parens after symbol sub
+        _IN_SUB = {
+            '0':'\u2080','1':'\u2081','2':'\u2082','3':'\u2083','4':'\u2084',
+            '5':'\u2085','6':'\u2086','7':'\u2087','8':'\u2088','9':'\u2089',
+            'a':'\u2090','e':'\u2091','i':'\u1d62','j':'\u2c7c','o':'\u2092',
+            'r':'\u1d63','s':'\u209b','t':'\u209c','u':'\u1d64','n':'\u2099',
+            'k':'\u2096','m':'\u2098','p':'\u209a','x':'\u2093','v':'\u1d65',
+            'l':'\u2097','h':'\u2095','+':'\u208a','-':'\u208b','=':'\u208c',
+            '(':'\u208d',')':'\u208e',
+        }
+        _IN_SUP = {
+            '0':'\u2070','1':'\u00b9','2':'\u00b2','3':'\u00b3','4':'\u2074',
+            '5':'\u2075','6':'\u2076','7':'\u2077','8':'\u2078','9':'\u2079',
+            'a':'\u1d43','b':'\u1d47','c':'\u1d9c','d':'\u1d48','e':'\u1d49',
+            'f':'\u1da0','g':'\u1d4d','h':'\u02b0','i':'\u2071','j':'\u02b2',
+            'k':'\u1d4f','l':'\u02e1','m':'\u1d50','n':'\u207f','o':'\u1d52',
+            'p':'\u1d56','r':'\u02b3','s':'\u02e2','t':'\u1d57','u':'\u1d58',
+            'v':'\u1d5b','w':'\u02b7','x':'\u02e3','y':'\u02b8','z':'\u1dbb',
+            'A':'\u1d2c','B':'\u1d2e','D':'\u1d30','E':'\u1d31','G':'\u1d33',
+            'H':'\u1d34','I':'\u1d35','J':'\u1d36','K':'\u1d37','L':'\u1d38',
+            'M':'\u1d39','N':'\u1d3a','O':'\u1d3c','P':'\u1d3e','R':'\u1d3f',
+            'T':'\u1d40','U':'\u1d41','W':'\u1d42',
+            '+':'\u207a','-':'\u207b','=':'\u207c','(':'\u207d',')':'\u207e',
+        }
+        def _to_sub(seg: str) -> str:
+            # long/complex subscripts: wrap in parens to keep readable
+            if len(seg) > 3 or (' ' in seg and len(seg) > 1):
+                return '(' + seg + ')'
+            return ''.join(_IN_SUB.get(c, c) for c in seg)
+        def _to_sup(seg: str) -> str:
+            if len(seg) > 3 or (' ' in seg and len(seg) > 1):
+                return '(' + seg + ')'
+            return ''.join(_IN_SUP.get(c, c) for c in seg)
 
         s = re.sub(r'\^\{([^{}]*)\}', lambda m: _to_sup(m.group(1)), s)
         s = re.sub(r'_\{([^{}]*)\}',  lambda m: _to_sub(m.group(1)), s)
         s = re.sub(r'\^([A-Za-z0-9])', lambda m: _to_sup(m.group(1)), s)
         s = re.sub(r'_([A-Za-z0-9])',  lambda m: _to_sub(m.group(1)), s)
 
-        # 5. Symbol table (longest first avoids partial matches)
-        for pat, uni in _SYM:
-            s = re.sub(pat, uni, s)
-
-        # 6. Strip remaining \commands and bare braces
+        # 8. Strip remaining \commands and bare braces
         s = re.sub(r'\\[A-Za-z]+\*?', '', s)
         s = s.replace('{', '').replace('}', '')
         return s.strip()
+
 
     # $$...$$  (block math, possibly multiline)
     text = re.sub(r'\$\$(.+?)\$\$', lambda m: _inner(m.group(1)), text, flags=re.DOTALL)
@@ -258,12 +288,19 @@ def convert_latex(text: str) -> str:
     text = re.sub(r'\$([^$\n]+?)\$', lambda m: _inner(m.group(1)), text)
 
     # Handle bare sub/superscripts outside $...$  e.g. a_t, v^2, a_n
-    _SUB_M = str.maketrans('0123456789aeijorstun', '₀₁₂₃₄₅₆₇₈₉ₐₑᵢⱼₒᵣₛₜᵤₙ')
-    _SUP_M = str.maketrans('0123456789abcdefghijklmnopqrstuvwxyzn', '⁰¹²³⁴⁵⁶⁷⁸⁹ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻⁿ')
+    _SUB_DICT = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
+                 'a':'ₐ','e':'ₑ','i':'ᵢ','j':'ⱼ','o':'ₒ','r':'ᵣ','s':'ₛ','t':'ₜ','u':'ᵤ','n':'ₙ',
+                 'k':'ₖ','m':'ₘ','p':'ₚ','x':'ₓ','v':'ᵥ','l':'ₗ','h':'ₕ'}
+    _SUP_DICT = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',
+                 'a':'ᵃ','b':'ᵇ','c':'ᶜ','d':'ᵈ','e':'ᵉ','f':'ᶠ','g':'ᵍ','h':'ʰ','i':'ⁱ','j':'ʲ',
+                 'k':'ᵏ','l':'ˡ','m':'ᵐ','n':'ⁿ','o':'ᵒ','p':'ᵖ','r':'ʳ','s':'ˢ','t':'ᵗ','u':'ᵘ',
+                 'v':'ᵛ','w':'ʷ','x':'ˣ','y':'ʸ','z':'ᶻ','A':'ᴬ','B':'ᴮ','D':'ᴰ','E':'ᴱ','G':'ᴳ',
+                 'H':'ᴴ','I':'ᴵ','J':'ᴶ','K':'ᴷ','L':'ᴸ','M':'ᴹ','N':'ᴺ','O':'ᴼ','P':'ᴾ','R':'ᴿ',
+                 'T':'ᵀ','U':'ᵁ','V':'ⱽ','W':'ᵂ','+':'⁺','-':'⁻','=':'⁼','(':'⁽',')':'⁾'}
     def _bare_sub(s):
-        return ''.join((c.translate(_SUB_M) if c.translate(_SUB_M) != c else c) for c in s)
+        return ''.join(_SUB_DICT.get(c, c) for c in s)
     def _bare_sup(s):
-        return ''.join((c.translate(_SUP_M) if c.translate(_SUP_M) != c else c) for c in s)
+        return ''.join(_SUP_DICT.get(c, c) for c in s)
     text = re.sub(r'([A-Za-z0-9])_\{([^}]+)\}', lambda m: m.group(1) + _bare_sub(m.group(2)), text)
     text = re.sub(r'([A-Za-z0-9])\^\{([^}]+)\}', lambda m: m.group(1) + _bare_sup(m.group(2)), text)
     text = re.sub(r'([A-Za-z0-9])_([A-Za-z0-9])', lambda m: m.group(1) + _bare_sub(m.group(2)), text)

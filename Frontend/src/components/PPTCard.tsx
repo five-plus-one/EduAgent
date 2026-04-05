@@ -45,6 +45,22 @@ function toStringArray(content: unknown): string[] {
   return [String(content)];
 }
 
+/**
+ * Pre-process markdown text: upgrade inline $...$ that contain multi-line
+ * LaTeX environments (cases, aligned, array, pmatrix, etc.) to display $$...$$.
+ * This allows KaTeX to render them in block mode with proper line breaks.
+ */
+function preprocessMath(text: string): string {
+  // Upgrade inline $...$ containing \begin{...} to display $$...$$
+  return text.replace(/\$([^$]+)\$/g, (full, inner) => {
+    if (/\\begin\{(cases|aligned|align|array|pmatrix|bmatrix|vmatrix|matrix)\}/.test(inner)) {
+      return `$$${inner}$$`;
+    }
+    return full;
+  });
+}
+
+
 interface Props {
   page: PPTPage;
   isUpdating: boolean;
@@ -108,7 +124,7 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
           {contentArray.map((b, i) => (
             <li key={i}>
-              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{b}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{preprocessMath(b)}</ReactMarkdown>
             </li>
           ))}
         </ul>
@@ -121,7 +137,7 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
           <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
             {contentArray.map((item, idx) => (
               <li key={idx}>
-                <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{item}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{preprocessMath(item)}</ReactMarkdown>
               </li>
             ))}
           </ul>
@@ -130,7 +146,7 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
       const singleText = contentArray[0] ?? '';
       return (
         <div key={el.element_id} className={clsx(styles.textBlock, positionClass)}>
-          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{singleText}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{preprocessMath(singleText)}</ReactMarkdown>
         </div>
       );
     }

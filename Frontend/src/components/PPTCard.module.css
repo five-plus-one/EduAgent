@@ -349,6 +349,20 @@
   margin: 0;
 }
 
+/* Allow KaTeX math blocks (cases, aligned, etc.) to display properly */
+.contentList li .katex-display,
+.textBlock .katex-display {
+  margin: 0.2em 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.contentList li .katex,
+.textBlock .katex {
+  font-size: 1em; /* match surrounding text size */
+}
+
+
 .contentList li p:not(:last-child),
 .textBlock p:not(:last-child) {
   margin-bottom: 0.5em;

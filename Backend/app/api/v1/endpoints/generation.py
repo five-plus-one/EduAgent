@@ -171,7 +171,7 @@ def iterate_slide(
 如果需要将该页拆为多页，则输出一个 JSON 数组，每页格式相同：
 [
   {{ "page_index": {page_to_update['page_index']}, "title": "原标题（与原页相同）", ... }},
-  {{ "page_index": {page_to_update['page_index'] + 1}, "title": "原标题（与原页相同，不要起名为"新增页"）", ... }}
+  {{ "page_index": {page_to_update['page_index'] + 1}, "title": "原标题（与原页相同，不要起名为\"新增页\"）", ... }}
 ]
 
 【重要规则】
@@ -182,6 +182,12 @@ def iterate_slide(
 - position: "left"|"right_top"|"right_bottom"|"center"|"full"
 - type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"
 - 严禁输出 Markdown 围栏、注释、额外文本
+
+【数学公式规则 - 必须严格遵守】
+- 所有数学公式、符号、方程必须使用 LaTeX 语法，用 $ ... $ 包裹
+- 联立方程组必须使用 $\\begin{{cases}} x=x(t)\\\\ y=y(t)\\\\ z=z(t) \\end{{cases}}$ 格式，禁止用分号分隔
+- 向量使用 $\\vec{{v}}$，分数使用 $\\frac{{a}}{{b}}$，极限使用 $\\lim_{{\\Delta t \\to 0}}$
+- 上下标变量如 $a_n$, $v^2$, $\\omega_0$ 都必须用 $ ... $ 包裹
 """
 
     prompt = (

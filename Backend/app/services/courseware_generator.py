@@ -280,7 +280,14 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 3. 所有字段必须存在，不能缺少 element_id、type、position、content、is_accent
 4. 上面的示例仅供格式参考，请生成关于当前课程主题的真实内容
 5. 主题色板必须根据课程风格选择，不要照抄示例的颜色
-6. 现在开始输出，第一行是 theme JSON"""
+6. 【数学公式规则 - 必须严格遵守】
+   - 所有数学公式、符号、方程必须使用 LaTeX 语法，用 $ ... $ 包裹（行内）或 $$ ... $$ 包裹（块级）
+   - 联立方程组（方程组）必须使用 $\\begin{{cases}} x=x(t)\\\\ y=y(t)\\\\ z=z(t) \\end{{cases}}$ 格式，禁止用分号分隔
+   - 向量必须使用 $\\vec{{r}}$ 或 $\\vec{{v}}$ 格式
+   - 分数使用 $\\frac{{分子}}{{分母}}$，极限使用 $\\lim_{{n \\to \\infty}}$
+   - 示例：正确写法 "$\\vec{{v}} = \\lim_{{\\Delta t \\to 0}} \\frac{{\\Delta \\vec{{r}}}}{{\\Delta t}}$"，禁止写成 "v = Δr/Δt"
+   - 任何涉及上下标的变量（如 $a_n$, $v^2$, $\\omega_0$）都必须用 $ ... $ 包裹
+7. 现在开始输出，第一行是 theme JSON"""
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"
