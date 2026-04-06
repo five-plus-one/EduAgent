@@ -130,9 +130,26 @@ export default function Workspace() {
           return next;
         });
       } else {
-        await addReferences(sessionId, [docId]);
+        // CRITICAL FIX: /references uses SET semantics on the backend.
+        // Passing only [docId] would delete all previously bound documents.
+        // We must pass ALL currently linked docs + the new one.
+        const allDocIds = [...Array.from(linkedDocs), docId];
+        await addReferences(sessionId, allDocIds);
         setLinkedDocs(prev => new Set(prev).add(docId));
-        // Note: document_id == file_id for newly linked docs (no session_file_id until re-fetched)
+
+        // Refresh docToFileId so the new doc's session_file_id is available for unbinding.
+        getSession(sessionId).then(res => {
+          const associated: any[] = res?.associated_files || [];
+          const mapping = new Map<string, string>();
+          associated.forEach((entry: any) => {
+            if (typeof entry === 'string') {
+              // old plain-string format — no session_file_id available
+            } else if (entry?.document_id && entry?.session_file_id) {
+              mapping.set(entry.document_id, entry.session_file_id);
+            }
+          });
+          setDocToFileId(mapping);
+        }).catch(() => { /* non-critical — document_id fallback still works */ });
       }
     } catch (e) {
       alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');

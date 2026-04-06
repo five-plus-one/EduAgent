@@ -1,54 +1,38 @@
-{"__type": "theme", "name": "物理课件蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "描述质点运动的物理量", "speaker_notes": "本次课程我们将系统学习描述质点运动的核心物理量，包括位矢、位移、速度、加速度以及圆周运动相关的角量", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 | 质点运动学模块"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "位置矢量与运动方程", "speaker_notes": "首先我们学习描述质点位置的物理量：位置矢量", "elements": [{"element_id": "e1", "type": "text_block", "position": "full", "content": ["位置矢量简称**位矢**，用$\vec{r}$表示，本质是空间向量，表达式为：$$\vec{r}=x \vec{i}+y \vec{j}+z \vec{k}$$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "left", "content": ["**运动方程**：位矢随时间变化的函数：$$\vec{r}(t)=x(t) \cdot \vec{i}+y(t) \cdot \vec{j}+z(t) \cdot \vec{k}$$", "**轨迹方程**：消去运动方程参数$t$得到的坐标关系，对应方程组：$$\begin{cases}x=x(t) \\ y=y(t) \\ z=z(t)\end{cases}$$"], "is_accent": false}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "位移与路程", "speaker_notes": "接下来我们区分两个容易混淆的物理量：位移和路程", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["**位移矢量**（简称位移）：用$\Delta \vec{r}$表示，描述质点位置的变化，表达式为：$$\Delta \vec{r}=\Delta x \cdot \vec{i}+ \Delta y \cdot \vec{j}+ \Delta z \cdot \vec{k}$$", "位移是矢量，既有大小又有方向"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["**路程**：用$s$表示，是质点运动轨迹的长度，为标量"], "is_accent": false}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["两者关系：一般情况下$s\geq \big|\Delta \vec{r}\big|$，当时间间隔趋近于0时满足：$$ds=|d \vec{r}|$$"], "is_accent": true}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "速度与加速度", "speaker_notes": "速度和加速度是描述质点运动快慢和速度变化快慢的核心物理量", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["**平均速度**：位移与时间间隔的比值：$$\bar{\vec{v}}=  \frac{\Delta \vec{r}}{\Delta t}$$", "**瞬时速度**：位矢对时间的一阶导数：$$\vec{v}=\lim_{ \Delta t \to 0 }\frac{\Delta \vec{r}}{\Delta t}=\frac{d \vec{r}}{dt}$$", "**平均加速度**：速度变化量与时间间隔的比值：$$\bar{\vec{a}}= \frac{\Delta \vec{v}}{\Delta t}$$", "**瞬时加速度**：速度对时间的一阶导数：$$\vec{a}=\frac{d \vec{v}}{dt}$$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "full", "content": ["💡 注意：位矢、速度是**运动状态量**，加速度是**状态变化量**"], "is_accent": true}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "切向加速度与法向加速度", "speaker_notes": "在自然坐标系下，加速度可以分解为切向和法向两个分量", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["**自然坐标系**：沿运动轨迹建立的坐标系：", "- 切向坐标轴：指向质点前进方向，单位矢量$\vec{e_{t}}$", "- 法向坐标轴：指向曲线凹侧，单位矢量$\vec{e_{n}}$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["**切向加速度**：描述速度大小的变化：$$\vec{a}_{t}=\frac{dv}{dt}\vec{e}_{t}$$"], "is_accent": false}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["**法向加速度**：描述速度方向的变化，$\rho$为轨迹曲率半径：$$\vec{a}_{n}=\frac{v^2}{\rho}\vec{e}_{n}$$"], "is_accent": true}]}
-{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "圆周运动的角量描述", "speaker_notes": "对于圆周运动，我们通常使用角量来描述更加方便", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["**角位置**：$\theta=\theta(t)$，描述质点在圆周上的位置", "**角位移**：$\Delta \theta$，逆时针为正，与弧长关系：$\Delta s=R\Delta \theta$", "**角速度**：$\omega=\frac{d\theta}{dt}$，与线速率关系：$v=R\omega$", "**矢量角速度**：方向遵循右手螺旋定则，线速度与角速度关系：$\vec{v}=\vec{\omega}\times \vec{r}$", "**角加速度**：$\alpha =\frac{d^2\theta}{dt^2}$，与切向加速度关系：$a_{t}=R\alpha$"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "最后我们对本次课程的核心内容做一个总结", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["1. 描述质点位置与位置变化：位矢$\vec{r}$、位移$\Delta \vec{r}$、路程$s$", "2. 描述运动快慢与方向：平均速度、瞬时速度$\vec{v}$", "3. 描述速度变化：平均加速度、瞬时加速度$\vec{a}$，自然坐标系下分解为切向$a_t$和法向$a_n$", "4. 圆周运动角量描述：角位置$\theta$、角位移$\Delta \theta$、角速度$\omega$、角加速度$\alpha$，以及角量与线量的对应关系"], "is_accent": false}]}
+{"__type": "theme", "name": "学术蓝", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#34D399", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "LaTeX 语法与公式对比指南", "speaker_notes": "大家好，今天我们来系统学习LaTeX的核心语法，通过和常规写法的对比，帮助大家快速掌握LaTeX公式编辑的技巧，提升学术写作的效率。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["适合学术写作、论文排版的实用教程"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程核心内容", "speaker_notes": "本次课程我们会覆盖这四类最常用的LaTeX语法场景，每一部分都会给出LaTeX写法和直观的效果对比，方便大家理解和记忆。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础数学符号与上下标语法", "分式、根式与极限类语法", "向量、矩阵与方程组语法", "常用运算符号与特殊符号语法"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["所有示例均包含LaTeX代码与渲染效果对比，可直接复制使用在论文、报告排版中。"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "基础符号与上下标对比", "speaker_notes": "首先是最基础的上下标和基础符号，这是LaTeX公式最常用的基础语法，我们可以看到LaTeX的写法非常规整，渲染出来的公式也符合学术规范。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$a_n$", "LaTeX代码：$v^2$", "LaTeX代码：$\omega_0$", "LaTeX代码：$x_i^2 + y_j^3$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：下标，序列第n项a的n次分量", "渲染效果：上标，速度v的平方", "渲染效果：混合标，初始角速度", "渲染效果：混合上下标，x的i项平方加y的j项立方"], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "分式、根式与极限对比", "speaker_notes": "接下来是分式、根式和极限的写法，这类复杂结构如果用普通文本编辑很难做到规范，而LaTeX可以很轻松地输出符合学术标准的格式。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$\frac{x+y}{x-y}$", "LaTeX代码：$\sqrt[3]{x^2 + 1}$", "LaTeX代码：$\lim_{n \to \infty} \frac{1}{n}$", "LaTeX代码：$\sum_{i=1}^n i = \frac{n(n+1)}{2}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：分式，x加y除以x减y", "渲染效果：三次根式，x平方加1的三次根", "渲染效果：极限，n趋向无穷时1/n的极限", "渲染效果：求和公式，1到n的整数和等于n(n+1)/2"], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "向量、矩阵与方程组对比", "speaker_notes": "然后是向量、矩阵和方程组这类复杂结构，这是理工科论文中非常常见的内容，LaTeX针对这类内容有专门的语法，输出的公式非常美观规范。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$\vec{v} = (v_x, v_y, v_z)$", "LaTeX代码：$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$", "LaTeX代码：$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：三维速度向量，包含x、y、z三个分量", "渲染效果：2×2二阶矩阵，括号包裹格式规范", "渲染效果：二元一次联立方程组，大括号包裹结构清晰"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "以上就是我们本次课程介绍的核心LaTeX语法，大家可以在日常写作中多练习使用，熟练之后就能大幅提升学术排版的效率，输出专业规范的公式内容。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX语法统一，渲染效果符合国际学术出版标准", "复杂公式结构（矩阵、方程组等）编写简单，可复用性高", "通过代码编写公式，便于版本管理和批量修改", "建议日常写作时多查阅LaTeX符号表，积累常用语法"], "is_accent": false}]}
 {"__type": "word_start"}
-# 描述质点运动的物理量讲义
-## 一、位置矢量与运动描述基础
-### 1. 位置矢量（位矢）
-位矢是从坐标原点指向质点所在位置的空间矢量，记为$\vec{r}$，在直角坐标系下的表达式为：
-$$\vec{r}=x \vec{i}+y \vec{j}+z \vec{k}$$
-其中$\vec{i}$、$\vec{j}$、$\vec{k}$分别为x、y、z轴的单位矢量。
+## LaTeX语法与公式对比指南讲义
+### 一、课程概述
+LaTeX是当前学术领域使用最广泛的排版系统，尤其在理工科论文、学位论文、专业报告的排版中具备不可替代的优势，其公式编辑功能强大，输出的公式规范、美观，符合国际出版标准。本次课程通过LaTeX代码与渲染效果的对比，帮助学习者快速掌握常用的LaTeX公式语法，降低学术排版的学习门槛。
 
-### 2. 运动方程与轨迹方程
-质点的位置随时间变化的函数称为运动方程，形式为：
-$$\vec{r}(t)=x(t) \cdot \vec{i}+y(t) \cdot \vec{j}+z(t) \cdot \vec{k}$$
-对应的分量形式为$\begin{cases}x=x(t) \\ y=y(t) \\ z=z(t)\end{cases}$，消去参数$t$后得到的x、y、z之间的关系即为轨迹方程，对应质点运动的路径。
+### 二、核心语法详解
+#### 1. 基础符号与上下标
+上下标是LaTeX最基础的语法，上标使用`^`标记，下标使用`_`标记，如果上下标内容超过一个字符，需要用`{}`包裹。
+- 示例1：$a_n$ 表示序列的第n项，代码为`$a_n$`
+- 示例2：$v^2$ 表示速度的平方，代码为`$v^2$`
+- 示例3：$x_i^2$ 表示x的第i个分量的平方，代码为`$x_i^2$`
 
-## 二、位移与路程
-1. **位移矢量**：描述质点位置的变化，等于末位矢与初位矢的差值，即$\Delta \vec{r} = \vec{r}_2 - \vec{r}_1$，分量形式为$\Delta \vec{r}=\Delta x \cdot \vec{i}+ \Delta y \cdot \vec{j}+ \Delta z \cdot \vec{k}$，是矢量，同时反映位置变化的大小和方向。
-2. **路程**：质点运动轨迹的实际长度，记为$s$，是标量，只有大小没有方向。
-3. 两者关系：一般运动过程中路程大于等于位移的大小，即$s\geq |\Delta \vec{r}|$；只有当质点做单向直线运动时两者大小相等；当时间间隔趋近于0时，微元路程等于位矢微元的大小，即$ds=|d \vec{r}|$。
+#### 2. 分式、根式与极限
+复杂的数学结构在LaTeX中有专门的语法标识：
+- 分式使用`\frac{分子}{分母}`语法，例如$\frac{x+y}{x-y}$代码为`$\frac{x+y}{x-y}$`
+- 根式使用`\sqrt[次数]{内容}`语法，例如$\sqrt[3]{x^2 + 1}$代码为`$\sqrt[3]{x^2 + 1}$`
+- 极限使用`\lim_{下标}`语法，例如$\lim_{n \to \infty} \frac{1}{n}$代码为`$\lim_{n \to \infty} \frac{1}{n}$`
+- 求和、乘积符号与极限语法类似，分别使用`\sum`、`\prod`标识。
 
-## 三、速度与加速度
-### 1. 速度
-- 平均速度：质点在$\Delta t$时间内的位移与时间的比值，是矢量，反映一段时间内位置变化的平均快慢和方向：$\bar{\vec{v}}=  \frac{\Delta \vec{r}}{\Delta t}$
-- 瞬时速度：当$\Delta t$趋近于0时平均速度的极限，等于位矢对时间的一阶导数，精确描述某一时刻质点运动的快慢和方向：$\vec{v}=\lim_{ \Delta t \to 0 }\frac{\Delta \vec{r}}{\Delta t}=\frac{d \vec{r}}{dt}$
+#### 3. 向量、矩阵与方程组
+针对线性代数等领域的复杂结构，LaTeX提供了专门的环境：
+- 向量使用`\vec{符号}`标识，例如$\vec{v} = (v_x, v_y, v_z)$代码为`$\vec{v} = (v_x, v_y, v_z)$`
+- 矩阵可以使用`pmatrix`环境生成带括号的矩阵，例如$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$代码为`$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$`
+- 联立方程组使用`cases`环境，例如$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$代码为`$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$`
 
-### 2. 加速度
-- 平均加速度：质点在$\Delta t$时间内的速度变化量与时间的比值，反映一段时间内速度变化的平均快慢和方向：$\bar{\vec{a}}= \frac{\Delta \vec{v}}{\Delta t}$
-- 瞬时加速度：当$\Delta t$趋近于0时平均加速度的极限，等于速度对时间的一阶导数，精确描述某一时刻速度变化的快慢和方向：$\vec{a}=\frac{d \vec{v}}{dt}$
-
-💡 概念区分：位矢和速度描述质点当前的运动状态，属于**运动状态量**；加速度描述速度的变化情况，属于**状态变化量**。
-
-## 四、自然坐标系下的加速度分解
-当质点做曲线运动时，通常在轨迹上建立自然坐标系来分解加速度，更清晰地描述速度大小和方向的变化：
-1. 自然坐标系定义：
-   - 切向坐标轴：沿轨迹切线方向，指向质点前进方向，单位矢量为$\vec{e_t}$
-   - 法向坐标轴：沿轨迹法线方向，指向曲线凹侧，单位矢量为$\vec{e_n}$
-2. 加速度分解：
-   - 切向加速度：由速度大小变化产生，方向沿切线方向：$\vec{a}_{t}=\frac{dv}{dt}\vec{e}_{t}$
-   - 法向加速度：由速度方向变化产生，方向沿法线指向凹侧：$\vec{a}_{n}=\frac{v^2}{\rho}\vec{e}_{n}$，其中$\rho$为轨迹在该点的曲率半径
-
-## 五、圆周运动的角量描述
-对于圆周运动，使用角量描述更加简便，各角量与线量存在明确的对应关系：
-1. 基本角量：
-   - 角位置：$\theta=\theta(t)$，描述质点在圆周上的角度位置
-   - 角位移：$\Delta \theta$，质点转过的角度，通常规定逆时针为正，与弧长的关系为$\Delta s=R\Delta \theta$
-   - 角速度：$\omega=\frac{d\theta}{dt}$，描述角位置变化的快慢，与线速率的关系为$v=R\omega$；矢量角速度的方向遵循右手螺旋定则，线速度与角速度的矢量关系为$\vec{v}=\vec{\omega}\times \vec{r}$
-   - 角加速度：$\alpha =\frac{d^2\theta}{dt^2}$，描述角速度变化的快慢，与切向加速度的关系为$a_{t}=R\alpha$
+### 三、学习建议
+1. 日常写作时优先使用LaTeX编写公式，熟练语法逻辑
+2. 常备LaTeX符号表，遇到不熟悉的符号及时查询
+3. 复杂公式可以先拆分结构，从基础组件开始逐步编写
+4. 写完后可以通过在线LaTeX编辑器预览效果，调整格式
 {"__type": "done"}

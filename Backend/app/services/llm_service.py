@@ -46,14 +46,19 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "AddSlide",
-            "description": "在指定位置新增一页幻灯片。",
+            "description": "在指定位置新增一页幻灯片。参数格式与 UpdateSlide 完全一致，必须传入结构化 title 和 new_elements，禁止用 content 字符串。",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "insert_after_index": {"type": "integer", "description": "在哪一页之后插入（从1开始），0则插到最前"},
-                    "content": {"type": "string", "description": "新页面的核心内容"}
+                    "title": {"type": "string", "description": "新幻灯片的标题"},
+                    "new_elements": {
+                        "type": "array",
+                        "description": "页面内部元素数组，格式与 UpdateSlide.new_elements 完全相同，包含 type, position, content, is_accent 等字段",
+                        "items": {"type": "object"}
+                    }
                 },
-                "required": ["insert_after_index", "content"]
+                "required": ["insert_after_index", "title", "new_elements"]
             }
         }
     },
@@ -75,10 +80,13 @@ TOOLS_SCHEMA = [
 
 SYSTEM_PROMPT = (
     "你是多模态AI互动式教学智能体。你有能力通过调用工具（如 UpdateSlide，GenerateFullPPT等）直接修改用户的课件或者大纲。\n"
-    "CRITICAL RULE:\n"
-    "NEVER output presentation content, outlines, or slide mockups in Markdown format directly in your conversational response.\n"
-    "Whenever the user asks to create, modify, or format a slide, you MUST ONLY use the provided tools.\n"
-    "Your text response should only be brief conversational acknowledgement."
+    "CRITICAL RULES:\n"
+    "1. NEVER output presentation content, outlines, or slide mockups in Markdown format directly in your conversational response.\n"
+    "   Whenever the user asks to create, modify, or format a slide, you MUST ONLY use the provided tools.\n"
+    "   Your text response should only be brief conversational acknowledgement.\n"
+    "2. AddSlide 工具与 UpdateSlide 工具参数格式完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。\n"
+    "   AddSlide 禁止使用 content 字符串参数，必须构造完整的结构化 new_elements 数组。\n"
+    "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。"
 )
 
 
@@ -279,20 +287,27 @@ async def stream_chat_response(
                     elif t_name in ["addslide", "add_slide"]:
                         pos = t_args.get("insert_after_index", 0)
                         pos = max(0, min(pos, len(slides)))
+                        import uuid
+                        new_elements = t_args.get("new_elements", [])
+                        # Ensure all elements have element_id
+                        for el in new_elements:
+                            if "element_id" not in el:
+                                el["element_id"] = f"e_{uuid.uuid4().hex[:8]}"
+                        # Fallback: if LLM still passes content string, wrap it
+                        if not new_elements and t_args.get("content"):
+                            new_elements = [{
+                                "element_id": f"e_{uuid.uuid4().hex[:8]}",
+                                "type": "list",
+                                "position": "full",
+                                "content": [t_args.get("content", "")],
+                                "is_accent": True
+                            }]
                         new_slide = {
                             "page_index": pos + 1,
                             "layout_type": "minimal_list",
-                            "title": "新增页",
+                            "title": t_args.get("title", "新增页"),
                             "speaker_notes": "",
-                            "elements": [
-                                {
-                                    "element_id": f"e_{uuid.uuid4().hex[:6]}",
-                                    "type": "text_block",
-                                    "position": "left",
-                                    "content": [t_args.get("content", "")],
-                                    "is_accent": False
-                                }
-                            ]
+                            "elements": new_elements
                         }
                         slides.insert(pos, new_slide)
                         for i, s in enumerate(slides):

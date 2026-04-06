@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
 import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManager';
@@ -27,6 +27,10 @@ export function useCourseware(sessionId: string) {
   const [pages, setPages] = useState<PPTPage[]>([]);
   const [updatingPages, setUpdatingPages] = useState<Set<number>>(new Set());
   const [wordDoc, setWordDoc] = useState('');
+
+  // Guard against race condition: iteratePage result being overwritten by a
+  // concurrent fetchPreview triggered by EduAgent_Slide_Updated.
+  const isIteratingRef = useRef(false);
 
   const [previewStatus, setPreviewStatus] = useState<'idle'|'loading'|'ready'|'error'>('idle');
 
@@ -89,7 +93,10 @@ export function useCourseware(sessionId: string) {
           const uniquePagesMap = new Map();
           pptData.forEach(p => uniquePagesMap.set(p.page_index, p));
           const uniquePages = Array.from(uniquePagesMap.values());
-          setPages(uniquePages);
+          // ⚠ Skip update if a manual iteratePage is in-flight (avoid stale-overwrite race)
+          if (!isIteratingRef.current) {
+            setPages(uniquePages);
+          }
         }
         if (resp.word_markdown) setWordDoc(resp.word_markdown);
         else if (resp.word_doc) setWordDoc(resp.word_doc);
@@ -242,6 +249,8 @@ export function useCourseware(sessionId: string) {
   }, [sessionId, isGenerating, fetchPreview]);
 
   const iteratePage = useCallback(async (pageIndex: number, instruction: string) => {
+    // Lock: prevent any concurrent fetchPreview from overwriting our result
+    isIteratingRef.current = true;
     setUpdatingPages(prev => new Set(prev).add(pageIndex));
 
     try {
@@ -263,6 +272,8 @@ export function useCourseware(sessionId: string) {
       const msg = e?.response?.data?.detail || e?.message || '修改失败，请重试';
       alert(`第 ${pageIndex} 页修改失败：${msg}`);
     } finally {
+      // Unlock BEFORE removing from updatingPages so any queued fetchPreview runs after state is stable
+      isIteratingRef.current = false;
       setUpdatingPages(prev => {
         const next = new Set(prev);
         next.delete(pageIndex);
