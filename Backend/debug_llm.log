@@ -1,69 +1,32 @@
-{"__type": "theme", "name": "线性代数蓝金主题", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#FBBF24", "text_color": "#F8FAFC"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "线性代数核心知识点精讲", "speaker_notes": "开场介绍本次课程涵盖行列式、向量、矩阵三大核心模块，适合复习备考使用", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["高等数学基础系列 | 配套习题与常见考点"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "行列式核心概念与性质", "speaker_notes": "首先讲解行列式的基础定义、逆序概念和核心运算性质", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["二阶/三阶行列式展开规则：按对角线乘积差计算，0可省略书写", "n级排列与逆序：逆序数为奇数是奇排列，偶数是偶排列，一次对换改变排列奇偶性", "核心运算性质：行倍加变换行列式值不变，$|A^T|=|A|$，$|kA|=k^n|A|$", "按行展开：$D = a_{i1}A_{i1}+a_{i2}A_{i2}+\dots+a_{in}A_{in}$，异行乘代数余子式和为0"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["特殊行列式技巧：鸡爪型行列式可通过消元转为上三角快速计算"], "is_accent": true}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "向量运算核心要点", "speaker_notes": "接下来讲解向量的基础概念和两种核心乘积的运算规则", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础概念：单位向量$\vec{e}_{\vec{a}}$，方向角范围$[0,180^\circ]$，方向余弦$\cos\alpha=\frac{x_0}{\sqrt{x_0^2+y_0^2+z_0^2}}$", "投影与分向量：投影是数值，分向量是平行于坐标轴的向量"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["数量积（内积）：$\vec{a}\cdot\vec{b}=|\vec{a}||\vec{b}|\cos\theta$，不满足结合律", "向量积（外积）：$\vec{a}\times\vec{b}$与$\vec{a},\vec{b}$都垂直，大小为$|\vec{a}||\vec{b}|\sin\theta$，不满足交换律和结合律", "向量积坐标公式：$\vec{a}\times\vec{b}=\begin{vmatrix} \vec{i}&\vec{j}&\vec{k} \\ a_1&a_2&a_3 \\ b_1&b_2&b_3 \end{vmatrix}$"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "矩阵基础运算规则", "speaker_notes": "本页讲解矩阵的加减、数乘和乘法这三类基础运算的规则和注意事项", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["加减法：仅同型矩阵可运算，对应位置元素相加减", "数乘：数$k$乘矩阵等于$k$乘矩阵的所有元素，注意与行列式数乘的区别", "乘法核心规则：左矩阵列数=右矩阵行数，左行乘右列求和得到结果元素", "乘法不满足交换律：$AB\\neq BA$，连乘不可交换顺序，两个非零矩阵乘积可能为零矩阵"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["特殊可交换场景：同阶对角矩阵可交换，单位矩阵$E$与任意同阶矩阵可交换，满足$EA=AE=A$"], "is_accent": true}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "方阵的幂、转置与行列式", "speaker_notes": "本页讲解方阵特有的三类运算规则和常考题型", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["方阵的幂：$A^k$为$k$个$A$相乘，规定$A^0=E$，$(AB)^k\\neq A^kB^k$，要注意顺序", "常考题型：秩为1的方阵可拆分为列矩阵乘行矩阵，利用结合律快速计算高次幂"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["转置性质：$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$", "对称矩阵：满足$A=A^T$，$B^TB$和$BB^T$对任意矩阵$B$都是对称矩阵", "方阵行列式性质：$|AB|=|A||B|$，$|A^m|=|A|^m$"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "stat_callout", "title": "高频考点提示", "speaker_notes": "本页强调考试中最容易出现的三类易错点，需要重点记忆", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["3大易错点"], "is_accent": true}, {"element_id": "e2", "type": "list", "position": "bottom", "content": ["矩阵乘法交换律误区：不要随意调换连乘矩阵的顺序", "数乘矩阵与数乘行列式的区别：$|kA|=k^n|A|$而非$k|A|$", "向量积方向判定：使用右手螺旋定则，注意$\vec{a}\times\vec{b}=-\vec{b}\times\vec{a}$"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "最后回顾本次课程的核心内容，课后可结合习题巩固", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["行列式：掌握展开方法和核心性质，熟练特殊行列式的计算技巧", "向量：区分数量积和向量积的运算规则和适用场景，记住坐标运算公式", "矩阵：牢记乘法的特殊规则，掌握方阵的幂、转置、行列式的性质和常考题型", "后续将进一步讲解逆矩阵、矩阵的秩、线性方程组等进阶内容"], "is_accent": false}]}
+{"__type": "theme", "name": "学术蓝", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#34D399", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "LaTeX语法与公式对比教程", "speaker_notes": "开场介绍本课程的目标是帮助大家快速掌握LaTeX核心语法，对比不同写法的差异和适用场景", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["面向科研写作初学者 | 语法+实例双讲解"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程核心内容", "speaker_notes": "本课程将覆盖LaTeX最常用的几类语法场景，每部分都会搭配具体实例对比说明", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础数学符号与运算语法", "上下标、分数、根式的写法对比", "矩阵、方程组的标准实现方式", "微积分、概率论专用符号规范"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["所有实例均提供LaTeX源码与渲染效果对照，方便大家直接复用。"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "基础运算语法对比", "speaker_notes": "首先我们来看最基础的四则运算和常用符号的正确写法，对比不规范写法和标准LaTeX语法的差异", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["✅ 标准LaTeX写法", "$a + b - c \\times d \\div e$", "$\\alpha + \\beta - \\gamma \\times \\delta$", "$\\frac{1}{2} + \\sqrt{3} \\geq 0$", "$x \\leq y \\neq z \\approx 1.5$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["❌ 不规范写法", "a+b-c*d/e", "α+β-γ×δ", "1/2 + √3 ≥ 0", "x ≤ y != z ≈ 1.5"], "is_accent": true}]}
+{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "上下标与复杂运算对比", "speaker_notes": "上下标、极限、求和这些是科研公式中最常用的结构，要特别注意语法的规范性", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["✅ 标准LaTeX写法", "下标：$a_n + x_{i,j} + \\omega_0$", "上标：$v^2 + e^{x+y} + \\alpha^T$", "极限：$\\lim_{n \\to \\infty} \\frac{1}{n} = 0$", "求和：$\\sum_{i=1}^n i = \\frac{n(n+1)}{2}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["❌ 不规范写法", "下标：a_n + x_i,j + ω0", "上标：v^2 + e^(x+y) + α^T", "极限：lim(n→∞) 1/n = 0", "求和：∑(i=1到n) i = n(n+1)/2"], "is_accent": true}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "矩阵与方程组语法对比", "speaker_notes": "矩阵和方程组是线性代数相关写作的核心结构，LaTeX提供了标准的环境来实现这类结构", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["✅ 标准LaTeX写法", "矩阵：$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$", "方程组：$$\\begin{cases} x + y = 3 \\\\ 2x - y = 1 \\end{cases}$$", "向量：$\\vec{r} = (x, y, z)$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["❌ 不规范写法", "矩阵：[a b; c d]", "方程组：x+y=3; 2x-y=1", "向量：r = (x, y, z)"], "is_accent": true}]}
+{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "核心规范总结", "speaker_notes": "最后我们总结一下LaTeX语法的核心注意要点，帮助大家在日常写作中避免常见错误", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["所有数学符号必须包裹在$或$$中，禁止直接使用Unicode符号", "上下标如果内容超过1个字符，必须用{}包裹，比如$x_{i,j}$而非$x_i,j$", "复杂结构（分数、根式、矩阵、方程组）必须使用LaTeX专用语法，不要用斜杠/、括号代替", "特殊符号（希腊字母、运算符）要使用对应的LaTeX命令，不要直接输入字符"], "is_accent": false}]}
 {"__type": "word_start"}
-## 线性代数核心知识点精讲讲义
-### 一、行列式模块
-1. **基础定义**
-   - 二阶行列式：$\begin{vmatrix} a & b \\ c & d \end{vmatrix}=ad-bc$
-   - 三阶行列式：$\begin{vmatrix} a&b&c \\ d&e&f \\ g&h&i \end{vmatrix}=aei+bfg+dhc-ceg-bdi-fha$
-   - 行列式中的0可以省略不写，如$\begin{vmatrix} a & b \\  & d \end{vmatrix}=\begin{vmatrix} a & b \\ 0 & d \end{vmatrix}$
+## LaTeX语法与公式对比教程讲义
+### 一、课程介绍
+LaTeX是目前科研领域最主流的排版工具，尤其在数学、物理、计算机等学科的论文写作中被广泛使用。掌握标准的LaTeX语法，不仅可以让公式排版更规范美观，也能避免投稿过程中因格式问题被退回的情况。本课程通过对比标准语法和常见错误写法，帮助大家快速掌握核心LaTeX公式语法。
 
-2. **排列与逆序**
-   - n级排列：由1,2,…,n组成的有序数组，共$n!$种，其中标准排列为123…n
-   - 逆序数：排列中每个数后比它小的数的个数和，用$N()$表示，逆序数为奇数是奇排列，偶数是偶排列
-   - 核心性质：排列经过一次对换后奇偶性改变，n级排列中奇排列和偶排列各占一半
+### 二、基础运算语法
+1. 四则运算：标准写法使用`+`、`-`、`\times`、`\div`表示加减乘除，不要使用`*`、`/`代替乘除符号
+2. 常用符号：希腊字母使用对应的命令，比如`\alpha`、`\beta`、`\gamma`，不等号使用`\geq`、`\leq`、`\neq`，约等于使用`\approx`
+3. 错误写法会导致排版不统一，部分期刊系统无法识别直接输入的Unicode希腊字母和符号
 
-3. **核心运算性质**
-   - 行变换性质：将行列式的一行乘任意数加到另一行中，行列式结果不变
-   - 转置性质：$|A^T|=|A|$
-   - 数乘性质：$|kA|=k^n|A|$，注意与矩阵数乘的区别
-   - 乘积性质：$|AB|=|A|\cdot|B|$，$|A^m|=|A|^m$
+### 三、上下标与复杂运算
+1. 上下标：下标使用`_`，上标使用`^`，如果上下标内容包含多个字符，必须用大括号`{}`包裹，否则只会识别第一个字符为上下标内容
+2. 极限：标准写法为`\lim_{下标} 表达式`，`n \to \infty`表示n趋于无穷，不要用文字描述极限条件
+3. 求和与积分：求和使用`\sum_{下限}^{上限}`，积分使用`\int_{下限}^{上限}`，符号会自动根据行内/块级环境调整大小
 
-4. **展开计算方法**
-   - 代数余子式：$A_{ij}=(-1)^{i+j}M_{ij}$，其中$M_{ij}$为余子式
-   - 按行展开：行列式等于某一行所有元素与其对应代数余子式乘积的和
-   - 异行展开性质：某一行元素乘另一行对应代数余子式的和为0
-   - 特殊行列式技巧：鸡爪型行列式可通过消去第一列除首元素外的所有元素，转为上三角行列式快速计算
+### 四、矩阵与方程组
+1. 矩阵：LaTeX提供了多种矩阵环境，`pmatrix`表示带圆括号的矩阵，`bmatrix`表示带方括号的矩阵，元素之间用`&`分隔，行之间用`\\`换行
+2. 方程组：使用`cases`环境实现联立方程组，每个方程一行，自动添加大括号，不要用分号分隔多个方程
+3. 向量：标准写法使用`\vec{符号}`表示向量，区分普通标量和向量变量
 
-### 二、向量模块
-1. **基础概念**
-   - 单位向量：$\vec{e}_{\vec{a}}$表示$\vec{a}$的单位向量
-   - 方向角：向量与坐标轴的夹角范围为$[0,180^\circ]$，方向余弦$\cos\alpha=\frac{x_0}{\sqrt{x_0^2+y_0^2+z_0^2}}$
-   - 投影与分向量：投影是数值，分向量是平行于坐标轴的向量，$\vec{OM'}=\lambda \vec{e}$中$\lambda$就是投影值
-
-2. **核心运算**
-   - 数量积（内积、点积）：$\vec{a}\cdot\vec{b}=|\vec{a}||\vec{b}|\cos\theta$，不满足结合律，即$\vec{a}\cdot (\vec{b}\cdot \vec{c})\neq(\vec{a}\cdot \vec{b})\cdot \vec{c}$
-   - 向量积（外积、叉积）：
-     - 方向：与$\vec{a},\vec{b}$都垂直，满足右手螺旋定则
-     - 大小：$|\vec{a}\times \vec{b}|=|\vec{a}|\cdot |\vec{b}|\cdot \sin\theta$
-     - 坐标运算：$\vec{a}\times\vec{b}=\begin{vmatrix} \vec{i}&\vec{j}&\vec{k} \\ a_1&a_2&a_3 \\ b_1&b_2&b_3 \end{vmatrix}$
-     - 运算性质：不满足交换律和结合律，$\vec{a}\times\vec{b}=-\vec{b}\times\vec{a}$
-
-### 三、矩阵模块
-1. **基础运算规则**
-   - 加减法：仅同型矩阵可运算，对应位置元素相加减
-   - 数乘：数$k$乘矩阵等于$k$乘矩阵的所有元素
-   - 乘法：
-     - 前提：左矩阵列数=右矩阵行数
-     - 计算规则：左行元素与右列元素顺序对应相乘求和，得到结果矩阵对应位置元素
-     - 注意事项：不满足交换律，$AB\neq BA$；两个非零矩阵乘积可能是零矩阵；满足结合律和分配律
-     - 特殊可交换场景：同阶对角矩阵可交换；单位矩阵$E$与任意同阶矩阵可交换，$EA=AE=A$；数量矩阵$aE$与任意同阶矩阵可交换，$AB=aB$
-
-2. **方阵特殊运算**
-   - 方阵的幂：$A^k$为$k$个$A$相乘，规定$A^0=E$；单个方阵的幂可以拆分，多个方阵乘积的幂要注意顺序，$(AB)^2=ABAB\neq A^2B^2$
-   - 常考题型：秩为1的方阵可拆分为列矩阵乘行矩阵，利用结合律快速计算高次幂，如$A=\begin{pmatrix}2&4&-6 \\1&2&-3 \\4&8&-12\end{pmatrix}$求$A^{100}$
-   - 转置：行依次变为列，核心性质$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$
-   - 对称矩阵：满足$A=A^T$的方阵，性质包括$A^m$也为对称矩阵；对任意矩阵$B$，$B^TB,BB^T$均为对称矩阵
-   - 反对称矩阵：满足$A=-A^T$的方阵
-
-### 四、高频易错点
-1. 不要混淆矩阵数乘和行列式数乘：$kA$是所有元素乘$k$，$|kA|=k^n|A|$
-2. 矩阵乘法没有交换律，连乘时不要随意调换矩阵顺序
-3. 向量积运算要注意方向，$\vec{a}\times\vec{b}$和$\vec{b}\times\vec{a}$是相反向量
+### 五、核心注意事项
+1. 所有数学内容，不管是单个符号还是复杂公式，都必须放在行内公式`$...$`或者块级公式`$$...$$`环境中
+2. 不要用纯文本的方式书写数学结构，比如用`1/2`代替`\frac{1}{2}`，用`√3`代替`\sqrt{3}`，这类写法在正式出版中都是不规范的
+3. 遇到不熟悉的符号，可以通过LaTeX符号表查询对应的命令，不要直接输入Unicode特殊字符，避免不同系统渲染出错
 {"__type": "done"}
