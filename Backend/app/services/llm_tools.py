@@ -10,9 +10,10 @@ class UpdateSlide(BaseModel):
     new_content: str = Field(description="整页需要替换或更新的全新内容段落（可以直接写大纲或文段）")
 
 class AddSlide(BaseModel):
-    """在指定位置新增一页幻灯片。当用户说'在第二页后面加一页总结'时使用。"""
+    """在指定位置新增一页幻灯片。参数格式与 UpdateSlide 完全一致，必须传入结构化 title 和 new_elements。"""
     insert_after_index: int = Field(description="在哪一页之后插入（从1开始）。如果是0则插入在最前。")
-    content: str = Field(description="新页面的核心内容")
+    title: str = Field(description="新幻灯片的标题")
+    new_elements: list = Field(description="页面内部元素数组，格式与 UpdateSlide.new_elements 完全相同")
 
 class DeleteSlide(BaseModel):
     """删除某一特定页的幻灯片。当用户说'删掉第四页'时使用。"""

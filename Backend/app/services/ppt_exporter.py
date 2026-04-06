@@ -303,6 +303,9 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
         return False
 
     pre_text, lines, post_text = parsed
+    # Strip leading Chinese/Western punctuation that shouldn't start a paragraph
+    # (e.g. "，消去参数t" -> "消去参数t")
+    post_text = re.sub(r'^[，。、；：！？,;:!?\.\s]+', '', post_text).strip()
 
     A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
     M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
@@ -359,8 +362,14 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     )
     a14_m.append(oMathPara)
 
-    # ── Paragraph 2: post-text (plain run) ────────────────────────
+    # ── Paragraph 2+3: blank line then post-text (Image 4 layout) ──
     if post_text:
+        # Blank spacer paragraph (creates visual separation after equation)
+        p_blank = tf.add_paragraph()
+        run_blank = p_blank.add_run()
+        run_blank.text = ''
+        run_blank.font.size = Pt(max(size - 4, 10))
+        # Post-text paragraph
         p_post = tf.add_paragraph()
         run3   = p_post.add_run()
         run3.text           = convert_latex(post_text)
@@ -607,7 +616,13 @@ def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     eff   = cjk + other * 0.55           # CJK-equivalent length
     cpl   = max(1.0, (text_w_inches * 72.0) / font_sz)  # chars per line
     lines = max(0, int(eff / cpl + 0.99))                # text lines (0 if only math)
-    return lines * line_h + extra_h + 0.28               # text + math + padding
+
+    # If there is BOTH a cases block AND post-text, a blank spacer paragraph is inserted
+    # between the equation and the post-text — account for that extra line height.
+    has_post = bool(s.strip()) and bool(cases_match)
+    spacer_h = (max(font_sz - 4, 10) * 1.5 / 72.0) if has_post else 0.0
+
+    return lines * line_h + extra_h + spacer_h + 0.28    # text + math + spacer + padding
 
 
 
@@ -793,23 +808,26 @@ def add_rich_box(slide, text: str, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bold: bool = False, align=None) -> None:
     """Single-paragraph rich textbox. Auto-routes to OMML for \\begin{cases}."""
-    from pptx.enum.text import MSO_AUTO_SIZE
     # Try OMML math rendering first (handles \begin{cases}...\end{cases})
     if add_cases_math_box(slide, text, l, t, w, h, size, color, accent):
         return
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    # Shrink textbox vertically to hug content — card bg rect controls the visual area
-    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    # Vertically center text within the card background rectangle.
+    # We do NOT use SHAPE_TO_FIT_TEXT because it makes the textbox shrink while
+    # the card bg rect stays at full height — text ends up pinned to the top.
+    from pptx.oxml.ns import qn as _qn
+    _bpr = tf._txBody.find(_qn('a:bodyPr'))
+    if _bpr is not None:
+        _bpr.set('anchor', 'ctr')
     _add_rich_para(tf, text, size, color, accent, bold=bold, align=align, first=True)
 
 
 def add_list_box(slide, items: list, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bullet: str = "•  ") -> None:
-    """Multi-paragraph list textbox, auto-sized to fit."""
-    from pptx.enum.text import MSO_AUTO_SIZE
+    """Multi-paragraph list textbox, vertically centered."""
     MAX = 8
     if len(items) > MAX:
         items = items[:MAX - 1] + [f"… (+{len(items) - MAX + 1} 项)"]
@@ -817,7 +835,11 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    # Vertically center text within the card background rectangle.
+    from pptx.oxml.ns import qn as _qn
+    _bpr = tf._txBody.find(_qn('a:bodyPr'))
+    if _bpr is not None:
+        _bpr.set('anchor', 'ctr')
     for i, item in enumerate(items):
         clean = re.sub(r'^[\-\*\+]\s+', '', str(item))
         clean = re.sub(r'^\d+\.\s+', '', clean)
