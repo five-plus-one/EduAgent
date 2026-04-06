@@ -70,6 +70,52 @@ function preprocessMath(text: string): string {
   return result;
 }
 
+/**
+ * Two-pass merge for list items:
+ *
+ * Pass 1 – Tail-fragment stitch.
+ *   The LLM sometimes splits a \begin{cases}...\end{cases} block across two
+ *   consecutive list items, e.g.:
+ *     ["...联立方程组：$$\begin{cases}", "x=x(t) \\ y=y(t)\\end{cases}$$"]
+ *   Any item that contains \end{cases} (or \end{aligned}) but NOT the matching
+ *   \begin is a stray tail — append it back to the preceding item so KaTeX gets
+ *   a complete expression.
+ *
+ * Pass 2 – Standalone math merge.
+ *   Items that are ONLY a complete math environment are merged into the preceding
+ *   item to avoid a card that shows nothing but a bare equation.
+ */
+const ENV_OPEN_RE  = /\\begin\{(?:cases|aligned|align)\}/;
+const ENV_CLOSE_RE = /\\end\{(?:cases|aligned|align)\}/;
+const STANDALONE_MATH_RE = /^\s*(\$\$?)\s*\\begin\{(cases|aligned|align)\}[\s\S]*?\\end\{\2\}\s*\1\s*$|^\s*\\begin\{(cases|aligned|align)\}[\s\S]*?\\end\{\3\}\s*$/;
+
+function mergeStandaloneMath(items: string[]): string[] {
+  if (items.length <= 1) return items;
+
+  // ── Pass 1: stitch tail fragments ────────────────────────────────────────
+  const patched: string[] = [];
+  for (const item of items) {
+    const hasOpen  = ENV_OPEN_RE.test(item);
+    const hasClose = ENV_CLOSE_RE.test(item);
+    if (!hasOpen && hasClose && patched.length > 0) {
+      // Tail fragment: belongs to the math block opened in the previous item.
+      patched[patched.length - 1] += ' ' + item;
+    } else {
+      patched.push(item);
+    }
+  }
+
+  // ── Pass 2: merge standalone complete equations ───────────────────────────
+  const merged: string[] = [];
+  for (const item of patched) {
+    if (STANDALONE_MATH_RE.test(item) && merged.length > 0) {
+      merged[merged.length - 1] = merged[merged.length - 1] + '\n' + item;
+    } else {
+      merged.push(item);
+    }
+  }
+  return merged;
+}
 
 interface Props {
   page: PPTPage;
@@ -130,9 +176,10 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
     }
 
     if (el.type === 'list' || el.type === 'list_item') {
+      const mergedItems = mergeStandaloneMath(contentArray);
       return (
         <ul key={el.element_id} className={clsx(styles.contentList, positionClass)}>
-          {contentArray.map((b, i) => (
+          {mergedItems.map((b, i) => (
             <li key={i}>
               <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{preprocessMath(b)}</ReactMarkdown>
             </li>
@@ -217,7 +264,16 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
       {/* Universal Grid/Flex Stage powered by layout_type */}
       <div 
         className={clsx(styles.stage, styles[`layout_${page.layout_type}`] || styles.layout_standard)}
-        style={{ '--col-count': page.layout_type === 'two_column' ? 2 : Math.min(page.elements?.length || 2, 4) } as React.CSSProperties}
+        style={{
+          '--col-count':
+            // For two_column / minimal_list the grid is always 1 or 2 columns:
+            // 2 only when right-positioned elements actually exist, otherwise 1.
+            // Using element count here was wrong -- it created up to 4 columns for
+            // minimal_list pages, shrinking columnLeft to 25% width and causing overflow.
+            page.layout_type === 'two_column' || page.layout_type === 'minimal_list'
+              ? (page.elements?.some((e: any) => e.position && String(e.position).includes('right')) ? 2 : 1)
+              : Math.min(page.elements?.length || 2, 4)
+        } as React.CSSProperties}
       >
         {/* Cover Archetype */}
         {page.layout_type === 'cover' && (

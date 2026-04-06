@@ -593,35 +593,34 @@ def get_raw_content_list(elem: dict) -> list:
 def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     """Estimate compact card height for text at font_sz pt in a text_w_inches-wide box.
     CJK chars count as 1 unit, ASCII as 0.55 units for character-width estimation.
-    Handles \\begin{cases} environments by adding height per equation row.
+    Handles \\begin{cases} environments by counting rows via parse_cases_env.
     """
     s = str(text)
     line_h = font_sz * 1.5 / 72.0   # height per text line, in inches
     extra_h = 0.0
+    spacer_h = 0.0
 
-    # Detect cases environment and count rows
-    cases_match = re.search(r'\\begin\{cases\}(.*?)\\end\{cases\}', s, re.DOTALL)
-    if cases_match:
-        body = cases_match.group(1)
-        n_rows = len([r for r in re.split(r'\\\\', body) if r.strip()])
-        # Each OMML row is ~1.9x a normal text line (larger brace + inter-row spacing)
-        math_line_h = font_sz * 1.9 / 72.0
+    # Use parse_cases_env so row counting matches the actual OMML rendering path
+    # (handles both 1-backslash and 2-backslash separators correctly).
+    parsed = parse_cases_env(s)
+    if parsed is not None:
+        pre, case_lines, post = parsed
+        n_rows = max(1, len(case_lines))
+        # Each OMML row is ~1.6× a normal text line (math glyphs are taller)
+        math_line_h = font_sz * 1.6 / 72.0
         extra_h = n_rows * math_line_h + 0.10   # +top/bottom math margin
-        # Remove the cases block (pre + $..$ + post) from the normal text estimate
-        s = re.sub(r'\$\s*\\begin\{cases\}.*?\\end\{cases\}\s*\$', '', s, flags=re.DOTALL)
-        s = re.sub(r'\$\$\s*\\begin\{cases\}.*?\\end\{cases\}\s*\$\$', '', s, flags=re.DOTALL)
-        s = s.strip()
+        # Count only the PRE-text (text before the equation) for normal line height.
+        # Do NOT count post-text here; it is accounted for via spacer_h below.
+        s = pre
+        # The blank spacer paragraph only appears when there IS post-text.
+        has_post = bool(post.strip())
+        spacer_h = (max(font_sz - 4, 10) * 1.5 / 72.0) if has_post else 0.0
 
     cjk   = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
     other = len(s) - cjk
     eff   = cjk + other * 0.55           # CJK-equivalent length
     cpl   = max(1.0, (text_w_inches * 72.0) / font_sz)  # chars per line
     lines = max(0, int(eff / cpl + 0.99))                # text lines (0 if only math)
-
-    # If there is BOTH a cases block AND post-text, a blank spacer paragraph is inserted
-    # between the equation and the post-text — account for that extra line height.
-    has_post = bool(s.strip()) and bool(cases_match)
-    spacer_h = (max(font_sz - 4, 10) * 1.5 / 72.0) if has_post else 0.0
 
     return lines * line_h + extra_h + spacer_h + 0.28    # text + math + spacer + padding
 
@@ -995,9 +994,31 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         etype = elem.get("type", "text_block")
         if etype == "list" and len(raw_items) > 1:
             for raw_item, conv_item in zip(raw_items, items_converted):
-                # If item contains cases environment, store raw; else store converted
-                if parse_cases_env(str(raw_item)) is not None:
-                    body_cards.append(str(raw_item))
+                item_str = str(raw_item)
+                has_open  = '\\begin{cases}' in item_str or '\\begin{aligned}' in item_str
+                has_close = '\\end{cases}'   in item_str or '\\end{aligned}'   in item_str
+
+                # ── Tail-fragment stitch ──────────────────────────────────────────
+                # The LLM sometimes splits \begin{cases}...\end{cases} across two
+                # consecutive list items. If this item contains \end{...} but NOT
+                # \begin{...}, it is the stray tail of the previous item's math
+                # block. Append it inline so the block is complete before we
+                # run any further detection.
+                if not has_open and has_close and body_cards:
+                    body_cards[-1] = body_cards[-1] + ' ' + item_str
+                    continue
+
+                # ── Normal cases / plain-text handling ───────────────────────────
+                parsed = parse_cases_env(item_str)
+                if parsed is not None:
+                    pre, _, post = parsed
+                    is_pure_math = (not pre.strip() and not post.strip())
+                    if is_pure_math and body_cards:
+                        # Standalone equation: merge with preceding card to avoid
+                        # a card that contains ONLY a formula with nothing around it.
+                        body_cards[-1] = body_cards[-1] + '\n' + item_str
+                    else:
+                        body_cards.append(item_str)
                 else:
                     s = re.sub(r'^[\-\*\+]\s+', '', str(conv_item))
                     s = re.sub(r'^\d+\.\s+', '', s).strip()
