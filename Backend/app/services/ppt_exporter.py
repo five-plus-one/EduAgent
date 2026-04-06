@@ -170,24 +170,30 @@ _NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main'
 
 
 def _latex_line_to_omml(line: str):
-    """Convert a simple LaTeX line to OMML lxml element sequence inside <m:e>."""
+    """Convert a LaTeX equation line to OMML element.
+    Handles sub/superscript (v_0->v₀, t^2->t²), \\frac, Greek via convert_latex.
+    """
     from lxml import etree
     m = _NS_M
-    # Very naive: just put raw text for now; PowerPoint will render as math italic
-    # Strip remaining LaTeX commands for the fallback text
-    clean = re.sub(r'\\[A-Za-z]+\*?', '', line)
-    clean = clean.replace('{', '').replace('}', '').strip()
+
+    s = str(line).strip()
+    # 1. Handle \frac{a}{b} -> a/b
+    s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}', r'\1/\2', s)
+    # 2. Run convert_latex so bare v_0 -> v₀, t^2 -> t², Greek letters, etc.
+    s = convert_latex(f'${s}$')
+    # 3. Strip residual LaTeX commands
+    s = re.sub(r'\\[A-Za-z]+', '', s)
+    s = s.replace('{', '').replace('}', '').replace('$', '').strip()
 
     e_elem = etree.Element(f'{{{m}}}e')
     r_elem = etree.SubElement(e_elem, f'{{{m}}}r')
-    rPr   = etree.SubElement(r_elem, f'{{{m}}}rPr')
-    sty   = etree.SubElement(rPr,   f'{{{m}}}sty')
-    sty.set(f'{{{m}}}val', 'p')   # plain (not italic) style
+    rPr    = etree.SubElement(r_elem, f'{{{m}}}rPr')
+    sty    = etree.SubElement(rPr,    f'{{{m}}}sty')
+    sty.set(f'{{{m}}}val', 'p')
     t_elem = etree.SubElement(r_elem, f'{{{m}}}t')
     t_elem.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-    t_elem.text = clean
+    t_elem.text = s
     return e_elem
-
 
 def _build_cases_omath(lines: list) -> 'etree._Element':
     """
@@ -246,7 +252,13 @@ def parse_cases_env(text: str):
         re.DOTALL
     )
 
-    m = pat_block.match(text) or pat_inline.match(text)
+    # Priority 3: bare cases -- no $ delimiters (LLMs often omit them)
+    pat_bare = re.compile(
+        r'(.*?)\\begin\{cases\}(.*?)\\end\{cases\}(.*)',
+        re.DOTALL
+    )
+
+    m = pat_block.match(text) or pat_inline.match(text) or pat_bare.match(text)
     if not m:
         return None
 
@@ -298,8 +310,8 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    from pptx.enum.text import MSO_AUTO_SIZE
-    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    # NOTE: do NOT use SHAPE_TO_FIT_TEXT here — PowerPoint cannot measure
+    # OMML paragraph height; the initial `h` from _est_card_h is authoritative.
 
     # ── Paragraph 0: pre-text (plain run) ─────────────────────────
     if pre_text:
@@ -313,23 +325,35 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
         p_math = tf.paragraphs[0]
 
     # ── Paragraph 1: pure math — <a:p><a14:m>...</a14:m></a:p> ───
-    # Set paragraph color via defRPr so math runs inherit the right color
-    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-    pPr = etree.SubElement(p_math._p, f'{{{A_NS}}}pPr')
-    defRPr = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
-    defRPr.set('sz', str(size * 100))  # sz is in hundredths of a point
-    defRPr.set('b', '0')
+    # <a:pPr><a:defRPr> sets the color so OMML inherits it.
+    # CRITICAL: <a:pPr> MUST be the FIRST child of <a:p> per OOXML spec.
+    # Use insert(0, ...) NOT SubElement (which appends to end).
+    A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    p_elem = p_math._p
+
+    # Remove any existing <a:pPr> that python-pptx may have added
+    for existing_pPr in p_elem.findall(f'{{{A_NS}}}pPr'):
+        p_elem.remove(existing_pPr)
+
+    # Build new <a:pPr> with color
+    pPr     = etree.Element(f'{{{A_NS}}}pPr')
+    defRPr  = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
+    defRPr.set('sz', str(size * 100))   # hundredths of a point
     solidFill = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
     srgbClr   = etree.SubElement(solidFill, f'{{{A_NS}}}srgbClr')
-    srgbClr.set('val', str(color).upper())  # str(RGBColor) = 'RRGGBB'
+    srgbClr.set('val', str(color).upper())   # RGBColor.__str__ returns 'RRGGBB'
 
-    omath = _build_cases_omath(lines)
+    # Insert as the FIRST child
+    p_elem.insert(0, pPr)
+
+    # Build and attach the math object
+    omath     = _build_cases_omath(lines)
     oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
     oMathPara.append(omath)
 
-    # <a14:m> goes DIRECTLY into <a:p> — PPTX math, NOT mc:AlternateContent
+    # <a14:m> goes DIRECTLY into <a:p> — correct PPTX math structure
     a14_m = etree.SubElement(
-        p_math._p,
+        p_elem,
         f'{{{A14_NS}}}m',
         nsmap={'a14': A14_NS, 'm': M_NS}
     )
@@ -338,9 +362,9 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     # ── Paragraph 2: post-text (plain run) ────────────────────────
     if post_text:
         p_post = tf.add_paragraph()
-        run3 = p_post.add_run()
-        run3.text = convert_latex(post_text)
-        run3.font.size = Pt(size)
+        run3   = p_post.add_run()
+        run3.text           = convert_latex(post_text)
+        run3.font.size      = Pt(size)
         run3.font.color.rgb = color
 
     return True
@@ -977,12 +1001,21 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
         avail_c = avail_h - GAP * (n_c - 1)
         total_nat_c = sum(nat_c)
+        # Cases cards: keep exact natural height (OMML won't stretch)
+        # Regular cards: expand proportionally up to 1.2x
+        is_cases_card = [r'\begin{cases}' in ct for ct in body_cards]
         if total_nat_c <= avail_c:
-            # Don't expand more than 1.2x to avoid cards looking too tall
-            factor_c = min(avail_c / max(total_nat_c, 0.01), 1.2)
-            heights_c = [max(0.32, h * factor_c) for h in nat_c]
+            fixed_h  = sum(n for n, ic in zip(nat_c, is_cases_card) if ic)
+            flex_h   = sum(n for n, ic in zip(nat_c, is_cases_card) if not ic)
+            flex_avail = avail_c - fixed_h
+            factor_c = min(flex_avail / max(flex_h, 0.01), 1.2) if flex_h > 0 else 1.0
+            heights_c = []
+            for n, ic in zip(nat_c, is_cases_card):
+                if ic:
+                    heights_c.append(max(0.36, n))
+                else:
+                    heights_c.append(max(0.32, n * factor_c))
         else:
-            # Scale down, but keep minimum viable height
             scale_c = avail_c / max(total_nat_c, 0.01)
             heights_c = [max(0.28, h * scale_c) for h in nat_c]
 
