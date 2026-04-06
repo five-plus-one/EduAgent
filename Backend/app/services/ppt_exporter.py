@@ -238,7 +238,7 @@ def parse_cases_env(text: str):
     Returns (pre_text, cases_lines, post_text) or None if not found.
     cases_lines is a list of equation strings (one per row).
     """
-    if r'\begin{cases}' not in text:
+    if '\\begin{cases}' not in text:
         return None
 
     # Try $$...$$ FIRST (must come before single-$ check to avoid false match)
@@ -266,8 +266,9 @@ def parse_cases_env(text: str):
     body  = m.group(2)
     post  = m.group(3).strip()
 
-    # Split on \\ (LaTeX newline)
-    raw_lines = re.split(r'\\\\', body)
+    # Split on LaTeX line break: \\  (may be 1 OR 2 backslashes depending on
+    # JSON encoding level). Stop before \letter (LaTeX commands like \frac, \alpha).
+    raw_lines = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
     lines = [l.strip().lstrip('&').strip() for l in raw_lines if l.strip()]
     return pre, lines, post
 
@@ -1025,7 +1026,7 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         total_nat_c = sum(nat_c)
         # Cases cards: keep exact natural height (OMML won't stretch)
         # Regular cards: expand proportionally up to 1.2x
-        is_cases_card = [r'\begin{cases}' in ct for ct in body_cards]
+        is_cases_card = ['\\begin{cases}' in ct for ct in body_cards]
         if total_nat_c <= avail_c:
             fixed_h  = sum(n for n, ic in zip(nat_c, is_cases_card) if ic)
             flex_h   = sum(n for n, ic in zip(nat_c, is_cases_card) if not ic)
