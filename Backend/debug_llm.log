@@ -1,48 +1,69 @@
-{"__type": "theme", "name": "物理学术", "bg_color": "#1E293B", "primary": "#93C5FD", "secondary": "#64748B", "accent": "#FBBF24", "text_color": "#F8FAFC"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "描述质点运动的物理量", "speaker_notes": "大家好，今天我们学习大学物理中描述质点运动的核心物理量，重点会讲解轨迹方程、速度、加速度等核心概念。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 | 力学模块"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "位置矢量与运动方程", "speaker_notes": "首先我们学习描述质点位置的基础物理量：位置矢量，以及对应的运动方程。", "elements": [{"element_id": "e1", "type": "text_block", "position": "full", "content": ["位置矢量简称**位矢**，用$\vec{r}$表示，本质是描述质点空间位置的向量，三维空间下的表达式为：$$\\vec{r}=x \\vec{i}+y \\vec{j}+z \\vec{k}$$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "full", "content": ["运动方程是位矢关于时间的函数，描述质点位置随时间的变化规律：$$\\vec{r}(t)=x(t) \\cdot \\vec{i}+y(t) \\cdot \\vec{j}+z(t) \\cdot \\vec{k}$$"], "is_accent": false}, {"element_id": "e3", "type": "text_block", "position": "full", "content": ["轨迹方程可通过消去运动方程的参数$t$得到，其参数联立形式为：$$\\begin{cases}\nx=x(t) \\\\\ny=y(t) \\\\\nz=z(t)\n\\end{cases}$$"], "is_accent": true}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "位移与路程", "speaker_notes": "接下来我们区分两个容易混淆的概念：位移矢量和路程。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["位移矢量简称**位移**，用$\Delta \\vec{r}$表示，是矢量，描述质点位置的变化量：$$\\vec{r}=\\Delta x \\cdot \\vec{i}+ \\Delta y \\cdot \\vec{j}+ \\Delta z \\cdot \\vec{k}$$", "位移仅与初末位置有关，与运动路径无关"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["路程用$s$表示，是标量，描述质点实际运动轨迹的长度", "一般情况下$s\\geq \\big|\\Delta \\vec{r}\\big|$，仅当单向直线运动时取等号", "微分关系满足：$ds=|d \\vec{r}|$"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "速度", "speaker_notes": "速度是描述质点运动快慢和方向的物理量，分为平均速度和瞬时速度。", "elements": [{"element_id": "e1", "type": "text_block", "position": "full", "content": ["**平均速度**是位移与时间间隔的比值，反映一段时间内的平均运动快慢：$$\\bar{\\vec{v}}=  \\frac{\\Delta \\vec{r}}{\\Delta t}$$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "full", "content": ["**瞬时速度**简称速度，用$\vec{v}$表示，是位矢对时间的一阶导数，描述某一时刻的运动状态：$$\\vec{v}=\\lim_{ \\Delta t \\to 0 }\\frac{\\Delta \\vec{r}}{\\Delta t}=\\frac{d \\vec{r}}{dt}$$"], "is_accent": true}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "加速度的分解", "speaker_notes": "加速度是描述速度变化的物理量，在自然坐标系下可以分解为切向和法向两个分量。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["平均加速度：$$\\bar{\\vec{a}}= \\frac{\\Delta \\vec{v}}{\\Delta t}$$", "瞬时加速度是速度对时间的一阶导数：$$\\vec{a}=\\frac{d \\vec{v}}{dt}$$", "加速度是运动状态变化量，位矢、速度是运动状态量"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["自然坐标系下沿轨迹切线和法线方向分解", "切向加速度$\\vec{a}_{t}$描述速度大小的变化：$$\\vec{a}_{t}=\\frac{dv}{dt}\\vec{e}_{t}$$", "法向加速度$\\vec{a}_{n}$描述速度方向的变化：$$\\vec{a}_{n}=\\frac{v^2}{\\rho}\\vec{e}_{n}$$，其中$\\rho$为轨迹的曲率半径"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "圆周运动的角量描述", "speaker_notes": "对于圆周运动，我们还可以用角量来描述其运动状态，角量和线量之间有明确的对应关系。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角位置$\theta=\theta(t)$：描述圆周运动质点的位置，角位移$\Delta \theta$满足$\Delta s=R\\Delta \theta$", "角速度$\omega$：角位置对时间的导数，标量形式为$\omega=\\frac{d\\theta}{dt}$，与线速率的关系为$v=R\\omega$", "矢量角速度遵循右手螺旋定则，与线速度的矢量关系为$\vec{v}=\\vec{\\omega}\\times \\vec{r}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "left", "content": ["角加速度$\alpha$：角速度对时间的导数，$\alpha =\\frac{d^2\\theta}{dt^2}$，与切向加速度的关系为$a_{t}=R\\alpha$"], "is_accent": true}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "核心内容总结", "speaker_notes": "最后我们回顾一下本次课程的核心知识点。", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["掌握位置矢量、运动方程的定义，熟悉联立参数形式的轨迹方程$$\\begin{cases}\nx=x(t) \\\\\ny=y(t) \\\\\nz=z(t)\n\\end{cases}$$", "区分位移与路程、平均速度与瞬时速度的概念差异", "理解加速度的物理意义，掌握自然坐标系下切向、法向加速度的分解", "掌握圆周运动角量描述方法，以及角量与线量的对应关系"], "is_accent": false}]}
+{"__type": "theme", "name": "线性代数蓝金主题", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#FBBF24", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "线性代数核心知识点精讲", "speaker_notes": "开场介绍本次课程涵盖行列式、向量、矩阵三大核心模块，适合复习备考使用", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["高等数学基础系列 | 配套习题与常见考点"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "行列式核心概念与性质", "speaker_notes": "首先讲解行列式的基础定义、逆序概念和核心运算性质", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["二阶/三阶行列式展开规则：按对角线乘积差计算，0可省略书写", "n级排列与逆序：逆序数为奇数是奇排列，偶数是偶排列，一次对换改变排列奇偶性", "核心运算性质：行倍加变换行列式值不变，$|A^T|=|A|$，$|kA|=k^n|A|$", "按行展开：$D = a_{i1}A_{i1}+a_{i2}A_{i2}+\dots+a_{in}A_{in}$，异行乘代数余子式和为0"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["特殊行列式技巧：鸡爪型行列式可通过消元转为上三角快速计算"], "is_accent": true}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "向量运算核心要点", "speaker_notes": "接下来讲解向量的基础概念和两种核心乘积的运算规则", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础概念：单位向量$\vec{e}_{\vec{a}}$，方向角范围$[0,180^\circ]$，方向余弦$\cos\alpha=\frac{x_0}{\sqrt{x_0^2+y_0^2+z_0^2}}$", "投影与分向量：投影是数值，分向量是平行于坐标轴的向量"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["数量积（内积）：$\vec{a}\cdot\vec{b}=|\vec{a}||\vec{b}|\cos\theta$，不满足结合律", "向量积（外积）：$\vec{a}\times\vec{b}$与$\vec{a},\vec{b}$都垂直，大小为$|\vec{a}||\vec{b}|\sin\theta$，不满足交换律和结合律", "向量积坐标公式：$\vec{a}\times\vec{b}=\begin{vmatrix} \vec{i}&\vec{j}&\vec{k} \\ a_1&a_2&a_3 \\ b_1&b_2&b_3 \end{vmatrix}$"], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "矩阵基础运算规则", "speaker_notes": "本页讲解矩阵的加减、数乘和乘法这三类基础运算的规则和注意事项", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["加减法：仅同型矩阵可运算，对应位置元素相加减", "数乘：数$k$乘矩阵等于$k$乘矩阵的所有元素，注意与行列式数乘的区别", "乘法核心规则：左矩阵列数=右矩阵行数，左行乘右列求和得到结果元素", "乘法不满足交换律：$AB\\neq BA$，连乘不可交换顺序，两个非零矩阵乘积可能为零矩阵"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_bottom", "content": ["特殊可交换场景：同阶对角矩阵可交换，单位矩阵$E$与任意同阶矩阵可交换，满足$EA=AE=A$"], "is_accent": true}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "方阵的幂、转置与行列式", "speaker_notes": "本页讲解方阵特有的三类运算规则和常考题型", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["方阵的幂：$A^k$为$k$个$A$相乘，规定$A^0=E$，$(AB)^k\\neq A^kB^k$，要注意顺序", "常考题型：秩为1的方阵可拆分为列矩阵乘行矩阵，利用结合律快速计算高次幂"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["转置性质：$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$", "对称矩阵：满足$A=A^T$，$B^TB$和$BB^T$对任意矩阵$B$都是对称矩阵", "方阵行列式性质：$|AB|=|A||B|$，$|A^m|=|A|^m$"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "stat_callout", "title": "高频考点提示", "speaker_notes": "本页强调考试中最容易出现的三类易错点，需要重点记忆", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["3大易错点"], "is_accent": true}, {"element_id": "e2", "type": "list", "position": "bottom", "content": ["矩阵乘法交换律误区：不要随意调换连乘矩阵的顺序", "数乘矩阵与数乘行列式的区别：$|kA|=k^n|A|$而非$k|A|$", "向量积方向判定：使用右手螺旋定则，注意$\vec{a}\times\vec{b}=-\vec{b}\times\vec{a}$"], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "最后回顾本次课程的核心内容，课后可结合习题巩固", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["行列式：掌握展开方法和核心性质，熟练特殊行列式的计算技巧", "向量：区分数量积和向量积的运算规则和适用场景，记住坐标运算公式", "矩阵：牢记乘法的特殊规则，掌握方阵的幂、转置、行列式的性质和常考题型", "后续将进一步讲解逆矩阵、矩阵的秩、线性方程组等进阶内容"], "is_accent": false}]}
 {"__type": "word_start"}
-## 描述质点运动的物理量讲义
-### 一、位置矢量与运动方程
-1. 位置矢量（位矢）：用于描述质点在空间中的位置，是从坐标原点指向质点所在位置的矢量，三维空间下表达式为 $\vec{r}=x \vec{i}+y \vec{j}+z \vec{k}$，其中 $\vec{i},\vec{j},\vec{k}$ 分别为x、y、z轴的单位矢量。
-2. 运动方程：位矢随时间变化的函数，表达式为 $\vec{r}(t)=x(t) \cdot \vec{i}+y(t) \cdot \vec{j}+z(t) \cdot \vec{k}$，反映质点位置随时间的变化规律。
-3. 轨迹方程：将运动方程的参数形式消去时间$t$后得到的方程，其参数联立形式为：
-$$
-\begin{cases}
-x=x(t) \\
-y=y(t) \\
-z=z(t)
-\end{cases}
-$$
-轨迹方程描述了质点运动的路径形态。
+## 线性代数核心知识点精讲讲义
+### 一、行列式模块
+1. **基础定义**
+   - 二阶行列式：$\begin{vmatrix} a & b \\ c & d \end{vmatrix}=ad-bc$
+   - 三阶行列式：$\begin{vmatrix} a&b&c \\ d&e&f \\ g&h&i \end{vmatrix}=aei+bfg+dhc-ceg-bdi-fha$
+   - 行列式中的0可以省略不写，如$\begin{vmatrix} a & b \\  & d \end{vmatrix}=\begin{vmatrix} a & b \\ 0 & d \end{vmatrix}$
 
-### 二、位移与路程
-1. 位移矢量：描述质点位置的变化量，是从初位置指向末位置的矢量，表达式为 $\Delta\vec{r}=\Delta x \cdot \vec{i}+ \Delta y \cdot \vec{j}+ \Delta z \cdot \vec{k}$，位移仅与初末位置有关，与运动路径无关。
-2. 路程：质点实际运动轨迹的长度，是标量，一般情况下路程$s \geq |\Delta \vec{r}|$，仅当质点做单向直线运动时二者大小相等；微分层面满足 $ds=|d \vec{r}|$。
+2. **排列与逆序**
+   - n级排列：由1,2,…,n组成的有序数组，共$n!$种，其中标准排列为123…n
+   - 逆序数：排列中每个数后比它小的数的个数和，用$N()$表示，逆序数为奇数是奇排列，偶数是偶排列
+   - 核心性质：排列经过一次对换后奇偶性改变，n级排列中奇排列和偶排列各占一半
 
-### 三、速度
-速度是描述质点运动快慢和方向的物理量，是矢量：
-1. 平均速度：一段时间内位移与时间间隔的比值，$\bar{\vec{v}}=  \frac{\Delta \vec{r}}{\Delta t}$，仅能反映一段时间内质点的平均运动状态。
-2. 瞬时速度：当时间间隔趋近于0时平均速度的极限，是位矢对时间的一阶导数，$\vec{v}=\lim_{ \Delta t \to 0 }\frac{\Delta \vec{r}}{\Delta t}=\frac{d \vec{r}}{dt}$，可以精确描述某一时刻质点的运动快慢和方向。
+3. **核心运算性质**
+   - 行变换性质：将行列式的一行乘任意数加到另一行中，行列式结果不变
+   - 转置性质：$|A^T|=|A|$
+   - 数乘性质：$|kA|=k^n|A|$，注意与矩阵数乘的区别
+   - 乘积性质：$|AB|=|A|\cdot|B|$，$|A^m|=|A|^m$
 
-### 四、加速度
-加速度是描述质点速度变化快慢和方向的物理量，是矢量：
-1. 平均加速度：一段时间内速度变化量与时间间隔的比值，$\bar{\vec{a}}= \frac{\Delta \vec{v}}{\Delta t}$。
-2. 瞬时加速度：速度对时间的一阶导数，$\vec{a}=\frac{d \vec{v}}{dt}$，精确描述某一时刻速度的变化情况。其中位矢、速度属于运动状态量，加速度属于运动状态变化量。
+4. **展开计算方法**
+   - 代数余子式：$A_{ij}=(-1)^{i+j}M_{ij}$，其中$M_{ij}$为余子式
+   - 按行展开：行列式等于某一行所有元素与其对应代数余子式乘积的和
+   - 异行展开性质：某一行元素乘另一行对应代数余子式的和为0
+   - 特殊行列式技巧：鸡爪型行列式可通过消去第一列除首元素外的所有元素，转为上三角行列式快速计算
 
-#### 自然坐标系下的加速度分解
-在沿运动轨迹建立的自然坐标系（切向单位矢量$\vec{e}_t$指向运动方向，法向单位矢量$\vec{e}_n$指向轨迹凹侧）中，加速度可分解为两个分量：
-- 切向加速度$\vec{a}_{t}=\frac{dv}{dt}\vec{e}_{t}$：描述速度大小的变化，方向沿轨迹切线方向。
-- 法向加速度$\vec{a}_{n}=\frac{v^2}{\rho}\vec{e}_{n}$：描述速度方向的变化，方向沿法线指向轨迹凹侧，$\rho$为轨迹对应位置的曲率半径。
+### 二、向量模块
+1. **基础概念**
+   - 单位向量：$\vec{e}_{\vec{a}}$表示$\vec{a}$的单位向量
+   - 方向角：向量与坐标轴的夹角范围为$[0,180^\circ]$，方向余弦$\cos\alpha=\frac{x_0}{\sqrt{x_0^2+y_0^2+z_0^2}}$
+   - 投影与分向量：投影是数值，分向量是平行于坐标轴的向量，$\vec{OM'}=\lambda \vec{e}$中$\lambda$就是投影值
 
-### 五、圆周运动的角量描述
-对于圆周运动，除了线量描述外，还可以用角量进行描述：
-1. 角位置$\theta=\theta(t)$：描述质点在圆周上的角度位置，角位移$\Delta \theta$是一段时间内角位置的变化量，与线位移的关系为$\Delta s=R\Delta \theta$（$R$为圆周半径）。
-2. 角速度$\omega$：角位置对时间的一阶导数，标量形式为$\omega=\frac{d\theta}{dt}$，与线速率的关系为$v=R\omega$；矢量形式的角速度遵循右手螺旋定则，与线速度的矢量关系为$\vec{v}=\vec{\omega}\times \vec{r}$。
-3. 角加速度$\alpha$：角速度对时间的一阶导数，$\alpha =\frac{d^2\theta}{dt^2}$，与切向加速度的关系为$a_{t}=R\alpha$。
+2. **核心运算**
+   - 数量积（内积、点积）：$\vec{a}\cdot\vec{b}=|\vec{a}||\vec{b}|\cos\theta$，不满足结合律，即$\vec{a}\cdot (\vec{b}\cdot \vec{c})\neq(\vec{a}\cdot \vec{b})\cdot \vec{c}$
+   - 向量积（外积、叉积）：
+     - 方向：与$\vec{a},\vec{b}$都垂直，满足右手螺旋定则
+     - 大小：$|\vec{a}\times \vec{b}|=|\vec{a}|\cdot |\vec{b}|\cdot \sin\theta$
+     - 坐标运算：$\vec{a}\times\vec{b}=\begin{vmatrix} \vec{i}&\vec{j}&\vec{k} \\ a_1&a_2&a_3 \\ b_1&b_2&b_3 \end{vmatrix}$
+     - 运算性质：不满足交换律和结合律，$\vec{a}\times\vec{b}=-\vec{b}\times\vec{a}$
+
+### 三、矩阵模块
+1. **基础运算规则**
+   - 加减法：仅同型矩阵可运算，对应位置元素相加减
+   - 数乘：数$k$乘矩阵等于$k$乘矩阵的所有元素
+   - 乘法：
+     - 前提：左矩阵列数=右矩阵行数
+     - 计算规则：左行元素与右列元素顺序对应相乘求和，得到结果矩阵对应位置元素
+     - 注意事项：不满足交换律，$AB\neq BA$；两个非零矩阵乘积可能是零矩阵；满足结合律和分配律
+     - 特殊可交换场景：同阶对角矩阵可交换；单位矩阵$E$与任意同阶矩阵可交换，$EA=AE=A$；数量矩阵$aE$与任意同阶矩阵可交换，$AB=aB$
+
+2. **方阵特殊运算**
+   - 方阵的幂：$A^k$为$k$个$A$相乘，规定$A^0=E$；单个方阵的幂可以拆分，多个方阵乘积的幂要注意顺序，$(AB)^2=ABAB\neq A^2B^2$
+   - 常考题型：秩为1的方阵可拆分为列矩阵乘行矩阵，利用结合律快速计算高次幂，如$A=\begin{pmatrix}2&4&-6 \\1&2&-3 \\4&8&-12\end{pmatrix}$求$A^{100}$
+   - 转置：行依次变为列，核心性质$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$
+   - 对称矩阵：满足$A=A^T$的方阵，性质包括$A^m$也为对称矩阵；对任意矩阵$B$，$B^TB,BB^T$均为对称矩阵
+   - 反对称矩阵：满足$A=-A^T$的方阵
+
+### 四、高频易错点
+1. 不要混淆矩阵数乘和行列式数乘：$kA$是所有元素乘$k$，$|kA|=k^n|A|$
+2. 矩阵乘法没有交换律，连乘时不要随意调换矩阵顺序
+3. 向量积运算要注意方向，$\vec{a}\times\vec{b}$和$\vec{b}\times\vec{a}$是相反向量
 {"__type": "done"}

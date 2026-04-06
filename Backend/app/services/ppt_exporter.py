@@ -168,6 +168,31 @@ _NS_A   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 _NS_MC  = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
 _NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main'
 
+# ── Registry of ALL math block environments that get OMML rendering ────────
+# key: LaTeX env name  →  (type, beg_delimiter, end_delimiter)
+_MATH_BLOCK_ENVS = {
+    'cases':    ('cases',   '{',  ''),
+    'aligned':  ('aligned', '',   ''),
+    'align':    ('aligned', '',   ''),
+    'align*':   ('aligned', '',   ''),
+    'matrix':   ('matrix',  '',   ''),
+    'pmatrix':  ('matrix',  '(',  ')'),
+    'bmatrix':  ('matrix',  '[',  ']'),
+    'vmatrix':  ('matrix',  '|',  '|'),
+    'Vmatrix':  ('matrix',  '\u2016', '\u2016'),
+}
+_MATH_ENV_NAMES_RE = '|'.join(re.escape(k) for k in _MATH_BLOCK_ENVS)
+_HAS_ENV_OPEN_RE  = re.compile(r'\\begin\{(' + _MATH_ENV_NAMES_RE + r')\}')
+_HAS_ENV_CLOSE_RE = re.compile(r'\\end\{(' + _MATH_ENV_NAMES_RE + r')\}')
+
+def _has_math_env_open(s: str) -> bool:
+    """Return True if s contains any recognized \\begin{env} math block."""
+    return bool(_HAS_ENV_OPEN_RE.search(s))
+
+def _has_math_env_close(s: str) -> bool:
+    """Return True if s contains any recognized \\end{env} math block."""
+    return bool(_HAS_ENV_CLOSE_RE.search(s))
+
 
 def _parse_tex_arg(s: str, start: int):
     """Extract {arg} beginning at position start; returns (content, end_pos).
@@ -218,6 +243,7 @@ def _append_omml_for_expr(parent, latex: str, m_ns: str) -> None:
     i = 0
     buf = ''
     while i < len(latex):
+        # ── \frac{num}{den} → <m:f> ───────────────────────────────────────
         if latex[i:i + 5] == '\\frac':
             text_run(buf); buf = ''
             num_str, j = _parse_tex_arg(latex, i + 5)
@@ -227,6 +253,28 @@ def _append_omml_for_expr(parent, latex: str, m_ns: str) -> None:
             _append_omml_for_expr(num_el, num_str, m_ns)
             den_el = etree.SubElement(f_el, f'{{{m}}}den')
             _append_omml_for_expr(den_el, den_str, m_ns)
+            i = j
+        # ── \sqrt[n]{x} or \sqrt{x} → <m:rad> ────────────────────────────
+        elif latex[i:i + 5] == '\\sqrt':
+            text_run(buf); buf = ''
+            j = i + 5
+            # optional [n] degree
+            deg_str = ''
+            if j < len(latex) and latex[j] == '[':
+                end_br = latex.find(']', j)
+                if end_br != -1:
+                    deg_str = latex[j+1:end_br]
+                    j = end_br + 1
+            rad_content, j = _parse_tex_arg(latex, j)
+            rad_el  = etree.SubElement(parent, f'{{{m}}}rad')
+            radPr   = etree.SubElement(rad_el, f'{{{m}}}radPr')
+            degHide = etree.SubElement(radPr, f'{{{m}}}degHide')
+            degHide.set(f'{{{m}}}val', '0' if deg_str else '1')
+            deg_el  = etree.SubElement(rad_el, f'{{{m}}}deg')
+            if deg_str:
+                _append_omml_for_expr(deg_el, deg_str, m_ns)
+            e_el = etree.SubElement(rad_el, f'{{{m}}}e')
+            _append_omml_for_expr(e_el, rad_content, m_ns)
             i = j
         else:
             buf += latex[i]
@@ -272,6 +320,67 @@ def _build_cases_omath(lines: list) -> 'etree._Element':
         e_inner = _latex_line_to_omml(line)
         eqArr.append(e_inner)
 
+    return omath
+
+
+def _build_aligned_omath(lines: list) -> 'etree._Element':
+    """Build <m:oMath> for \\begin{aligned} — equation array with no bracket delimiter."""
+    from lxml import etree
+    m = _NS_M
+    omath = etree.Element(f'{{{m}}}oMath', nsmap={'m': m})
+    eqArr = etree.SubElement(omath, f'{{{m}}}eqArr')
+    for line in lines:
+        clean = re.sub(r'&+', '\u2003', line).strip()  # & = alignment tab → em-space
+        e_elem = etree.SubElement(eqArr, f'{{{m}}}e')
+        _append_omml_for_expr(e_elem, clean, m)
+    return omath
+
+
+def _build_matrix_omath(body: str, beg_chr: str, end_chr: str) -> 'etree._Element':
+    """Build <m:oMath> for matrix environments (matrix/pmatrix/bmatrix/vmatrix/Vmatrix).
+    body: content between \\begin{xmatrix} and \\end{xmatrix}.
+    beg_chr / end_chr: delimiter chars, e.g. '(' ')' for pmatrix, '|' '|' for vmatrix.
+    """
+    from lxml import etree
+    m = _NS_M
+    omath = etree.Element(f'{{{m}}}oMath', nsmap={'m': m})
+
+    # Parse rows and cells
+    raw_rows = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
+    parsed = []
+    max_cols = 1
+    for row in raw_rows:
+        cells = [c.strip() for c in row.split('&')]
+        cells_clean = [c for c in cells if any(ch.strip() for ch in c)]
+        if cells_clean:
+            parsed.append(cells_clean)
+            max_cols = max(max_cols, len(cells_clean))
+
+    # Optional outer delimiter <m:d>
+    if beg_chr or end_chr:
+        d_el  = etree.SubElement(omath, f'{{{m}}}d')
+        dPr   = etree.SubElement(d_el,  f'{{{m}}}dPr')
+        bc    = etree.SubElement(dPr,   f'{{{m}}}begChr');  bc.set(f'{{{m}}}val', beg_chr)
+        ec    = etree.SubElement(dPr,   f'{{{m}}}endChr');  ec.set(f'{{{m}}}val', end_chr)
+        sc    = etree.SubElement(dPr,   f'{{{m}}}sepChr');  sc.set(f'{{{m}}}val', '')
+        e_out = etree.SubElement(d_el,  f'{{{m}}}e')
+        mat_parent = e_out
+    else:
+        mat_parent = omath
+
+    # <m:m> matrix element
+    m_el  = etree.SubElement(mat_parent, f'{{{m}}}m')
+    mPr   = etree.SubElement(m_el, f'{{{m}}}mPr')
+    mcs   = etree.SubElement(mPr,  f'{{{m}}}mcs')
+    mc    = etree.SubElement(mcs,  f'{{{m}}}mc')
+    mcPr  = etree.SubElement(mc,   f'{{{m}}}mcPr')
+    cnt   = etree.SubElement(mcPr, f'{{{m}}}count');  cnt.set(f'{{{m}}}val', str(max_cols))
+    mcJc  = etree.SubElement(mcPr, f'{{{m}}}mcJc');   mcJc.set(f'{{{m}}}val', 'ctr')
+    for cells in parsed:
+        mr = etree.SubElement(m_el, f'{{{m}}}mr')
+        for cell in cells:
+            cell_e = etree.SubElement(mr, f'{{{m}}}e')
+            _append_omml_for_expr(cell_e, cell, m)
     return omath
 
 
@@ -321,53 +430,53 @@ def parse_cases_env(text: str):
     return pre, lines, post
 
 
+def parse_block_math_env(text: str):
+    """Match ANY recognized \\begin{env}...\\end{env} block in text.
+    Returns (env_name, pre_text, body_str, post_text) or None.
+    Handles $$, $, and bare (no dollar) delimiters.
+    env_name is the raw LaTeX environment name (e.g. 'vmatrix', 'aligned').
+    """
+    env_alt = _MATH_ENV_NAMES_RE
+    for pat_str in [
+        r'(.*?)\$\$\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$\$(.*)',
+        r'(.*?)(?<!\$)\$(?!\$)\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$(?!\$)(.*)',
+        r'(.*?)\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}(.*)',
+    ]:
+        mo = re.compile(pat_str, re.DOTALL).match(text)
+        if mo:
+            return mo.group(2), mo.group(1).strip(), mo.group(3), mo.group(4).strip()
+    return None
+
+
 def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
                        color: 'RGBColor', accent: 'RGBColor') -> bool:
-    """
-    Render text containing \\begin{cases} as a real PPT math equation (OMML).
-
-    PPTX math structure (NOT Word/.docx):
-        <a:p>
-            <a14:m>                <- DIRECT child of <a:p>, no mc:AlternateContent!
-                <m:oMathPara>
-                    <m:oMath>
-                        <m:d>  <- delimiter {
-                            <m:eqArr>
-                                <m:e> x=x(t) </m:e>
-                                <m:e> y=y(t) </m:e>
-                            </m:eqArr>
-                        </m:d>
-                    </m:oMath>
-                </m:oMathPara>
-            </a14:m>
-        </a:p>
-
-    Returns True if handled, False if no cases found (caller falls back).
+    """Render any recognized \\begin{env}...\\end{env} math block as OMML.
+    Handles: cases, aligned, align, align*, matrix, pmatrix, bmatrix, vmatrix, Vmatrix.
+    Returns True if handled, False if nothing matched (caller falls back to plain text).
     """
     from pptx.util import Pt
     from lxml import etree
 
-    parsed = parse_cases_env(text)
-    if parsed is None:
+    result = parse_block_math_env(text)
+    if result is None:
         return False
 
-    pre_text, lines, post_text = parsed
-    # Strip leading Chinese/Western punctuation that shouldn't start a paragraph
-    # (e.g. "，消去参数t" -> "消去参数t")
-    post_text = re.sub(r'^[，。、；：！？,;:!?\.\s]+', '', post_text).strip()
+    env_name, pre_text, body, post_text = result
+    post_text = re.sub(r'^[\uff0c\u3002\u3001\uff1b\uff1a\uff01\uff1f,;:!\.\s]+', '', post_text).strip()
+
+    env_cfg  = _MATH_BLOCK_ENVS.get(env_name, ('cases', '{', ''))
+    env_type, beg_chr, end_chr = env_cfg
 
     A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
     M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+    A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
 
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    # NOTE: do NOT use SHAPE_TO_FIT_TEXT here — PowerPoint cannot measure
-    # OMML paragraph height; the initial `h` from _est_card_h is authoritative.
 
-    # ── Paragraph 0: pre-text (plain run) ─────────────────────────
     if pre_text:
-        p0 = tf.paragraphs[0]
+        p0   = tf.paragraphs[0]
         run0 = p0.add_run()
         run0.text = convert_latex(pre_text)
         run0.font.size = Pt(size)
@@ -376,67 +485,55 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     else:
         p_math = tf.paragraphs[0]
 
-    # ── Paragraph 1: pure math — <a:p><a14:m>...</a14:m></a:p> ───
-    # <a:pPr><a:defRPr> sets the color so OMML inherits it.
-    # CRITICAL: <a:pPr> MUST be the FIRST child of <a:p> per OOXML spec.
-    # Use insert(0, ...) NOT SubElement (which appends to end).
-    A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
     p_elem = p_math._p
-
-    # Remove any existing <a:pPr> that python-pptx may have added
     for existing_pPr in p_elem.findall(f'{{{A_NS}}}pPr'):
         p_elem.remove(existing_pPr)
-
-    # Build new <a:pPr> with color
     pPr     = etree.Element(f'{{{A_NS}}}pPr')
     defRPr  = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
-    defRPr.set('sz', str(size * 100))   # hundredths of a point
-    solidFill = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
-    srgbClr   = etree.SubElement(solidFill, f'{{{A_NS}}}srgbClr')
-    srgbClr.set('val', str(color).upper())   # RGBColor.__str__ returns 'RRGGBB'
-
-    # Insert as the FIRST child
+    defRPr.set('sz', str(size * 100))
+    sf      = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
+    clr     = etree.SubElement(sf, f'{{{A_NS}}}srgbClr')
+    clr.set('val', str(color).upper())
     p_elem.insert(0, pPr)
 
-    # Build and attach the math object
-    omath     = _build_cases_omath(lines)
+    # ── Route to correct OMML builder ──────────────────────────────────────
+    raw_lines = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
+    lines     = [ln.strip().lstrip('&').strip() for ln in raw_lines if ln.strip()]
+    if env_type == 'cases':
+        omath = _build_cases_omath(lines)
+    elif env_type == 'aligned':
+        omath = _build_aligned_omath(lines)
+    else:  # matrix
+        omath = _build_matrix_omath(body, beg_chr, end_chr)
+
     oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
     oMathPara.append(omath)
-
-    # <a14:m> goes DIRECTLY into <a:p> — correct PPTX math structure
-    a14_m = etree.SubElement(
-        p_elem,
-        f'{{{A14_NS}}}m',
-        nsmap={'a14': A14_NS, 'm': M_NS}
-    )
+    a14_m = etree.SubElement(p_elem, f'{{{A14_NS}}}m', nsmap={'a14': A14_NS, 'm': M_NS})
     a14_m.append(oMathPara)
 
-    # ── Paragraph 2+3: blank line then post-text (Image 4 layout) ──
     if post_text:
-        # Blank spacer paragraph (creates visual separation after equation)
-        p_blank = tf.add_paragraph()
-        run_blank = p_blank.add_run()
-        run_blank.text = ''
-        run_blank.font.size = Pt(max(size - 4, 10))
-        # Post-text paragraph
-        p_post = tf.add_paragraph()
-        run3   = p_post.add_run()
-        run3.text           = convert_latex(post_text)
-        run3.font.size      = Pt(size)
+        p_blank      = tf.add_paragraph()
+        p_blank.add_run().text = ''
+        p_blank.runs[0].font.size = Pt(max(size - 4, 10))
+        p_post       = tf.add_paragraph()
+        run3         = p_post.add_run()
+        run3.text    = convert_latex(post_text)
+        run3.font.size = Pt(size)
         run3.font.color.rgb = color
 
     return True
-
 
 def _add_inline_math_para(p_elem, text: str, size: int,
                           color: 'RGBColor', accent: 'RGBColor',
                           bold: bool = False) -> bool:
     """Build a paragraph with mixed plain-text <a:r> runs and inline OMML <a14:m> math.
-    Called when the text contains $\\frac{...}{...}$ but no \\begin{cases}.
+    Activates when text contains $\\frac{...}{}$ or $\\sqrt{...}$ inline math that
+    benefits from OMML rendering (proper fraction / radical glyphs instead of Unicode).
     Returns True if the paragraph was built (caller must NOT also call _add_rich_para).
-    Returns False if no inline math was found (caller falls back to plain text).
+    Returns False if no qualifying inline math was found (falls back to plain text).
     """
-    if '\\frac' not in text:
+    _OMML_TRIGGERS = ('\\frac', '\\sqrt')
+    if not any(t in text for t in _OMML_TRIGGERS):
         return False
 
     import re as _re
@@ -458,8 +555,8 @@ def _add_inline_math_para(p_elem, text: str, size: int,
     if pos < len(text):
         segments.append(('text', text[pos:]))
 
-    # Only use OMML path when at least one math segment contains \frac
-    if not any(seg[0] == 'math' and '\\frac' in seg[1] for seg in segments):
+    # Only use OMML path when at least one math segment contains \frac or \sqrt
+    if not any(seg[0] == 'math' and any(t in seg[1] for t in _OMML_TRIGGERS) for seg in segments):
         return False
 
     def _plain_run(txt: str, is_bold: bool):
@@ -538,24 +635,55 @@ def convert_latex(text: str) -> str:
 
     def _inner(s: str) -> str:
         """Convert LaTeX math body to readable Unicode text."""
-        # 1. \begin{cases}...\end{cases}  ->  multi-line with Unicode brace chars
+        # 1a. \begin{cases}...\end{cases} → Unicode brace staircase
         def _do_cases(m):
             body = m.group(1)
             rows = re.split(r'\\\\', body)
             parts = [_inner(ln.strip().lstrip('&').strip()) for ln in rows if ln.strip()]
-            if len(parts) == 0:
-                return ''
-            elif len(parts) == 1:
-                return '\u23a7 ' + parts[0]
-            elif len(parts) == 2:
-                return '\u23a7 ' + parts[0] + '\n\u23a9 ' + parts[1]
+            if len(parts) == 0:   return ''
+            elif len(parts) == 1: return '\u23a7 ' + parts[0]
+            elif len(parts) == 2: return '\u23a7 ' + parts[0] + '\n\u23a9 ' + parts[1]
             else:
                 out = '\u23a7 ' + parts[0]
-                for mid in parts[1:-1]:
-                    out += '\n\u23aa ' + mid
+                for mid in parts[1:-1]: out += '\n\u23aa ' + mid
                 out += '\n\u23a9 ' + parts[-1]
                 return out
         s = re.sub(r'\\begin\{cases\}(.*?)\\end\{cases\}', _do_cases, s, flags=re.DOTALL)
+
+        # 1b. \begin{aligned/align}...\end{...} → numbered rows separated by newlines
+        def _do_aligned(m):
+            body = m.group(1)
+            rows = re.split(r'\\\\', body)
+            parts = [_inner(re.sub(r'&+', '  ', ln).strip()) for ln in rows if ln.strip()]
+            return '\n'.join(parts)
+        s = re.sub(r'\\begin\{align(?:\*|ed)?\}(.*?)\\end\{align(?:\*|ed)?\}',
+                   _do_aligned, s, flags=re.DOTALL)
+
+        # 1c. Matrix environments → bracket notation
+        def _do_matrix(m_obj):
+            env_  = m_obj.group(1)  # e.g. 'vmatrix', 'pmatrix'
+            body  = m_obj.group(2)
+            _BEG  = {'pmatrix':'(','bmatrix':'[','vmatrix':'|','Vmatrix':'\u2016','matrix':''}
+            _END  = {'pmatrix':')','bmatrix':']','vmatrix':'|','Vmatrix':'\u2016','matrix':''}
+            rows  = re.split(r'\\\\', body)
+            row_strs = []
+            for row in rows:
+                cells = [_inner(c.strip()) for c in row.split('&') if c.strip()]
+                row_strs.append('  '.join(cells))
+            mat_str = '\n'.join(row_strs)
+            b, e = _BEG.get(env_, ''), _END.get(env_, '')
+            return f'{b}\n{mat_str}\n{e}' if b or e else mat_str
+        s = re.sub(
+            r'\\begin\{(matrix|pmatrix|bmatrix|vmatrix|Vmatrix)\}(.*?)\\end\{\1\}',
+            _do_matrix, s, flags=re.DOTALL)
+
+        # 1d. \sqrt[n]{x} → ⁿ√x  / \sqrt{x} → √x
+        s = re.sub(r'\\sqrt\[([^\]]+)\]\{([^{}]*)\}',
+                   lambda m: _inner(m.group(1)) + '\u221a' + _inner(m.group(2)), s)
+        s = re.sub(r'\\sqrt\{([^{}]*)\}',
+                   lambda m: '\u221a(' + _inner(m.group(1)) + ')', s)
+        s = re.sub(r'\\sqrt\s+([A-Za-z0-9])',
+                   lambda m: '\u221a' + m.group(1), s)
 
         # 2. \frac{num}{den} -> num/den  (parenthesise multi-char denominators for readability)
         def _frac_fmt(mf):
@@ -719,20 +847,28 @@ def _est_card_h(text: str, text_w_inches: float, font_sz: int = 16) -> float:
     extra_h = 0.0
     spacer_h = 0.0
 
-    # Use parse_cases_env so row counting matches the actual OMML rendering path
-    # (handles both 1-backslash and 2-backslash separators correctly).
-    parsed = parse_cases_env(s)
-    if parsed is not None:
-        pre, case_lines, post = parsed
+    # Use parse_block_math_env so ALL environments are counted correctly.
+    bme = parse_block_math_env(s)
+    if bme is None:
+        bme = parse_cases_env(s)  # legacy fallback; returns (pre, lines, post)
+        if bme is not None:
+            pre2, case_lines2, post2 = bme
+            bme = ('cases', pre2, None, post2)
+            case_lines = case_lines2
+        else:
+            case_lines = []
+    else:
+        _, pre2, body2, post2 = bme
+        raw_rows = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body2 or '')
+        case_lines = [r.strip() for r in raw_rows if r.strip()]
+    if bme is not None:
+        pre  = pre2 if isinstance(bme, tuple) and len(bme) == 4 else bme[1]
+        post = post2 if isinstance(bme, tuple) and len(bme) == 4 else bme[3]
         n_rows = max(1, len(case_lines))
-        # Each OMML row is ~1.6× a normal text line (math glyphs are taller)
         math_line_h = font_sz * 1.6 / 72.0
-        extra_h = n_rows * math_line_h + 0.10   # +top/bottom math margin
-        # Count only the PRE-text (text before the equation) for normal line height.
-        # Do NOT count post-text here; it is accounted for via spacer_h below.
-        s = pre
-        # The blank spacer paragraph only appears when there IS post-text.
-        has_post = bool(post.strip())
+        extra_h = n_rows * math_line_h + 0.10
+        s = pre2
+        has_post = bool(post2.strip() if post2 else '')
         spacer_h = (max(font_sz - 4, 10) * 1.5 / 72.0) if has_post else 0.0
 
     cjk   = sum(1 for c in s if '\u4e00' <= c <= '\u9fff')
@@ -1120,28 +1256,27 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         etype = elem.get("type", "text_block")
         if etype == "list" and len(raw_items) > 1:
             for raw_item, conv_item in zip(raw_items, items_converted):
-                item_str = str(raw_item)
-                has_open  = '\\begin{cases}' in item_str or '\\begin{aligned}' in item_str
-                has_close = '\\end{cases}'   in item_str or '\\end{aligned}'   in item_str
+                item_str  = str(raw_item)
+                has_open  = _has_math_env_open(item_str)
+                has_close = _has_math_env_close(item_str)
 
                 # ── Tail-fragment stitch ──────────────────────────────────────────
-                # The LLM sometimes splits \begin{cases}...\end{cases} across two
-                # consecutive list items. If this item contains \end{...} but NOT
-                # \begin{...}, it is the stray tail of the previous item's math
-                # block. Append it inline so the block is complete before we
-                # run any further detection.
                 if not has_open and has_close and body_cards:
                     body_cards[-1] = body_cards[-1] + ' ' + item_str
                     continue
 
-                # ── Normal cases / plain-text handling ───────────────────────────
-                parsed = parse_cases_env(item_str)
-                if parsed is not None:
-                    pre, _, post = parsed
-                    is_pure_math = (not pre.strip() and not post.strip())
+                # ── Math env / plain-text handling ───────────────────────────────
+                bme = parse_block_math_env(item_str)
+                if bme is None:
+                    bme_legacy = parse_cases_env(item_str)
+                    if bme_legacy is not None:
+                        pre_l, _, post_l = bme_legacy
+                        bme = ('cases', pre_l, None, post_l)
+                if bme is not None:
+                    pre_b  = bme[1] if isinstance(bme[1], str) else ''
+                    post_b = bme[3] if isinstance(bme[3], str) else ''
+                    is_pure_math = (not pre_b.strip() and not post_b.strip())
                     if is_pure_math and body_cards:
-                        # Standalone equation: merge with preceding card to avoid
-                        # a card that contains ONLY a formula with nothing around it.
                         body_cards[-1] = body_cards[-1] + '\n' + item_str
                     else:
                         body_cards.append(item_str)
@@ -1151,8 +1286,8 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                     if s:
                         body_cards.append(s)
         else:
-            # Check if any raw item has cases
-            has_cases = any(parse_cases_env(str(r)) is not None for r in raw_items)
+            # Check if any raw item has a math block environment
+            has_cases = any(_has_math_env_open(str(r)) for r in raw_items)
             if has_cases:
                 body_cards.append("\n".join(str(r) for r in raw_items).strip())
             else:
@@ -1171,9 +1306,9 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
         avail_c = avail_h - GAP * (n_c - 1)
         total_nat_c = sum(nat_c)
-        # Cases cards: keep exact natural height (OMML won't stretch)
+        # Math-env cards: keep exact natural height (OMML won't stretch)
         # Regular cards: expand proportionally up to 1.2x
-        is_cases_card = ['\\begin{cases}' in ct for ct in body_cards]
+        is_cases_card = [_has_math_env_open(ct) for ct in body_cards]
         if total_nat_c <= avail_c:
             fixed_h  = sum(n for n, ic in zip(nat_c, is_cases_card) if ic)
             flex_h   = sum(n for n, ic in zip(nat_c, is_cases_card) if not ic)
