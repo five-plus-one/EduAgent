@@ -169,30 +169,78 @@ _NS_MC  = 'http://schemas.openxmlformats.org/markup-compatibility/2006'
 _NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main'
 
 
-def _latex_line_to_omml(line: str):
-    """Convert a LaTeX equation line to OMML element.
-    Handles sub/superscript (v_0->v₀, t^2->t²), \\frac, Greek via convert_latex.
+def _parse_tex_arg(s: str, start: int):
+    """Extract {arg} beginning at position start; returns (content, end_pos).
+    If no '{', treats the single character at start as the argument.
+    Handles nested braces correctly.
+    """
+    if start >= len(s):
+        return '', start
+    if s[start] != '{':
+        return s[start], start + 1
+    depth = 0
+    i = start
+    while i < len(s):
+        if s[i] == '{':   depth += 1
+        elif s[i] == '}': depth -= 1; (depth == 0 and True) and (i := i)  # noqa
+        if s[i] == '}' and depth == 0:
+            return s[start + 1: i], i + 1
+        i += 1
+    return s[start + 1:], len(s)
+
+
+def _append_omml_for_expr(parent, latex: str, m_ns: str) -> None:
+    """Recursively parse a LaTeX expression and append OMML elements to parent.
+    Produces proper <m:f> fraction elements for \\frac{num}{den}.
+    Everything else (sub/sup/Greek) is converted to Unicode via convert_latex.
     """
     from lxml import etree
-    m = _NS_M
+    m = m_ns
+    XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
 
-    s = str(line).strip()
-    # 1. Handle \frac{a}{b} -> a/b
-    s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}', r'\1/\2', s)
-    # 2. Run convert_latex so bare v_0 -> v₀, t^2 -> t², Greek letters, etc.
-    s = convert_latex(f'${s}$')
-    # 3. Strip residual LaTeX commands
-    s = re.sub(r'\\[A-Za-z]+', '', s)
-    s = s.replace('{', '').replace('}', '').replace('$', '').strip()
+    def text_run(txt: str):
+        if not txt:
+            return
+        # convert_latex handles sub/sup/Greek → Unicode
+        converted = convert_latex(f'${txt}$')
+        converted = re.sub(r'\\[A-Za-z]+\*?', '', converted)
+        converted = converted.replace('{', '').replace('}', '').replace('$', '').strip()
+        if not converted:
+            return
+        r = etree.SubElement(parent, f'{{{m}}}r')
+        rPr = etree.SubElement(r, f'{{{m}}}rPr')
+        sty = etree.SubElement(rPr, f'{{{m}}}sty')
+        sty.set(f'{{{m}}}val', 'p')
+        t = etree.SubElement(r, f'{{{m}}}t')
+        t.set(XML_SP, 'preserve')
+        t.text = converted
 
-    e_elem = etree.Element(f'{{{m}}}e')
-    r_elem = etree.SubElement(e_elem, f'{{{m}}}r')
-    rPr    = etree.SubElement(r_elem, f'{{{m}}}rPr')
-    sty    = etree.SubElement(rPr,    f'{{{m}}}sty')
-    sty.set(f'{{{m}}}val', 'p')
-    t_elem = etree.SubElement(r_elem, f'{{{m}}}t')
-    t_elem.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-    t_elem.text = s
+    i = 0
+    buf = ''
+    while i < len(latex):
+        if latex[i:i + 5] == '\\frac':
+            text_run(buf); buf = ''
+            num_str, j = _parse_tex_arg(latex, i + 5)
+            den_str, j = _parse_tex_arg(latex, j)
+            f_el  = etree.SubElement(parent, f'{{{m}}}f')
+            num_el = etree.SubElement(f_el, f'{{{m}}}num')
+            _append_omml_for_expr(num_el, num_str, m_ns)
+            den_el = etree.SubElement(f_el, f'{{{m}}}den')
+            _append_omml_for_expr(den_el, den_str, m_ns)
+            i = j
+        else:
+            buf += latex[i]
+            i += 1
+    text_run(buf)
+
+
+def _latex_line_to_omml(line: str):
+    """Convert a single equation line (one row of a cases env) to OMML <m:e>.
+    Uses _append_omml_for_expr for proper \\frac -> <m:f> rendering.
+    """
+    from lxml import etree
+    e_elem = etree.Element(f'{{{_NS_M}}}e')
+    _append_omml_for_expr(e_elem, str(line).strip(), _NS_M)
     return e_elem
 
 def _build_cases_omath(lines: list) -> 'etree._Element':
@@ -380,6 +428,72 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     return True
 
 
+def _add_inline_math_para(p_elem, text: str, size: int,
+                          color: 'RGBColor', accent: 'RGBColor',
+                          bold: bool = False) -> bool:
+    """Build a paragraph with mixed plain-text <a:r> runs and inline OMML <a14:m> math.
+    Called when the text contains $\\frac{...}{...}$ but no \\begin{cases}.
+    Returns True if the paragraph was built (caller must NOT also call _add_rich_para).
+    Returns False if no inline math was found (caller falls back to plain text).
+    """
+    if '\\frac' not in text:
+        return False
+
+    import re as _re
+    from lxml import etree
+    from pptx.util import Pt
+
+    A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    A14   = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    M_NS  = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+    XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
+
+    segments = []
+    pos = 0
+    for mobj in re.finditer(r'\$\$(.+?)\$\$|\$([^$\n]+?)\$', text, re.DOTALL):
+        if mobj.start() > pos:
+            segments.append(('text', text[pos:mobj.start()]))
+        segments.append(('math', mobj.group(1) or mobj.group(2) or ''))
+        pos = mobj.end()
+    if pos < len(text):
+        segments.append(('text', text[pos:]))
+
+    # Only use OMML path when at least one math segment contains \frac
+    if not any(seg[0] == 'math' and '\\frac' in seg[1] for seg in segments):
+        return False
+
+    def _plain_run(txt: str, is_bold: bool):
+        converted = convert_latex(txt) if ('$' in txt or '\\' in txt) else txt
+        converted = re.sub(r'\\[A-Za-z]+\*?', '', converted).strip()
+        if not converted:
+            return
+        r_el = etree.SubElement(p_elem, f'{{{A_NS}}}r')
+        rPr  = etree.SubElement(r_el, f'{{{A_NS}}}rPr')
+        rPr.set('sz', str(size * 100))
+        if is_bold:
+            rPr.set('b', '1')
+        sf = etree.SubElement(rPr, f'{{{A_NS}}}solidFill')
+        cl = etree.SubElement(sf, f'{{{A_NS}}}srgbClr')
+        cl.set('val', str(accent if is_bold else color).upper())
+        t_el = etree.SubElement(r_el, f'{{{A_NS}}}t')
+        t_el.set(XML_SP, 'preserve')
+        t_el.text = converted
+
+    for seg_type, seg_content in segments:
+        if seg_type == 'text':
+            for piece in re.split(r'(\*\*[^*]+\*\*)', seg_content):
+                is_b = piece.startswith('**') and piece.endswith('**')
+                _plain_run(piece[2:-2] if is_b else re.sub(r'`(.+?)`', r'\1', piece), is_b)
+        else:
+            omath = etree.Element(f'{{{M_NS}}}oMath', nsmap={'m': M_NS})
+            _append_omml_for_expr(omath, seg_content, M_NS)
+            oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
+            oMathPara.append(omath)
+            a14_m = etree.SubElement(p_elem, f'{{{A14}}}m', nsmap={'a14': A14, 'm': M_NS})
+            a14_m.append(oMathPara)
+    return True
+
+
 def convert_latex(text: str) -> str:
     """
     Convert LaTeX math expressions ($...$  /  $$...$$) to readable Unicode text.
@@ -443,9 +557,14 @@ def convert_latex(text: str) -> str:
                 return out
         s = re.sub(r'\\begin\{cases\}(.*?)\\end\{cases\}', _do_cases, s, flags=re.DOTALL)
 
-        # 2. \frac{num}{den}  ->  num/den
-        s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}',
-                   lambda m: f"{_inner(m.group(1))}/{_inner(m.group(2))}", s)
+        # 2. \frac{num}{den} -> num/den  (parenthesise multi-char denominators for readability)
+        def _frac_fmt(mf):
+            num = _inner(mf.group(1))
+            den = _inner(mf.group(2))
+            if len(den.replace(' ', '')) > 1:
+                den = f'({den})'
+            return f'{num}/{den}'
+        s = re.sub(r'\\frac\{([^{}]*)\}\{([^{}]*)\}', _frac_fmt, s)
 
         # 3. \xrightarrow, \xleftarrow
         s = re.sub(r'\\xrightarrow\{([^{}]*)\}', lambda m: f"({_inner(m.group(1))})\u2192", s)
@@ -807,20 +926,27 @@ def _add_rich_para(tf, text: str, size: int, color: "RGBColor", accent: "RGBColo
 def add_rich_box(slide, text: str, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bold: bool = False, align=None) -> None:
-    """Single-paragraph rich textbox. Auto-routes to OMML for \\begin{cases}."""
-    # Try OMML math rendering first (handles \begin{cases}...\end{cases})
+    """Single-paragraph rich textbox.
+    Routing priority:
+      1. \\begin{cases}  -> OMML via add_cases_math_box
+      2. $\\frac{}{} ... $ -> mixed plain+OMML via _add_inline_math_para
+      3. Plain text via _add_rich_para
+    """
+    # 1. Cases OMML
     if add_cases_math_box(slide, text, l, t, w, h, size, color, accent):
         return
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
-    # Vertically center text within the card background rectangle.
-    # We do NOT use SHAPE_TO_FIT_TEXT because it makes the textbox shrink while
-    # the card bg rect stays at full height — text ends up pinned to the top.
     from pptx.oxml.ns import qn as _qn
     _bpr = tf._txBody.find(_qn('a:bodyPr'))
     if _bpr is not None:
         _bpr.set('anchor', 'ctr')
+    p_elem = tf.paragraphs[0]._p
+    # 2. Inline fraction OMML
+    if _add_inline_math_para(p_elem, text, size, color, accent, bold=bold):
+        return
+    # 3. Plain rich text
     _add_rich_para(tf, text, size, color, accent, bold=bold, align=align, first=True)
 
 
