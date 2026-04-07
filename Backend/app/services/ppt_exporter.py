@@ -880,6 +880,95 @@ def parse_block_math_env(text: str):
     return None
 
 
+def _append_block_math_to_tf(tf, text: str, size: int,
+                              color: 'RGBColor', accent: 'RGBColor') -> None:
+    """
+    Append one or more paragraphs to an existing TextFrame for `text` which may
+    contain multiple \\begin{env}...\\end{env} math environments mixed with prose.
+
+    Algorithm:
+      1. Look for the first recognized math environment in `text`.
+      2. If found: add pPr-paragraph with inline pre_text run + OMML block,
+         then call self recursively for the remaining post_text.
+      3. If not found: add a plain paragraph (inline $...$ → OMML if present,
+         otherwise convert_latex → plain text).
+    """
+    from pptx.util import Pt
+    from lxml import etree
+
+    text = text.strip()
+    if not text:
+        return
+
+    A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+    A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
+
+    result = parse_block_math_env(text)
+    if result is None:
+        # No block math environment — try inline $...$ OMML, else plain text
+        p = tf.add_paragraph()
+        if '$' in text and re.search(r'\\[A-Za-z]|[\^_]', text):
+            if not _add_inline_math_para(p._p, text, size, color, accent):
+                _add_rich_para(tf, convert_latex(text), size, color, accent, first=False)
+        else:
+            _add_rich_para(tf, convert_latex(text), size, color, accent, first=False)
+        return
+
+    env_name, pre_text, body, post_text = result
+    post_text = re.sub(r'^[，。、；：！？,;:!\.\s]+', '', post_text).strip()
+
+    env_cfg  = _MATH_BLOCK_ENVS.get(env_name, ('cases', '{', ''))
+    env_type, beg_chr, end_chr = env_cfg
+    color_hex = str(color).upper().lstrip('#')
+
+    # ── New paragraph in the existing textframe ──────────────────────────────
+    p_math = tf.add_paragraph()
+    p_elem = p_math._p
+
+    for existing_pPr in p_elem.findall(f'{{{A_NS}}}pPr'):
+        p_elem.remove(existing_pPr)
+    pPr    = etree.Element(f'{{{A_NS}}}pPr')
+    defRPr = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
+    defRPr.set('sz', str(size * 100))
+    sf     = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
+    clr    = etree.SubElement(sf, f'{{{A_NS}}}srgbClr')
+    clr.set('val', str(color).upper())
+    p_elem.insert(0, pPr)
+
+    # Inline pre_text run (if any)
+    if pre_text:
+        r_pre   = etree.SubElement(p_elem, f'{{{A_NS}}}r')
+        rPr_pre = etree.SubElement(r_pre, f'{{{A_NS}}}rPr')
+        rPr_pre.set('sz', str(size * 100))
+        sf2 = etree.SubElement(rPr_pre, f'{{{A_NS}}}solidFill')
+        cl2 = etree.SubElement(sf2,     f'{{{A_NS}}}srgbClr')
+        cl2.set('val', str(color).upper())
+        t2 = etree.SubElement(r_pre, f'{{{A_NS}}}t')
+        t2.set(XML_SP, 'preserve')
+        t2.text = convert_latex(pre_text) + '\u2009'
+
+    # OMML block
+    raw_lines = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
+    lines     = [ln.strip().lstrip('&').strip() for ln in raw_lines if ln.strip()]
+    if env_type == 'cases':
+        omath = _build_cases_omath(lines, color_hex)
+    elif env_type == 'aligned':
+        omath = _build_aligned_omath(lines, color_hex)
+    else:
+        omath = _build_matrix_omath(body, beg_chr, end_chr, color_hex)
+
+    oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
+    oMathPara.append(omath)
+    a14_m = etree.SubElement(p_elem, f'{{{A14_NS}}}m', nsmap={'a14': A14_NS, 'm': M_NS})
+    a14_m.append(oMathPara)
+
+    # Recurse for any further math environments in post_text
+    if post_text:
+        _append_block_math_to_tf(tf, post_text, size, color, accent)
+
+
 def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
                        color: 'RGBColor', accent: 'RGBColor') -> bool:
     """Render any recognized \\begin{env}...\\end{env} math block as OMML.
@@ -888,9 +977,9 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
 
     Rendering rule:
       - If pre_text exists (e.g. 'D_n ='), it is placed as an inline <a:r> run
-        in the SAME paragraph as the OMML block (same line, not split).
-      - post_text (if any) goes into a new following paragraph.
-      - A standalone matrix (no pre_text) gets its own paragraph as before.
+        in the SAME paragraph as the OMML block (same line).
+      - post_text is handled recursively by _append_block_math_to_tf so that
+        additional \\begin{env} blocks in the post_text are also OMML-rendered.
     """
     from pptx.util import Pt
     from lxml import etree
@@ -900,7 +989,7 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
         return False
 
     env_name, pre_text, body, post_text = result
-    post_text = re.sub(r'^[\uff0c\u3002\u3001\uff1b\uff1a\uff01\uff1f,;:!\.\s]+', '', post_text).strip()
+    post_text = re.sub(r'^[，。、；：！？,;:!\.\s]+', '', post_text).strip()
 
     env_cfg  = _MATH_BLOCK_ENVS.get(env_name, ('cases', '{', ''))
     env_type, beg_chr, end_chr = env_cfg
@@ -914,9 +1003,7 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     tf = tb.text_frame
     tf.word_wrap = True
 
-    # ── Always use the FIRST paragraph for pre_text + OMML (same line) ──────
-    # Previously pre_text went to p0 and OMML went to a NEW paragraph (two lines).
-    # Now: pre_text becomes an inline <a:r> run, OMML follows as <a14:m> in same <a:p>.
+    # ── First paragraph: pre_text (inline) + OMML (same line) ───────────────
     p_math = tf.paragraphs[0]
     p_elem = p_math._p
 
@@ -930,10 +1017,10 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     clr.set('val', str(color).upper())
     p_elem.insert(0, pPr)
 
-    # ── Pre-text inline text run (e.g. "D_n =") ─────────────────────────────
+    # Inline pre_text run (e.g. "D_n =", "解析：观察得$A=")
     if pre_text:
         pre_converted = convert_latex(pre_text)
-        r_pre  = etree.SubElement(p_elem, f'{{{A_NS}}}r')
+        r_pre   = etree.SubElement(p_elem, f'{{{A_NS}}}r')
         rPr_pre = etree.SubElement(r_pre, f'{{{A_NS}}}rPr')
         rPr_pre.set('sz', str(size * 100))
         sf_pre  = etree.SubElement(rPr_pre, f'{{{A_NS}}}solidFill')
@@ -959,17 +1046,12 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     a14_m = etree.SubElement(p_elem, f'{{{A14_NS}}}m', nsmap={'a14': A14_NS, 'm': M_NS})
     a14_m.append(oMathPara)
 
+    # ── post_text: may contain more math envs → recursive helper ─────────────
     if post_text:
-        p_blank      = tf.add_paragraph()
-        p_blank.add_run().text = ''
-        p_blank.runs[0].font.size = Pt(max(size - 4, 10))
-        p_post       = tf.add_paragraph()
-        run3         = p_post.add_run()
-        run3.text    = convert_latex(post_text)
-        run3.font.size = Pt(size)
-        run3.font.color.rgb = color
+        _append_block_math_to_tf(tf, post_text, size, color, accent)
 
     return True
+
 
 def _add_inline_math_para(p_elem, text: str, size: int,
                           color: 'RGBColor', accent: 'RGBColor',
