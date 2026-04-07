@@ -214,51 +214,148 @@ def _parse_tex_arg(s: str, start: int):
     return s[start + 1:], len(s)
 
 
-def _append_omml_for_expr(parent, latex: str, m_ns: str) -> None:
+
+# ── OMML symbol table: LaTeX command → Unicode (used in text runs) ─────────
+_OMML_SYM = {
+    # Greek lower
+    'alpha':'α','beta':'β','gamma':'γ','delta':'δ','epsilon':'ε','zeta':'ζ',
+    'eta':'η','theta':'θ','iota':'ι','kappa':'κ','lambda':'λ','mu':'μ',
+    'nu':'ν','xi':'ξ','pi':'π','rho':'ρ','sigma':'σ','tau':'τ',
+    'upsilon':'υ','phi':'φ','chi':'χ','psi':'ψ','omega':'ω',
+    # Greek upper
+    'Gamma':'Γ','Delta':'Δ','Theta':'Θ','Lambda':'Λ','Pi':'Π',
+    'Sigma':'Σ','Phi':'Φ','Psi':'Ψ','Omega':'Ω',
+    # Operators & misc
+    'times':'×','div':'÷','pm':'±','mp':'∓','cdot':'·','cdots':'⋯',
+    'ldots':'…','partial':'∂','nabla':'∇','infty':'∞',
+    'leq':'≤','geq':'≥','neq':'≠','approx':'≈','equiv':'≡','propto':'∝',
+    'in':'∈','notin':'∉','subset':'⊂','supset':'⊃','cup':'∪','cap':'∩',
+    'forall':'∀','exists':'∃','angle':'∠','perp':'⊥','mid':'|',
+    'rightarrow':'→','leftarrow':'←','Rightarrow':'⇒','Leftarrow':'⇐',
+    'leftrightarrow':'↔','Leftrightarrow':'⇔','uparrow':'↑','downarrow':'↓',
+    'to':'→','gets':'←',
+    # Functions (keep as text)
+    'sin':'sin','cos':'cos','tan':'tan','cot':'cot','sec':'sec','csc':'csc',
+    'log':'log','ln':'ln','exp':'exp','max':'max','min':'min','lim':'lim',
+    'det':'det','dim':'dim','ker':'ker','deg':'deg','gcd':'gcd',
+    'arcsin':'arcsin','arccos':'arccos','arctan':'arctan',
+    'sup':'sup','inf':'inf',
+}
+
+# n-ary operators: LaTeX cmd → OMML chr value
+_NARY_CHR = {
+    'sum':   '∑',
+    'prod':  '∏',
+    'int':   '∫',
+    'iint':  '∬',
+    'iiint': '∭',
+    'oint':  '∮',
+    'bigcup':'∪',
+    'bigcap':'∩',
+}
+
+
+def _simple_sym(txt: str) -> str:
+    """Convert a short LaTeX snippet to display text (symbols only, no structural conversion)."""
+    s = txt.strip()
+    # replace \cmd
+    def _repl(m):
+        cmd = m.group(1)
+        return _OMML_SYM.get(cmd, m.group(0))
+    s = re.sub(r'\\([A-Za-z]+\*?)', _repl, s)
+    # strip remaining braces that are now bare (grouping only)
+    s = s.replace('{', '').replace('}', '')
+    return s
+
+
+def _append_omml_for_expr(parent, latex: str, m_ns: str,
+                          color_hex: str = '') -> None:
     """Recursively parse a LaTeX expression and append OMML elements to parent.
-    Produces proper <m:f> fraction elements for \\frac{num}{den}.
-    Everything else (sub/sup/Greek) is converted to Unicode via convert_latex.
+    Supports:
+      \\frac{}{} → <m:f>
+      \\sqrt[]{} → <m:rad>
+      ^{}/{} → <m:sSup>/<m:sSub>  (proper superscript/subscript elements)
+      \\sum/\\prod/\\int + limits → <m:nary>
+      \\lim_{} → <m:limLow>
+      \\left ... \\right → <m:d>
+      Text/symbols → <m:r> with Unicode conversion
+    color_hex: hex color string (e.g. '1E293B') injected into each <m:rPr> so
+               OMML text inherits the surrounding PPT text color.
     """
     from lxml import etree
     m = m_ns
+    A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
     XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
 
-    def text_run(txt: str):
+    def _text_run(container, txt: str):
+        """Emit an <m:r> text run into *container* with properly converted symbols."""
         if not txt:
             return
-        # convert_latex handles sub/sup/Greek → Unicode
-        converted = convert_latex(f'${txt}$')
-        converted = re.sub(r'\\[A-Za-z]+\*?', '', converted)
-        converted = converted.replace('{', '').replace('}', '').replace('$', '').strip()
-        if not converted:
+        display = _simple_sym(txt)
+        display = display.strip()
+        if not display:
             return
-        r = etree.SubElement(parent, f'{{{m}}}r')
+        r = etree.SubElement(container, f'{{{m}}}r')
         rPr = etree.SubElement(r, f'{{{m}}}rPr')
         sty = etree.SubElement(rPr, f'{{{m}}}sty')
         sty.set(f'{{{m}}}val', 'p')
+        # Inject DrawingML color so math text matches the PPT text color
+        if color_hex:
+            a_rPr = etree.SubElement(rPr, f'{{{A_NS}}}rPr')
+            sf    = etree.SubElement(a_rPr, f'{{{A_NS}}}solidFill')
+            clr   = etree.SubElement(sf,    f'{{{A_NS}}}srgbClr')
+            clr.set('val', color_hex.upper().lstrip('#'))
         t = etree.SubElement(r, f'{{{m}}}t')
         t.set(XML_SP, 'preserve')
-        t.text = converted
+        t.text = display
+
+    def flush_buf(buf: str):
+        """Emit buffered plain text as a text run."""
+        if buf:
+            _text_run(parent, buf)
+
+    # ── Peek helper ─────────────────────────────────────────────────────────
+    def peek_cmd(s: str, pos: int):
+        """If s[pos] == '\\', read the command name. Returns (cmd, end_pos) or (None, pos)."""
+        if pos >= len(s) or s[pos] != '\\':
+            return None, pos
+        j = pos + 1
+        if j >= len(s):
+            return None, pos
+        if s[j].isalpha():
+            while j < len(s) and s[j].isalpha():
+                j += 1
+            # strip trailing *
+            if j < len(s) and s[j] == '*':
+                j += 1
+            return s[pos+1:j].rstrip('*'), j
+        else:
+            # single-char command like \, \\ \{ \}
+            return s[j], j + 1
 
     i = 0
     buf = ''
+
     while i < len(latex):
-        # ── \frac{num}{den} → <m:f> ───────────────────────────────────────
-        if latex[i:i + 5] == '\\frac':
-            text_run(buf); buf = ''
+        c = latex[i]
+
+        # ─── \frac{num}{den} → <m:f> ────────────────────────────────────────
+        if latex[i:i+5] == '\\frac':
+            flush_buf(buf); buf = ''
             num_str, j = _parse_tex_arg(latex, i + 5)
             den_str, j = _parse_tex_arg(latex, j)
-            f_el  = etree.SubElement(parent, f'{{{m}}}f')
+            f_el = etree.SubElement(parent, f'{{{m}}}f')
             num_el = etree.SubElement(f_el, f'{{{m}}}num')
-            _append_omml_for_expr(num_el, num_str, m_ns)
+            _append_omml_for_expr(num_el, num_str, m_ns, color_hex)
             den_el = etree.SubElement(f_el, f'{{{m}}}den')
-            _append_omml_for_expr(den_el, den_str, m_ns)
+            _append_omml_for_expr(den_el, den_str, m_ns, color_hex)
             i = j
-        # ── \sqrt[n]{x} or \sqrt{x} → <m:rad> ────────────────────────────
-        elif latex[i:i + 5] == '\\sqrt':
-            text_run(buf); buf = ''
+            continue
+
+        # ─── \sqrt[n]{x} or \sqrt{x} → <m:rad> ─────────────────────────────
+        if latex[i:i+5] == '\\sqrt':
+            flush_buf(buf); buf = ''
             j = i + 5
-            # optional [n] degree
             deg_str = ''
             if j < len(latex) and latex[j] == '[':
                 end_br = latex.find(']', j)
@@ -266,32 +363,268 @@ def _append_omml_for_expr(parent, latex: str, m_ns: str) -> None:
                     deg_str = latex[j+1:end_br]
                     j = end_br + 1
             rad_content, j = _parse_tex_arg(latex, j)
-            rad_el  = etree.SubElement(parent, f'{{{m}}}rad')
-            radPr   = etree.SubElement(rad_el, f'{{{m}}}radPr')
-            degHide = etree.SubElement(radPr, f'{{{m}}}degHide')
-            degHide.set(f'{{{m}}}val', '0' if deg_str else '1')
-            deg_el  = etree.SubElement(rad_el, f'{{{m}}}deg')
+            rad_el = etree.SubElement(parent, f'{{{m}}}rad')
+            radPr  = etree.SubElement(rad_el, f'{{{m}}}radPr')
+            dh     = etree.SubElement(radPr, f'{{{m}}}degHide')
+            dh.set(f'{{{m}}}val', '0' if deg_str else '1')
+            # ctrlPr: color the radical sign
+            rad_ctrlPr = etree.SubElement(radPr, f'{{{m}}}ctrlPr')
+            if color_hex:
+                _rpr = etree.SubElement(rad_ctrlPr, f'{{{A_NS}}}rPr')
+                _sf  = etree.SubElement(_rpr, f'{{{A_NS}}}solidFill')
+                _cl  = etree.SubElement(_sf,  f'{{{A_NS}}}srgbClr')
+                _cl.set('val', color_hex.upper().lstrip('#'))
+            deg_el = etree.SubElement(rad_el, f'{{{m}}}deg')
             if deg_str:
-                _append_omml_for_expr(deg_el, deg_str, m_ns)
+                _append_omml_for_expr(deg_el, deg_str, m_ns, color_hex)
             e_el = etree.SubElement(rad_el, f'{{{m}}}e')
-            _append_omml_for_expr(e_el, rad_content, m_ns)
+            _append_omml_for_expr(e_el, rad_content, m_ns, color_hex)
             i = j
-        else:
-            buf += latex[i]
+            continue
+
+
+        # ─── n-ary: \sum, \prod, \int, etc. ── with optional _{lo}^{hi} ─────
+        cmd, cmd_end = peek_cmd(latex, i)
+        if cmd and cmd in _NARY_CHR:
+            flush_buf(buf); buf = ''
+            chr_val = _NARY_CHR[cmd]
+            j = cmd_end
+            # skip optional space
+            while j < len(latex) and latex[j] == ' ':
+                j += 1
+            # parse optional limits: _{lo} and ^{hi} in any order
+            sub_str = sup_str = ''
+            for _ in range(2):
+                if j < len(latex) and latex[j] == '_':
+                    sub_str, j = _parse_tex_arg(latex, j + 1)
+                elif j < len(latex) and latex[j] == '^':
+                    sup_str, j = _parse_tex_arg(latex, j + 1)
+                else:
+                    break
+                while j < len(latex) and latex[j] == ' ':
+                    j += 1
+            # body: next {…} or single token
+            body_str, j = _parse_tex_arg(latex, j) if j < len(latex) else ('', j)
+
+            nary = etree.SubElement(parent, f'{{{m}}}nary')
+            nPr  = etree.SubElement(nary, f'{{{m}}}naryPr')
+            chrEl = etree.SubElement(nPr, f'{{{m}}}chr')
+            chrEl.set(f'{{{m}}}val', chr_val)
+            limLoc = etree.SubElement(nPr, f'{{{m}}}limLoc')
+            limLoc.set(f'{{{m}}}val', 'undOvr' if (sub_str or sup_str) else 'subSup')
+            # hide empty sub/sup
+            if not sub_str:
+                hs = etree.SubElement(nPr, f'{{{m}}}subHide')
+                hs.set(f'{{{m}}}val', '1')
+            if not sup_str:
+                hp = etree.SubElement(nPr, f'{{{m}}}supHide')
+                hp.set(f'{{{m}}}val', '1')
+            # ctrlPr: color the nary operator character (∫ Σ ∏ etc.)
+            nary_ctrlPr = etree.SubElement(nPr, f'{{{m}}}ctrlPr')
+            if color_hex:
+                _rpr = etree.SubElement(nary_ctrlPr, f'{{{A_NS}}}rPr')
+                _sf  = etree.SubElement(_rpr, f'{{{A_NS}}}solidFill')
+                _cl  = etree.SubElement(_sf,  f'{{{A_NS}}}srgbClr')
+                _cl.set('val', color_hex.upper().lstrip('#'))
+            sub_el = etree.SubElement(nary, f'{{{m}}}sub')
+            if sub_str:
+                _append_omml_for_expr(sub_el, sub_str, m_ns, color_hex)
+            sup_el = etree.SubElement(nary, f'{{{m}}}sup')
+            if sup_str:
+                _append_omml_for_expr(sup_el, sup_str, m_ns, color_hex)
+            e_el = etree.SubElement(nary, f'{{{m}}}e')
+            if body_str:
+                _append_omml_for_expr(e_el, body_str, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── \lim_{…} → <m:limLow> ──────────────────────────────────────────
+        if cmd == 'lim':
+            flush_buf(buf); buf = ''
+            j = cmd_end
+            while j < len(latex) and latex[j] == ' ':
+                j += 1
+            sub_str = ''
+            if j < len(latex) and latex[j] == '_':
+                sub_str, j = _parse_tex_arg(latex, j + 1)
+            lim_el = etree.SubElement(parent, f'{{{m}}}limLow')
+            e_el   = etree.SubElement(lim_el, f'{{{m}}}e')
+            _text_run(e_el, 'lim')
+            lim_sub = etree.SubElement(lim_el, f'{{{m}}}lim')
+            if sub_str:
+                _append_omml_for_expr(lim_sub, sub_str, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── \left … \right → <m:d> ─────────────────────────────────────────
+        if latex[i:i+5] == '\\left':
+            flush_buf(buf); buf = ''
+            j = i + 5
+            # delimiter char (may be . for invisible)
+            beg_chr = ''
+            if j < len(latex):
+                if latex[j] == '\\':
+                    # \left\{ etc.
+                    dc, j = peek_cmd(latex, j)
+                    delim_map = {'lbrace':'{','rbrace':'}','lvert':'|','rvert':'|',
+                                 '{':'{','}':'}','|':'|','(':' (',')':")"}
+                    beg_chr = delim_map.get(dc or '', dc or '')
+                elif latex[j] == '.':
+                    beg_chr = ''; j += 1   # invisible delimiter
+                else:
+                    beg_chr = latex[j]; j += 1
+            # find matching \right
+            depth = 1
+            k = j
+            while k < len(latex) and depth > 0:
+                if latex[k:k+5] == '\\left':
+                    depth += 1; k += 5
+                elif latex[k:k+6] == '\\right':
+                    depth -= 1
+                    if depth == 0:
+                        break
+                    k += 6
+                else:
+                    k += 1
+            inner = latex[j:k]
+            # read end delimiter
+            end_chr = ''
+            if k < len(latex) and latex[k:k+6] == '\\right':
+                k += 6
+                if k < len(latex):
+                    if latex[k] == '\\':
+                        dc, k = peek_cmd(latex, k)
+                        delim_map2 = {'lbrace':'{','rbrace':'}','lvert':'|','rvert':'|',
+                                      '{':'{','}':'}','|':'|','(':' (',')':')'}
+                        end_chr = delim_map2.get(dc or '', dc or '')
+                    elif latex[k] == '.':
+                        end_chr = ''; k += 1
+                    else:
+                        end_chr = latex[k]; k += 1
+            d_el  = etree.SubElement(parent, f'{{{m}}}d')
+            dPr   = etree.SubElement(d_el,  f'{{{m}}}dPr')
+            bc    = etree.SubElement(dPr,   f'{{{m}}}begChr'); bc.set(f'{{{m}}}val', beg_chr)
+            ec    = etree.SubElement(dPr,   f'{{{m}}}endChr'); ec.set(f'{{{m}}}val', end_chr)
+            sc    = etree.SubElement(dPr,   f'{{{m}}}sepChr'); sc.set(f'{{{m}}}val', '')
+            # ctrlPr: color the bracket/delimiter characters
+            d_ctrlPr = etree.SubElement(dPr,  f'{{{m}}}ctrlPr')
+            if color_hex:
+                _rpr = etree.SubElement(d_ctrlPr, f'{{{A_NS}}}rPr')
+                _sf  = etree.SubElement(_rpr, f'{{{A_NS}}}solidFill')
+                _cl  = etree.SubElement(_sf,  f'{{{A_NS}}}srgbClr')
+                _cl.set('val', color_hex.upper().lstrip('#'))
+            e_el  = etree.SubElement(d_el,  f'{{{m}}}e')
+            _append_omml_for_expr(e_el, inner, m_ns, color_hex)
+            i = k
+            continue
+
+        # ─── ^{exp} → <m:sSup> ───────────────────────────────────────────────
+        # The base of sSup is the last atom preceding '^':
+        #   • if the buffer holds chars (e.g. "v" in "v^2"), pop the LAST char
+        #     as base and flush the prefix to parent.
+        #   • if the buffer is empty, the last child of parent is the base
+        #     (e.g. the <m:f> produced by \frac{a}{b}^n), steal it.
+        if c == '^':
+            sup_str, j = _parse_tex_arg(latex, i + 1)
+            ss    = etree.SubElement(parent, f'{{{m}}}sSup')
+            ssPr  = etree.SubElement(ss, f'{{{m}}}sSupPr')
+            etree.SubElement(ssPr, f'{{{m}}}ctrlPr')
+            e_el  = etree.SubElement(ss, f'{{{m}}}e')
+            if buf:
+                # flush prefix, put last char as base
+                prefix, base_char = buf[:-1], buf[-1]
+                buf = ''
+                if prefix:
+                    _text_run(parent, prefix)
+                # move ss from parent back so it sits after prefix
+                parent.remove(ss)
+                parent.append(ss)
+                _text_run(e_el, base_char)
+            else:
+                # steal the last child that was added to parent before ss
+                children = list(parent)
+                # ss is already the last child; last *base* child is children[-2]
+                if len(children) >= 2:
+                    base_el = children[-2]
+                    parent.remove(base_el)
+                    e_el.append(base_el)
+            sup_el = etree.SubElement(ss, f'{{{m}}}sup')
+            _append_omml_for_expr(sup_el, sup_str, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── _{sub} → <m:sSub> ───────────────────────────────────────────────
+        if c == '_':
+            sub_str, j = _parse_tex_arg(latex, i + 1)
+            ss    = etree.SubElement(parent, f'{{{m}}}sSub')
+            ssPr  = etree.SubElement(ss, f'{{{m}}}sSubPr')
+            etree.SubElement(ssPr, f'{{{m}}}ctrlPr')
+            e_el  = etree.SubElement(ss, f'{{{m}}}e')
+            if buf:
+                prefix, base_char = buf[:-1], buf[-1]
+                buf = ''
+                if prefix:
+                    _text_run(parent, prefix)
+                parent.remove(ss)
+                parent.append(ss)
+                _text_run(e_el, base_char)
+            else:
+                children = list(parent)
+                if len(children) >= 2:
+                    base_el = children[-2]
+                    parent.remove(base_el)
+                    e_el.append(base_el)
+            sub_el = etree.SubElement(ss, f'{{{m}}}sub')
+            _append_omml_for_expr(sub_el, sub_str, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── Known LaTeX command → emit symbol as text run ──────────────────
+        if cmd is not None and cmd in _OMML_SYM:
+            flush_buf(buf); buf = ''
+            _text_run(parent, _OMML_SYM[cmd])
+            i = cmd_end
+            continue
+
+        # ─── {grouped expression} — recurse into group without braces ────────
+        if c == '{':
+            flush_buf(buf); buf = ''
+            inner, j = _parse_tex_arg(latex, i)
+            _append_omml_for_expr(parent, inner, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── skip closing brace (unmatched) ─────────────────────────────────
+        if c == '}':
+            flush_buf(buf); buf = ''
             i += 1
-    text_run(buf)
+            continue
+
+        # ─── Unknown command: skip but don't crash ───────────────────────────
+        if c == '\\' and cmd is not None:
+            flush_buf(buf); buf = ''
+            # emit command name as text (best-effort)
+            _text_run(parent, cmd)
+            i = cmd_end
+            continue
+
+        buf += c
+        i += 1
+
+    flush_buf(buf)
 
 
-def _latex_line_to_omml(line: str):
+
+def _latex_line_to_omml(line: str, color_hex: str = ''):
     """Convert a single equation line (one row of a cases env) to OMML <m:e>.
     Uses _append_omml_for_expr for proper \\frac -> <m:f> rendering.
     """
     from lxml import etree
     e_elem = etree.Element(f'{{{_NS_M}}}e')
-    _append_omml_for_expr(e_elem, str(line).strip(), _NS_M)
+    _append_omml_for_expr(e_elem, str(line).strip(), _NS_M, color_hex)
     return e_elem
 
-def _build_cases_omath(lines: list) -> 'etree._Element':
+def _build_cases_omath(lines: list, color_hex: str = '') -> 'etree._Element':
     """
     Build an <m:oMath> element representing a \begin{cases} environment:
     A left curly brace delimiter with stacked equation lines.
@@ -317,13 +650,13 @@ def _build_cases_omath(lines: list) -> 'etree._Element':
     eqArr = etree.SubElement(e_outer, f'{{{m}}}eqArr')
 
     for line in lines:
-        e_inner = _latex_line_to_omml(line)
+        e_inner = _latex_line_to_omml(line, color_hex)
         eqArr.append(e_inner)
 
     return omath
 
 
-def _build_aligned_omath(lines: list) -> 'etree._Element':
+def _build_aligned_omath(lines: list, color_hex: str = '') -> 'etree._Element':
     """Build <m:oMath> for \\begin{aligned} — equation array with no bracket delimiter."""
     from lxml import etree
     m = _NS_M
@@ -332,11 +665,12 @@ def _build_aligned_omath(lines: list) -> 'etree._Element':
     for line in lines:
         clean = re.sub(r'&+', '\u2003', line).strip()  # & = alignment tab → em-space
         e_elem = etree.SubElement(eqArr, f'{{{m}}}e')
-        _append_omml_for_expr(e_elem, clean, m)
+        _append_omml_for_expr(e_elem, clean, m, color_hex)
     return omath
 
 
-def _build_matrix_omath(body: str, beg_chr: str, end_chr: str) -> 'etree._Element':
+def _build_matrix_omath(body: str, beg_chr: str, end_chr: str,
+                        color_hex: str = '') -> 'etree._Element':
     """Build <m:oMath> for matrix environments (matrix/pmatrix/bmatrix/vmatrix/Vmatrix).
     body: content between \\begin{xmatrix} and \\end{xmatrix}.
     beg_chr / end_chr: delimiter chars, e.g. '(' ')' for pmatrix, '|' '|' for vmatrix.
@@ -380,7 +714,7 @@ def _build_matrix_omath(body: str, beg_chr: str, end_chr: str) -> 'etree._Elemen
         mr = etree.SubElement(m_el, f'{{{m}}}mr')
         for cell in cells:
             cell_e = etree.SubElement(mr, f'{{{m}}}e')
-            _append_omml_for_expr(cell_e, cell, m)
+            _append_omml_for_expr(cell_e, cell, m, color_hex)
     return omath
 
 
@@ -437,14 +771,33 @@ def parse_block_math_env(text: str):
     env_name is the raw LaTeX environment name (e.g. 'vmatrix', 'aligned').
     """
     env_alt = _MATH_ENV_NAMES_RE
-    for pat_str in [
-        r'(.*?)\$\$\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$\$(.*)',
-        r'(.*?)(?<!\$)\$(?!\$)\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$(?!\$)(.*)',
-        r'(.*?)\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}(.*)',
+    for pat_str, grp_map in [
+        # $$...env...$$  (block display)
+        (r'(.*?)\$\$\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$\$(.*)',
+         (2, 1, 3, 4)),
+        # $...env...$  with NOTHING between \end{env} and closing $
+        (r'(.*?)(?<!\$)\$(?!\$)\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$(?!\$)(.*)',
+         (2, 1, 3, 4)),
+        # $...env... trailing_content $  (content between \end{env} and $)
+        # e.g. $\begin{vmatrix}a&b\\c&d\end{vmatrix} = ad-bc$
+        (r'(.*?)(?<!\$)\$(?!\$)\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}([^$\n]*)\$(?!\$)(.*)',
+         (2, 1, 3, (4, 5))),    # grp 4=tail-inside-$ grp 5=after-$
+        # bare: no $ delimiters
+        (r'(.*?)\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}(.*)',
+         (2, 1, 3, 4)),
     ]:
         mo = re.compile(pat_str, re.DOTALL).match(text)
         if mo:
-            return mo.group(2), mo.group(1).strip(), mo.group(3), mo.group(4).strip()
+            env_g, pre_g, body_g, post_g = grp_map
+            if isinstance(post_g, tuple):
+                # two groups make up post: tail inside $...$ + content after closing $
+                post = (mo.group(post_g[0]) + ' ' + mo.group(post_g[1])).strip()
+            else:
+                post = mo.group(post_g).strip()
+            # Strip orphan $ left by bare-pattern match
+            pre  = re.sub(r'\$\s*$', '',  mo.group(pre_g).strip()).strip()
+            post = re.sub(r'^\s*\$',  '', post).strip()
+            return mo.group(env_g), pre, mo.group(body_g), post
     return None
 
 
@@ -497,14 +850,15 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     p_elem.insert(0, pPr)
 
     # ── Route to correct OMML builder ──────────────────────────────────────
+    color_hex = str(color).upper().lstrip('#')
     raw_lines = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
     lines     = [ln.strip().lstrip('&').strip() for ln in raw_lines if ln.strip()]
     if env_type == 'cases':
-        omath = _build_cases_omath(lines)
+        omath = _build_cases_omath(lines, color_hex)
     elif env_type == 'aligned':
-        omath = _build_aligned_omath(lines)
+        omath = _build_aligned_omath(lines, color_hex)
     else:  # matrix
-        omath = _build_matrix_omath(body, beg_chr, end_chr)
+        omath = _build_matrix_omath(body, beg_chr, end_chr, color_hex)
 
     oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
     oMathPara.append(omath)
@@ -527,24 +881,23 @@ def _add_inline_math_para(p_elem, text: str, size: int,
                           color: 'RGBColor', accent: 'RGBColor',
                           bold: bool = False) -> bool:
     """Build a paragraph with mixed plain-text <a:r> runs and inline OMML <a14:m> math.
-    Activates when text contains $\\frac{...}{}$ or $\\sqrt{...}$ inline math that
-    benefits from OMML rendering (proper fraction / radical glyphs instead of Unicode).
+    Activates when text contains ANY $...$ expression with a LaTeX construct
+    (backslash command, ^ superscript, _ subscript).
     Returns True if the paragraph was built (caller must NOT also call _add_rich_para).
     Returns False if no qualifying inline math was found (falls back to plain text).
     """
-    _OMML_TRIGGERS = ('\\frac', '\\sqrt')
-    if not any(t in text for t in _OMML_TRIGGERS):
+    # Activate if text has a $ delimiter at all (single or double)
+    if '$' not in text:
         return False
 
-    import re as _re
     from lxml import etree
-    from pptx.util import Pt
 
-    A_NS  = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-    A14   = 'http://schemas.microsoft.com/office/drawing/2010/main'
-    M_NS  = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+    A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    A14    = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
     XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
 
+    # Split text into (type, content) segments: 'text' | 'math'
     segments = []
     pos = 0
     for mobj in re.finditer(r'\$\$(.+?)\$\$|\$([^$\n]+?)\$', text, re.DOTALL):
@@ -555,11 +908,15 @@ def _add_inline_math_para(p_elem, text: str, size: int,
     if pos < len(text):
         segments.append(('text', text[pos:]))
 
-    # Only use OMML path when at least one math segment contains \frac or \sqrt
-    if not any(seg[0] == 'math' and any(t in seg[1] for t in _OMML_TRIGGERS) for seg in segments):
+    # Only activate OMML path if at least one math segment contains a real LaTeX construct
+    def _has_latex(s: str) -> bool:
+        return bool(re.search(r'\\[A-Za-z]|[\^_]', s))
+
+    if not any(seg[0] == 'math' and _has_latex(seg[1]) for seg in segments):
         return False
 
     def _plain_run(txt: str, is_bold: bool):
+        """Emit a plain-text <a:r> run (with convert_latex for any $ or \ inside)."""
         converted = convert_latex(txt) if ('$' in txt or '\\' in txt) else txt
         converted = re.sub(r'\\[A-Za-z]+\*?', '', converted).strip()
         if not converted:
@@ -582,8 +939,10 @@ def _add_inline_math_para(p_elem, text: str, size: int,
                 is_b = piece.startswith('**') and piece.endswith('**')
                 _plain_run(piece[2:-2] if is_b else re.sub(r'`(.+?)`', r'\1', piece), is_b)
         else:
+            # Pass the text color so OMML math runs match surrounding PPT text
+            color_hex = str(color).upper().lstrip('#')
             omath = etree.Element(f'{{{M_NS}}}oMath', nsmap={'m': M_NS})
-            _append_omml_for_expr(omath, seg_content, M_NS)
+            _append_omml_for_expr(omath, seg_content, M_NS, color_hex)
             oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
             oMathPara.append(omath)
             a14_m = etree.SubElement(p_elem, f'{{{A14}}}m', nsmap={'a14': A14, 'm': M_NS})
@@ -1089,7 +1448,10 @@ def add_rich_box(slide, text: str, l, t, w, h, size: int,
 def add_list_box(slide, items: list, l, t, w, h, size: int,
                  color: "RGBColor", accent: "RGBColor",
                  bullet: str = "•  ") -> None:
-    """Multi-paragraph list textbox, vertically centered."""
+    """Multi-paragraph list textbox, vertically centered.
+    Each bullet item that contains LaTeX $...$ math is rendered via OMML.
+    """
+    from lxml import etree
     MAX = 8
     if len(items) > MAX:
         items = items[:MAX - 1] + [f"… (+{len(items) - MAX + 1} 项)"]
@@ -1102,10 +1464,25 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
     _bpr = tf._txBody.find(_qn('a:bodyPr'))
     if _bpr is not None:
         _bpr.set('anchor', 'ctr')
+
+    A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+
     for i, item in enumerate(items):
         clean = re.sub(r'^[\-\*\+]\s+', '', str(item))
         clean = re.sub(r'^\d+\.\s+', '', clean)
-        _add_rich_para(tf, bullet + clean, safe, color, accent, first=(i == 0))
+        full_text = bullet + clean
+
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p_elem = p._p
+
+        # Try OMML inline math first
+        if _add_inline_math_para(p_elem, full_text, safe, color, accent):
+            continue  # OMML path handled it
+
+        # Fallback: plain rich text (bullet prefix + content)
+        _add_rich_para(tf, full_text, safe, color, accent, first=(i == 0))
+
+
 
 
 # ──────────────────────────────────────────────
@@ -1407,21 +1784,57 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
-        # Explode: each list sub-item becomes its own individual card (matching frontend)
-        cards = []
+        # Explode: each list sub-item becomes its own individual card.
+        # Use raw content for math preservation (mirrors render_minimal_list logic).
+        cards = []  # list of {"text": str, "stat": bool}
         for elem in elems:
-            items = get_content_list(elem)
+            raw_items   = get_raw_content_list(elem)
+            conv_items  = get_content_list(elem)
             etype = elem.get("type", "text_block")
             if _is_stat(elem):
-                cards.append({"text": "\n".join(items), "stat": True})
-            elif etype == "list" and len(items) > 1:
-                for item in items:
-                    s = re.sub(r'^[\-\*\+]\s+', '', str(item))
-                    s = re.sub(r'^\d+\.\s+', '', s).strip()
-                    if s:
-                        cards.append({"text": s, "stat": False})
+                cards.append({"text": "\n".join(conv_items), "stat": True})
+            elif etype == "list" and len(raw_items) > 1:
+                for raw_item, conv_item in zip(raw_items, conv_items):
+                    item_str  = str(raw_item)
+                    has_open  = _has_math_env_open(item_str)
+                    has_close = _has_math_env_close(item_str)
+
+                    # Tail-fragment stitch (close-only env fragment joins prev card)
+                    if not has_open and has_close and cards:
+                        cards[-1]["text"] = cards[-1]["text"] + ' ' + item_str
+                        continue
+
+                    bme = parse_block_math_env(item_str)
+                    if bme is None:
+                        bme_legacy = parse_cases_env(item_str)
+                        if bme_legacy is not None:
+                            pre_l, _, post_l = bme_legacy
+                            bme = ('cases', pre_l, None, post_l)
+                    if bme is not None:
+                        pre_b  = bme[1] if isinstance(bme[1], str) else ''
+                        post_b = bme[3] if isinstance(bme[3], str) else ''
+                        is_pure_math = (not pre_b.strip() and not post_b.strip())
+                        if is_pure_math and cards:
+                            cards[-1]["text"] = cards[-1]["text"] + '\n' + item_str
+                        else:
+                            cards.append({"text": item_str, "stat": False})
+                    else:
+                        # Check for inline $...$ math — keep raw if it has LaTeX
+                        use_raw = '$' in item_str and re.search(r'\\[A-Za-z]|[\^_]', item_str)
+                        s_text = item_str if use_raw else str(conv_item)
+                        s_text = re.sub(r'^[\-\*\+]\s+', '', s_text)
+                        s_text = re.sub(r'^\d+\.\s+', '', s_text).strip()
+                        if s_text:
+                            cards.append({"text": s_text, "stat": False})
             else:
-                text = "\n".join(items).strip()
+                # Single-item or non-list: use raw if any item has math
+                has_cases = any(_has_math_env_open(str(r)) for r in raw_items)
+                has_inline = any('$' in str(r) and re.search(r'\\[A-Za-z]|[\^_]', str(r))
+                                 for r in raw_items)
+                if has_cases or has_inline:
+                    text = "\n".join(str(r) for r in raw_items).strip()
+                else:
+                    text = "\n".join(conv_items).strip()
                 if text:
                     cards.append({"text": text, "stat": False})
 
