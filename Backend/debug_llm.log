@@ -1,38 +1,48 @@
-{"__type": "theme", "name": "学术蓝", "bg_color": "#1E293B", "primary": "#60A5FA", "secondary": "#94A3B8", "accent": "#34D399", "text_color": "#F8FAFC"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "LaTeX 语法与公式对比指南", "speaker_notes": "大家好，今天我们来系统学习LaTeX的核心语法，通过和常规写法的对比，帮助大家快速掌握LaTeX公式编辑的技巧，提升学术写作的效率。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["适合学术写作、论文排版的实用教程"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程核心内容", "speaker_notes": "本次课程我们会覆盖这四类最常用的LaTeX语法场景，每一部分都会给出LaTeX写法和直观的效果对比，方便大家理解和记忆。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础数学符号与上下标语法", "分式、根式与极限类语法", "向量、矩阵与方程组语法", "常用运算符号与特殊符号语法"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["所有示例均包含LaTeX代码与渲染效果对比，可直接复制使用在论文、报告排版中。"], "is_accent": false}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "基础符号与上下标对比", "speaker_notes": "首先是最基础的上下标和基础符号，这是LaTeX公式最常用的基础语法，我们可以看到LaTeX的写法非常规整，渲染出来的公式也符合学术规范。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$a_n$", "LaTeX代码：$v^2$", "LaTeX代码：$\omega_0$", "LaTeX代码：$x_i^2 + y_j^3$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：下标，序列第n项a的n次分量", "渲染效果：上标，速度v的平方", "渲染效果：混合标，初始角速度", "渲染效果：混合上下标，x的i项平方加y的j项立方"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "分式、根式与极限对比", "speaker_notes": "接下来是分式、根式和极限的写法，这类复杂结构如果用普通文本编辑很难做到规范，而LaTeX可以很轻松地输出符合学术标准的格式。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$\frac{x+y}{x-y}$", "LaTeX代码：$\sqrt[3]{x^2 + 1}$", "LaTeX代码：$\lim_{n \to \infty} \frac{1}{n}$", "LaTeX代码：$\sum_{i=1}^n i = \frac{n(n+1)}{2}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：分式，x加y除以x减y", "渲染效果：三次根式，x平方加1的三次根", "渲染效果：极限，n趋向无穷时1/n的极限", "渲染效果：求和公式，1到n的整数和等于n(n+1)/2"], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "向量、矩阵与方程组对比", "speaker_notes": "然后是向量、矩阵和方程组这类复杂结构，这是理工科论文中非常常见的内容，LaTeX针对这类内容有专门的语法，输出的公式非常美观规范。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX代码：$\vec{v} = (v_x, v_y, v_z)$", "LaTeX代码：$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$", "LaTeX代码：$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["渲染效果：三维速度向量，包含x、y、z三个分量", "渲染效果：2×2二阶矩阵，括号包裹格式规范", "渲染效果：二元一次联立方程组，大括号包裹结构清晰"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "以上就是我们本次课程介绍的核心LaTeX语法，大家可以在日常写作中多练习使用，熟练之后就能大幅提升学术排版的效率，输出专业规范的公式内容。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["LaTeX语法统一，渲染效果符合国际学术出版标准", "复杂公式结构（矩阵、方程组等）编写简单，可复用性高", "通过代码编写公式，便于版本管理和批量修改", "建议日常写作时多查阅LaTeX符号表，积累常用语法"], "is_accent": false}]}
+{"__type": "theme", "name": "学术极简", "bg_color": "#1E293B", "primary": "#22D3EE", "secondary": "#94A3B8", "accent": "#FBBF24", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "LaTeX 语法与公式对比教程", "speaker_notes": "大家好，今天我们来系统学习LaTeX的核心语法，通过和普通公式写法的对比，帮助大家快速掌握LaTeX的公式编辑能力。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["适合学术写作、论文排版的实用指南"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程内容概述", "speaker_notes": "本次课程我们会从基础符号到复杂结构，分模块讲解LaTeX的语法，每个部分都会给出直观的写法对比。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础运算与上下标语法", "分数、根号与极限符号", "向量、矩阵与方程组", "希腊字母与特殊符号", "常见公式场景写法对比"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["LaTeX是学术界通用的排版语言，其公式输出规范、美观，是撰写科研论文、技术报告的必备技能。"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "基础运算与上下标对比", "speaker_notes": "首先我们来看最基础的运算和上下标写法，这是LaTeX公式最常用的基础语法。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通手写写法：a² + bₙ = c", "LaTeX行内写法：$a^2 + b_n = c$", "普通手写求和：∑ᵢ₌₁ⁿ xᵢ", "LaTeX块级写法：$$\\sum_{i=1}^n x_i$$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["语法规则说明：", "上标使用^符号，下标使用_符号", "多字符上下标需要用{}包裹，例如$x_{ij}$", "求和、积分等符号的上下限会自动适配排版位置"], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "分数、根号与极限对比", "speaker_notes": "接下来是分数、根号和极限的写法，这些结构在数学公式中非常常见，LaTeX的排版效果远优于普通文本写法。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通写法：1/2 + √3 ≈ 1.732", "LaTeX写法：$\\frac{1}{2} + \\sqrt{3} \\approx 1.732$", "普通极限写法：limₙ→∞ (1+1/n)ⁿ = e", "LaTeX写法：$$\\lim_{n \\to \\infty} \\left(1+\\frac{1}{n}\\right)^n = e$$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "自然常数e的极限趋近过程示意图", "alt": "极限趋近过程示意图", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "向量、矩阵与方程组对比", "speaker_notes": "对于复杂的数学结构，比如向量、矩阵和方程组，LaTeX有专门的语法实现规范排版。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通向量写法：v = (x,y,z)", "LaTeX写法：$\\vec{v} = (x, y, z)$", "普通2x2矩阵：[[a,b],[c,d]]", "LaTeX写法：$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$", "联立方程组LaTeX实现：", "$$\\begin{cases} x + 2y = 3 \\\\ 3x - y = 2 \\end{cases}$$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["语法说明：", "pmatrix环境生成带括号的矩阵，&分隔列，\\\\分隔行", "cases环境用于生成联立方程组，自动添加左侧大括号", "所有复杂结构都有对应的标准化环境，无需手动调整格式"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "stat_callout", "title": "LaTeX公式优势", "speaker_notes": "和普通的公式编辑器相比，LaTeX的优势非常明显，这也是它成为学术标准的原因。", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["95%+"], "is_accent": true}, {"element_id": "e2", "type": "text_block", "position": "bottom", "content": ["的SCI期刊要求或接受LaTeX格式的投稿，其公式排版的规范性、一致性是普通工具无法比拟的。"], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结与练习建议", "speaker_notes": "最后我们来总结一下本次课程的内容，以及给大家一些练习的建议。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心语法总结：上下标用^和_，结构用对应环境，所有公式用$或$$包裹", "练习建议：从日常的作业公式开始，尝试用LaTeX编写，逐步积累语法熟练度", "常用工具：Overleaf在线编辑器、TeX Live本地环境，都可以快速验证公式写法"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["熟练掌握LaTeX公式语法，可以大幅提升学术写作的效率和文档的专业度，是科研人员的必备技能。"], "is_accent": false}]}
 {"__type": "word_start"}
-## LaTeX语法与公式对比指南讲义
-### 一、课程概述
-LaTeX是当前学术领域使用最广泛的排版系统，尤其在理工科论文、学位论文、专业报告的排版中具备不可替代的优势，其公式编辑功能强大，输出的公式规范、美观，符合国际出版标准。本次课程通过LaTeX代码与渲染效果的对比，帮助学习者快速掌握常用的LaTeX公式语法，降低学术排版的学习门槛。
+## LaTeX语法与公式对比教程讲义
+### 一、课程背景
+LaTeX作为当前学术界通用的排版系统，凭借其高度标准化的公式输出能力、优秀的长文档排版效果，成为了科研人员撰写论文、报告、学位论文的首选工具。本次课程通过对比普通公式写法和LaTeX语法的差异，帮助大家快速掌握LaTeX公式编辑的核心技能。
 
-### 二、核心语法详解
-#### 1. 基础符号与上下标
-上下标是LaTeX最基础的语法，上标使用`^`标记，下标使用`_`标记，如果上下标内容超过一个字符，需要用`{}`包裹。
-- 示例1：$a_n$ 表示序列的第n项，代码为`$a_n$`
-- 示例2：$v^2$ 表示速度的平方，代码为`$v^2$`
-- 示例3：$x_i^2$ 表示x的第i个分量的平方，代码为`$x_i^2$`
+### 二、基础运算与上下标语法
+1. 基础规则：LaTeX中，上标使用`^`符号，下标使用`_`符号，如果上下标包含多个字符，需要用`{}`将多个字符包裹，避免语法错误。
+   - 示例：普通写法`a2`如果要表示a的平方，LaTeX中需要写为`$a^2$`；普通写法`bn`如果要表示n为下标，需要写为`$b_n$`；如果是多字符下标，比如x的第ij项，需要写为`$x_{ij}$`。
+2. 求和、积分符号：对于求和、积分等大型运算符，LaTeX会自动根据公式是行内还是块级，调整上下限的位置，行内公式上下限会放在符号右侧，块级公式上下限会放在符号的上下方，排版更加美观。
+   - 行内求和示例：`$\sum_{i=1}^n x_i$`，块级求和示例：`$$\sum_{i=1}^n x_i$$`
 
-#### 2. 分式、根式与极限
-复杂的数学结构在LaTeX中有专门的语法标识：
-- 分式使用`\frac{分子}{分母}`语法，例如$\frac{x+y}{x-y}$代码为`$\frac{x+y}{x-y}$`
-- 根式使用`\sqrt[次数]{内容}`语法，例如$\sqrt[3]{x^2 + 1}$代码为`$\sqrt[3]{x^2 + 1}$`
-- 极限使用`\lim_{下标}`语法，例如$\lim_{n \to \infty} \frac{1}{n}$代码为`$\lim_{n \to \infty} \frac{1}{n}$`
-- 求和、乘积符号与极限语法类似，分别使用`\sum`、`\prod`标识。
+### 三、分数、根号与极限语法
+1. 分数：LaTeX中使用`\frac{分子}{分母}`的语法生成标准的分式结构，相比普通的`/`斜杠写法，排版更加清晰，尤其是嵌套分数的场景，优势更加明显。
+   - 示例：二分之一写作`$\frac{1}{2}$`，嵌套分数`$\frac{1}{1+\frac{1}{x}}$`。
+2. 根号：使用`\sqrt{内容}`生成平方根，如果需要更高次的根号，使用`\sqrt[n]{内容}`，n为根次数。
+   - 示例：三次根号2写作`$\sqrt[3]{2}$`。
+3. 极限：使用`\lim_{下标}`语法生成极限符号，箭头符号用`\to`表示。
+   - 示例：重要极限`$\lim_{n \to \infty} \left(1+\frac{1}{n}\right)^n = e$`，其中`\left(`和`\right)`会自动适配括号的高度，适配内部的公式大小。
 
-#### 3. 向量、矩阵与方程组
-针对线性代数等领域的复杂结构，LaTeX提供了专门的环境：
-- 向量使用`\vec{符号}`标识，例如$\vec{v} = (v_x, v_y, v_z)$代码为`$\vec{v} = (v_x, v_y, v_z)$`
-- 矩阵可以使用`pmatrix`环境生成带括号的矩阵，例如$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$代码为`$\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$`
-- 联立方程组使用`cases`环境，例如$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$代码为`$\begin{cases} x + y = 3 \\ x - y = 1 \end{cases}$`
+### 四、复杂结构语法
+1. 向量：变量上方的箭头用`\vec{变量名}`表示，示例：速度向量`$\vec{v}$`。
+2. 矩阵：使用`pmatrix`环境生成带圆括号的矩阵，`&`符号分隔同一行的不同列，`\\`符号换行。
+   - 2x2矩阵示例：
+     ```latex
+     $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
+     ```
+   如果需要方括号的矩阵，将`pmatrix`替换为`bmatrix`即可。
+3. 联立方程组：使用`cases`环境生成，环境内每一行代表一个方程，同样用`\\`换行，LaTeX会自动在左侧添加大括号。
+   - 二元一次方程组示例：
+     ```latex
+     $$\begin{cases} x + 2y = 3 \\ 3x - y = 2 \end{cases}$$
+     ```
 
-### 三、学习建议
-1. 日常写作时优先使用LaTeX编写公式，熟练语法逻辑
-2. 常备LaTeX符号表，遇到不熟悉的符号及时查询
-3. 复杂公式可以先拆分结构，从基础组件开始逐步编写
-4. 写完后可以通过在线LaTeX编辑器预览效果，调整格式
+### 五、学习建议
+1. 循序渐进：从简单的公式开始练习，逐步掌握复杂结构的语法，遇到不熟悉的符号可以查阅LaTeX符号表。
+2. 工具选择：新手推荐使用Overleaf在线编辑器，无需安装本地环境，自动补全和实时预览功能可以帮助快速验证语法正确性。
+3. 日常积累：平时遇到需要手写公式的场景，都可以尝试用LaTeX语法编写，一般经过1-2周的频繁使用，就可以熟练掌握常用的公式语法。
+
+熟练掌握LaTeX公式语法，不仅可以提升文档的专业度，也可以避免不同排版工具之间的格式兼容问题，是学术写作路上非常值得投入时间学习的技能。
 {"__type": "done"}

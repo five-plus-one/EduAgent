@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "doubao-seed-2-0-pro-260215"
     EMBEDDING_MODEL: str = "text-embedding-3-large"
 
+    # Image system
+    VISION_MODEL: str = "doubao-vision-pro-32k"
+    IMAGE_UPLOAD_DIR: str = "uploads/session_images"
+    IMAGE_LIBRARY_DIR: str = "uploads/image_library"
+    ADMIN_SECRET_KEY: str = "admin_secret_change_me"
+    IMAGE_SEARCH_SESSION_THRESHOLD: float = 0.75
+    IMAGE_SEARCH_LIBRARY_THRESHOLD: float = 0.70
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
 settings = Settings()
