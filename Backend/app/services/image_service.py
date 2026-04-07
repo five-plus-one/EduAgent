@@ -121,14 +121,18 @@ async def _vision_annotate(file_path: str) -> Optional[dict]:
     若失败返回 None。
     """
     vision_model = getattr(settings, "VISION_MODEL", settings.LLM_MODEL)
+    logger.info(f"[vision_annotate] start: model={vision_model} file={file_path}")
     try:
         with open(file_path, "rb") as f:
-            img_b64 = base64.b64encode(f.read()).decode()
+            img_bytes = f.read()
+        img_b64 = base64.b64encode(img_bytes).decode()
+        logger.info(f"[vision_annotate] image loaded: {len(img_bytes)} bytes")
+
         # 猜测 mime type
         ext = os.path.splitext(file_path)[1].lower()
-        mime = {"jpg": "image/jpeg", ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg", ".png": "image/png",
-                ".webp": "image/webp"}.get(ext, "image/jpeg")
+        mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                ".png": "image/png", ".webp": "image/webp",
+                ".gif": "image/gif"}.get(ext, "image/jpeg")
 
         system_prompt = (
             "你是一个专业的教学图片标注助手。请分析图片内容，以中文输出：\n"
@@ -158,28 +162,50 @@ async def _vision_annotate(file_path: str) -> Optional[dict]:
             "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
             "Content-Type": "application/json",
         }
+        # 注意：Vision 模型不支持 thinking/tools 字段，保持 payload 最小化
         payload = {
             "model": vision_model,
             "messages": messages,
-            "max_tokens": 300,
+            "max_tokens": 400,
             "temperature": 0.1,
+            "stream": False,  # 标注不需要流式输出
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=90.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            result_text = resp.json()["choices"][0]["message"]["content"]
+            logger.info(f"[vision_annotate] HTTP status: {resp.status_code}")
+            if resp.status_code != 200:
+                logger.error(f"[vision_annotate] API error body: {resp.text[:500]}")
+                resp.raise_for_status()
+            resp_json = resp.json()
+            result_text = resp_json["choices"][0]["message"]["content"]
+            logger.info(f"[vision_annotate] raw response: {result_text[:200]}")
 
-        # 提取 JSON
+        # 提取 JSON（支持 ```json ... ``` 包裹或裸 JSON）
         if "```" in result_text:
-            result_text = result_text.split("```json")[-1].split("```")[0].strip()
-        import re
-        m = re.search(r"\{.*\}", result_text, re.DOTALL)
+            parts = result_text.split("```")
+            for part in parts:
+                if part.startswith("json"):
+                    result_text = part[4:].strip()
+                    break
+                elif "{" in part:
+                    result_text = part.strip()
+                    break
+
+        import re as _re
+        m = _re.search(r"\{.*\}", result_text, _re.DOTALL)
         if m:
-            return json.loads(m.group(0))
+            parsed = json.loads(m.group(0))
+            logger.info(f"[vision_annotate] success: desc={parsed.get('description','')[:30]}")
+            return parsed
+        else:
+            logger.warning(f"[vision_annotate] no JSON found in response: {result_text[:200]}")
     except Exception as e:
-        logger.error(f"[image_service] vision annotate failed for {file_path}: {e}")
+        import traceback
+        logger.error(f"[vision_annotate] FAILED for {file_path}: {type(e).__name__}: {e}")
+        logger.error(traceback.format_exc())
     return None
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

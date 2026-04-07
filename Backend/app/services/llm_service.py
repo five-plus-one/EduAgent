@@ -86,8 +86,15 @@ SYSTEM_PROMPT = (
     "   Your text response should only be brief conversational acknowledgement.\n"
     "2. AddSlide 工具与 UpdateSlide 工具参数格式完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。\n"
     "   AddSlide 禁止使用 content 字符串参数，必须构造完整的结构化 new_elements 数组。\n"
-    "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。"
+    "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
+    "4. 【重要约束】GenerateFullPPT 工具只能在用户 **明确** 提出要从头重新生成整套课件时调用（例如：'重新生成'、'从头做'、'全部重做'）。\n"
+    "   在以下情况下 **绝对禁止** 调用 GenerateFullPPT：\n"
+    "   - 用户只是要求修改某一页或某几页的内容（应调用 UpdateSlide）\n"
+    "   - 用户要求新增或删除某页（应调用 AddSlide / DeleteSlide）\n"
+    "   - 用户提出任何局部调整请求，即便表述含糊，也优先使用 UpdateSlide\n"
+    "   违反此规则将导致用户已有的整套课件丢失，是严重错误。"
 )
+
 
 
 async def stream_chat_response(

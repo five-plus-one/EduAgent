@@ -428,19 +428,29 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         page_count += 1
                                         print(f"[parser] page {page_count}: {obj.get('title','')}")
 
-                                        # ── 图片元素向量检索（不改变任何 LaTeX/OMML 逻辑）──
+                                        # ── 图片元素向量检索：无匹配则直接移除，避免空占位框 ──
                                         try:
                                             from app.services.image_service import search_image_by_query
+                                            filtered_elements = []
                                             for elem in obj.get("elements", []):
                                                 if elem.get("type") == "image":
                                                     query = elem.get("query", "")
                                                     if query:
                                                         resolved = search_image_by_query(query, session_id)
-                                                        elem["resolved"] = resolved
+                                                        if resolved is not None:
+                                                            # 有匹配图片，保留并附加 resolved
+                                                            elem["resolved"] = resolved
+                                                            filtered_elements.append(elem)
+                                                        # 无匹配 → 丢弃这个 image element，不生成占位框
+                                                    # query 为空 → 也丢弃
+                                                else:
+                                                    filtered_elements.append(elem)
+                                            obj["elements"] = filtered_elements
                                         except Exception as _img_err:
                                             print(f"[image_resolve] error: {_img_err}")
 
                                         yield sse("page_chunk", obj)
+
 
 
                                     elif t == "word_start":
