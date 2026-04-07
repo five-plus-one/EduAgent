@@ -1738,6 +1738,133 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                          bold=True, align=PP_ALIGN.CENTER)
 
 
+def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
+    """
+    渲染 type=image 的 element。
+    从 resolved 字段或数据库中查找图片路径，用 add_picture 插入幻灯片。
+    此函数与 LaTeX/OMML 渲染管线完全隔离，不共享任何代码路径。
+    """
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    acc = colors["acc"]
+    txt = colors["txt"]
+
+    # 1) 确定要插入的图片本地路径
+    image_path = None
+    resolved = elem.get("resolved")
+
+    if resolved and isinstance(resolved, dict):
+        # 流式生成时，resolved 携带了 image_id，通过 image_id 找本地路径
+        image_id = resolved.get("image_id", "")
+        source   = resolved.get("source", "session")
+        if image_id:
+            try:
+                from app.db.session import SessionLocal
+                from app.models.image import SessionImage, ImageLibrary
+                _db = SessionLocal()
+                try:
+                    if source == "library":
+                        rec = _db.query(ImageLibrary).filter(ImageLibrary.id == image_id).first()
+                    else:
+                        rec = _db.query(SessionImage).filter(SessionImage.id == image_id).first()
+                    if rec and rec.file_path and os.path.exists(rec.file_path):
+                        image_path = rec.file_path
+                finally:
+                    _db.close()
+            except Exception as _e:
+                logger.warning(f"[image_elem] DB lookup failed: {_e}")
+
+    if image_path is None:
+        # 没有找到图片：绘制灰色占位框
+        _render_image_placeholder(slide, elem, col_x, col_w, colors)
+        return
+
+    # 2) 计算图片放置区域（占满整列高度，留边距）
+    img_x = col_x + 0.05
+    img_y = CONTENT_T + 0.05
+    img_w = col_w - 0.15
+    img_h = SLIDE_H - img_y - 0.45
+
+    try:
+        # 插入图片
+        pic = slide.shapes.add_picture(
+            image_path,
+            Inches(img_x), Inches(img_y),
+            Inches(img_w), Inches(img_h)
+        )
+        # 微调：保持图片原始宽高比（python-pptx 默认按给定尺寸拉伸，改为按宽度适配）
+        from pptx.util import Emu
+        try:
+            orig_w = pic.width
+            orig_h = pic.height
+            if orig_w > 0 and orig_h > 0:
+                ratio = orig_h / orig_w
+                new_h = Emu(int(Inches(img_w) * ratio))
+                max_h = Inches(img_h)
+                if new_h > max_h:
+                    # 高度超限：改为按高度适配
+                    ratio_w = orig_w / orig_h
+                    pic.height = max_h
+                    pic.width  = Emu(int(max_h * ratio_w))
+                else:
+                    pic.width  = Inches(img_w)
+                    pic.height = new_h
+                # 居中对齐
+                pic.left = Inches(col_x) + (Inches(col_w) - pic.width) // 2
+        except Exception:
+            pass  # 保持默认尺寸
+
+        # 3) 添加 alt 文字图注（幻灯片底部小字）
+        alt_text = elem.get("alt", "")
+        if alt_text:
+            from pptx.util import Pt
+            alt_box = slide.shapes.add_textbox(
+                Inches(col_x + 0.05),
+                Inches(SLIDE_H - 0.4),
+                Inches(col_w - 0.1),
+                Inches(0.32)
+            )
+            tf = alt_box.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            from pptx.enum.text import PP_ALIGN
+            p.alignment = PP_ALIGN.CENTER
+            run = p.add_run()
+            run.text = alt_text
+            run.font.size = Pt(9)
+            run.font.color.rgb = hex2rgb(txt)
+            run.font.italic = True
+
+    except Exception as _e:
+        logger.warning(f"[image_elem] add_picture failed: {_e}")
+        _render_image_placeholder(slide, elem, col_x, col_w, colors)
+
+
+def _render_image_placeholder(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
+    """当图片不可用时渲染灰色占位框。"""
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    bg  = colors["bg"]
+    txt = colors["txt"]
+    acc = colors["acc"]
+
+    ph_x, ph_y = col_x + 0.05, CONTENT_T + 0.1
+    ph_w = col_w - 0.15
+    ph_h = SLIDE_H - ph_y - 0.5
+
+    # 灰色矩形
+    from pptx.util import Emu
+    placeholder_color = blend(RGBColor(0x80, 0x80, 0x80), hex2rgb(bg), 0.3)
+    rect_rounded(slide, ph_x, ph_y, ph_w, ph_h, placeholder_color, hex2rgb(bg))
+
+    # 📷 图标 + query 文字
+    query_text = f"📷\n{elem.get('query', '图片检索无匹配')}"
+    from pptx.enum.text import PP_ALIGN
+    add_rich_box(slide, query_text, ph_x + 0.1, ph_y + ph_h * 0.3,
+                 ph_w - 0.2, ph_h * 0.4, 12, txt, acc, align=PP_ALIGN.CENTER)
+
+
 def render_two_column(slide, page: dict, colors: dict) -> None:
     from pptx.enum.text import PP_ALIGN
     bg  = colors["bg"]
@@ -1784,6 +1911,15 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
+        # ── Image elements: render first, skip in card loop ──────────────────
+        text_elems = []
+        for elem in elems:
+            if elem.get("type") == "image":
+                _render_image_elem(slide, elem, col_x, half_w, colors)
+            else:
+                text_elems.append(elem)
+        elems = text_elems
+
         # Explode: each list sub-item becomes its own individual card.
         # Use raw content for math preservation (mirrors render_minimal_list logic).
         cards = []  # list of {"text": str, "stat": bool}
@@ -1883,6 +2019,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     _render_col(left_elems,  lx)
     _render_col(right_elems, rx)
+
 
 
 

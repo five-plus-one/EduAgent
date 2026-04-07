@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.session import SessionContext, Message, SessionFile
 from app.models.document import Document
 from app.models.generation import GenerationTask, Courseware
+from app.models.image import SessionImage, ImageLibrary  # 图片系统
 from app.core import security
 
 # Create tables
