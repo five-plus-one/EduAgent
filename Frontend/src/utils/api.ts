@@ -5,12 +5,17 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 // Core Setup
 // ==========================================
 
-export const API_BASE_URL = 'http://localhost:8000/api/v1'; // Backend server URL with versioning
+// 从 Vite 环境变量读取，回退到本地开发默认值
+// 配置方式：在 Frontend/.env 中设置 VITE_API_BASE_URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string ?? 'http://localhost:8000/api/v1';
+
+/** API 请求超时（ms）。可通过 VITE_API_TIMEOUT 环境变量覆盖 */
+const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT) || 120000;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 120000, // 2分钟长超时，保证深度思考能力
+  timeout: API_TIMEOUT, // 2分钟长超时，保证深度思考能力（可通过 VITE_API_TIMEOUT 覆盖）
 });
 
 // Request Interceptor: attach Bearer token if present

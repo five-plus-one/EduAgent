@@ -12,6 +12,14 @@ dist
 dist-ssr
 *.local
 
+# 环境变量（本地秘钥/配置，不入库）
+.env
+.env.local
+.env.*.local
+# .env.example 保留在版本控制中作为模板
+!.env.example
+
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
