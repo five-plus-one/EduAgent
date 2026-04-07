@@ -1,28 +1,75 @@
-{"__type": "theme", "name": "清新教育蓝", "bg_color": "#F8FAFC", "primary": "#2563EB", "secondary": "#64748B", "accent": "#EF4444", "text_color": "#1E293B"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "拒绝低俗亚文化 树立正向网络价值观", "speaker_notes": "同学们好，今天我们来聊一个最近大家可能经常在网上、甚至同学聊天中听到的数字梗——114514，先问问大家，有没有人知道这个梗是从哪里来的？", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["中小学生网络素养主题班会"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "two_column", "title": "你了解“114514”的真实来源吗？", "speaker_notes": "很多同学觉得这个梗只是好玩、能和同学“接上梗”，但其实它的来源非常不健康。这个梗最早出自日本的低俗不良影像内容，相关的“野兽先辈”相关衍生内容全部属于低俗、恶俗的网络亚文化，本身没有任何正向含义。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["源自境外低俗不良影像内容", "无任何正向文化内涵，属于恶俗恶搞产物", "相关衍生内容包含大量低俗、不适信息"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "绿色健康网络环境宣传插画", "alt": "健康网络环境宣传图", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 3, "layout_type": "stat_callout", "title": "低俗梗传播对青少年的危害", "speaker_notes": "根据青少年网络素养调研数据，长期接触这类低俗梗的学生，更容易出现语言低俗化、对不良内容阈值降低的情况，甚至会在无意识中传播不良信息，对自己和身边同学的价值观塑造都有负面影响。", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["62%"], "is_accent": true}, {"element_id": "e2", "type": "text_block", "position": "bottom", "content": ["的中小学生曾在校园内听到同学传播低俗网络梗（2024年青少年网络行为调研）"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "为什么我们要抵制这类低俗梗？", "speaker_notes": "可能有同学会觉得“我只是说着玩，又不会真的去看那些内容”，但传播这类梗本身就是对低俗文化的纵容：一方面会降低我们自身的审美和素养底线，另一方面如果把这类梗发到公开平台，还可能会无意中传播不良信息，甚至违反网络内容规范。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["低俗内容会潜移默化影响价值观塑造，降低审美与素养底线", "随意传播可能无意中扩散不良信息，违反网络内容管理规范", "在公共场合使用会给他人造成不适，影响自身形象"], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "面对网络梗我们该怎么做？", "speaker_notes": "网络上的信息鱼龙混杂，大家作为未成年人，首先要学会辨别内容的好坏：遇到不懂的梗先查清楚来源，不好的内容主动抵制，也不要为了“融入群体”就刻意去学低俗梗。我们可以多关注正向的网络内容，比如科学科普、正能量故事、优秀传统文化相关的内容，这才是真正有价值的“梗”。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["主动了解内容来源，明辨是非，拒绝低俗内容", "不盲目跟风传播不清楚含义的网络热梗", "主动向身边同学科普低俗梗的危害，共同抵制不良亚文化", "多关注正向、有价值的网络内容，提升网络素养"], "is_accent": false}, {"element_id": "img2", "type": "image", "position": "right", "query": "青少年文明上网宣传插画", "alt": "文明上网宣传图", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "timeline", "title": "提升网络素养三步行动", "speaker_notes": "接下来我们可以一起完成这三个小行动，从自己做起，共同营造健康的网络和校园交流环境。如果之后大家再看到有人传播这类低俗梗，可以主动提醒对方，也可以告诉老师，我们一起抵制不良内容。", "elements": [{"element_id": "t1", "type": "timeline_item", "position": "left", "content": ["第一步：主动自查，自己不再使用、传播低俗恶俗梗"], "is_accent": false}, {"element_id": "t2", "type": "timeline_item", "position": "center", "content": ["第二步：善意提醒，看到身边同学传播时主动告知危害"], "is_accent": false}, {"element_id": "t3", "type": "timeline_item", "position": "right", "content": ["第三步：正向传播，多分享有意义、有价值的正向内容"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "今天的课就到这里，希望大家都能记住：我们在网络上的每一次发言、每一次传播，都是在塑造自己的网络形象，也在影响身边的环境。拒绝低俗亚文化，从我们每个人做起，共同打造健康、向上的交流氛围。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["低俗恶俗梗无正向价值，传播会对自身和他人造成负面影响", "青少年应当主动明辨网络内容，自觉抵制不良亚文化", "从自身做起，共同营造健康向上的网络和校园交流环境"], "is_accent": false}]}
+{"__type": "theme", "name": "数学蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "线性代数-矩阵运算核心知识点与例题解析", "speaker_notes": "各位同学好，今天我们来学习线性代数中矩阵运算的核心知识点，结合典型例题帮助大家掌握重点考点。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["主讲：线性代数教研组 | 2024年秋季学期"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "1. 矩阵基本概念与基础运算", "speaker_notes": "首先我们回顾矩阵的基本概念和基础运算，这是后续学习的基础。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心概念：同型矩阵、方阵、对角矩阵、单位矩阵$E$、零矩阵", "基础运算：加减法（同型矩阵对应元素加减）、数乘（所有元素乘系数）", "乘法重点：左行乘右列，不满足交换律，满足结合律和分配律"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["可交换矩阵前提：同阶方阵，同阶对角矩阵天然可交换，满足常规乘法规律"], "is_accent": true}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "2. 方阵的幂与典型例题", "speaker_notes": "接下来我们学习方阵的幂，这是高频考点，大家要重点掌握拆分方法和顺序注意事项。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["定义：$A^k$为$k$个$A$相乘，规定$A^0=E$", "注意：多个方阵乘积的幂不能随意交换顺序，$(AB)^2=ABAB \\neq A^2B^2$", "常考题型：秩为1的方阵可拆分为列矩阵×行矩阵，简化高次幂计算"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["【例题】已知$A=\\begin{pmatrix}2&4&-6 \\\\1&2&-3 \\\\4&8&-12\\end{pmatrix}$，求$A^{100}$"], "is_accent": true}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["解析：观察得$A=\\begin{pmatrix}2 \\\\1 \\\\4\\end{pmatrix}\\begin{pmatrix}1&2&-3\\end{pmatrix}$，令$\\alpha=\\begin{pmatrix}2 \\\\1 \\\\4\\end{pmatrix}$，$\\beta^T=\\begin{pmatrix}1&2&-3\\end{pmatrix}$，则$\\beta^T\\alpha=2×1+1×2+4×(-3)=-8$，故$A^{100}=\\alpha (\\beta^T\\alpha)^{99}\\beta^T=(-8)^{99}A$"], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "3. 矩阵转置与特殊矩阵", "speaker_notes": "矩阵转置是非常重要的运算，衍生出的对称矩阵、反对称矩阵也是常考概念。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["转置定义：矩阵的行依次变为列，记为$A^T$", "核心性质：$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$", "对称矩阵：满足$A=A^T$，任意矩阵$B$的$B^TB$、$BB^T$均为对称矩阵", "反对称矩阵：满足$A=-A^T$，主对角线元素必为0"], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "4. 方阵行列式与伴随矩阵", "speaker_notes": "方阵的行列式和伴随矩阵是推导逆矩阵的基础，相关性质要熟练记忆。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["行列式核心性质：$|A^T|=|A|$，$|kA|=k^n|A|$，$|AB|=|A|·|B|$，$|A^m|=|A|^m$", "伴随矩阵定义：按行求代数余子式，按列排列得到$A^*$", "伴随矩阵性质：$AA^*=A^*A=|A|E$，$|A^*|=|A|^{n-1}$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "3阶方阵伴随矩阵构造示意图", "alt": "伴随矩阵构造示例", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "two_column", "title": "5. 逆矩阵与矩阵方程求解", "speaker_notes": "逆矩阵是矩阵运算的重点，矩阵方程是高频考试题型，求解时一定要注意乘法的左右顺序。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["可逆充要条件：$|A|\\neq0$，可逆时$A^{-1}=\\frac{1}{|A|}A^*$", "逆矩阵性质：$(AB)^{-1}=B^{-1}A^{-1}$，$(kA)^{-1}=\\frac{1}{k}A^{-1}$（$k\\neq0$）", "对角矩阵逆：$diag(a_1,a_2,\\dots,a_n)^{-1}=diag(\\frac{1}{a_1},\\frac{1}{a_2},\\dots,\\frac{1}{a_n})$（$a_i\\neq0$）", "矩阵方程求解：先证明矩阵可逆，再对应左乘/右乘逆矩阵，$AXB=C \\implies X=A^{-1}CB^{-1}$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["【例题】设方阵$A$满足$A^2-A-2E=0$，证明$A+2E$可逆并求其逆。"], "is_accent": true}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["解析：凑乘积为单位矩阵的形式：$A^2-A-2E=(A+2E)(A-3E)+4E=0$，整理得$(A+2E)·\\frac{3E-A}{4}=E$，故$A+2E$可逆，且$(A+2E)^{-1}=\\frac{3E-A}{4}$"], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结与重点回顾", "speaker_notes": "最后我们来总结本次课程的重点内容，大家课后要结合习题巩固。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心运算注意：矩阵乘法不满足交换律，所有涉及乘积交换的操作都要验证", "高频考点：方阵高次幂计算、逆矩阵证明与求解、矩阵方程化简", "运算技巧：转置、伴随、逆运算可交换顺序，优先化简再计算"], "is_accent": false}]}
 {"__type": "word_start"}
-# 《拒绝低俗亚文化 树立正向网络价值观》主题班会讲义
-## 一、课程目标
-本次课程针对当前部分中小学生传播“114514”等低俗网络梗的现象，帮助学生了解这类梗的不良来源，认清低俗网络亚文化的危害，引导学生树立正确的网络价值观，提升网络素养，自觉抵制不良内容，共同营造健康的校园交流环境。
+## 线性代数-矩阵运算核心知识点讲义
+### 一、矩阵基本概念
+1. 定义：$m\times n$个数排成$m$行$n$列的数表即为$m\times n$矩阵，记为$A_{m\times n}$
+2. 特殊矩阵类型：
+   - 同型矩阵：行数、列数均相等的矩阵
+   - 方阵：行数=列数的矩阵，一阶方阵等价于一个数
+   - 对角矩阵：主对角线外元素全为0的方阵，记为$diag(a_1,a_2,\dots,a_n)$
+   - 单位矩阵：主对角线元素全为1的对角矩阵，记为$E$，满足$EA=AE=A$
+   - 零矩阵：所有元素均为0的矩阵，不同形状的零矩阵不相等
 
-## 二、课程内容
-### 1. 低俗梗来源科普
-很多学生仅出于“好玩”“跟风”的心态使用这类梗，对其来源毫不知情：“114514”“野兽先辈”相关内容最早出自日本低俗不良影像，属于典型的恶俗网络亚文化，本身没有任何正向文化内涵，相关衍生内容包含大量不适信息，完全不适合未成年人接触和传播。
+### 二、矩阵基础运算
+1. 加减法：仅同型矩阵可进行，对应位置元素相加减
+2. 数乘：系数乘以矩阵的每一个元素，注意$|kA|=k^n|A|$（$n$为方阵阶数）
+3. 乘法：
+   - 运算前提：左矩阵列数=右矩阵行数
+   - 运算规则：左矩阵行元素与右矩阵列元素对应相乘求和
+   - 运算性质：不满足交换律，满足结合律和分配律；两个非零矩阵乘积可能为零矩阵
+4. 可交换矩阵：满足$AB=BA$的矩阵，必为同阶方阵，同阶对角矩阵天然可交换
 
-### 2. 低俗梗传播的危害
-根据2024年青少年网络行为调研数据，62%的中小学生曾在校园内听到同学传播低俗网络梗。长期接触、传播这类内容，会潜移默化降低青少年的审美和素养底线，弱化对不良内容的辨别能力，甚至可能在无意识中扩散不良信息，违反网络内容管理规范，同时在公共场合使用也会给他人造成不适，影响自身形象。
+### 三、方阵的幂
+1. 定义：$k$个$A$相乘记为$A^k$，规定$A^0=E$
+2. 注意事项：多个方阵乘积的幂不能随意拆分，如$(AB)^2=ABAB\neq A^2B^2$，仅当$A,B$可交换时等号成立
+3. 高次幂计算技巧：秩为1的方阵可拆分为列矩阵×行矩阵的形式，即$A=\alpha\beta^T$，此时$A^k=\alpha(\beta^T\alpha)^{k-1}\beta^T=(\beta^T\alpha)^{k-1}A$，大幅简化计算
+4. 典型例题：
+   已知$A=\begin{pmatrix}2&4&-6 \\1&2&-3 \\4&8&-12\end{pmatrix}$，求$A^{100}$
+   解：观察矩阵秩为1，拆分得$A=\begin{pmatrix}2 \\1 \\4\end{pmatrix}\begin{pmatrix}1&2&-3\end{pmatrix}$，令$\alpha=\begin{pmatrix}2 \\1 \\4\end{pmatrix}$，$\beta^T=\begin{pmatrix}1&2&-3\end{pmatrix}$，计算得$\beta^T\alpha=2\times1+1\times2+4\times(-3)=-8$，因此$A^{100}=\alpha(\beta^T\alpha)^{99}\beta^T=(-8)^{99}A$
 
-### 3. 正向引导建议
-- 主动辨别：遇到不了解的网络梗先核实来源，对低俗、无意义的内容主动屏蔽，不盲目跟风传播
-- 主动提醒：看到身边同学传播低俗梗时，善意告知其危害，引导对方共同抵制
-- 正向关注：多关注科学科普、优秀传统文化、正能量事迹等正向网络内容，提升自身网络素养
+### 四、矩阵转置与特殊矩阵
+1. 转置定义：将矩阵的行依次替换为列得到的矩阵，记为$A^T$
+2. 转置核心性质：
+   - $(AB)^T=B^TA^T$
+   - $(A^k)^T=(A^T)^k$
+3. 对称矩阵：满足$A=A^T$的方阵，性质：
+   - 若$A$对称，则$A^m$也对称
+   - 对任意矩阵$B$，$B^TB$和$BB^T$均为对称矩阵
+4. 反对称矩阵：满足$A=-A^T$的方阵，主对角线元素必为0
 
-## 三、课后行动
-要求学生做到“三不”：不主动使用低俗梗、不传播来源不明的网络梗、不跟风参与恶俗内容讨论，共同维护健康、文明的校园交流氛围。
+### 五、伴随矩阵与逆矩阵
+1. 伴随矩阵：
+   - 构造方法：对$n$阶方阵$A$，按行求每个元素的代数余子式$A_{ij}$，再按列排列得到伴随矩阵$A^*$
+   - 核心性质：$AA^*=A^*A=|A|E$，该式对任意方阵（无论是否可逆）均成立；$|A^*|=|A|^{n-1}$
+2. 逆矩阵：
+   - 定义：若$n$阶方阵$A,B$满足$AB=BA=E$，则$A$可逆，$B=A^{-1}$，逆矩阵唯一
+   - 可逆充要条件：$|A|\neq0$，此时$A^{-1}=\frac{1}{|A|}A^*$
+   - 逆矩阵性质：
+     - $(AB)^{-1}=B^{-1}A^{-1}$
+     - $(kA)^{-1}=\frac{1}{k}A^{-1}$（$k\neq0$）
+     - 对角矩阵$diag(a_1,a_2,\dots,a_n)$可逆当且仅当所有$a_i\neq0$，逆矩阵为$diag(\frac{1}{a_1},\frac{1}{a_2},\dots,\frac{1}{a_n})$
+
+### 六、矩阵方程求解
+1. 标准形式与解法：
+   - $AX=C$：若$A$可逆，则$X=A^{-1}C$（左乘$A^{-1}$）
+   - $XB=C$：若$B$可逆，则$X=CB^{-1}$（右乘$B^{-1}$）
+   - $AXB=C$：若$A,B$均可逆，则$X=A^{-1}CB^{-1}$
+2. 注意事项：求解前必须先证明对应矩阵可逆，乘法操作严格区分左右顺序，不可随意交换
+3. 典型例题：
+   设方阵$A$满足$A^2-A-2E=0$，证明$A+2E$可逆并求其逆矩阵。
+   解：通过多项式变形凑单位矩阵乘积：
+   $$A^2-A-2E=(A+2E)(A-3E)+6E-2E=(A+2E)(A-3E)+4E=0$$
+   整理得：$(A+2E)·\frac{3E-A}{4}=E$，根据可逆矩阵定义，$A+2E$可逆，且$(A+2E)^{-1}=\frac{3E-A}{4}$
+
+### 七、学习要点总结
+1. 矩阵运算与数运算的核心差异是不满足交换律，所有涉及乘积顺序变化的推导都要谨慎验证
+2. 逆矩阵证明优先使用“凑乘积为单位矩阵”的方法，比计算行列式和伴随矩阵更简便
+3. 高阶运算优先利用性质化简，再代入数值计算，减少计算量和错误率
 {"__type": "done"}
