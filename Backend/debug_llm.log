@@ -1,48 +1,42 @@
-{"__type": "theme", "name": "学术极简", "bg_color": "#1E293B", "primary": "#22D3EE", "secondary": "#94A3B8", "accent": "#FBBF24", "text_color": "#F8FAFC"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "LaTeX 语法与公式对比教程", "speaker_notes": "大家好，今天我们来系统学习LaTeX的核心语法，通过和普通公式写法的对比，帮助大家快速掌握LaTeX的公式编辑能力。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["适合学术写作、论文排版的实用指南"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "课程内容概述", "speaker_notes": "本次课程我们会从基础符号到复杂结构，分模块讲解LaTeX的语法，每个部分都会给出直观的写法对比。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["基础运算与上下标语法", "分数、根号与极限符号", "向量、矩阵与方程组", "希腊字母与特殊符号", "常见公式场景写法对比"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["LaTeX是学术界通用的排版语言，其公式输出规范、美观，是撰写科研论文、技术报告的必备技能。"], "is_accent": false}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "基础运算与上下标对比", "speaker_notes": "首先我们来看最基础的运算和上下标写法，这是LaTeX公式最常用的基础语法。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通手写写法：a² + bₙ = c", "LaTeX行内写法：$a^2 + b_n = c$", "普通手写求和：∑ᵢ₌₁ⁿ xᵢ", "LaTeX块级写法：$$\\sum_{i=1}^n x_i$$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["语法规则说明：", "上标使用^符号，下标使用_符号", "多字符上下标需要用{}包裹，例如$x_{ij}$", "求和、积分等符号的上下限会自动适配排版位置"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "分数、根号与极限对比", "speaker_notes": "接下来是分数、根号和极限的写法，这些结构在数学公式中非常常见，LaTeX的排版效果远优于普通文本写法。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通写法：1/2 + √3 ≈ 1.732", "LaTeX写法：$\\frac{1}{2} + \\sqrt{3} \\approx 1.732$", "普通极限写法：limₙ→∞ (1+1/n)ⁿ = e", "LaTeX写法：$$\\lim_{n \\to \\infty} \\left(1+\\frac{1}{n}\\right)^n = e$$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "自然常数e的极限趋近过程示意图", "alt": "极限趋近过程示意图", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "向量、矩阵与方程组对比", "speaker_notes": "对于复杂的数学结构，比如向量、矩阵和方程组，LaTeX有专门的语法实现规范排版。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["普通向量写法：v = (x,y,z)", "LaTeX写法：$\\vec{v} = (x, y, z)$", "普通2x2矩阵：[[a,b],[c,d]]", "LaTeX写法：$$\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}$$", "联立方程组LaTeX实现：", "$$\\begin{cases} x + 2y = 3 \\\\ 3x - y = 2 \\end{cases}$$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["语法说明：", "pmatrix环境生成带括号的矩阵，&分隔列，\\\\分隔行", "cases环境用于生成联立方程组，自动添加左侧大括号", "所有复杂结构都有对应的标准化环境，无需手动调整格式"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "stat_callout", "title": "LaTeX公式优势", "speaker_notes": "和普通的公式编辑器相比，LaTeX的优势非常明显，这也是它成为学术标准的原因。", "elements": [{"element_id": "e1", "type": "huge_number", "position": "center", "content": ["95%+"], "is_accent": true}, {"element_id": "e2", "type": "text_block", "position": "bottom", "content": ["的SCI期刊要求或接受LaTeX格式的投稿，其公式排版的规范性、一致性是普通工具无法比拟的。"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结与练习建议", "speaker_notes": "最后我们来总结一下本次课程的内容，以及给大家一些练习的建议。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心语法总结：上下标用^和_，结构用对应环境，所有公式用$或$$包裹", "练习建议：从日常的作业公式开始，尝试用LaTeX编写，逐步积累语法熟练度", "常用工具：Overleaf在线编辑器、TeX Live本地环境，都可以快速验证公式写法"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["熟练掌握LaTeX公式语法，可以大幅提升学术写作的效率和文档的专业度，是科研人员的必备技能。"], "is_accent": false}]}
+{"__type": "theme", "name": "共青团红色主题", "bg_color": "#1E293B", "primary": "#EF4444", "secondary": "#94A3B8", "accent": "#FBBF24", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "计算机院2025级优秀共青团员评选通知", "speaker_notes": "各位同学大家好，今天给大家解读2025年度优秀共青团员评选的相关要求，希望符合条件的同学积极申报。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["共青团河海大学计算机与软件学院2025级团总支", "2026年3月31日"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "评选背景与目的", "speaker_notes": "首先我们来了解本次评选的背景和核心目的，本次评选是校团委五四表彰的重要组成部分。", "elements": [{"element_id": "e1", "type": "text_block", "position": "full", "content": ["为贯彻落实习近平新时代中国特色社会主义思想，进一步落实关于青年工作的指示，鼓励共青团员在学习、工作中积极发挥示范引领作用，校团委决定在五四青年节期间表彰一批先进团员。"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "full", "content": ["选树优秀青年典型，发挥先锋模范作用", "引导团员坚定理想信念，践行社会主义核心价值观", "营造争先创优的良好年级氛围"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "评选基本条件", "speaker_notes": "接下来我们看评选的基本条件，所有申报的同学都需要满足以下5个方面的要求。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["有信仰：胸怀共产主义远大理想和中国特色社会主义共同理想，家国情怀和时代责任感强", "讲政治：深刻领会“两个确立”的决定性意义，增强“四个意识”、坚定“四个自信”、做到“两个维护”", "重品行：带头学习践行社会主义核心价值观，积极传播青春正能量，志愿服务等社会活动表现突出", "争先锋：勤奋学习、刻苦钻研，团结带动青年作用明显", "守纪律：模范遵守团章团纪，积极履行团员义务，组织观念强"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right_top", "query": "共青团入团宣誓仪式场景", "alt": "共青团员宣誓场景", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "参评资格要求", "speaker_notes": "满足基本条件之外，还需要符合以下硬性参评资格，请大家逐一对照。", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["团龄在一年以上（截至2026年4月30日）", "在2025年度团员教育评议中获得“优秀”等次", "本科生平均绩点3.5以上或专业排名不低于50%", "无不及格课程，第二课堂成绩单阶段性合格"], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "timeline", "title": "申报流程与时间节点", "speaker_notes": "符合条件的同学请按照以下流程完成申报，注意不要错过时间节点。", "elements": [{"element_id": "e1", "type": "timeline_item", "position": "full", "content": ["3月31日-4月2日：符合条件的团员如实填写纸质申报材料"], "is_accent": false}, {"element_id": "e2", "type": "timeline_item", "position": "full", "content": ["4月3日11:00前：将材料上交至本支部团支书，由团支书统一上交至团总支副书记"], "is_accent": true}, {"element_id": "e3", "type": "timeline_item", "position": "full", "content": ["材料审核后：学院团委确定推荐名单，公示不少于3个工作日"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "注意事项与附件说明", "speaker_notes": "最后给大家强调几点注意事项，以及本次评选相关的附件材料说明。", "elements": [{"element_id": "e1", "type": "text_block", "position": "full", "content": ["申报同学需确保材料内容真实、准确，不得弄虚作假，一经发现将取消申报资格。"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "full", "content": ["附件1：河海大学2025年度“优秀共青团员”申报表", "附件2：共青团河海大学委员会《关于开展河海大学2025年度五四红旗团委（团支部）、优秀共青团员、优秀共青团干部评选表彰工作的通知》"], "is_accent": false}, {"element_id": "e3", "type": "text_block", "position": "full", "content": ["如有疑问可联系各支部团支书或团总支副书记咨询。"], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "总结与号召", "speaker_notes": "以上就是本次优秀共青团员评选的全部内容，希望大家积极参与，共同向优秀看齐。", "elements": [{"element_id": "e1", "type": "list", "position": "full", "content": ["请符合条件的同学及时准备材料，按时完成申报", "希望全体团员以优秀为榜样，不断提升自身素养，争做新时代优秀青年", "共同推动年级共青团工作高质量发展，展现计算机院学子的青春风采"], "is_accent": false}]}
 {"__type": "word_start"}
-## LaTeX语法与公式对比教程讲义
-### 一、课程背景
-LaTeX作为当前学术界通用的排版系统，凭借其高度标准化的公式输出能力、优秀的长文档排版效果，成为了科研人员撰写论文、报告、学位论文的首选工具。本次课程通过对比普通公式写法和LaTeX语法的差异，帮助大家快速掌握LaTeX公式编辑的核心技能。
+## 计算机院2025级优秀共青团员评选通知讲义
+### 一、评选概述
+本次评选是河海大学校团委五四青年节表彰工作的组成部分，面向计算机与软件学院2025级全体共青团员开展，旨在选树先进典型，发挥优秀团员的示范引领作用，引导广大团员坚定理想信念，践行社会主义核心价值观，在学习、生活、工作中争先创优。
 
-### 二、基础运算与上下标语法
-1. 基础规则：LaTeX中，上标使用`^`符号，下标使用`_`符号，如果上下标包含多个字符，需要用`{}`将多个字符包裹，避免语法错误。
-   - 示例：普通写法`a2`如果要表示a的平方，LaTeX中需要写为`$a^2$`；普通写法`bn`如果要表示n为下标，需要写为`$b_n$`；如果是多字符下标，比如x的第ij项，需要写为`$x_{ij}$`。
-2. 求和、积分符号：对于求和、积分等大型运算符，LaTeX会自动根据公式是行内还是块级，调整上下限的位置，行内公式上下限会放在符号右侧，块级公式上下限会放在符号的上下方，排版更加美观。
-   - 行内求和示例：`$\sum_{i=1}^n x_i$`，块级求和示例：`$$\sum_{i=1}^n x_i$$`
+### 二、评选核心要求
+1. **基本条件**
+   - 有信仰：胸怀共产主义远大理想和中国特色社会主义共同理想，坚持爱国和爱党、爱社会主义高度统一，具备强烈的家国情怀和时代责任感。
+   - 讲政治：深刻领会“两个确立”的决定性意义，自觉增强“四个意识”、坚定“四个自信”、做到“两个维护”，在思想上政治上行动上同党中央保持高度一致。
+   - 重品行：带头学习践行社会主义核心价值观，积极传播青春正能量，在志愿服务、社会实践、社区（村）报到等社会活动中表现突出。
+   - 争先锋：热爱劳动、崇尚实干，勤奋学习、刻苦钻研、勇攀高峰，在集体中能够团结带动身边青年共同进步。
+   - 守纪律：模范遵守团章团纪，积极主动履行团员义务，正确行使团员权利，组织观念强，积极参与团的各项活动。
 
-### 三、分数、根号与极限语法
-1. 分数：LaTeX中使用`\frac{分子}{分母}`的语法生成标准的分式结构，相比普通的`/`斜杠写法，排版更加清晰，尤其是嵌套分数的场景，优势更加明显。
-   - 示例：二分之一写作`$\frac{1}{2}$`，嵌套分数`$\frac{1}{1+\frac{1}{x}}$`。
-2. 根号：使用`\sqrt{内容}`生成平方根，如果需要更高次的根号，使用`\sqrt[n]{内容}`，n为根次数。
-   - 示例：三次根号2写作`$\sqrt[3]{2}$`。
-3. 极限：使用`\lim_{下标}`语法生成极限符号，箭头符号用`\to`表示。
-   - 示例：重要极限`$\lim_{n \to \infty} \left(1+\frac{1}{n}\right)^n = e$`，其中`\left(`和`\right)`会自动适配括号的高度，适配内部的公式大小。
+2. **参评资格（需全部满足）**
+   - 团龄在一年以上（截至2026年4月30日）；
+   - 在2025年度团员教育评议中获得“优秀”等次；
+   - 本科生平均绩点3.5以上或专业排名不低于50%；
+   - 无不及格课程，第二课堂成绩单阶段性合格。
 
-### 四、复杂结构语法
-1. 向量：变量上方的箭头用`\vec{变量名}`表示，示例：速度向量`$\vec{v}$`。
-2. 矩阵：使用`pmatrix`环境生成带圆括号的矩阵，`&`符号分隔同一行的不同列，`\\`符号换行。
-   - 2x2矩阵示例：
-     ```latex
-     $$\begin{pmatrix} a & b \\ c & d \end{pmatrix}$$
-     ```
-   如果需要方括号的矩阵，将`pmatrix`替换为`bmatrix`即可。
-3. 联立方程组：使用`cases`环境生成，环境内每一行代表一个方程，同样用`\\`换行，LaTeX会自动在左侧添加大括号。
-   - 二元一次方程组示例：
-     ```latex
-     $$\begin{cases} x + 2y = 3 \\ 3x - y = 2 \end{cases}$$
-     ```
+### 三、申报流程
+1. **材料准备**：符合申报要求且有意向申报的团员，需如实填写纸质申报材料，确保内容真实、准确，不得弄虚作假。
+2. **材料提交**：在2026年4月3日11:00前将材料上交至本支部团支书，由团支书统一上交至团总支副书记。
+3. **审核公示**：学院团委对申报材料进行审核，确定推荐名单后公示不少于3个工作日，接受全体同学监督。
 
-### 五、学习建议
-1. 循序渐进：从简单的公式开始练习，逐步掌握复杂结构的语法，遇到不熟悉的符号可以查阅LaTeX符号表。
-2. 工具选择：新手推荐使用Overleaf在线编辑器，无需安装本地环境，自动补全和实时预览功能可以帮助快速验证语法正确性。
-3. 日常积累：平时遇到需要手写公式的场景，都可以尝试用LaTeX语法编写，一般经过1-2周的频繁使用，就可以熟练掌握常用的公式语法。
+### 四、附件说明
+本次评选相关材料可查看附件：
+1. 附件1：河海大学2025年度“优秀共青团员”申报表
+2. 附件2：共青团河海大学委员会《关于开展河海大学2025年度五四红旗团委（团支部）、优秀共青团员、优秀共青团干部评选表彰工作的通知》
 
-熟练掌握LaTeX公式语法，不仅可以提升文档的专业度，也可以避免不同排版工具之间的格式兼容问题，是学术写作路上非常值得投入时间学习的技能。
+如有疑问，可联系所在支部团支书或2025级团总支副书记咨询。
+
+### 五、号召
+希望全体团员以本次评选为契机，向优秀典型看齐，不断提升自身综合素养，争做有理想、敢担当、能吃苦、肯奋斗的新时代青年，充分展现计算机与软件学院学子的青春风貌。
 {"__type": "done"}
