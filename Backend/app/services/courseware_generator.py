@@ -174,9 +174,10 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
 import asyncio
 from httpx import AsyncClient
 
-async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str):
+async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str, user_id: str = ""):
     """
     异步流式生成核心函数，输出 NDJSON 格式供 SSE 使用。
+    user_id 用于图片素材库检索（用户个人图库）。
     """
     def _sync_init():
         db_local = SessionLocal()
@@ -436,7 +437,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                                 if elem.get("type") == "image":
                                                     query = elem.get("query", "")
                                                     if query:
-                                                        resolved = search_image_by_query(query, session_id)
+                                                        resolved = search_image_by_query(query, user_id or session_id)
                                                         if resolved is not None:
                                                             # 有匹配图片，保留并附加 resolved
                                                             elem["resolved"] = resolved

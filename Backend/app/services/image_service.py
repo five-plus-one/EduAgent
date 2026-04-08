@@ -1,10 +1,14 @@
 """
 image_service.py
-图片上传、Vision LLM 自动标注、ChromaDB 向量存储与检索服务。
+图片上传、文本标注（基于文件名/标签推断）、ChromaDB 向量存储与检索服务。
+
+标注策略：
+  - 不依赖 Vision 模型（避免多模态兼容性问题）
+  - 用文件名 + 用户标签 + LLM 推断的方式生成 description 和 tags
+  - 对 PPT 图片语义检索已经足够准确
 """
 import os
 import uuid
-import base64
 import json
 import logging
 from typing import Optional
@@ -13,17 +17,17 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.image import SessionImage, ImageLibrary
+from app.models.image import UserImage, ImageLibrary
 
 logger = logging.getLogger(__name__)
 
 # ChromaDB collection 名称
-_COLLECTION_SESSION = "images_session"
+_COLLECTION_USER    = "images_user"
 _COLLECTION_LIBRARY = "images_library"
 
-# 相似度阈值（来自 settings，若未配置则用默认）
-_THRESHOLD_SESSION = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.75))
-_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.70))
+# 相似度阈值
+_THRESHOLD_USER    = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.72))
+_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.68))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +51,7 @@ def _get_image_vector_store(collection_name: str):
 
 def _store_image_vector(collection_name: str, image_id: str,
                         text: str, metadata: dict) -> str:
-    """将图片描述文本向量化并存入指定集合，返回使用的 vector_id。"""
+    """将图片描述文本向量化并存入指定集合。"""
     from langchain.schema import Document as LCDoc
     store = _get_image_vector_store(collection_name)
     doc = LCDoc(page_content=text, metadata={**metadata, "image_id": image_id})
@@ -65,31 +69,31 @@ def _delete_image_vector(collection_name: str, image_id: str):
         logger.warning(f"[image_service] delete vector failed: {e}")
 
 
-def search_image_by_query(query: str, session_id: str) -> Optional[dict]:
+def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     """
     按自然语言 query 搜索最匹配的图片。
-    优先搜会话图片库，若无匹配则搜默认图库。
-    返回 resolved 字典，或 None。
+    优先搜用户个人图库，若无匹配则搜默认图库。
+    返回 resolved 字典，或 None（无匹配时调用方应丢弃该 image element）。
     """
-    # 1. 搜会话图片
+    # 1. 搜用户个人图库
     try:
-        store = _get_image_vector_store(_COLLECTION_SESSION)
+        store = _get_image_vector_store(_COLLECTION_USER)
         results = store.similarity_search_with_relevance_scores(
             query, k=1,
-            filter={"session_id": session_id}
+            filter={"user_id": user_id}
         )
         if results:
             doc, score = results[0]
-            if score >= _THRESHOLD_SESSION:
+            if score >= _THRESHOLD_USER:
                 img_id = doc.metadata.get("image_id", "")
                 return {
                     "image_id": img_id,
-                    "preview_url": f"/api/v1/sessions/{session_id}/images/{img_id}/preview",
-                    "source": "session",
+                    "preview_url": f"/api/v1/users/me/images/{img_id}/preview",
+                    "source": "user",
                     "similarity": round(score, 4),
                 }
     except Exception as e:
-        logger.warning(f"[image_service] session image search error: {e}")
+        logger.warning(f"[image_service] user image search error: {e}")
 
     # 2. 搜默认图库
     try:
@@ -112,114 +116,104 @@ def search_image_by_query(query: str, session_id: str) -> Optional[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Vision LLM 标注
+# 文本推断式标注（不依赖 Vision 模型）
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _vision_annotate(file_path: str) -> Optional[dict]:
+async def _text_annotate(filename: str, label: str = "") -> Optional[dict]:
     """
-    调用 Vision LLM 对图片路径做标注，返回 {"description": str, "tags": list}。
-    若失败返回 None。
+    使用文本 LLM 根据图片文件名和用户标签推断标注。
+    无需多模态能力，兼容所有文本模型。
     """
-    vision_model = getattr(settings, "VISION_MODEL", settings.LLM_MODEL)
-    logger.info(f"[vision_annotate] start: model={vision_model} file={file_path}")
+    model = settings.LLM_MODEL
+    logger.info(f"[text_annotate] start: model={model} filename={filename}")
+
+    hint_parts = []
+    if label:
+        hint_parts.append(f"用户标签：{label}")
+    # 去后缀后将下划线/连字符替换为空格，作为文件名提示
+    base = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ")
+    if base and not base.startswith("img_"):
+        hint_parts.append(f"文件名提示：{base}")
+
+    prompt = (
+        "你是一个专业的教学图片标注助手。根据以下信息推断图片内容，以中文输出：\n"
+        + ("\n".join(hint_parts) if hint_parts else "（无额外提示，请根据图片用途给出通用标注）")
+        + "\n\n输出严格为 JSON 格式，不要包含其他内容：\n"
+        '{"description": "一句话精准描述（30字以内）", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]}'
+    )
+
+    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 200,
+        "temperature": 0.3,
+        "stream": False,
+    }
+
     try:
-        with open(file_path, "rb") as f:
-            img_bytes = f.read()
-        img_b64 = base64.b64encode(img_bytes).decode()
-        logger.info(f"[vision_annotate] image loaded: {len(img_bytes)} bytes")
-
-        # 猜测 mime type
-        ext = os.path.splitext(file_path)[1].lower()
-        mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                ".png": "image/png", ".webp": "image/webp",
-                ".gif": "image/gif"}.get(ext, "image/jpeg")
-
-        system_prompt = (
-            "你是一个专业的教学图片标注助手。请分析图片内容，以中文输出：\n"
-            "1. 一句话精准描述（30字以内），聚焦图片的核心教学信息\n"
-            "2. 5-8个检索标签（简短词组，用于教学场景语义匹配）\n\n"
-            '输出严格为 JSON 格式，不要包含其他内容：\n'
-            '{"description": "...", "tags": ["tag1", "tag2", ...]}'
-        )
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime};base64,{img_b64}"
-                        }
-                    },
-                    {"type": "text", "text": "请分析这张教学图片。"}
-                ]
-            }
-        ]
-
-        url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        # 注意：Vision 模型不支持 thinking/tools 字段，保持 payload 最小化
-        payload = {
-            "model": vision_model,
-            "messages": messages,
-            "max_tokens": 400,
-            "temperature": 0.1,
-            "stream": False,  # 标注不需要流式输出
-        }
-
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
-            logger.info(f"[vision_annotate] HTTP status: {resp.status_code}")
+            logger.info(f"[text_annotate] HTTP status: {resp.status_code}")
             if resp.status_code != 200:
-                logger.error(f"[vision_annotate] API error body: {resp.text[:500]}")
-                resp.raise_for_status()
-            resp_json = resp.json()
-            result_text = resp_json["choices"][0]["message"]["content"]
-            logger.info(f"[vision_annotate] raw response: {result_text[:200]}")
+                logger.error(f"[text_annotate] API error: {resp.text[:300]}")
+                # 降级：直接用文件名构造最小标注
+                return _fallback_annotation(filename, label)
+            result_text = resp.json()["choices"][0]["message"]["content"]
+            logger.info(f"[text_annotate] raw: {result_text[:150]}")
 
-        # 提取 JSON（支持 ```json ... ``` 包裹或裸 JSON）
+        # 提取 JSON
+        import re as _re
         if "```" in result_text:
             parts = result_text.split("```")
             for part in parts:
-                if part.startswith("json"):
-                    result_text = part[4:].strip()
+                stripped = part.strip()
+                if stripped.startswith("json"):
+                    result_text = stripped[4:].strip()
                     break
-                elif "{" in part:
-                    result_text = part.strip()
+                elif "{" in stripped:
+                    result_text = stripped
                     break
 
-        import re as _re
         m = _re.search(r"\{.*\}", result_text, _re.DOTALL)
         if m:
             parsed = json.loads(m.group(0))
-            logger.info(f"[vision_annotate] success: desc={parsed.get('description','')[:30]}")
+            logger.info(f"[text_annotate] success: {parsed.get('description','')[:40]}")
             return parsed
         else:
-            logger.warning(f"[vision_annotate] no JSON found in response: {result_text[:200]}")
+            logger.warning(f"[text_annotate] no JSON, using fallback")
+            return _fallback_annotation(filename, label)
+
     except Exception as e:
         import traceback
-        logger.error(f"[vision_annotate] FAILED for {file_path}: {type(e).__name__}: {e}")
+        logger.error(f"[text_annotate] FAILED: {type(e).__name__}: {e}")
         logger.error(traceback.format_exc())
-    return None
+        return _fallback_annotation(filename, label)
 
+
+def _fallback_annotation(filename: str, label: str = "") -> dict:
+    """最小降级标注——纯本地，绝对不会失败。"""
+    base = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ")
+    desc = label or base or "教学图片"
+    tags = [t for t in (label or base).split() if t][:5] or ["教学", "图片"]
+    return {"description": desc[:30], "tags": tags}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 会话图片操作
+# 用户图片操作
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def annotate_session_image(image_id: str):
+async def annotate_user_image(image_id: str):
     """
-    后台任务：对指定 SessionImage 执行 Vision LLM 标注并存向量。
-    使用独立 DB Session 避免与请求 Session 冲突。
+    后台任务：对指定 UserImage 执行文本推断式标注并存向量。
     """
     from app.db.session import SessionLocal
     db: Session = SessionLocal()
-    img = db.query(SessionImage).filter(SessionImage.id == image_id).first()
+    img = db.query(UserImage).filter(UserImage.id == image_id).first()
     if not img:
         db.close()
         return
@@ -227,37 +221,34 @@ async def annotate_session_image(image_id: str):
         img.annotate_status = "processing"
         db.commit()
 
-        result = await _vision_annotate(img.file_path)
-        if result:
-            desc = result.get("description", "")
-            tags = result.get("tags", [])
-            img.description = desc
-            img.tags = tags
-            # 向量化：描述 + 标签拼接
-            text_for_embed = desc + " " + " ".join(tags)
-            _store_image_vector(
-                _COLLECTION_SESSION, image_id, text_for_embed,
-                {"session_id": img.session_id, "filename": img.filename}
-            )
-            img.vector_id = image_id
-            img.annotate_status = "done"
-        else:
-            img.annotate_status = "failed"
+        result = await _text_annotate(img.filename, img.label or "")
+        desc = result.get("description", "")
+        tags = result.get("tags", [])
+        img.description = desc
+        img.tags = tags
+        text_for_embed = desc + " " + " ".join(tags)
+        _store_image_vector(
+            _COLLECTION_USER, image_id, text_for_embed,
+            {"user_id": img.user_id, "filename": img.filename}
+        )
+        img.vector_id = image_id
+        img.annotate_status = "done"
         db.commit()
+        logger.info(f"[annotate_user_image] done: {image_id} desc={desc[:30]}")
     except Exception as e:
-        logger.error(f"[image_service] annotate_session_image error: {e}")
+        logger.error(f"[annotate_user_image] error: {e}")
         img.annotate_status = "failed"
         db.commit()
     finally:
         db.close()
 
 
-def delete_session_image_data(db: Session, image_id: str):
-    """删除会话图片的物理文件和向量。"""
-    img = db.query(SessionImage).filter(SessionImage.id == image_id).first()
+def delete_user_image_data(db: Session, image_id: str):
+    """删除用户图片的物理文件和向量。"""
+    img = db.query(UserImage).filter(UserImage.id == image_id).first()
     if not img:
         return
-    _delete_image_vector(_COLLECTION_SESSION, image_id)
+    _delete_image_vector(_COLLECTION_USER, image_id)
     if img.file_path and os.path.exists(img.file_path):
         try:
             os.remove(img.file_path)
@@ -272,7 +263,7 @@ def delete_session_image_data(db: Session, image_id: str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def annotate_library_image(lib_id: str):
-    """后台任务：对 ImageLibrary 图片做 Vision 标注并存向量。"""
+    """后台任务：对 ImageLibrary 图片做文本推断式标注并存向量。"""
     from app.db.session import SessionLocal
     db: Session = SessionLocal()
     img = db.query(ImageLibrary).filter(ImageLibrary.id == lib_id).first()
@@ -283,24 +274,22 @@ async def annotate_library_image(lib_id: str):
         img.annotate_status = "processing"
         db.commit()
 
-        result = await _vision_annotate(img.file_path)
-        if result:
-            desc = result.get("description", "")
-            tags = result.get("tags", [])
-            img.description = desc
-            img.tags = tags
-            text_for_embed = desc + " " + " ".join(tags)
-            _store_image_vector(
-                _COLLECTION_LIBRARY, lib_id, text_for_embed,
-                {"category": img.category, "filename": img.filename}
-            )
-            img.vector_id = lib_id
-            img.annotate_status = "done"
-        else:
-            img.annotate_status = "failed"
+        result = await _text_annotate(img.filename, img.import_note or "")
+        desc = result.get("description", "")
+        tags = result.get("tags", [])
+        img.description = desc
+        img.tags = tags
+        text_for_embed = desc + " " + " ".join(tags)
+        _store_image_vector(
+            _COLLECTION_LIBRARY, lib_id, text_for_embed,
+            {"category": img.category, "filename": img.filename}
+        )
+        img.vector_id = lib_id
+        img.annotate_status = "done"
         db.commit()
+        logger.info(f"[annotate_library_image] done: {lib_id} desc={desc[:30]}")
     except Exception as e:
-        logger.error(f"[image_service] annotate_library_image error: {e}")
+        logger.error(f"[annotate_library_image] error: {e}")
         img.annotate_status = "failed"
         db.commit()
     finally:
