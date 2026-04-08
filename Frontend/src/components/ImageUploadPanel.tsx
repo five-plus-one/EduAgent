@@ -5,18 +5,16 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
-  uploadSessionImage,
-  listSessionImages,
-  deleteSessionImage,
-  reannotateSessionImage,
-  resolveImagePreviewUrl,
-  type SessionImage,
+  uploadUserImage,
+  listUserImages,
+  deleteUserImage,
+  reannotateUserImage,
+  getImagePreviewUrl,
+  type UserImage,
 } from '../utils/api';
 import styles from './ImageUploadPanel.module.css';
 
-interface Props {
-  sessionId: string;
-}
+// API v2: 图片库已改为用户级，不再绑定会话，无需传 sessionId
 
 const STATUS_CONFIG = {
   pending:    { label: '待标注', icon: Clock,        color: 'var(--color-warning, #f59e0b)' },
@@ -28,8 +26,8 @@ const STATUS_CONFIG = {
 /** 轮询间隔（ms） */
 const POLL_INTERVAL = 3000;
 
-export default function ImageUploadPanel({ sessionId }: Props) {
-  const [images, setImages] = useState<SessionImage[]>([]);
+export default function ImageUploadPanel() {
+  const [images, setImages] = useState<UserImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
@@ -40,16 +38,15 @@ export default function ImageUploadPanel({ sessionId }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── 拉取图片列表 ────────────────────────────────────────────
+  // ── 拉取图片列表（全局用户库，与 session 无关）─────────────
   const fetchImages = useCallback(async () => {
-    if (!sessionId || sessionId === 'new') return;
     try {
-      const res = await listSessionImages(sessionId, 1, 50);
+      const res = await listUserImages(1, 50);
       setImages(res?.items ?? []);
     } catch {
       // 非关键失败，静默
     }
-  }, [sessionId]);
+  }, []);
 
   useEffect(() => {
     fetchImages();
@@ -94,7 +91,7 @@ export default function ImageUploadPanel({ sessionId }: Props) {
 
     setUploading(true);
     try {
-      await Promise.all(valid.map(f => uploadSessionImage(sessionId, f)));
+      await Promise.all(valid.map(f => uploadUserImage(f)));
       await fetchImages();
     } catch {
       setUploadError('上传失败，请检查网络后重试。');
@@ -118,7 +115,7 @@ export default function ImageUploadPanel({ sessionId }: Props) {
   const handleDelete = async (imageId: string) => {
     setDeletingIds(prev => new Set(prev).add(imageId));
     try {
-      await deleteSessionImage(sessionId, imageId);
+      await deleteUserImage(imageId);
       setImages(prev => prev.filter(img => img.image_id !== imageId));
     } catch {
       alert('删除失败，请重试。');
@@ -132,11 +129,11 @@ export default function ImageUploadPanel({ sessionId }: Props) {
   const handleReannotate = async (imageId: string) => {
     setReannotatingIds(prev => new Set(prev).add(imageId));
     try {
-      const res = await reannotateSessionImage(sessionId, imageId);
+      const res = await reannotateUserImage(imageId);
       setImages(prev =>
         prev.map(img =>
           img.image_id === imageId
-            ? { ...img, annotate_status: res.annotate_status as SessionImage['annotate_status'] }
+            ? { ...img, annotate_status: res.annotate_status as UserImage['annotate_status'] }
             : img
         )
       );
@@ -208,7 +205,7 @@ export default function ImageUploadPanel({ sessionId }: Props) {
             const isExpanded = expandedId === img.image_id;
             const isDeleting = deletingIds.has(img.image_id);
             const isReannotating = reannotatingIds.has(img.image_id);
-            const src = resolveImagePreviewUrl(img.preview_url);
+            const src = getImagePreviewUrl(img.preview_url);
 
             return (
               <div
