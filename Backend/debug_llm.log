@@ -1,75 +1,70 @@
-{"__type": "theme", "name": "数学蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "线性代数-矩阵运算核心知识点与例题解析", "speaker_notes": "各位同学好，今天我们来学习线性代数中矩阵运算的核心知识点，结合典型例题帮助大家掌握重点考点。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["主讲：线性代数教研组 | 2024年秋季学期"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "1. 矩阵基本概念与基础运算", "speaker_notes": "首先我们回顾矩阵的基本概念和基础运算，这是后续学习的基础。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心概念：同型矩阵、方阵、对角矩阵、单位矩阵$E$、零矩阵", "基础运算：加减法（同型矩阵对应元素加减）、数乘（所有元素乘系数）", "乘法重点：左行乘右列，不满足交换律，满足结合律和分配律"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["可交换矩阵前提：同阶方阵，同阶对角矩阵天然可交换，满足常规乘法规律"], "is_accent": true}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "2. 方阵的幂与典型例题", "speaker_notes": "接下来我们学习方阵的幂，这是高频考点，大家要重点掌握拆分方法和顺序注意事项。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["定义：$A^k$为$k$个$A$相乘，规定$A^0=E$", "注意：多个方阵乘积的幂不能随意交换顺序，$(AB)^2=ABAB \\neq A^2B^2$", "常考题型：秩为1的方阵可拆分为列矩阵×行矩阵，简化高次幂计算"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["【例题】已知$A=\\begin{pmatrix}2&4&-6 \\\\1&2&-3 \\\\4&8&-12\\end{pmatrix}$，求$A^{100}$"], "is_accent": true}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["解析：观察得$A=\\begin{pmatrix}2 \\\\1 \\\\4\\end{pmatrix}\\begin{pmatrix}1&2&-3\\end{pmatrix}$，令$\\alpha=\\begin{pmatrix}2 \\\\1 \\\\4\\end{pmatrix}$，$\\beta^T=\\begin{pmatrix}1&2&-3\\end{pmatrix}$，则$\\beta^T\\alpha=2×1+1×2+4×(-3)=-8$，故$A^{100}=\\alpha (\\beta^T\\alpha)^{99}\\beta^T=(-8)^{99}A$"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "3. 矩阵转置与特殊矩阵", "speaker_notes": "矩阵转置是非常重要的运算，衍生出的对称矩阵、反对称矩阵也是常考概念。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["转置定义：矩阵的行依次变为列，记为$A^T$", "核心性质：$(AB)^T=B^TA^T$，$(A^k)^T=(A^T)^k$", "对称矩阵：满足$A=A^T$，任意矩阵$B$的$B^TB$、$BB^T$均为对称矩阵", "反对称矩阵：满足$A=-A^T$，主对角线元素必为0"], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "4. 方阵行列式与伴随矩阵", "speaker_notes": "方阵的行列式和伴随矩阵是推导逆矩阵的基础，相关性质要熟练记忆。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["行列式核心性质：$|A^T|=|A|$，$|kA|=k^n|A|$，$|AB|=|A|·|B|$，$|A^m|=|A|^m$", "伴随矩阵定义：按行求代数余子式，按列排列得到$A^*$", "伴随矩阵性质：$AA^*=A^*A=|A|E$，$|A^*|=|A|^{n-1}$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "3阶方阵伴随矩阵构造示意图", "alt": "伴随矩阵构造示例", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "two_column", "title": "5. 逆矩阵与矩阵方程求解", "speaker_notes": "逆矩阵是矩阵运算的重点，矩阵方程是高频考试题型，求解时一定要注意乘法的左右顺序。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["可逆充要条件：$|A|\\neq0$，可逆时$A^{-1}=\\frac{1}{|A|}A^*$", "逆矩阵性质：$(AB)^{-1}=B^{-1}A^{-1}$，$(kA)^{-1}=\\frac{1}{k}A^{-1}$（$k\\neq0$）", "对角矩阵逆：$diag(a_1,a_2,\\dots,a_n)^{-1}=diag(\\frac{1}{a_1},\\frac{1}{a_2},\\dots,\\frac{1}{a_n})$（$a_i\\neq0$）", "矩阵方程求解：先证明矩阵可逆，再对应左乘/右乘逆矩阵，$AXB=C \\implies X=A^{-1}CB^{-1}$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["【例题】设方阵$A$满足$A^2-A-2E=0$，证明$A+2E$可逆并求其逆。"], "is_accent": true}, {"element_id": "e3", "type": "text_block", "position": "right_bottom", "content": ["解析：凑乘积为单位矩阵的形式：$A^2-A-2E=(A+2E)(A-3E)+4E=0$，整理得$(A+2E)·\\frac{3E-A}{4}=E$，故$A+2E$可逆，且$(A+2E)^{-1}=\\frac{3E-A}{4}$"], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结与重点回顾", "speaker_notes": "最后我们来总结本次课程的重点内容，大家课后要结合习题巩固。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["核心运算注意：矩阵乘法不满足交换律，所有涉及乘积交换的操作都要验证", "高频考点：方阵高次幂计算、逆矩阵证明与求解、矩阵方程化简", "运算技巧：转置、伴随、逆运算可交换顺序，优先化简再计算"], "is_accent": false}]}
+{"__type": "theme", "name": "数学蓝黄", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "矩阵乘法运算详解", "speaker_notes": "开场介绍本次课程内容，我们将系统学习矩阵乘法的运算规则、性质和典型例题", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["线性代数核心知识点 | 附典型例题解析"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "矩阵乘法的前置基础", "speaker_notes": "在学习矩阵乘法之前，我们先回顾基础的矩阵概念和已经学过的简单运算", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["矩阵定义：$m \\times n$ 个数排成的 $m$ 行 $n$ 列数表，记作 $A_{m \\times n}$", "同型矩阵：行数和列数都相等的两个矩阵", "特殊矩阵：方阵、行矩阵、列矩阵、零矩阵、单位矩阵 $E$、对角矩阵"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["已学运算：同型矩阵加减法（对应元素相加减）", "已学运算：数乘矩阵（数字乘到矩阵每个元素上）"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "矩阵乘法的运算规则", "speaker_notes": "现在我们学习矩阵乘法的核心运算规则，这是本节的重点内容", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["前提条件：左边矩阵的列数 = 右边矩阵的行数，即 $A_{m \\times s} \\cdot B_{s \\times n} = C_{m \\times n}$", "运算方法：结果矩阵 $C$ 的元素 $c_{ij} = \\sum_{k=1}^s a_{ik}b_{kj}$，即左矩阵第 $i$ 行与右矩阵第 $j$ 列对应元素相乘再求和"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["运算示例：$$\\begin{pmatrix}a_{1}&a_{2} \\\\b_{1}&b_{2} \\end{pmatrix}\\begin{pmatrix} c_{1}&c_{2}&c_{3} \\\\ d_{1}&d_{2}&d_{3} \\end{pmatrix}= \\begin{pmatrix}a_{1}c_{1}+a_{2}d_{1}&a_{1}c_{2}+a_{2}d_{2}&a_{1}c_{3}+a_{2}d_{3} \\\\b_{1}c_{1}+b_{2}d_{1}&b_{1}c_{2}+b_{2}d_{2}&b_{1}c_{3}+b_{2}d_{3}\\end{pmatrix}$$"], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "矩阵乘法的核心性质", "speaker_notes": "矩阵乘法和普通数字乘法有很多不同，这些性质是考试的常考点，需要重点记忆", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["❌ 不满足交换律：一般情况下 $AB \\neq BA$，连乘时不能交换因子顺序", "⚠️ 两个非零矩阵的乘积可能是零矩阵", "✅ 满足结合律：$(AB)C = A(BC)$", "✅ 满足分配律：$A(B+C)=AB+AC$，$(B+C)A=BA+CA$（分配时位置不能交换）"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["特殊矩阵性质：单位矩阵 $E$ 满足 $EA=AE=A$，与 $B$ 同阶的数量矩阵 $aE$ 满足 $(aE)B = aB$", "可交换矩阵：仅同阶方阵可能可交换，同阶对角矩阵一定可交换"], "is_accent": true}]}
+{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "典型例题1：基础乘法运算", "speaker_notes": "我们通过两道基础例题来巩固矩阵乘法的运算规则", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["例题1：已知 $A=\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$，$B=\\begin{pmatrix}5&6\\\\7&8\\end{pmatrix}$，求 $AB$ 和 $BA$", "解：$$AB = \\begin{pmatrix}1 \\times 5 + 2 \\times 7 & 1 \\times 6 + 2 \\times 8 \\\\ 3 \\times 5 + 4 \\times7 & 3 \\times6 +4 \\times8 \\end{pmatrix} = \\begin{pmatrix}19&22\\\\43&50\\end{pmatrix}$$", "$$BA = \\begin{pmatrix}5 \\times1 +6 \\times3 &5 \\times2 +6 \\times4 \\\\7 \\times1 +8 \\times3 &7 \\times2 +8 \\times4 \\end{pmatrix} = \\begin{pmatrix}23&34\\\\31&46\\end{pmatrix}$$", "可见 $AB \\neq BA$，验证了矩阵乘法不满足交换律"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["例题2：已知 $A=\\begin{pmatrix}1&-1\\\\-1&1\\end{pmatrix}$，$B=\\begin{pmatrix}1&1\\\\1&1\\end{pmatrix}$，求 $AB$", "解：$$AB = \\begin{pmatrix}1 \\times1 + (-1) \\times1 & 1 \\times1 + (-1) \\times1 \\\\ -1 \\times1 +1 \\times1 & -1 \\times1 +1 \\times1 \\end{pmatrix} = \\begin{pmatrix}0&0\\\\0&0\\end{pmatrix}$$", "可见两个非零矩阵的乘积可以是零矩阵"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "典型例题2：方阵的幂运算", "speaker_notes": "接下来我们学习进阶的方阵幂运算例题，这是考试的高频题型", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["例题：已知 $A=\\begin{pmatrix}2&4&-6 \\\\1&2&-3 \\\\4&8&-12\\end{pmatrix}$，求 $A^{100}$", "解题思路：观察矩阵特征，可将其拆分为列矩阵乘行矩阵的形式"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["解：令 $\\alpha = \\begin{pmatrix}2\\\\1\\\\4\\end{pmatrix}$，$\\beta = \\begin{pmatrix}1&2&-3\\end{pmatrix}$，则 $A = \\alpha\\beta$", "先计算 $\\beta\\alpha = 1 \\times2 + 2 \\times1 + (-3) \\times4 = -8$", "因此 $A^{100} = (\\alpha\\beta)^{100} = \\alpha(\\beta\\alpha)^{99}\\beta = (-8)^{99} \\alpha\\beta = -8^{99}A = \\begin{pmatrix}-2 \\times8^{99}&-4 \\times8^{99}&6 \\times8^{99} \\\\ -8^{99}&-2 \\times8^{99}&3 \\times8^{99} \\\\ -4 \\times8^{99}&-8 \\times8^{99}&12 \\times8^{99}\\end{pmatrix}$"], "is_accent": true}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "拓展延伸：相关运算性质", "speaker_notes": "最后我们补充和矩阵乘法相关的转置、行列式、逆矩阵的运算性质，形成完整的知识体系", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["转置性质：$(AB)^T = B^T A^T$，$(A^k)^T = (A^T)^k$", "行列式性质：$|AB| = |A| \\cdot |B|$，$|A^k| = |A|^k$", "逆矩阵性质：若 $A,B$ 可逆，则 $(AB)^{-1} = B^{-1}A^{-1}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["解题技巧：做矩阵乘法相关题目时优先观察是否可拆分、是否有特殊矩阵（单位矩阵、对角矩阵）简化运算", "注意事项：所有左乘/右乘操作不能随意交换位置，涉及逆矩阵时需先证明可逆"], "is_accent": true}]}
+{"__type": "page", "page_index": 8, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "我们来回顾一下本次课程的核心内容", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["掌握矩阵乘法的前提条件和运算规则", "牢记矩阵乘法的特殊性：不满足交换律、非零矩阵乘积可零", "熟练掌握基础乘法、方阵幂运算的典型题型解法", "熟悉矩阵乘法和转置、行列式、逆矩阵的结合运算性质"], "is_accent": false}]}
 {"__type": "word_start"}
-## 线性代数-矩阵运算核心知识点讲义
-### 一、矩阵基本概念
-1. 定义：$m\times n$个数排成$m$行$n$列的数表即为$m\times n$矩阵，记为$A_{m\times n}$
-2. 特殊矩阵类型：
-   - 同型矩阵：行数、列数均相等的矩阵
-   - 方阵：行数=列数的矩阵，一阶方阵等价于一个数
-   - 对角矩阵：主对角线外元素全为0的方阵，记为$diag(a_1,a_2,\dots,a_n)$
-   - 单位矩阵：主对角线元素全为1的对角矩阵，记为$E$，满足$EA=AE=A$
-   - 零矩阵：所有元素均为0的矩阵，不同形状的零矩阵不相等
+# 矩阵乘法运算讲义
+## 一、前置基础回顾
+### 1. 基本矩阵概念
+- 矩阵是由 $m \times n$ 个数排成的 $m$ 行 $n$ 列数表，记作 $A_{m \times n}$，其中 $m$ 是行数，$n$ 是列数。
+- 同型矩阵：两个矩阵的行数和列数都完全相等。
+- 特殊矩阵：
+  - 方阵：行数等于列数的矩阵，可按阶数称呼，如2阶方阵、3阶方阵。
+  - 单位矩阵 $E$：主对角线元素全为1，其余元素全为0的方阵，满足 $EA=AE=A$，是矩阵乘法中的"单位元"，类似数字乘法中的1。
+  - 对角矩阵：仅主对角线有非零元素，其余元素全为0的方阵，记作 $diag(a_1,a_2,\dots,a_n)$。
+  - 零矩阵：所有元素都为0的矩阵，不同形状的零矩阵不相等。
 
-### 二、矩阵基础运算
-1. 加减法：仅同型矩阵可进行，对应位置元素相加减
-2. 数乘：系数乘以矩阵的每一个元素，注意$|kA|=k^n|A|$（$n$为方阵阶数）
-3. 乘法：
-   - 运算前提：左矩阵列数=右矩阵行数
-   - 运算规则：左矩阵行元素与右矩阵列元素对应相乘求和
-   - 运算性质：不满足交换律，满足结合律和分配律；两个非零矩阵乘积可能为零矩阵
-4. 可交换矩阵：满足$AB=BA$的矩阵，必为同阶方阵，同阶对角矩阵天然可交换
+### 2. 已学简单运算
+- 矩阵加减法：仅同型矩阵可进行，对应位置元素相加减，即 $A \pm B$ 的元素为 $a_{ij} \pm b_{ij}$。
+- 数乘矩阵：数字 $k$ 乘到矩阵的每个元素上，即 $kA$ 的元素为 $ka_{ij}$。
 
-### 三、方阵的幂
-1. 定义：$k$个$A$相乘记为$A^k$，规定$A^0=E$
-2. 注意事项：多个方阵乘积的幂不能随意拆分，如$(AB)^2=ABAB\neq A^2B^2$，仅当$A,B$可交换时等号成立
-3. 高次幂计算技巧：秩为1的方阵可拆分为列矩阵×行矩阵的形式，即$A=\alpha\beta^T$，此时$A^k=\alpha(\beta^T\alpha)^{k-1}\beta^T=(\beta^T\alpha)^{k-1}A$，大幅简化计算
-4. 典型例题：
-   已知$A=\begin{pmatrix}2&4&-6 \\1&2&-3 \\4&8&-12\end{pmatrix}$，求$A^{100}$
-   解：观察矩阵秩为1，拆分得$A=\begin{pmatrix}2 \\1 \\4\end{pmatrix}\begin{pmatrix}1&2&-3\end{pmatrix}$，令$\alpha=\begin{pmatrix}2 \\1 \\4\end{pmatrix}$，$\beta^T=\begin{pmatrix}1&2&-3\end{pmatrix}$，计算得$\beta^T\alpha=2\times1+1\times2+4\times(-3)=-8$，因此$A^{100}=\alpha(\beta^T\alpha)^{99}\beta^T=(-8)^{99}A$
+---
+## 二、矩阵乘法的核心规则
+### 1. 运算前提
+两个矩阵可以相乘的前提是：**左边矩阵的列数 = 右边矩阵的行数**。
+即如果 $A$ 是 $m \times s$ 矩阵，$B$ 是 $s \times n$ 矩阵，那么二者可以相乘，结果 $C=AB$ 是 $m \times n$ 矩阵。
 
-### 四、矩阵转置与特殊矩阵
-1. 转置定义：将矩阵的行依次替换为列得到的矩阵，记为$A^T$
-2. 转置核心性质：
-   - $(AB)^T=B^TA^T$
-   - $(A^k)^T=(A^T)^k$
-3. 对称矩阵：满足$A=A^T$的方阵，性质：
-   - 若$A$对称，则$A^m$也对称
-   - 对任意矩阵$B$，$B^TB$和$BB^T$均为对称矩阵
-4. 反对称矩阵：满足$A=-A^T$的方阵，主对角线元素必为0
+### 2. 运算方法
+结果矩阵 $C$ 中第 $i$ 行第 $j$ 列的元素 $c_{ij}$，等于左边矩阵 $A$ 的第 $i$ 行元素，与右边矩阵 $B$ 的第 $j$ 列元素，按顺序对应相乘后求和：
+$$c_{ij} = a_{i1}b_{1j} + a_{i2}b_{2j} + \dots + a_{is}b_{sj} = \sum_{k=1}^s a_{ik}b_{kj}$$
 
-### 五、伴随矩阵与逆矩阵
-1. 伴随矩阵：
-   - 构造方法：对$n$阶方阵$A$，按行求每个元素的代数余子式$A_{ij}$，再按列排列得到伴随矩阵$A^*$
-   - 核心性质：$AA^*=A^*A=|A|E$，该式对任意方阵（无论是否可逆）均成立；$|A^*|=|A|^{n-1}$
-2. 逆矩阵：
-   - 定义：若$n$阶方阵$A,B$满足$AB=BA=E$，则$A$可逆，$B=A^{-1}$，逆矩阵唯一
-   - 可逆充要条件：$|A|\neq0$，此时$A^{-1}=\frac{1}{|A|}A^*$
-   - 逆矩阵性质：
-     - $(AB)^{-1}=B^{-1}A^{-1}$
-     - $(kA)^{-1}=\frac{1}{k}A^{-1}$（$k\neq0$）
-     - 对角矩阵$diag(a_1,a_2,\dots,a_n)$可逆当且仅当所有$a_i\neq0$，逆矩阵为$diag(\frac{1}{a_1},\frac{1}{a_2},\dots,\frac{1}{a_n})$
+示例运算：
+$$\begin{pmatrix}a_{1}&a_{2} \\b_{1}&b_{2} \end{pmatrix}\begin{pmatrix} c_{1}&c_{2}&c_{3} \\ d_{1}&d_{2}&d_{3} \end{pmatrix}= \begin{pmatrix}
+a_{1}c_{1}+a_{2}d_{1}&a_{1}c_{2}+a_{2}d_{2}&a_{1}c_{3}+a_{2}d_{3} \\
+b_{1}c_{1}+b_{2}d_{1}&b_{1}c_{2}+b_{2}d_{2}&b_{1}c_{3}+b_{2}d_{3}
+\end{pmatrix}$$
+这里左矩阵是2行2列，右矩阵是2行3列，结果是2行3列的矩阵。
 
-### 六、矩阵方程求解
-1. 标准形式与解法：
-   - $AX=C$：若$A$可逆，则$X=A^{-1}C$（左乘$A^{-1}$）
-   - $XB=C$：若$B$可逆，则$X=CB^{-1}$（右乘$B^{-1}$）
-   - $AXB=C$：若$A,B$均可逆，则$X=A^{-1}CB^{-1}$
-2. 注意事项：求解前必须先证明对应矩阵可逆，乘法操作严格区分左右顺序，不可随意交换
-3. 典型例题：
-   设方阵$A$满足$A^2-A-2E=0$，证明$A+2E$可逆并求其逆矩阵。
-   解：通过多项式变形凑单位矩阵乘积：
-   $$A^2-A-2E=(A+2E)(A-3E)+6E-2E=(A+2E)(A-3E)+4E=0$$
-   整理得：$(A+2E)·\frac{3E-A}{4}=E$，根据可逆矩阵定义，$A+2E$可逆，且$(A+2E)^{-1}=\frac{3E-A}{4}$
+---
+## 三、矩阵乘法的核心性质
+矩阵乘法和普通数字乘法有显著差异，这些性质是考试高频考点，需要重点区分：
+1. **不满足交换律**：一般情况下 $AB \neq BA$，因此矩阵连乘时绝对不能随意交换因子的顺序。只有特殊的"可交换矩阵"满足 $AB=BA$，可交换矩阵一定是同阶方阵，且最常见的可交换矩阵是同阶对角矩阵。
+2. **非零矩阵乘积可为零矩阵**：即使 $A \neq O$、$B \neq O$，也可能出现 $AB = O$ 的情况，因此不能由 $AB=O$ 直接推出 $A=O$ 或 $B=O$。
+3. **满足结合律**：$(AB)C = A(BC)$，多个矩阵连乘时可以先计算任意相邻两个的乘积，不改变最终结果。
+4. **满足分配律**：左分配律 $A(B+C)=AB+AC$，右分配律 $(B+C)A=BA+CA$，注意分配时矩阵的左右位置不能交换。
+5. 特殊矩阵性质：与同阶数量矩阵 $aE$ 相乘时，$(aE)B = aB$，相当于数字直接乘到矩阵上，此时数字可以提前。
 
-### 七、学习要点总结
-1. 矩阵运算与数运算的核心差异是不满足交换律，所有涉及乘积顺序变化的推导都要谨慎验证
-2. 逆矩阵证明优先使用“凑乘积为单位矩阵”的方法，比计算行列式和伴随矩阵更简便
-3. 高阶运算优先利用性质化简，再代入数值计算，减少计算量和错误率
-{"__type": "done"}
+---
+## 四、典型例题解析
+### 例题1：基础乘法运算
+**题目**：已知 $A=\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$，$B=\begin{pmatrix}5&6\\\\7&8\\end{pmatrix}$，求 $AB$ 和 $BA$。
+
+**解**：
+按照"左行乘右列"的规则计算：
+$$AB = \begin{pmatrix}1 \times 5 + 2 \times 7 & 1 \times 6 + 2 \times 8 \\\\ 3 \times 5 + 4 \times7 & 3 \times6 +4 \times8 \\end{pmatrix} = \begin{pmatrix}5+14&6+16\\\\15+28&18+32\\end{pmatrix} = \begin{pmatrix}19&22\\\\43&50\\end{pmatrix}$$
+$$BA = \begin{pmatrix}5 \times1 +6 \times3 &5 \times2 +6 \times4 \\\\7 \times1 +8 \times3 &7 \times2 +8 \times4 \\end{pmatrix} = \begin{pmatrix}5+18&10+24\\\\7+24&14+32\\end{pmatrix} = \begin{pmatrix}23&34\\\\31&46\\end{pmatrix}$$
+显然 $AB \neq BA$，直接验证了矩阵乘法不满足交换律。
+
+---
+### 例题2：非零矩阵乘为零矩阵
+**题目**：已知 $A=\\begin{pmatrix}1&-1\\\\-1&1\\end{pmatrix}$，$B=\\begin{pmatrix}1&1\\\\1&1\\end{pmatrix}$，求 $AB$。
+
+**解**：
+计算得：
+$$AB = \begin{pmatrix}1 \times1 + (-1) \times1 & 1 \times1 + (-1) \times1 \\\\ -1 \times1 +1 \times1 & -1 \times1 +1 \times1 \\end{pmatrix} = \begin{pmatrix}1-1&1-1\\\\-1+1&-1+1\\end{pmatrix} = \begin{pmatrix}0&0\\\\0&0\\end{pmatrix}$$
+这里 $A$ 和 $B$ 都不是零矩阵，但乘积为零矩阵，验证了该特殊性质。

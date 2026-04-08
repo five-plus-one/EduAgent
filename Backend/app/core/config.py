@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-3-large"
 
     # Image system
-    VISION_MODEL: str = "doubao-vision-pro-32k"
+    VISION_MODEL: str = "mimo-v2-omni"
     IMAGE_UPLOAD_DIR: str = "uploads/session_images"
     IMAGE_LIBRARY_DIR: str = "uploads/image_library"
     ADMIN_SECRET_KEY: str = "admin_secret_change_me"
