@@ -538,3 +538,54 @@
   border: none;
   cursor: pointer;
 }
+
+/* 图库来源徽章（演示用，叠在图片右上角） */
+.libraryBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+
+/* imageWrapper 需要 position:relative 以便徽章绝对定位 */
+.imageWrapper {
+  position: relative;
+}
+
+/* 单卡错误降级展示 */
+.errorFallback {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  color: var(--text-secondary, #64748b);
+  font-size: 14px;
+}
+
+/* 图片占位文本 */
+.placeholderText {
+  font-size: calc(14 * var(--pt, 1px));
+  color: var(--ppt-text);
+  opacity: 0.5;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.placeholderIcon {
+  opacity: 0.3;
+}

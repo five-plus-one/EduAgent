@@ -5,12 +5,17 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 // Core Setup
 // ==========================================
 
-export const API_BASE_URL = 'http://localhost:8000/api/v1'; // Backend server URL with versioning
+// 从 Vite 环境变量读取，回退到本地开发默认值
+// 配置方式：在 Frontend/.env 中设置 VITE_API_BASE_URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string ?? 'http://localhost:8000/api/v1';
+
+/** API 请求超时（ms）。可通过 VITE_API_TIMEOUT 环境变量覆盖 */
+const API_TIMEOUT = Number(import.meta.env.VITE_API_TIMEOUT) || 120000;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 120000, // 2分钟长超时，保证深度思考能力
+  timeout: API_TIMEOUT, // 2分钟长超时，保证深度思考能力（可通过 VITE_API_TIMEOUT 覆盖）
 });
 
 // Request Interceptor: attach Bearer token if present
@@ -385,3 +390,84 @@ export const deleteKnowledgeDoc = async (docId: string) => {
   await apiClient.delete(`/knowledge-base/documents/${docId}`);
 };
 
+// ==========================================
+// Module 3.x 补充：会话图片管理
+// ==========================================
+
+export interface SessionImage {
+  image_id: string;
+  filename: string;
+  label?: string;
+  /** 相对路径，需与 API_BASE_URL 拼接后使用 */
+  preview_url: string;
+  /** pending | processing | done | failed */
+  annotate_status: 'pending' | 'processing' | 'done' | 'failed';
+  tags?: string[];
+  description?: string;
+  file_size?: number;
+  created_at: string;
+}
+
+export interface SessionImageListResponse {
+  total: number;
+  items: SessionImage[];
+}
+
+/** 3.8 上传图片到会话（jpg/png/webp，单张最大 10MB） */
+export const uploadSessionImage = async (
+  sessionId: string,
+  file: File,
+  label?: string
+): Promise<SessionImage> => {
+  const form = new FormData();
+  form.append('file', file);
+  if (label) form.append('label', label);
+  const res = await apiClient.post(`/sessions/${sessionId}/images`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/** 3.9 获取会话图片列表（分页） */
+export const listSessionImages = async (
+  sessionId: string,
+  page = 1,
+  size = 20
+): Promise<SessionImageListResponse> => {
+  const res = await apiClient.get(`/sessions/${sessionId}/images`, {
+    params: { page, size },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/** 3.10 获取图片预览 URL（返回完整可直接 src 使用的 URL）
+ *  preview_url 来自后端，为 /api/v1/sessions/.../images/.../preview 相对路径，
+ *  此工具函数补全 origin 方便直接在 <img> 中使用。
+ */
+export const resolveImagePreviewUrl = (previewUrl: string): string => {
+  if (!previewUrl) return '';
+  // 如果已经是完整 URL，直接返回
+  if (previewUrl.startsWith('http')) return previewUrl;
+  // 从 API_BASE_URL 中提取 origin（去掉 /api/v1 部分）
+  const origin = API_BASE_URL.replace(/\/api\/v\d+.*$/, '');
+  return `${origin}${previewUrl}`;
+};
+
+/** 3.11 删除会话图片 */
+export const deleteSessionImage = async (
+  sessionId: string,
+  imageId: string
+): Promise<void> => {
+  await apiClient.delete(`/sessions/${sessionId}/images/${imageId}`);
+};
+
+/** 3.12 重新触发图片标注（对标注失败的图片手动重试） */
+export const reannotateSessionImage = async (
+  sessionId: string,
+  imageId: string
+): Promise<{ image_id: string; annotate_status: string }> => {
+  const res = await apiClient.post(
+    `/sessions/${sessionId}/images/${imageId}/annotate`
+  );
+  return res.data?.data ?? res.data;
+};

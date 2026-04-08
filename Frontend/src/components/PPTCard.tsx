@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { resolveImagePreviewUrl } from '../utils/api';
 
 // ── Error isolation: one bad card must NOT crash siblings ─────────────────
 class PPTCardErrorBoundary extends React.Component<
@@ -140,17 +141,34 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
     const contentArray = toStringArray(el.content);
 
     if (el.type === 'image') {
-      if (!el.url) {
+      // 新协议：使用 resolved 字段（后端向量检索结果）
+      // 兼容旧格式：el.url（旧协议，逐步废弃）
+      const resolved = el.resolved;
+      const previewUrl = resolved?.preview_url
+        ? resolveImagePreviewUrl(resolved.preview_url)
+        : el.url
+        ? el.url
+        : null;
+
+      if (!previewUrl) {
+        // 图片检索无匹配 → 灰色占位框
         return (
           <div key={el.element_id} className={clsx(styles.imagePlaceholder, positionClass)}>
             <div className={styles.placeholderIcon}><ImageIcon size={32} /></div>
-            <span className={styles.placeholderText}>视觉影像挂载中...</span>
+            <span className={styles.placeholderText}>
+              {el.alt || el.query || '图片检索无匹配'}
+            </span>
           </div>
         );
       }
+
       return (
         <div key={el.element_id} className={clsx(styles.imageWrapper, positionClass)}>
-          <img src={el.url} alt={el.alt || 'PPT Image'} className={styles.pptImage} />
+          <img src={previewUrl} alt={el.alt || 'PPT 图片'} className={styles.pptImage} />
+          {/* 系统图库来源徽章（演示用） */}
+          {resolved?.source === 'library' && (
+            <span className={styles.libraryBadge} title="来自系统教学图库">📚 图库</span>
+          )}
         </div>
       );
     }
