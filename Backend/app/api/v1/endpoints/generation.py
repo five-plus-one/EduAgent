@@ -3,6 +3,8 @@ import os
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
 from app.api import deps
 from app.models.user import User
 from app.models.session import SessionContext
@@ -10,6 +12,11 @@ from app.models.generation import GenerationTask, Courseware
 from app.schemas.generation import GenerateRequest, TaskResponse, TaskStatusResponse, CoursewarePreviewResponse, IterateRequest
 from app.services.courseware_generator import run_generation_task, stream_generation
 from app.services.ppt_exporter import run_export_task, EXPORT_DIR
+from app.services.word_exporter import markdown_to_docx
+
+class IterateWordRequest(BaseModel):
+    instruction: str
+    selected_text: Optional[str] = None  # 当前选中的文字（可选，作为修改背景）
 
 router = APIRouter()
 
@@ -386,6 +393,119 @@ def get_export_status(
 @router.get("/export/download/{filename}")
 def download_export(filename: str):
     file_path = os.path.join(EXPORT_DIR, filename)
-    if os.path.exists(file_path):
-        return FileResponse(file_path, filename=filename, media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation")
-    raise HTTPException(status_code=404, detail="File not found")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    # 根据文件后缀选择 MIME 类型
+    if filename.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    return FileResponse(file_path, filename=filename, media_type=media_type)
+
+
+# ---------------- WORD ITERATE ----------------
+
+@router.post("/sessions/{session_id}/courseware/iterate-word")
+def iterate_word(
+    session_id: str,
+    body: IterateWordRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    """根据用户指令对课件订 word_markdown 进行智能修订，将新内容存入 DB 并返回。"""
+    import json
+    import re
+    import requests
+    from app.core.config import settings
+    from sqlalchemy.orm.attributes import flag_modified
+
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw:
+        raise HTTPException(status_code=404, detail="Courseware not found")
+
+    current_markdown = cw.word_markdown or ""
+    if not current_markdown.strip():
+        raise HTTPException(status_code=400, detail="讲义内容为空，请先生成课件")
+
+    # 构建修改 Prompt
+    selected_hint = ""
+    if body.selected_text:
+        selected_hint = f"\n\n【用户库选中的文字（修改重点）】\n{body.selected_text[:500]}"
+
+    prompt = (
+        "你是一价高级教育内容编辑少少。请根据用户指令对以下 Markdown 格式的课件讲义进行修订。\n"
+        "【重要】只输出修改后的完整 Markdown 文本，不要包含任何开场白或围栏。\n\n"
+        f"【原始讲义文本】\n{current_markdown}\n\n"
+        f"【用户修改指令】\n{body.instruction}"
+        + selected_hint
+    )
+
+    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": settings.LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": "你是一个専业的教育内容编辑器。根据用户修改要求精确修订 Markdown 讲义，保持整体结构不变化。不要输出任何开场白、引言或 markdown 围栏。"},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,
+        "thinking": {"type": "disabled"}
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=180)
+        resp.raise_for_status()
+        choices = resp.json().get("choices", [])
+        if not choices:
+            raise HTTPException(status_code=500, detail="LLM 返回了空的 choices")
+        new_markdown = choices[0].get("message", {}).get("content", "")
+        # 去除可能的 markdown 围栏
+        new_markdown = re.sub(r"^```[a-z]*\n?", "", new_markdown.strip(), flags=re.MULTILINE)
+        new_markdown = re.sub(r"```$", "", new_markdown.strip(), flags=re.MULTILINE).strip()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"讲义修订失败：{str(e)}")
+
+    # 存入 DB
+    cw.word_markdown = new_markdown
+    flag_modified(cw, "word_markdown")
+    db.commit()
+    db.refresh(cw)
+
+    return {"word_markdown": new_markdown}
+
+
+# ---------------- WORD DOCX EXPORT ----------------
+
+@router.get("/sessions/{session_id}/courseware/export-word")
+def export_word_docx(
+    session_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    """将当前会话的 word_markdown 导出为标准 .docx 文件并返回下载。"""
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw:
+        raise HTTPException(status_code=404, detail="Courseware not found")
+    if not cw.word_markdown or not cw.word_markdown.strip():
+        raise HTTPException(status_code=404, detail="讲义内容为空，请先生成课件")
+
+    # 取课程名称作标题
+    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id).first()
+    doc_title = getattr(session_ctx, "course_name", "") or "课件讲义"
+
+    filename = f"EduAgent_讲义_{session_id[:8]}.docx"
+    output_path = os.path.join(EXPORT_DIR, filename)
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+
+    try:
+        markdown_to_docx(cw.word_markdown, output_path, title=doc_title)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f".docx 生成失败：{str(e)}")
+
+    return FileResponse(
+        output_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
