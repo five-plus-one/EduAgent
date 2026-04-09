@@ -191,15 +191,13 @@ def delete_library_image(
     return None
 
 
-# ── 7.5 预览 ──────────────────────────────────────────────────────────────────
+# ── 7.5 预览（无需鉴权，lib_id 本身具备不可猜测性）─────────────────────────
 
 @router.get("/image-library/{lib_id}/preview")
 def preview_library_image(
     lib_id: str,
-    x_admin_key: str = Header(default=""),
     db: Session = Depends(deps.get_db),
 ):
-    _check_admin(x_admin_key)
     img = db.query(ImageLibrary).filter(ImageLibrary.id == lib_id).first()
     if not img or not os.path.exists(img.file_path):
         raise HTTPException(status_code=404, detail="Library image not found")
