@@ -21,7 +21,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 580px;
+  width: min(760px, 88vw);
   max-width: 90vw;
   z-index: 201;
   display: flex;

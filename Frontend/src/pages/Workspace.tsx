@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
@@ -16,8 +16,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon } from 'lucide-react';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc } from '../utils/api';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -25,6 +25,7 @@ export default function Workspace() {
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
+  const kbFileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -63,6 +64,7 @@ export default function Workspace() {
   const [activeTab, setActiveTab] = useState<string>('files');
   /** 参考资料 Tab 的子面板切换：docs（知识库文件） | images（会话图片） */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
+  const [isUploadingKb, setIsUploadingKb] = useState(false);
 
   const handleExportWord = () => {
     if (!wordDoc) return;
@@ -102,13 +104,26 @@ export default function Workspace() {
     URL.revokeObjectURL(url);
   };
   
-  useEffect(() => {
-    let active = true;
-    listKnowledgeDocs(1, 50).then(res => {
-      if (active) setKbDocs(res?.items || []);
-    }).catch(e => console.error("Failed to load KB docs", e));
-    return () => { active = false; };
+  const fetchKbDocs = useCallback(async () => {
+    try {
+      const res = await listKnowledgeDocs(1, 50);
+      setKbDocs(res?.items || []);
+    } catch (e) {
+      console.error('Failed to load KB docs', e);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchKbDocs();
+  }, [fetchKbDocs]);
+
+  // Poll while any doc is still being vectorized
+  useEffect(() => {
+    const hasPending = kbDocs.some((d: any) => d.status === 'pending' || d.status === 'processing');
+    if (!hasPending) return;
+    const timer = setInterval(fetchKbDocs, 3000);
+    return () => clearInterval(timer);
+  }, [kbDocs, fetchKbDocs]);
 
   const handleToggleLink = async (docId: string, isLinked: boolean) => {
     if (sessionId === 'new') {
@@ -162,6 +177,21 @@ export default function Workspace() {
         next.delete(docId);
         return next;
       });
+    }
+  };
+
+  const handleKbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // reset so same file can be re-selected
+    setIsUploadingKb(true);
+    try {
+      await uploadKnowledgeDoc(file, { subject: '通用类目' });
+      await fetchKbDocs();
+    } catch {
+      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / TXT / MD）');
+    } finally {
+      setIsUploadingKb(false);
     }
   };
 
@@ -507,6 +537,7 @@ export default function Workspace() {
                       导出讲义 (.doc)
                     </button>
                   )}
+                  )}
                 </>
               )}
             </div>
@@ -533,50 +564,106 @@ export default function Workspace() {
               {/* 知识库文档面板 */}
               {filesSubTab === 'docs' && (
                 <>
+                  {/* Header row: description + upload button */}
                   <div className={styles.kbHeader}>
-                    <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
+                    <p>关联 RAG 知识材料，AI 将基于这些资料生成 PPT 课件。</p>
+                    <input
+                      ref={kbFileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt,.md"
+                      style={{ display: 'none' }}
+                      onChange={handleKbUpload}
+                    />
+                    <button
+                      className={styles.kbUploadBtn}
+                      onClick={() => kbFileInputRef.current?.click()}
+                      disabled={isUploadingKb}
+                    >
+                      {isUploadingKb
+                        ? <><Loader2 size={13} className={styles.spinner} /> 上传中...</>
+                        : <><UploadCloud size={13} /> 上传文档</>
+                      }
+                    </button>
                   </div>
 
                   {kbDocs.length === 0 ? (
-                    <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
+                    <div className={styles.placeholderCentric}>
+                      暂无知识库文档，点击「上传文档」添加
+                    </div>
                   ) : (
                     <div className={styles.kbList}>
-                      {kbDocs.map(doc => {
+                      {kbDocs.map((doc: any) => {
                         const isLinked = linkedDocs.has(doc.document_id);
                         const isLinking = linkingDocs.has(doc.document_id);
+                        const isCompleted = doc.status === 'completed' || !doc.status;
+                        const isFailed   = doc.status === 'failed';
+                        const isProcessing = doc.status === 'processing';
+                        const isPending  = doc.status === 'pending';
                         return (
                           <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
                             <div className={styles.kbItemInfo}>
                               <FileText size={18} className={styles.docIcon} />
                               <div className={styles.kbItemTextWrap}>
                                 <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
-                                <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                                <div className={styles.kbItemMetaRow}>
+                                  <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                                  {isCompleted && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusCompleted)}>
+                                      <CheckCircle size={10} /> 已向量化
+                                    </span>
+                                  )}
+                                  {isProcessing && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusProcessing)}>
+                                      <Loader2 size={10} className={styles.spinner} /> 向量化中...
+                                    </span>
+                                  )}
+                                  {isPending && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusPending)}>
+                                      <Clock size={10} /> 等待处理
+                                    </span>
+                                  )}
+                                  {isFailed && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusFailed)}>
+                                      <AlertCircle size={10} /> 失败
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             <div className={styles.kbItemActions}>
-                              <button
-                                className={clsx(
-                                  isLinked ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked) : 'button-primary',
-                                  styles.actionBtn
-                                )}
-                                disabled={isLinking || sessionId === 'new'}
-                                onClick={() => handleToggleLink(doc.document_id, isLinked)}
-                                onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
-                                onMouseLeave={() => setHoveredLinkDoc(null)}
-                                title={isLinked ? '点击解除绑定' : '点击加入会话'}
-                              >
-                                {isLinking ? (
-                                  <><Loader2 size={14} className={styles.spinner} /> 变更中</>
-                                ) : isLinked ? (
-                                  hoveredLinkDoc === doc.document_id ? (
-                                    <><Unlink size={14} /> 取消绑定</>
+                              {isFailed ? (
+                                <span className={styles.failedLabel}>
+                                  <AlertCircle size={13} /> 不可关联
+                                </span>
+                              ) : (
+                                <button
+                                  className={clsx(
+                                    isLinked
+                                      ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked)
+                                      : 'button-primary',
+                                    styles.actionBtn
+                                  )}
+                                  disabled={isLinking || sessionId === 'new' || !isCompleted}
+                                  onClick={() => handleToggleLink(doc.document_id, isLinked)}
+                                  onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
+                                  onMouseLeave={() => setHoveredLinkDoc(null)}
+                                  title={!isCompleted ? '向量化完成后方可关联' : isLinked ? '点击解除绑定' : '点击加入会话'}
+                                >
+                                  {isLinking ? (
+                                    <><Loader2 size={14} className={styles.spinner} /> 变更中</>
+                                  ) : !isCompleted ? (
+                                    <><Clock size={14} /> 处理中</>
+                                  ) : isLinked ? (
+                                    hoveredLinkDoc === doc.document_id ? (
+                                      <><Unlink size={14} /> 取消绑定</>
+                                    ) : (
+                                      <><CheckCircle size={14} /> 已绑定</>
+                                    )
                                   ) : (
-                                    <><CheckCircle size={14} /> 已绑定</>
-                                  )
-                                ) : (
-                                  <><Link size={14} /> 加入会话</>
-                                )}
-                              </button>
+                                    <><Link size={14} /> 加入会话</>
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
