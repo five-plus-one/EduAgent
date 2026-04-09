@@ -1791,9 +1791,19 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
     stat_elems = [e for e in elements if _is_stat(e)]
-    body_elems = [e for e in elements if not _is_stat(e)] or elements
+    # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
+    img_elems  = [e for e in elements if e.get("type") == "image"]
+    body_elems = [e for e in elements if not _is_stat(e) and e.get("type") != "image"] or [
+        e for e in elements if e.get("type") != "image"
+    ]
 
-    left_w = CONTENT_W * 0.60 if stat_elems else CONTENT_W
+    # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
+    img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
+    img_col_w = CONTENT_W * 0.36
+    for _img_elem in img_elems:
+        _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
+
+    left_w = CONTENT_W * 0.60 if (stat_elems or img_elems) else CONTENT_W
 
     # ── Body cards (left / full column) ── explode each list item into its own card ──
     lx = MARGIN_LEFT
@@ -2381,23 +2391,37 @@ def render_default(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
     avail_h = SLIDE_H - CONTENT_T - 0.35
-    each_h = avail_h / max(len(elements), 1)
 
-    for i, elem in enumerate(elements):
+    # ── 图片元素单独渲染，不进入文字卡循环 ────────────────────────────────────
+    img_elems  = [e for e in elements if e.get("type") == "image"]
+    text_elems = [e for e in elements if e.get("type") != "image"]
+    has_img    = bool(img_elems)
+
+    # 图片放右列（40% 宽），文字占左 58%（有图时）
+    img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
+    img_col_w = CONTENT_W * 0.36
+    txt_col_w = CONTENT_W * 0.60 if has_img else CONTENT_W
+
+    for _img_elem in img_elems:
+        _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
+
+    each_h = avail_h / max(len(text_elems), 1)
+
+    for i, elem in enumerate(text_elems):
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
         is_acc = elem.get("is_accent", False) or etype in ("huge_number", "stat")
         cy = CONTENT_T + i * each_h
 
         if is_acc and items and len(str(items[0])) <= 10:
-            add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, CONTENT_W,
+            add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, min(52, max(24, int(each_h * 28))),
                          acc, acc, bold=True, align=PP_ALIGN.CENTER)
         elif etype == "list" and len(items) > 1:
-            add_list_box(slide, items, MARGIN_LEFT, cy, CONTENT_W, each_h - 0.05, 15, txt, acc)
+            add_list_box(slide, items, MARGIN_LEFT, cy, txt_col_w, each_h - 0.05, 15, txt, acc)
         else:
             sz = calc_safe_pt(each_h, max(len(items), 1), 15, 10, 18)
-            add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, CONTENT_W,
+            add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, sz, txt, acc)
 
 
