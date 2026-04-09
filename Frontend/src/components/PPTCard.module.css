@@ -516,6 +516,16 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   background: var(--ppt-bg);
   z-index: 20;
+
+  /* Hidden by default — shown via CSS :hover, zero JS overhead */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.pptCard:hover .iterateBar {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .iterateInput {

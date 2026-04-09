@@ -126,13 +126,11 @@ interface Props {
 
 function PPTCardInner({ page, isUpdating, onIterate }: Props) {
   const [instruction, setInstruction] = useState('');
-  const [showIterate, setShowIterate] = useState(false);
 
   const handleSubmit = () => {
     if (instruction.trim() && !isUpdating) {
       onIterate(instruction.trim());
       setInstruction('');
-      setShowIterate(false);
     }
   };
 
@@ -255,8 +253,6 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
   return (
     <div 
       className={clsx(styles.pptCard, isUpdating && styles.updating)}
-      onMouseEnter={() => setShowIterate(true)}
-      onMouseLeave={() => setShowIterate(false)}
     >
       {page.layout_type !== 'cover' && (
         <div className={styles.cardHeader}>
@@ -374,8 +370,8 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
         </div>
       )}
 
-      {/* Floating Action Input */}
-      {!isUpdating && showIterate && (
+      {/* Floating Action Input — always in DOM, shown via CSS :hover */}
+      {!isUpdating && (
         <div className={clsx(styles.iterateBar, 'glass-panel')}>
           <input 
             type="text" 
@@ -384,7 +380,6 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
             value={instruction}
             onChange={e => setInstruction(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            autoFocus
           />
           <button 
             className={clsx('button-primary', styles.iterateBtn)} 
