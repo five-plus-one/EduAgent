@@ -588,7 +588,7 @@ export default function Workspace() {
 
               {/* 图片素材面板 */}
               {filesSubTab === 'images' && (
-                <ImageUploadPanel sessionId={sessionId} />
+                <ImageUploadPanel />
               )}
             </div>
           </Tabs.Content>
