@@ -1943,13 +1943,13 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
         if image_id:
             try:
                 from app.db.session import SessionLocal
-                from app.models.image import SessionImage, ImageLibrary
+                from app.models.image import UserImage, ImageLibrary
                 _db = SessionLocal()
                 try:
                     if source == "library":
                         rec = _db.query(ImageLibrary).filter(ImageLibrary.id == image_id).first()
-                    else:
-                        rec = _db.query(SessionImage).filter(SessionImage.id == image_id).first()
+                    else:  # source == "user"
+                        rec = _db.query(UserImage).filter(UserImage.id == image_id).first()
                     if rec and rec.file_path and os.path.exists(rec.file_path):
                         image_path = rec.file_path
                 finally:

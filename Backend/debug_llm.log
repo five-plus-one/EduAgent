@@ -1,70 +1,42 @@
-{"__type": "theme", "name": "数学蓝黄", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "矩阵乘法运算详解", "speaker_notes": "开场介绍本次课程内容，我们将系统学习矩阵乘法的运算规则、性质和典型例题", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["线性代数核心知识点 | 附典型例题解析"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "矩阵乘法的前置基础", "speaker_notes": "在学习矩阵乘法之前，我们先回顾基础的矩阵概念和已经学过的简单运算", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["矩阵定义：$m \\times n$ 个数排成的 $m$ 行 $n$ 列数表，记作 $A_{m \\times n}$", "同型矩阵：行数和列数都相等的两个矩阵", "特殊矩阵：方阵、行矩阵、列矩阵、零矩阵、单位矩阵 $E$、对角矩阵"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["已学运算：同型矩阵加减法（对应元素相加减）", "已学运算：数乘矩阵（数字乘到矩阵每个元素上）"], "is_accent": false}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "矩阵乘法的运算规则", "speaker_notes": "现在我们学习矩阵乘法的核心运算规则，这是本节的重点内容", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["前提条件：左边矩阵的列数 = 右边矩阵的行数，即 $A_{m \\times s} \\cdot B_{s \\times n} = C_{m \\times n}$", "运算方法：结果矩阵 $C$ 的元素 $c_{ij} = \\sum_{k=1}^s a_{ik}b_{kj}$，即左矩阵第 $i$ 行与右矩阵第 $j$ 列对应元素相乘再求和"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["运算示例：$$\\begin{pmatrix}a_{1}&a_{2} \\\\b_{1}&b_{2} \\end{pmatrix}\\begin{pmatrix} c_{1}&c_{2}&c_{3} \\\\ d_{1}&d_{2}&d_{3} \\end{pmatrix}= \\begin{pmatrix}a_{1}c_{1}+a_{2}d_{1}&a_{1}c_{2}+a_{2}d_{2}&a_{1}c_{3}+a_{2}d_{3} \\\\b_{1}c_{1}+b_{2}d_{1}&b_{1}c_{2}+b_{2}d_{2}&b_{1}c_{3}+b_{2}d_{3}\\end{pmatrix}$$"], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "矩阵乘法的核心性质", "speaker_notes": "矩阵乘法和普通数字乘法有很多不同，这些性质是考试的常考点，需要重点记忆", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["❌ 不满足交换律：一般情况下 $AB \\neq BA$，连乘时不能交换因子顺序", "⚠️ 两个非零矩阵的乘积可能是零矩阵", "✅ 满足结合律：$(AB)C = A(BC)$", "✅ 满足分配律：$A(B+C)=AB+AC$，$(B+C)A=BA+CA$（分配时位置不能交换）"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["特殊矩阵性质：单位矩阵 $E$ 满足 $EA=AE=A$，与 $B$ 同阶的数量矩阵 $aE$ 满足 $(aE)B = aB$", "可交换矩阵：仅同阶方阵可能可交换，同阶对角矩阵一定可交换"], "is_accent": true}]}
-{"__type": "page", "page_index": 5, "layout_type": "two_column", "title": "典型例题1：基础乘法运算", "speaker_notes": "我们通过两道基础例题来巩固矩阵乘法的运算规则", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["例题1：已知 $A=\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$，$B=\\begin{pmatrix}5&6\\\\7&8\\end{pmatrix}$，求 $AB$ 和 $BA$", "解：$$AB = \\begin{pmatrix}1 \\times 5 + 2 \\times 7 & 1 \\times 6 + 2 \\times 8 \\\\ 3 \\times 5 + 4 \\times7 & 3 \\times6 +4 \\times8 \\end{pmatrix} = \\begin{pmatrix}19&22\\\\43&50\\end{pmatrix}$$", "$$BA = \\begin{pmatrix}5 \\times1 +6 \\times3 &5 \\times2 +6 \\times4 \\\\7 \\times1 +8 \\times3 &7 \\times2 +8 \\times4 \\end{pmatrix} = \\begin{pmatrix}23&34\\\\31&46\\end{pmatrix}$$", "可见 $AB \\neq BA$，验证了矩阵乘法不满足交换律"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["例题2：已知 $A=\\begin{pmatrix}1&-1\\\\-1&1\\end{pmatrix}$，$B=\\begin{pmatrix}1&1\\\\1&1\\end{pmatrix}$，求 $AB$", "解：$$AB = \\begin{pmatrix}1 \\times1 + (-1) \\times1 & 1 \\times1 + (-1) \\times1 \\\\ -1 \\times1 +1 \\times1 & -1 \\times1 +1 \\times1 \\end{pmatrix} = \\begin{pmatrix}0&0\\\\0&0\\end{pmatrix}$$", "可见两个非零矩阵的乘积可以是零矩阵"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "minimal_list", "title": "典型例题2：方阵的幂运算", "speaker_notes": "接下来我们学习进阶的方阵幂运算例题，这是考试的高频题型", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["例题：已知 $A=\\begin{pmatrix}2&4&-6 \\\\1&2&-3 \\\\4&8&-12\\end{pmatrix}$，求 $A^{100}$", "解题思路：观察矩阵特征，可将其拆分为列矩阵乘行矩阵的形式"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["解：令 $\\alpha = \\begin{pmatrix}2\\\\1\\\\4\\end{pmatrix}$，$\\beta = \\begin{pmatrix}1&2&-3\\end{pmatrix}$，则 $A = \\alpha\\beta$", "先计算 $\\beta\\alpha = 1 \\times2 + 2 \\times1 + (-3) \\times4 = -8$", "因此 $A^{100} = (\\alpha\\beta)^{100} = \\alpha(\\beta\\alpha)^{99}\\beta = (-8)^{99} \\alpha\\beta = -8^{99}A = \\begin{pmatrix}-2 \\times8^{99}&-4 \\times8^{99}&6 \\times8^{99} \\\\ -8^{99}&-2 \\times8^{99}&3 \\times8^{99} \\\\ -4 \\times8^{99}&-8 \\times8^{99}&12 \\times8^{99}\\end{pmatrix}$"], "is_accent": true}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "拓展延伸：相关运算性质", "speaker_notes": "最后我们补充和矩阵乘法相关的转置、行列式、逆矩阵的运算性质，形成完整的知识体系", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["转置性质：$(AB)^T = B^T A^T$，$(A^k)^T = (A^T)^k$", "行列式性质：$|AB| = |A| \\cdot |B|$，$|A^k| = |A|^k$", "逆矩阵性质：若 $A,B$ 可逆，则 $(AB)^{-1} = B^{-1}A^{-1}$"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["解题技巧：做矩阵乘法相关题目时优先观察是否可拆分、是否有特殊矩阵（单位矩阵、对角矩阵）简化运算", "注意事项：所有左乘/右乘操作不能随意交换位置，涉及逆矩阵时需先证明可逆"], "is_accent": true}]}
-{"__type": "page", "page_index": 8, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "我们来回顾一下本次课程的核心内容", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["掌握矩阵乘法的前提条件和运算规则", "牢记矩阵乘法的特殊性：不满足交换律、非零矩阵乘积可零", "熟练掌握基础乘法、方阵幂运算的典型题型解法", "熟悉矩阵乘法和转置、行列式、逆矩阵的结合运算性质"], "is_accent": false}]}
+{"__type": "theme", "name": "物理专业风", "bg_color": "#1E293B", "primary": "#93C5FD", "secondary": "#64748B", "accent": "#FBBF24", "text_color": "#F8FAFC"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "刚体运动规律", "speaker_notes": "今天我们来学习刚体的相关运动规律，首先明确刚体是力学中一个重要的理想模型，和质点一样是我们简化物理问题的重要工具。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 | 力学模块"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "基础概念与运动分类", "speaker_notes": "首先我们先明确刚体的定义，以及刚体的两种基本运动形式。", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["▌刚体定义：在力的作用下，任意两点间距离始终保持不变的物体，是无变形的理想力学模型。"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "left", "content": ["平动：运动过程中刚体任意两点连线始终平行，所有质点运动状态完全一致，可简化为质点分析", "转动：刚体所有点绕同一条转轴做圆周运动，分为两类：", "• 定轴转动：转轴固定不动，如齿轮、风扇转动", "• 定点转动：转轴上一点固定，转轴方向随时间变化，如陀螺转动"], "is_accent": false}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "定轴转动核心物理量", "speaker_notes": "接下来我们学习定轴转动对应的核心物理量，和质点的线物理量是对应的。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角速度：右手螺旋判定方向，公式为 $\vec{\omega}=\\frac{d\vec{\\theta}}{dt}$", "角加速度：角速度的变化率，公式为 $\vec{\\alpha}=\\frac{d\vec{\omega}}{dt}$", "加速度与角量关系：切向加速度 $\vec{a_{t}}=\vec{\\alpha}\\times\vec{r}$，法向加速度 $\vec{a_{n}}=\vec{\omega}\\times\vec{v}$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "刚体定轴转动角速度角加速度示意图", "alt": "刚体定轴转动示意图", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "转动惯量", "speaker_notes": "转动惯量是刚体转动中对应质点质量的物理量，描述转动的惯性大小。", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["▌定义：刚体对定轴的转动惯量是广延量，公式为 $J=\int_{V}r^2dm$，与刚体质量分布、转轴位置有关。"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "left", "content": ["▌平行轴定理：若已知刚体对过质心转轴的转动惯量$J_c$，则对与该轴平行、距离为$d$的转轴的转动惯量为 $J=J_{c}+md^2$，可快速推导不同转轴下的转动惯量。"], "is_accent": true}, {"element_id": "e3", "type": "text_block", "position": "left", "content": ["常见刚体转动惯量：细杆过中点$\frac{1}{12}mL^2$、圆柱过中心轴$\frac{1}{2}mR^2$、球体过直径$\frac{2}{5}mR^2$"], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "minimal_list", "title": "刚体角动量定理与能量关系", "speaker_notes": "接下来我们学习刚体转动的核心定理，和质点的动量定理、动能定理是对应的。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角动量：刚体转动的角动量为 $L=J\omega$", "角动量定理：合外力矩等于角动量的变化率 $M=\\frac{dL}{dt}=J\\alpha$，是转动的核心动力学方程", "力矩的功：力矩对空间的积累为 $W=\int_{0}^{\\theta_{0}}Md\\theta$", "功率：力矩的瞬时功率为 $P=M\omega$", "转动动能：刚体转动的动能为 $E_{k}=\\frac{1}{2}J\omega^2$"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "two_column", "title": "拓展：进动现象", "speaker_notes": "最后我们来看一个定点转动的典型应用：陀螺的进动现象。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["现象：高速旋转的陀螺倾斜时不会倒下，转轴会绕竖直轴缓慢转动", "原理：重力对接触点产生力矩 $\vec{M}=\vec{r}_{c}\\times m\vec{g}$，力矩方向与角动量垂直，仅改变角动量方向不改变大小", "进动角速度：$\Omega=\\frac{r_{c}mg}{J\omega}$，陀螺自转角速度越快，进动角速度越小"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "陀螺进动现象原理示意图", "alt": "陀螺进动示意图", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "我们来回顾一下本节课的核心知识点。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["掌握刚体、平动、定轴/定点转动的基本概念", "熟悉定轴转动的角量描述，以及转动惯量的定义与平行轴定理", "掌握角动量定理、转动动能等核心公式的应用", "了解进动现象的原理与定量推导"], "is_accent": false}]}
 {"__type": "word_start"}
-# 矩阵乘法运算讲义
-## 一、前置基础回顾
-### 1. 基本矩阵概念
-- 矩阵是由 $m \times n$ 个数排成的 $m$ 行 $n$ 列数表，记作 $A_{m \times n}$，其中 $m$ 是行数，$n$ 是列数。
-- 同型矩阵：两个矩阵的行数和列数都完全相等。
-- 特殊矩阵：
-  - 方阵：行数等于列数的矩阵，可按阶数称呼，如2阶方阵、3阶方阵。
-  - 单位矩阵 $E$：主对角线元素全为1，其余元素全为0的方阵，满足 $EA=AE=A$，是矩阵乘法中的"单位元"，类似数字乘法中的1。
-  - 对角矩阵：仅主对角线有非零元素，其余元素全为0的方阵，记作 $diag(a_1,a_2,\dots,a_n)$。
-  - 零矩阵：所有元素都为0的矩阵，不同形状的零矩阵不相等。
+## 刚体运动规律课程讲义
+### 一、基础概念
+刚体是力学中的理想模型，定义为受力作用时内部任意两点距离始终不变的物体，不存在形变，可大幅简化运动分析。
+刚体的基本运动分为两类：
+1. 平动：刚体上任意两点的连线始终保持平行，所有质点的运动状态完全相同，可直接用质点运动规律分析。
+2. 转动：刚体所有点绕同一条转轴做圆周运动，转轴固定时为定轴转动（如风扇、齿轮），转轴仅一点固定、方向随时间变化时为定点转动（如陀螺）。
 
-### 2. 已学简单运算
-- 矩阵加减法：仅同型矩阵可进行，对应位置元素相加减，即 $A \pm B$ 的元素为 $a_{ij} \pm b_{ij}$。
-- 数乘矩阵：数字 $k$ 乘到矩阵的每个元素上，即 $kA$ 的元素为 $ka_{ij}$。
+### 二、定轴转动的物理量描述
+定轴转动使用角量描述运动状态，与质点的线物理量一一对应：
+- 角速度$\vec{\omega}$：描述转动快慢与方向，由右手螺旋定则判定方向，公式$\vec{\omega}=\frac{d\vec{\theta}}{dt}$。
+- 角加速度$\vec{\alpha}$：描述角速度的变化率，公式$\vec{\alpha}=\frac{d\vec{\omega}}{dt}$。
+- 角量与线量的关系：切向加速度$\vec{a_{t}}=\vec{\alpha}\times\vec{r}$，法向加速度$\vec{a_{n}}=\vec{\omega}\times\vec{v}$。
 
----
-## 二、矩阵乘法的核心规则
-### 1. 运算前提
-两个矩阵可以相乘的前提是：**左边矩阵的列数 = 右边矩阵的行数**。
-即如果 $A$ 是 $m \times s$ 矩阵，$B$ 是 $s \times n$ 矩阵，那么二者可以相乘，结果 $C=AB$ 是 $m \times n$ 矩阵。
+### 三、转动惯量
+转动惯量是描述刚体转动惯性的物理量，对应平动中的质量，定义为$J=\int_{V}r^2dm$，大小与刚体的质量分布、转轴位置有关。
+常用的平行轴定理可快速计算不同转轴下的转动惯量：若已知刚体对过质心的转轴的转动惯量为$J_c$，则对与该轴平行、间距为$d$的转轴的转动惯量为$J=J_c+md^2$。
+常见刚体的转动惯量：
+- 细杆过中点转轴：$J=\frac{1}{12}mL^2$
+- 均质圆柱过中心轴：$J=\frac{1}{2}mR^2$
+- 均质球体过直径：$J=\frac{2}{5}mR^2$
 
-### 2. 运算方法
-结果矩阵 $C$ 中第 $i$ 行第 $j$ 列的元素 $c_{ij}$，等于左边矩阵 $A$ 的第 $i$ 行元素，与右边矩阵 $B$ 的第 $j$ 列元素，按顺序对应相乘后求和：
-$$c_{ij} = a_{i1}b_{1j} + a_{i2}b_{2j} + \dots + a_{is}b_{sj} = \sum_{k=1}^s a_{ik}b_{kj}$$
+### 四、刚体角动量定理与能量规律
+1. 角动量：刚体定轴转动的角动量为$L=J\omega$，是描述转动状态的守恒量（合外力矩为零时角动量守恒）。
+2. 角动量定理：合外力矩等于角动量的变化率，即$M=\frac{dL}{dt}=J\alpha$，是转动的核心动力学方程，对应平动中的牛顿第二定律。
+3. 能量相关：
+   - 力矩的功：力矩对空间的积累效应，$W=\int_{0}^{\theta_0}Md\theta$
+   - 功率：力矩的瞬时功率$P=M\omega$
+   - 转动动能：刚体转动的动能为$E_k=\frac{1}{2}J\omega^2$
 
-示例运算：
-$$\begin{pmatrix}a_{1}&a_{2} \\b_{1}&b_{2} \end{pmatrix}\begin{pmatrix} c_{1}&c_{2}&c_{3} \\ d_{1}&d_{2}&d_{3} \end{pmatrix}= \begin{pmatrix}
-a_{1}c_{1}+a_{2}d_{1}&a_{1}c_{2}+a_{2}d_{2}&a_{1}c_{3}+a_{2}d_{3} \\
-b_{1}c_{1}+b_{2}d_{1}&b_{1}c_{2}+b_{2}d_{2}&b_{1}c_{3}+b_{2}d_{3}
-\end{pmatrix}$$
-这里左矩阵是2行2列，右矩阵是2行3列，结果是2行3列的矩阵。
-
----
-## 三、矩阵乘法的核心性质
-矩阵乘法和普通数字乘法有显著差异，这些性质是考试高频考点，需要重点区分：
-1. **不满足交换律**：一般情况下 $AB \neq BA$，因此矩阵连乘时绝对不能随意交换因子的顺序。只有特殊的"可交换矩阵"满足 $AB=BA$，可交换矩阵一定是同阶方阵，且最常见的可交换矩阵是同阶对角矩阵。
-2. **非零矩阵乘积可为零矩阵**：即使 $A \neq O$、$B \neq O$，也可能出现 $AB = O$ 的情况，因此不能由 $AB=O$ 直接推出 $A=O$ 或 $B=O$。
-3. **满足结合律**：$(AB)C = A(BC)$，多个矩阵连乘时可以先计算任意相邻两个的乘积，不改变最终结果。
-4. **满足分配律**：左分配律 $A(B+C)=AB+AC$，右分配律 $(B+C)A=BA+CA$，注意分配时矩阵的左右位置不能交换。
-5. 特殊矩阵性质：与同阶数量矩阵 $aE$ 相乘时，$(aE)B = aB$，相当于数字直接乘到矩阵上，此时数字可以提前。
-
----
-## 四、典型例题解析
-### 例题1：基础乘法运算
-**题目**：已知 $A=\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$，$B=\begin{pmatrix}5&6\\\\7&8\\end{pmatrix}$，求 $AB$ 和 $BA$。
-
-**解**：
-按照"左行乘右列"的规则计算：
-$$AB = \begin{pmatrix}1 \times 5 + 2 \times 7 & 1 \times 6 + 2 \times 8 \\\\ 3 \times 5 + 4 \times7 & 3 \times6 +4 \times8 \\end{pmatrix} = \begin{pmatrix}5+14&6+16\\\\15+28&18+32\\end{pmatrix} = \begin{pmatrix}19&22\\\\43&50\\end{pmatrix}$$
-$$BA = \begin{pmatrix}5 \times1 +6 \times3 &5 \times2 +6 \times4 \\\\7 \times1 +8 \times3 &7 \times2 +8 \times4 \\end{pmatrix} = \begin{pmatrix}5+18&10+24\\\\7+24&14+32\\end{pmatrix} = \begin{pmatrix}23&34\\\\31&46\\end{pmatrix}$$
-显然 $AB \neq BA$，直接验证了矩阵乘法不满足交换律。
-
----
-### 例题2：非零矩阵乘为零矩阵
-**题目**：已知 $A=\\begin{pmatrix}1&-1\\\\-1&1\\end{pmatrix}$，$B=\\begin{pmatrix}1&1\\\\1&1\\end{pmatrix}$，求 $AB$。
-
-**解**：
-计算得：
-$$AB = \begin{pmatrix}1 \times1 + (-1) \times1 & 1 \times1 + (-1) \times1 \\\\ -1 \times1 +1 \times1 & -1 \times1 +1 \times1 \\end{pmatrix} = \begin{pmatrix}1-1&1-1\\\\-1+1&-1+1\\end{pmatrix} = \begin{pmatrix}0&0\\\\0&0\\end{pmatrix}$$
-这里 $A$ 和 $B$ 都不是零矩阵，但乘积为零矩阵，验证了该特殊性质。
+### 五、拓展：进动现象
+进动是定点转动的典型现象，高速旋转的陀螺倾斜时不会倒下，转轴会绕竖直轴缓慢转动。原理为：陀螺倾斜时，重力对接触点产生力矩$\vec{M}=\vec{r}_c\times m\vec{g}$，力矩方向与陀螺的自转角动量方向垂直，因此仅改变角动量的方向、不改变大小，最终表现为转轴的圆周运动。
+进动角速度公式为$\Omega=\frac{r_c mg}{J\omega}$，陀螺自转角速度越快，进动角速度越小，稳定性越高。
+{"__type": "done"}

@@ -52,7 +52,10 @@ def _get_image_vector_store(collection_name: str):
 def _store_image_vector(collection_name: str, image_id: str,
                         text: str, metadata: dict) -> str:
     """将图片描述文本向量化并存入指定集合。"""
-    from langchain.schema import Document as LCDoc
+    try:
+        from langchain_core.documents import Document as LCDoc
+    except ImportError:
+        from langchain.schema import Document as LCDoc  # fallback for older versions
     store = _get_image_vector_store(collection_name)
     doc = LCDoc(page_content=text, metadata={**metadata, "image_id": image_id})
     store.add_documents([doc], ids=[image_id])

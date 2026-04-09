@@ -135,21 +135,13 @@ def list_user_images(
 @router.get("/{image_id}/preview")
 def preview_user_image(
     image_id: str,
-    token: str = Query(default=None, description="JWT token（可选，用于 <img src> 等不支持 header 的场景）"),
-    current_user: User = Depends(deps.get_current_user_optional),
     db: Session = Depends(deps.get_db),
 ):
-    # 若 header 鉴权失败但提供了 ?token=，尝试用 token 校验
-    if current_user is None and token:
-        from app.api.deps import get_user_from_token
-        current_user = get_user_from_token(token, db)
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    img = db.query(UserImage).filter(
-        UserImage.id == image_id,
-        UserImage.user_id == current_user.id
-    ).first()
+    """图片预览（无需鉴权）。
+    image_id 为随机 hex 字符串，本身具备不可猜测性，展示场景下无需额外鉴权。
+    这样前端 <img src=""> 和 PPT 导出均可直接使用。
+    """
+    img = db.query(UserImage).filter(UserImage.id == image_id).first()
     if not img or not os.path.exists(img.file_path):
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(img.file_path, media_type=img.mime_type)
