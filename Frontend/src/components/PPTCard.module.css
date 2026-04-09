@@ -600,3 +600,73 @@
 .placeholderIcon {
   opacity: 0.3;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   AI 修改中 — 覆盖层动画
+   ─────────────────────────────────────────────────────────── */
+.updatingOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* 半透明紫色蒙层 */
+  background: rgba(99, 102, 241, 0.05);
+  border: 2px solid rgba(99, 102, 241, 0.45);
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 扫光线：从上到下扫过整张卡片 */
+.scanLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.6) 30%,
+    rgba(139, 92, 246, 0.9) 50%,
+    rgba(99, 102, 241, 0.6) 70%,
+    transparent 100%
+  );
+  filter: blur(2px);
+  animation: pptScan 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pptScan {
+  0%   { top: -4px; opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* 底部"AI 修改中"胶囊标签 */
+.updatingBadge {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow:
+    0 4px 16px rgba(99, 102, 241, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45), 0 0 0 1px rgba(255,255,255,0.15) inset; }
+  50%       { box-shadow: 0 6px 24px rgba(99, 102, 241, 0.65), 0 0 0 1px rgba(255,255,255,0.2) inset; }
+}
