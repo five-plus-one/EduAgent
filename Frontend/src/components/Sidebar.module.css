@@ -191,18 +191,65 @@
 
 .footer {
   margin-top: auto;
-  padding-top: 24px;
+  padding-top: 12px;
   border-top: 1px solid rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Prominent asset management entry ── */
+.assetButtonRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.09), rgba(139, 92, 246, 0.06));
+  color: var(--accent-primary, #6366f1);
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.assetButtonRow:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.12));
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
+}
+
+/* Active state when on /assets route */
+.assetButtonRowActive {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(139, 92, 246, 0.14)) !important;
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25) !important;
+  color: var(--accent-primary, #6366f1) !important;
+}
+
+.assetBadge {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-tertiary, #94a3b8);
+  background: rgba(99, 102, 241, 0.08);
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
 }
 
 .profileBtn {
   width: 100%;
   justify-content: flex-start;
-  padding: 14px;
+  padding: 10px 14px;
   color: var(--text-primary);
   position: relative;
   background: transparent;
   gap: 12px;
+  border-radius: var(--radius-md, 10px);
 }
 
 .profileBtn:hover {
@@ -234,32 +281,7 @@
   font-weight: 500;
 }
 
-/* Asset management button (LayoutGrid) */
-.assetBtn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-sm);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s, color 0.2s, background 0.2s;
-}
-
-.profileBtn:hover .assetBtn {
-  opacity: 1;
-}
-
-.assetBtn:hover {
-  color: var(--accent-primary);
-  background: rgba(99, 102, 241, 0.1);
-}
-
-/* Logout button */
+/* Asset button (LayoutGrid) — REMOVED (now standalone assetButtonRow above) */
 .logoutBtn {
   flex-shrink: 0;
   display: flex;

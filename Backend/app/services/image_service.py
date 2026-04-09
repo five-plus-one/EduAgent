@@ -52,7 +52,10 @@ def _get_image_vector_store(collection_name: str):
 def _store_image_vector(collection_name: str, image_id: str,
                         text: str, metadata: dict) -> str:
     """将图片描述文本向量化并存入指定集合。"""
-    from langchain.schema import Document as LCDoc
+    try:
+        from langchain_core.documents import Document as LCDoc
+    except ImportError:
+        from langchain.schema import Document as LCDoc  # fallback for older versions
     store = _get_image_vector_store(collection_name)
     doc = LCDoc(page_content=text, metadata={**metadata, "image_id": image_id})
     store.add_documents([doc], ids=[image_id])
@@ -74,18 +77,20 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     按自然语言 query 搜索最匹配的图片。
     优先搜用户个人图库，若无匹配则搜默认图库。
     返回 resolved 字典，或 None（无匹配时调用方应丢弃该 image element）。
+
+    注意：ChromaDB 的 filter= 参数会绕开 HNSW 索引导致分数错乱，
+    因此先取 top-K 无过滤结果，再在 Python 层按 user_id 过滤。
     """
-    # 1. 搜用户个人图库
+    # 1. 搜用户个人图库（Python 层过滤 user_id）
     try:
         store = _get_image_vector_store(_COLLECTION_USER)
-        results = store.similarity_search_with_relevance_scores(
-            query, k=1,
-            filter={"user_id": user_id}
-        )
-        if results:
-            doc, score = results[0]
-            if score >= _THRESHOLD_USER:
+        # 取足够多的候选，以便后续 Python 过滤仍有结果
+        candidates = store.similarity_search_with_relevance_scores(query, k=50)
+        # Python 层过滤：只保留属于该用户且分数达标的
+        for doc, score in candidates:
+            if doc.metadata.get("user_id") == user_id and score >= _THRESHOLD_USER:
                 img_id = doc.metadata.get("image_id", "")
+                logger.info(f"[search_image] user match: score={score:.4f} img={img_id}")
                 return {
                     "image_id": img_id,
                     "preview_url": f"/api/v1/users/me/images/{img_id}/preview",
@@ -95,14 +100,15 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     except Exception as e:
         logger.warning(f"[image_service] user image search error: {e}")
 
-    # 2. 搜默认图库
+    # 2. 搜默认图库（同样不用 filter，全量搜索后判断分数）
     try:
         store = _get_image_vector_store(_COLLECTION_LIBRARY)
-        results = store.similarity_search_with_relevance_scores(query, k=1)
+        results = store.similarity_search_with_relevance_scores(query, k=5)
         if results:
             doc, score = results[0]
             if score >= _THRESHOLD_LIBRARY:
                 lib_id = doc.metadata.get("image_id", "")
+                logger.info(f"[search_image] library match: score={score:.4f} img={lib_id}")
                 return {
                     "image_id": lib_id,
                     "preview_url": f"/api/v1/admin/image-library/{lib_id}/preview",
