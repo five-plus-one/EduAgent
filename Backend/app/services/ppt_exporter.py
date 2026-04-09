@@ -1935,11 +1935,13 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
     # 1) 确定要插入的图片本地路径
     image_path = None
     resolved = elem.get("resolved")
+    logger.info(f"[image_elem] rendering: alt={elem.get('alt','')[:30]} resolved={bool(resolved)}")
 
     if resolved and isinstance(resolved, dict):
         # 流式生成时，resolved 携带了 image_id，通过 image_id 找本地路径
         image_id = resolved.get("image_id", "")
-        source   = resolved.get("source", "session")
+        source   = resolved.get("source", "user")
+        logger.info(f"[image_elem] image_id={image_id} source={source}")
         if image_id:
             try:
                 from app.db.session import SessionLocal
@@ -1950,15 +1952,24 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
                         rec = _db.query(ImageLibrary).filter(ImageLibrary.id == image_id).first()
                     else:  # source == "user"
                         rec = _db.query(UserImage).filter(UserImage.id == image_id).first()
-                    if rec and rec.file_path and os.path.exists(rec.file_path):
-                        image_path = rec.file_path
+                    if rec:
+                        if rec.file_path and os.path.exists(rec.file_path):
+                            image_path = rec.file_path
+                            logger.info(f"[image_elem] file found: {image_path}")
+                        else:
+                            logger.warning(f"[image_elem] file missing: {rec.file_path}")
+                    else:
+                        logger.warning(f"[image_elem] DB record not found for {image_id}")
                 finally:
                     _db.close()
             except Exception as _e:
                 logger.warning(f"[image_elem] DB lookup failed: {_e}")
+    else:
+        logger.info(f"[image_elem] no resolved dict, will render placeholder")
 
     if image_path is None:
         # 没有找到图片：绘制灰色占位框
+        logger.info(f"[image_elem] rendering placeholder (no image_path)")
         _render_image_placeholder(slide, elem, col_x, col_w, colors)
         return
 
