@@ -390,6 +390,17 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
           </button>
         </div>
       )}
+
+      {/* AI 修改中 overlay ── 扫光动画 + 胶囊标签 */}
+      {isUpdating && (
+        <div className={styles.updatingOverlay}>
+          <div className={styles.scanLine} />
+          <div className={styles.updatingBadge}>
+            <Loader2 size={14} className={styles.spinner} />
+            <span>AI 修改中...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

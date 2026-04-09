@@ -222,6 +222,14 @@
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
 }
 
+/* Active state when on /assets route */
+.assetButtonRowActive {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(139, 92, 246, 0.14)) !important;
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25) !important;
+  color: var(--accent-primary, #6366f1) !important;
+}
+
 .assetBadge {
   margin-left: auto;
   font-size: 0.72rem;

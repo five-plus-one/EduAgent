@@ -12,7 +12,6 @@ import { clsx } from 'clsx';
 import styles from './Sidebar.module.css';
 import { useAppStore } from '../store/useAppStore';
 import { logout, listSessions, createSession } from '../utils/api';
-import type { AssetTab } from './AssetDrawer';
 
 interface SessionItem {
   session_id: string;
@@ -20,13 +19,9 @@ interface SessionItem {
   updated_at: string;
 }
 
-interface SidebarProps {
-  onOpenAsset: (tab: AssetTab) => void;
-}
-
 const PAGE_SIZE = 20;
 
-export default function Sidebar({ onOpenAsset }: SidebarProps) {
+export default function Sidebar() {
   const navigate = useNavigate();
   const user = useAppStore((state) => state.user);
   const clearUser = useAppStore((state) => state.clearUser);
@@ -228,16 +223,18 @@ export default function Sidebar({ onOpenAsset }: SidebarProps) {
       {/* Footer — asset entry + user profile -------------------------------- */}
       <div className={styles.footer}>
         {/* ── Prominent asset management entry ── */}
-        <button
+        <NavLink
+          to="/assets"
           id="sidebar-asset-btn"
-          className={styles.assetButtonRow}
-          onClick={() => onOpenAsset('knowledge')}
+          className={({ isActive }) =>
+            clsx(styles.assetButtonRow, isActive && styles.assetButtonRowActive)
+          }
           aria-label="打开素材管理"
         >
           <LayoutGrid size={16} />
           <span>素材管理</span>
           <span className={styles.assetBadge}>知识库 & 图片</span>
-        </button>
+        </NavLink>
 
         {/* ── User profile + logout ── */}
         <div className={clsx('button-base', styles.profileBtn)}>

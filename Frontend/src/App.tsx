@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import WorkspaceLayout from './layouts/WorkspaceLayout';
 import Workspace from './pages/Workspace';
-import KnowledgeBase from './pages/KnowledgeBase';
+import AssetPage from './pages/AssetPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { useAppStore } from './store/useAppStore';
@@ -79,7 +79,7 @@ function App() {
         <Route path="/" element={<ProtectedRoute><Navigate to="/chat/new" replace /></ProtectedRoute>} />
         <Route element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>}>
           <Route path="chat/:sessionId" element={<Workspace />} />
-          <Route path="knowledge" element={<KnowledgeBase />} />
+          <Route path="assets" element={<AssetPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
