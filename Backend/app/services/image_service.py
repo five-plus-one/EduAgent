@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 _COLLECTION_USER    = "images_user"
 _COLLECTION_LIBRARY = "images_library"
 
-# 相似度阈值
-_THRESHOLD_USER    = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.72))
-_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.68))
+# 相似度阈值 —— 基于文件名文本标注，相似度天然偏低，阈值不宜过高
+_THRESHOLD_USER    = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.45))
+_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.40))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,8 +84,13 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     # 1. 搜用户个人图库（Python 层过滤 user_id）
     try:
         store = _get_image_vector_store(_COLLECTION_USER)
-        # 取足够多的候选，以便后续 Python 过滤仍有结果
-        candidates = store.similarity_search_with_relevance_scores(query, k=50)
+        # 获取向量数量，避免 k 超过集合大小导致 ChromaDB 退化为负分线性搜索
+        try:
+            n_total = store._collection.count()
+        except Exception:
+            n_total = 50
+        k = max(1, min(n_total, 30))  # 不超过集合大小，最多 30
+        candidates = store.similarity_search_with_relevance_scores(query, k=k)
         # Python 层过滤：只保留属于该用户且分数达标的
         for doc, score in candidates:
             if doc.metadata.get("user_id") == user_id and score >= _THRESHOLD_USER:
@@ -103,7 +108,12 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     # 2. 搜默认图库（同样不用 filter，全量搜索后判断分数）
     try:
         store = _get_image_vector_store(_COLLECTION_LIBRARY)
-        results = store.similarity_search_with_relevance_scores(query, k=5)
+        try:
+            n_total = store._collection.count()
+        except Exception:
+            n_total = 50
+        k = max(1, min(n_total, 10))
+        results = store.similarity_search_with_relevance_scores(query, k=k)
         if results:
             doc, score = results[0]
             if score >= _THRESHOLD_LIBRARY:
