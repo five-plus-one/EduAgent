@@ -57,8 +57,14 @@ async def upload_user_image(
     if len(content) > _MAX_SIZE:
         raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit")
 
-    img_id = "img_" + uuid.uuid4().hex[:8]
+    # ── 生成本用户唯一的顺序编号显示名 ──
+    existing_count = db.query(UserImage).filter(UserImage.user_id == current_user.id).count()
+    seq_num = existing_count + 1
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+    display_name = f"img_{seq_num:04d}{ext}"   # e.g. img_0001.jpg，每用户唯一顺序编号
+
+    # ── 物理文件用 UUID 命名（防冲突）──
+    img_id = "img_" + uuid.uuid4().hex[:8]
     safe_name = f"{img_id}{ext}"
     file_path = os.path.join(_IMAGE_DIR, safe_name)
     with open(file_path, "wb") as f:
@@ -67,7 +73,7 @@ async def upload_user_image(
     img = UserImage(
         id=img_id,
         user_id=current_user.id,
-        filename=file.filename or safe_name,
+        filename=display_name,        # 存顺序编号名，非原始文件名
         file_path=file_path,
         mime_type=mime,
         file_size=len(content),
@@ -77,7 +83,7 @@ async def upload_user_image(
     db.add(img)
     db.commit()
 
-    # 后台异步标注（文本推断式，必定成功）
+    # 后台异步 Vision 标注
     background_tasks.add_task(_run_annotate, img_id)
 
     return {

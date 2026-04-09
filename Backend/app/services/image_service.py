@@ -168,11 +168,13 @@ async def _vision_annotate(file_path: str, filename: str, label: str = "") -> Op
         logger.warning(f"[vision_annotate] file read/resize failed: {e}, fallback to text")
         return await _text_annotate(filename, label)
 
-    label_hint = f"\n用户补充说明：{label}" if label else ""
+    label_hint = f"\n用户补充说明（仅供参考）：{label}" if label else ""
     user_prompt = (
-        f"请分析这张教学图片，文件名为「{filename}」。{label_hint}\n\n"
+        "请仔细观察这张教学图片的视觉内容，给出标注。\n"
+        "【重要】只能根据你实际看到的图片画面进行描述，绝对不能参考文件名、路径或任何元数据。"
+        + label_hint + "\n\n"
         "输出严格 JSON（不要 markdown 代码块）：\n"
-        '{"description": "一句话精准描述图片核心内容（30字以内）", '
+        '{"description": "一句话精准描述图片核心内容（30字以内，基于纯视觉理解）", '
         '"tags": ["检索标签1", "检索标签2", "检索标签3", "检索标签4", "检索标签5"]}'
     )
     payload = {
@@ -219,15 +221,13 @@ async def _vision_annotate(file_path: str, filename: str, label: str = "") -> Op
 
 
 async def _text_annotate(filename: str, label: str = "") -> Optional[dict]:
-    """降级标注：使用纯文本 LLM 根据文件名和标签推断图片内容。"""
+    """降级标注：Vision 失败时的最后兜底，仅使用用户标签（若有）作为推断依据。"""
     model = settings.LLM_MODEL
-    logger.info(f"[text_annotate] fallback: model={model} filename={filename}")
+    logger.info(f"[text_annotate] fallback: model={model}")
     hint_parts = []
     if label:
         hint_parts.append(f"用户标签：{label}")
-    base = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ")
-    if base and not base.startswith("img_"):
-        hint_parts.append(f"文件名提示：{base}")
+    # NOTE: 不再使用文件名推断——文件名已改为顺序编号（img_0001），不含任何语义信息
     prompt = (
         "你是一个专业的教学图片标注助手。根据以下信息推断图片内容，以中文输出：\n"
         + ("\n".join(hint_parts) if hint_parts else "（无额外提示，请给出通用教学图片标注）")
