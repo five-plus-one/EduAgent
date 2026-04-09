@@ -404,7 +404,6 @@
 }
 
 .pptCard:hover {
-  transform: translateY(-4px) scale(1.01);
   box-shadow: var(--shadow-md);
 }
 
