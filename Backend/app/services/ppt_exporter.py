@@ -586,6 +586,59 @@ def _append_omml_for_expr(parent, latex: str, m_ns: str,
             i = cmd_end
             continue
 
+        # ─── Accent decorators: \vec{r}, \hat{x}, \bar{v}, \dot{x}, \ddot{x}, \tilde{} ─
+        # Rendered as <m:acc> element so they display visually correctly in PPT
+        _ACC_MAP = {
+            'vec':  '⃗',    # combining right arrow above → use acc chr
+            'hat':  'ˆ',   # combining circumflex
+            'bar':  '‾',   # overline
+            'dot':  '˙',   # dot above
+            'ddot': '¨',   # double dot
+            'tilde':'˜',   # tilde
+            'overline': '‾',
+            'underline': '_',
+            'overrightarrow': '⃗',
+            'boldsymbol': None,  # just recurse into arg
+            'mathbf':     None,
+            'mathrm':     None,
+            'mathit':     None,
+            'text':       None,  # \text{word} → emit as text
+        }
+        if cmd is not None and cmd in _ACC_MAP:
+            flush_buf(buf); buf = ''
+            arg_str, j = _parse_tex_arg(latex, cmd_end)
+            acc_chr = _ACC_MAP[cmd]
+            if acc_chr is None:
+                # Transparent wrappers — recurse into argument
+                _append_omml_for_expr(parent, arg_str, m_ns, color_hex)
+            else:
+                # Build <m:acc><m:accPr><m:chr .val=acc_chr/></m:accPr><m:e>…</m:e></m:acc>
+                acc_el = etree.SubElement(parent, f'{{{m}}}acc')
+                accPr  = etree.SubElement(acc_el, f'{{{m}}}accPr')
+                chrEl  = etree.SubElement(accPr, f'{{{m}}}chr')
+                chrEl.set(f'{{{m}}}val', acc_chr)
+                if color_hex:
+                    ctrlPr = etree.SubElement(accPr, f'{{{m}}}ctrlPr')
+                    _rpr = etree.SubElement(ctrlPr, f'{{{A_NS}}}rPr')
+                    _sf  = etree.SubElement(_rpr, f'{{{A_NS}}}solidFill')
+                    _cl  = etree.SubElement(_sf,  f'{{{A_NS}}}srgbClr')
+                    _cl.set('val', color_hex.upper().lstrip('#'))
+                e_inner = etree.SubElement(acc_el, f'{{{m}}}e')
+                _append_omml_for_expr(e_inner, arg_str, m_ns, color_hex)
+            i = j
+            continue
+
+        # ─── \xrightarrow{...} / \xleftarrow{...} → text + arrow ────────────
+        if cmd in ('xrightarrow', 'xleftarrow', 'xRightarrow'):
+            flush_buf(buf); buf = ''
+            arg_str, j = _parse_tex_arg(latex, cmd_end)
+            arrow = '→' if 'right' in (cmd or '').lower() else '←'
+            if arg_str.strip():
+                _text_run(parent, '(' + _simple_sym(arg_str) + ')')
+            _text_run(parent, arrow)
+            i = j
+            continue
+
         # ─── {grouped expression} — recurse into group without braces ────────
         if c == '{':
             flush_buf(buf); buf = ''
@@ -600,13 +653,19 @@ def _append_omml_for_expr(parent, latex: str, m_ns: str,
             i += 1
             continue
 
-        # ─── Unknown command: skip but don't crash ───────────────────────────
+        # ─── Unknown command: emit as best-effort symbol then skip arg ───────
         if c == '\\' and cmd is not None:
             flush_buf(buf); buf = ''
-            # emit command name as text (best-effort)
-            _text_run(parent, cmd)
+            # Try to get {arg} so it's not left dangling in buf
+            has_arg = (cmd_end < len(latex) and latex[cmd_end] == '{')
+            sym = _OMML_SYM.get(cmd, cmd)  # emit symbol if known, else cmd name
+            _text_run(parent, sym)
+            if has_arg:
+                arg_str, cmd_end = _parse_tex_arg(latex, cmd_end)
+                _append_omml_for_expr(parent, arg_str, m_ns, color_hex)
             i = cmd_end
             continue
+
 
         buf += c
         i += 1
@@ -772,7 +831,13 @@ def parse_block_math_env(text: str):
     """
     env_alt = _MATH_ENV_NAMES_RE
     for pat_str, grp_map in [
-        # $$...env...$$  (block display)
+        # ── NEW: $$INNER_PRE\begin{env}...\end{env}$$ ────────────────────────
+        # Handles e.g. $$D_n= \begin{vmatrix}...\end{vmatrix}$$
+        # grp 1=outer_pre, grp 2=inner_pre (between $$ and \begin), grp 3=env,
+        # grp 4=body, grp 5=post
+        (r'(.*?)\$\$([^$\\][^\\]*?)\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\3\}\s*\$\$(.*)',
+         'inner_$$'),
+        # ── $$\begin{env}...$$ (only whitespace between $$ and \begin) ───────
         (r'(.*?)\$\$\s*\\begin\{(' + env_alt + r')\}(.*?)\\end\{\2\}\s*\$\$(.*)',
          (2, 1, 3, 4)),
         # $...env...$  with NOTHING between \end{env} and closing $
@@ -788,17 +853,120 @@ def parse_block_math_env(text: str):
     ]:
         mo = re.compile(pat_str, re.DOTALL).match(text)
         if mo:
+            if grp_map == 'inner_$$':
+                # Special case: combine outer_pre + inner_pre as the full pre_text
+                outer_pre = mo.group(1).strip()
+                inner_pre = mo.group(2).strip()          # e.g. "D_n="
+                env_name  = mo.group(3)
+                body      = mo.group(4)
+                post      = mo.group(5).strip()
+                # Merge outer_pre and inner_pre
+                pre = (outer_pre + ' ' + inner_pre).strip() if outer_pre else inner_pre
+                # Strip any orphan $ signs from pre/post
+                pre  = re.sub(r'\$+\s*$', '', pre).strip()
+                post = re.sub(r'^\s*\$+', '', post).strip()
+                return env_name, pre, body, post
+
             env_g, pre_g, body_g, post_g = grp_map
             if isinstance(post_g, tuple):
                 # two groups make up post: tail inside $...$ + content after closing $
                 post = (mo.group(post_g[0]) + ' ' + mo.group(post_g[1])).strip()
             else:
                 post = mo.group(post_g).strip()
-            # Strip orphan $ left by bare-pattern match
-            pre  = re.sub(r'\$\s*$', '',  mo.group(pre_g).strip()).strip()
-            post = re.sub(r'^\s*\$',  '', post).strip()
+            # Strip ALL orphan $ signs left by bare-pattern or mismatched delimiters
+            pre  = re.sub(r'\$+\s*$', '',  mo.group(pre_g).strip()).strip()
+            post = re.sub(r'^\s*\$+',  '', post).strip()
             return mo.group(env_g), pre, mo.group(body_g), post
     return None
+
+
+def _append_block_math_to_tf(tf, text: str, size: int,
+                              color: 'RGBColor', accent: 'RGBColor') -> None:
+    """
+    Append one or more paragraphs to an existing TextFrame for `text` which may
+    contain multiple \\begin{env}...\\end{env} math environments mixed with prose.
+
+    Algorithm:
+      1. Look for the first recognized math environment in `text`.
+      2. If found: add pPr-paragraph with inline pre_text run + OMML block,
+         then call self recursively for the remaining post_text.
+      3. If not found: add a plain paragraph (inline $...$ → OMML if present,
+         otherwise convert_latex → plain text).
+    """
+    from pptx.util import Pt
+    from lxml import etree
+
+    text = text.strip()
+    if not text:
+        return
+
+    A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
+    M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+    A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
+
+    result = parse_block_math_env(text)
+    if result is None:
+        # No block math environment — try inline $...$ OMML, else plain text
+        p = tf.add_paragraph()
+        if '$' in text and re.search(r'\\[A-Za-z]|[\^_]', text):
+            if not _add_inline_math_para(p._p, text, size, color, accent):
+                _add_rich_para(tf, convert_latex(text), size, color, accent, first=False)
+        else:
+            _add_rich_para(tf, convert_latex(text), size, color, accent, first=False)
+        return
+
+    env_name, pre_text, body, post_text = result
+    post_text = re.sub(r'^[，。、；：！？,;:!\.\s]+', '', post_text).strip()
+
+    env_cfg  = _MATH_BLOCK_ENVS.get(env_name, ('cases', '{', ''))
+    env_type, beg_chr, end_chr = env_cfg
+    color_hex = str(color).upper().lstrip('#')
+
+    # ── New paragraph in the existing textframe ──────────────────────────────
+    p_math = tf.add_paragraph()
+    p_elem = p_math._p
+
+    for existing_pPr in p_elem.findall(f'{{{A_NS}}}pPr'):
+        p_elem.remove(existing_pPr)
+    pPr    = etree.Element(f'{{{A_NS}}}pPr')
+    defRPr = etree.SubElement(pPr, f'{{{A_NS}}}defRPr')
+    defRPr.set('sz', str(size * 100))
+    sf     = etree.SubElement(defRPr, f'{{{A_NS}}}solidFill')
+    clr    = etree.SubElement(sf, f'{{{A_NS}}}srgbClr')
+    clr.set('val', str(color).upper())
+    p_elem.insert(0, pPr)
+
+    # Inline pre_text run (if any)
+    if pre_text:
+        r_pre   = etree.SubElement(p_elem, f'{{{A_NS}}}r')
+        rPr_pre = etree.SubElement(r_pre, f'{{{A_NS}}}rPr')
+        rPr_pre.set('sz', str(size * 100))
+        sf2 = etree.SubElement(rPr_pre, f'{{{A_NS}}}solidFill')
+        cl2 = etree.SubElement(sf2,     f'{{{A_NS}}}srgbClr')
+        cl2.set('val', str(color).upper())
+        t2 = etree.SubElement(r_pre, f'{{{A_NS}}}t')
+        t2.set(XML_SP, 'preserve')
+        t2.text = convert_latex(pre_text) + '\u2009'
+
+    # OMML block
+    raw_lines = re.split(r'\\{1,2}(?![a-zA-Z{\\])', body)
+    lines     = [ln.strip().lstrip('&').strip() for ln in raw_lines if ln.strip()]
+    if env_type == 'cases':
+        omath = _build_cases_omath(lines, color_hex)
+    elif env_type == 'aligned':
+        omath = _build_aligned_omath(lines, color_hex)
+    else:
+        omath = _build_matrix_omath(body, beg_chr, end_chr, color_hex)
+
+    oMathPara = etree.Element(f'{{{M_NS}}}oMathPara', nsmap={'m': M_NS})
+    oMathPara.append(omath)
+    a14_m = etree.SubElement(p_elem, f'{{{A14_NS}}}m', nsmap={'a14': A14_NS, 'm': M_NS})
+    a14_m.append(oMathPara)
+
+    # Recurse for any further math environments in post_text
+    if post_text:
+        _append_block_math_to_tf(tf, post_text, size, color, accent)
 
 
 def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
@@ -806,6 +974,12 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     """Render any recognized \\begin{env}...\\end{env} math block as OMML.
     Handles: cases, aligned, align, align*, matrix, pmatrix, bmatrix, vmatrix, Vmatrix.
     Returns True if handled, False if nothing matched (caller falls back to plain text).
+
+    Rendering rule:
+      - If pre_text exists (e.g. 'D_n ='), it is placed as an inline <a:r> run
+        in the SAME paragraph as the OMML block (same line).
+      - post_text is handled recursively by _append_block_math_to_tf so that
+        additional \\begin{env} blocks in the post_text are also OMML-rendered.
     """
     from pptx.util import Pt
     from lxml import etree
@@ -815,7 +989,7 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
         return False
 
     env_name, pre_text, body, post_text = result
-    post_text = re.sub(r'^[\uff0c\u3002\u3001\uff1b\uff1a\uff01\uff1f,;:!\.\s]+', '', post_text).strip()
+    post_text = re.sub(r'^[，。、；：！？,;:!\.\s]+', '', post_text).strip()
 
     env_cfg  = _MATH_BLOCK_ENVS.get(env_name, ('cases', '{', ''))
     env_type, beg_chr, end_chr = env_cfg
@@ -823,22 +997,16 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main'
     M_NS   = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
     A_NS   = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+    XML_SP = '{http://www.w3.org/XML/1998/namespace}space'
 
     tb = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
     tf = tb.text_frame
     tf.word_wrap = True
 
-    if pre_text:
-        p0   = tf.paragraphs[0]
-        run0 = p0.add_run()
-        run0.text = convert_latex(pre_text)
-        run0.font.size = Pt(size)
-        run0.font.color.rgb = color
-        p_math = tf.add_paragraph()
-    else:
-        p_math = tf.paragraphs[0]
-
+    # ── First paragraph: pre_text (inline) + OMML (same line) ───────────────
+    p_math = tf.paragraphs[0]
     p_elem = p_math._p
+
     for existing_pPr in p_elem.findall(f'{{{A_NS}}}pPr'):
         p_elem.remove(existing_pPr)
     pPr     = etree.Element(f'{{{A_NS}}}pPr')
@@ -848,6 +1016,19 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     clr     = etree.SubElement(sf, f'{{{A_NS}}}srgbClr')
     clr.set('val', str(color).upper())
     p_elem.insert(0, pPr)
+
+    # Inline pre_text run (e.g. "D_n =", "解析：观察得$A=")
+    if pre_text:
+        pre_converted = convert_latex(pre_text)
+        r_pre   = etree.SubElement(p_elem, f'{{{A_NS}}}r')
+        rPr_pre = etree.SubElement(r_pre, f'{{{A_NS}}}rPr')
+        rPr_pre.set('sz', str(size * 100))
+        sf_pre  = etree.SubElement(rPr_pre, f'{{{A_NS}}}solidFill')
+        cl_pre  = etree.SubElement(sf_pre,  f'{{{A_NS}}}srgbClr')
+        cl_pre.set('val', str(color).upper())
+        t_pre = etree.SubElement(r_pre, f'{{{A_NS}}}t')
+        t_pre.set(XML_SP, 'preserve')
+        t_pre.text = pre_converted + '\u2009'  # thin space separator before matrix
 
     # ── Route to correct OMML builder ──────────────────────────────────────
     color_hex = str(color).upper().lstrip('#')
@@ -865,17 +1046,12 @@ def add_cases_math_box(slide, text: str, l, t, w, h, size: int,
     a14_m = etree.SubElement(p_elem, f'{{{A14_NS}}}m', nsmap={'a14': A14_NS, 'm': M_NS})
     a14_m.append(oMathPara)
 
+    # ── post_text: may contain more math envs → recursive helper ─────────────
     if post_text:
-        p_blank      = tf.add_paragraph()
-        p_blank.add_run().text = ''
-        p_blank.runs[0].font.size = Pt(max(size - 4, 10))
-        p_post       = tf.add_paragraph()
-        run3         = p_post.add_run()
-        run3.text    = convert_latex(post_text)
-        run3.font.size = Pt(size)
-        run3.font.color.rgb = color
+        _append_block_math_to_tf(tf, post_text, size, color, accent)
 
     return True
+
 
 def _add_inline_math_para(p_elem, text: str, size: int,
                           color: 'RGBColor', accent: 'RGBColor',
@@ -1658,14 +1834,20 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                     else:
                         body_cards.append(item_str)
                 else:
-                    s = re.sub(r'^[\-\*\+]\s+', '', str(conv_item))
+                    # Check for inline $...$ math — keep raw if it has LaTeX constructs
+                    # This mirrors the exact logic in _render_col for two_column layout
+                    use_raw = '$' in item_str and re.search(r'\\[A-Za-z]|[\^_]', item_str)
+                    s_text = item_str if use_raw else str(conv_item)
+                    s = re.sub(r'^[\-\*\+]\s+', '', s_text)
                     s = re.sub(r'^\d+\.\s+', '', s).strip()
                     if s:
                         body_cards.append(s)
         else:
             # Check if any raw item has a math block environment
             has_cases = any(_has_math_env_open(str(r)) for r in raw_items)
-            if has_cases:
+            has_inline = any('$' in str(r) and re.search(r'\\[A-Za-z]|[\^_]', str(r))
+                             for r in raw_items)
+            if has_cases or has_inline:
                 body_cards.append("\n".join(str(r) for r in raw_items).strip())
             else:
                 text = "\n".join(items_converted).strip()
@@ -1738,6 +1920,133 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                          bold=True, align=PP_ALIGN.CENTER)
 
 
+def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
+    """
+    渲染 type=image 的 element。
+    从 resolved 字段或数据库中查找图片路径，用 add_picture 插入幻灯片。
+    此函数与 LaTeX/OMML 渲染管线完全隔离，不共享任何代码路径。
+    """
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+
+    acc = colors["acc"]
+    txt = colors["txt"]
+
+    # 1) 确定要插入的图片本地路径
+    image_path = None
+    resolved = elem.get("resolved")
+
+    if resolved and isinstance(resolved, dict):
+        # 流式生成时，resolved 携带了 image_id，通过 image_id 找本地路径
+        image_id = resolved.get("image_id", "")
+        source   = resolved.get("source", "session")
+        if image_id:
+            try:
+                from app.db.session import SessionLocal
+                from app.models.image import SessionImage, ImageLibrary
+                _db = SessionLocal()
+                try:
+                    if source == "library":
+                        rec = _db.query(ImageLibrary).filter(ImageLibrary.id == image_id).first()
+                    else:
+                        rec = _db.query(SessionImage).filter(SessionImage.id == image_id).first()
+                    if rec and rec.file_path and os.path.exists(rec.file_path):
+                        image_path = rec.file_path
+                finally:
+                    _db.close()
+            except Exception as _e:
+                logger.warning(f"[image_elem] DB lookup failed: {_e}")
+
+    if image_path is None:
+        # 没有找到图片：绘制灰色占位框
+        _render_image_placeholder(slide, elem, col_x, col_w, colors)
+        return
+
+    # 2) 计算图片放置区域（占满整列高度，留边距）
+    img_x = col_x + 0.05
+    img_y = CONTENT_T + 0.05
+    img_w = col_w - 0.15
+    img_h = SLIDE_H - img_y - 0.45
+
+    try:
+        # 插入图片
+        pic = slide.shapes.add_picture(
+            image_path,
+            Inches(img_x), Inches(img_y),
+            Inches(img_w), Inches(img_h)
+        )
+        # 微调：保持图片原始宽高比（python-pptx 默认按给定尺寸拉伸，改为按宽度适配）
+        from pptx.util import Emu
+        try:
+            orig_w = pic.width
+            orig_h = pic.height
+            if orig_w > 0 and orig_h > 0:
+                ratio = orig_h / orig_w
+                new_h = Emu(int(Inches(img_w) * ratio))
+                max_h = Inches(img_h)
+                if new_h > max_h:
+                    # 高度超限：改为按高度适配
+                    ratio_w = orig_w / orig_h
+                    pic.height = max_h
+                    pic.width  = Emu(int(max_h * ratio_w))
+                else:
+                    pic.width  = Inches(img_w)
+                    pic.height = new_h
+                # 居中对齐
+                pic.left = Inches(col_x) + (Inches(col_w) - pic.width) // 2
+        except Exception:
+            pass  # 保持默认尺寸
+
+        # 3) 添加 alt 文字图注（幻灯片底部小字）
+        alt_text = elem.get("alt", "")
+        if alt_text:
+            from pptx.util import Pt
+            alt_box = slide.shapes.add_textbox(
+                Inches(col_x + 0.05),
+                Inches(SLIDE_H - 0.4),
+                Inches(col_w - 0.1),
+                Inches(0.32)
+            )
+            tf = alt_box.text_frame
+            tf.word_wrap = True
+            p = tf.paragraphs[0]
+            from pptx.enum.text import PP_ALIGN
+            p.alignment = PP_ALIGN.CENTER
+            run = p.add_run()
+            run.text = alt_text
+            run.font.size = Pt(9)
+            run.font.color.rgb = hex2rgb(txt)
+            run.font.italic = True
+
+    except Exception as _e:
+        logger.warning(f"[image_elem] add_picture failed: {_e}")
+        _render_image_placeholder(slide, elem, col_x, col_w, colors)
+
+
+def _render_image_placeholder(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
+    """当图片不可用时渲染灰色占位框。"""
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    bg  = colors["bg"]
+    txt = colors["txt"]
+    acc = colors["acc"]
+
+    ph_x, ph_y = col_x + 0.05, CONTENT_T + 0.1
+    ph_w = col_w - 0.15
+    ph_h = SLIDE_H - ph_y - 0.5
+
+    # 灰色矩形
+    from pptx.util import Emu
+    placeholder_color = blend(RGBColor(0x80, 0x80, 0x80), hex2rgb(bg), 0.3)
+    rect_rounded(slide, ph_x, ph_y, ph_w, ph_h, placeholder_color, hex2rgb(bg))
+
+    # 📷 图标 + query 文字
+    query_text = f"📷\n{elem.get('query', '图片检索无匹配')}"
+    from pptx.enum.text import PP_ALIGN
+    add_rich_box(slide, query_text, ph_x + 0.1, ph_y + ph_h * 0.3,
+                 ph_w - 0.2, ph_h * 0.4, 12, txt, acc, align=PP_ALIGN.CENTER)
+
+
 def render_two_column(slide, page: dict, colors: dict) -> None:
     from pptx.enum.text import PP_ALIGN
     bg  = colors["bg"]
@@ -1784,6 +2093,15 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     card_bg_stat   = blend(acc, bg, 0.18) if dark else blend(acc, bg, 0.13)
 
     def _render_col(elems, col_x):
+        # ── Image elements: render first, skip in card loop ──────────────────
+        text_elems = []
+        for elem in elems:
+            if elem.get("type") == "image":
+                _render_image_elem(slide, elem, col_x, half_w, colors)
+            else:
+                text_elems.append(elem)
+        elems = text_elems
+
         # Explode: each list sub-item becomes its own individual card.
         # Use raw content for math preservation (mirrors render_minimal_list logic).
         cards = []  # list of {"text": str, "stat": bool}
@@ -1883,6 +2201,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     _render_col(left_elems,  lx)
     _render_col(right_elems, rx)
+
 
 
 

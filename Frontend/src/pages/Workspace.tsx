@@ -10,13 +10,14 @@ import { useCourseware } from '../hooks/useCourseware';
 import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
+import ImageUploadPanel from '../components/ImageUploadPanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink } from 'lucide-react';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -60,6 +61,8 @@ export default function Workspace() {
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
+  /** 参考资料 Tab 的子面板切换：docs（知识库文件） | images（会话图片） */
+  const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
 
   const handleExportWord = () => {
     if (!wordDoc) return;
@@ -511,59 +514,81 @@ export default function Workspace() {
 
           <Tabs.Content className={styles.tabsContent} value="files">
             <div className={styles.kbPanel}>
-              <div className={styles.kbHeader}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <Library size={20} className={styles.sparkleIcon} />
-                  <h3 style={{ margin: 0 }}>知识库资料墙</h3>
-                </div>
-                <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
+              {/* 子 Tab 切换（知识库文档 / 图片素材） */}
+              <div className={styles.subTabBar}>
+                <button
+                  className={clsx(styles.subTabBtn, filesSubTab === 'docs' && styles.subTabActive)}
+                  onClick={() => setFilesSubTab('docs')}
+                >
+                  <Library size={14} /> 知识库文档
+                </button>
+                <button
+                  className={clsx(styles.subTabBtn, filesSubTab === 'images' && styles.subTabActive)}
+                  onClick={() => setFilesSubTab('images')}
+                >
+                  <ImageIcon size={14} /> 图片素材
+                </button>
               </div>
-              
-              {kbDocs.length === 0 ? (
-                <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
-              ) : (
-                <div className={styles.kbList}>
-                  {kbDocs.map(doc => {
-                    const isLinked = linkedDocs.has(doc.document_id);
-                    const isLinking = linkingDocs.has(doc.document_id);
-                    return (
-                      <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
-                        <div className={styles.kbItemInfo}>
-                          <FileText size={18} className={styles.docIcon} />
-                          <div className={styles.kbItemTextWrap}>
-                            <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
-                            <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+
+              {/* 知识库文档面板 */}
+              {filesSubTab === 'docs' && (
+                <>
+                  <div className={styles.kbHeader}>
+                    <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
+                  </div>
+
+                  {kbDocs.length === 0 ? (
+                    <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
+                  ) : (
+                    <div className={styles.kbList}>
+                      {kbDocs.map(doc => {
+                        const isLinked = linkedDocs.has(doc.document_id);
+                        const isLinking = linkingDocs.has(doc.document_id);
+                        return (
+                          <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
+                            <div className={styles.kbItemInfo}>
+                              <FileText size={18} className={styles.docIcon} />
+                              <div className={styles.kbItemTextWrap}>
+                                <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
+                                <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                              </div>
+                            </div>
+                            <div className={styles.kbItemActions}>
+                              <button
+                                className={clsx(
+                                  isLinked ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked) : 'button-primary',
+                                  styles.actionBtn
+                                )}
+                                disabled={isLinking || sessionId === 'new'}
+                                onClick={() => handleToggleLink(doc.document_id, isLinked)}
+                                onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
+                                onMouseLeave={() => setHoveredLinkDoc(null)}
+                                title={isLinked ? '点击解除绑定' : '点击加入会话'}
+                              >
+                                {isLinking ? (
+                                  <><Loader2 size={14} className={styles.spinner} /> 变更中</>
+                                ) : isLinked ? (
+                                  hoveredLinkDoc === doc.document_id ? (
+                                    <><Unlink size={14} /> 取消绑定</>
+                                  ) : (
+                                    <><CheckCircle size={14} /> 已绑定</>
+                                  )
+                                ) : (
+                                  <><Link size={14} /> 加入会话</>
+                                )}
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                        <div className={styles.kbItemActions}>
-                          <button 
-                            className={clsx(
-                              isLinked ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked) : 'button-primary', 
-                              styles.actionBtn
-                            )}
-                            disabled={isLinking || sessionId === 'new'}
-                            onClick={() => handleToggleLink(doc.document_id, isLinked)}
-                            onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
-                            onMouseLeave={() => setHoveredLinkDoc(null)}
-                            title={isLinked ? '点击解除绑定' : '点击加入会话'}
-                          >
-                            {isLinking ? (
-                              <><Loader2 size={14} className={styles.spinner} /> 变更中</>
-                            ) : isLinked ? (
-                              hoveredLinkDoc === doc.document_id ? (
-                                <><Unlink size={14} /> 取消绑定</>
-                              ) : (
-                                <><CheckCircle size={14} /> 已绑定</>
-                              )
-                            ) : (
-                              <><Link size={14} /> 加入会话</>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* 图片素材面板 */}
+              {filesSubTab === 'images' && (
+                <ImageUploadPanel />
               )}
             </div>
           </Tabs.Content>

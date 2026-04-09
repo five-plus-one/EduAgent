@@ -404,7 +404,6 @@
 }
 
 .pptCard:hover {
-  transform: translateY(-4px) scale(1.01);
   box-shadow: var(--shadow-md);
 }
 
@@ -595,8 +594,49 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
+
+/* ── 子 Tab 切换器（知识库文档 / 图片素材）─────────────── */
+.subTabBar {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-glass, rgba(255, 255, 255, 0.08));
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+.subTabBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.subTabBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.subTabActive {
+  background: var(--accent-primary, #6366f1) !important;
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
 
 .kbHeader {
   padding: 8px 0;

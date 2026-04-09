@@ -390,3 +390,129 @@ export const deleteKnowledgeDoc = async (docId: string) => {
   await apiClient.delete(`/knowledge-base/documents/${docId}`);
 };
 
+// ==========================================
+// Module 7: 用户图片素材库 (API v2)
+// 原「会话图片库」已重构为「用户图片库」，图片跨会话共享。
+// 旧路由: /api/v1/sessions/{session_id}/images
+// 新路由: /api/v1/users/me/images
+// ==========================================
+
+export interface UserImage {
+  image_id: string;
+  filename: string;
+  label?: string;
+  /** 后端返回的相对路径，如 /api/v1/users/me/images/{id}/preview */
+  preview_url: string;
+  /** pending | processing | done | failed */
+  annotate_status: 'pending' | 'processing' | 'done' | 'failed';
+  tags?: string[];
+  description?: string;
+  file_size?: number;
+  created_at: string;
+}
+
+export interface UserImageListResponse {
+  total: number;
+  items: UserImage[];
+}
+
+/** @deprecated 使用 UserImage 替代 */
+export type SessionImage = UserImage;
+/** @deprecated 使用 UserImageListResponse 替代 */
+export type SessionImageListResponse = UserImageListResponse;
+
+/**
+ * 获取图片预览完整 URL（自动附加 token query 参数）
+ * <img> 标签无法设置 Authorization Header，改用 ?token= 传递。
+ * @param previewPath 后端返回的 preview_url 字段（相对路径）
+ */
+export const getImagePreviewUrl = (previewPath: string): string => {
+  if (!previewPath) return '';
+  const token = localStorage.getItem('access_token') ?? '';
+  // 如果已经是完整 URL（含 http），直接拼 token
+  if (previewPath.startsWith('http')) {
+    const url = new URL(previewPath);
+    if (token) url.searchParams.set('token', token);
+    return url.toString();
+  }
+  // 相对路径：从 API_BASE_URL 提取 origin 后拼接
+  const origin = API_BASE_URL.replace(/\/api\/v\d+.*$/, '');
+  const encoded = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${origin}${previewPath}${encoded}`;
+};
+
+/** @deprecated 使用 getImagePreviewUrl 替代（旧版不带 token，已失效） */
+export const resolveImagePreviewUrl = getImagePreviewUrl;
+
+/** 7.1 上传图片到用户素材库（jpg/png/webp/gif，单张最大 10MB） */
+export const uploadUserImage = async (
+  file: File,
+  label?: string
+): Promise<UserImage> => {
+  const form = new FormData();
+  form.append('file', file);
+  if (label) form.append('label', label);
+  const res = await apiClient.post('/users/me/images', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * @deprecated 使用 uploadUserImage(file, label) 替代（已移除 sessionId 参数）
+ */
+export const uploadSessionImage = async (
+  _sessionId: string,
+  file: File,
+  label?: string
+): Promise<UserImage> => uploadUserImage(file, label);
+
+/** 7.2 获取用户图片库列表（分页，与会话无关） */
+export const listUserImages = async (
+  page = 1,
+  size = 20
+): Promise<UserImageListResponse> => {
+  const res = await apiClient.get('/users/me/images', {
+    params: { page, size },
+  });
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * @deprecated 使用 listUserImages(page, size) 替代（已移除 sessionId 参数）
+ */
+export const listSessionImages = async (
+  _sessionId: string,
+  page = 1,
+  size = 20
+): Promise<UserImageListResponse> => listUserImages(page, size);
+
+/** 7.3 删除用户图片 */
+export const deleteUserImage = async (imageId: string): Promise<void> => {
+  await apiClient.delete(`/users/me/images/${imageId}`);
+};
+
+/**
+ * @deprecated 使用 deleteUserImage(imageId) 替代（已移除 sessionId 参数）
+ */
+export const deleteSessionImage = async (
+  _sessionId: string,
+  imageId: string
+): Promise<void> => deleteUserImage(imageId);
+
+/** 7.4 重新触发图片标注（对 annotate_status === 'failed' 的图片手动重试） */
+export const reannotateUserImage = async (
+  imageId: string
+): Promise<{ image_id: string; annotate_status: string }> => {
+  const res = await apiClient.post(`/users/me/images/${imageId}/annotate`);
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * @deprecated 使用 reannotateUserImage(imageId) 替代（已移除 sessionId 参数）
+ */
+export const reannotateSessionImage = async (
+  _sessionId: string,
+  imageId: string
+): Promise<{ image_id: string; annotate_status: string }> =>
+  reannotateUserImage(imageId);

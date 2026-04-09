@@ -35,7 +35,7 @@
     0 40px 100px -20px rgba(0, 0, 0, 0.15), 
     0 0 0 1px rgba(255, 255, 255, 0.3) inset;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.25s ease;
 }
 
 .pptCard::before {
@@ -49,8 +49,9 @@
 }
 
 .pptCard:hover {
-  transform: translateY(-4px) scale(1.005);
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 60px 120px -20px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
 }
 
 .cardHeader {
@@ -515,6 +516,16 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   background: var(--ppt-bg);
   z-index: 20;
+
+  /* Hidden by default — shown via CSS :hover, zero JS overhead */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.pptCard:hover .iterateBar {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .iterateInput {
@@ -537,4 +548,55 @@
   color: var(--ppt-bg);
   border: none;
   cursor: pointer;
+}
+
+/* 图库来源徽章（演示用，叠在图片右上角） */
+.libraryBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+
+/* imageWrapper 需要 position:relative 以便徽章绝对定位 */
+.imageWrapper {
+  position: relative;
+}
+
+/* 单卡错误降级展示 */
+.errorFallback {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  color: var(--text-secondary, #64748b);
+  font-size: 14px;
+}
+
+/* 图片占位文本 */
+.placeholderText {
+  font-size: calc(14 * var(--pt, 1px));
+  color: var(--ppt-text);
+  opacity: 0.5;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.placeholderIcon {
+  opacity: 0.3;
 }

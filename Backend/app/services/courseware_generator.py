@@ -174,9 +174,10 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
 import asyncio
 from httpx import AsyncClient
 
-async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str):
+async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str, user_id: str = ""):
     """
     异步流式生成核心函数，输出 NDJSON 格式供 SSE 使用。
+    user_id 用于图片素材库检索（用户个人图库）。
     """
     def _sync_init():
         db_local = SessionLocal()
@@ -258,10 +259,14 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 # elements 结构
 每个 element 是一个 JSON 对象，包含：
 - element_id: 字符串，如 "e1" "e2"（每页内唯一）
-- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item"
+- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item" 或 "image"
 - position: "left" 或 "right_top" 或 "right_bottom" 或 "center" 或 "full"
-- content: 字符串数组（非空，至少1个元素）
-- is_accent: true 或 false
+- content: 字符串数组（非空，至少1个元素。**仅当 type=image 时可省略 content，改用 query 和 alt 字段**）
+- is_accent: true 或 false（type=image 时填 false）
+
+# image element 特殊字段（type=image 专用）
+- query: 字符串，描述需要什么图片（用于语义检索），如 "牛顿苹果树引力示意图"
+- alt: 字符串，图片说明文字，如 "牛顿引力示意图"
 
 # 完整输出示例（照此结构生成真实内容）：
 {{"__type": "theme", "name": "科技蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#475569", "accent": "#F59E0B", "text_color": "#F1F5F9"}}
@@ -287,7 +292,11 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
    - 分数使用 $\\frac{{分子}}{{分母}}$，极限使用 $\\lim_{{n \\to \\infty}}$
    - 示例：正确写法 "$\\vec{{v}} = \\lim_{{\\Delta t \\to 0}} \\frac{{\\Delta \\vec{{r}}}}{{\\Delta t}}$"，禁止写成 "v = Δr/Δt"
    - 任何涉及上下标的变量（如 $a_n$, $v^2$, $\\omega_0$）都必须用 $ ... $ 包裹
-7. 现在开始输出，第一行是 theme JSON"""
+7. 【图片规则】在 two_column 布局中，可在右侧添加 type:"image" 元素代替纯文字，提升视觉效果。
+   - image element 必须包含 query（描述所需图片内容）和 alt（说明文字），content 字段填 []
+   - 每页最多 1 个 image element；cover 页和 stat_callout 页禁止使用
+   - 示例：{{"element_id": "img1", "type": "image", "position": "right", "query": "热力学第一定律能量守恒示意图", "alt": "能量守恒示意图", "content": [], "is_accent": false}}
+8. 现在开始输出，第一行是 theme JSON"""
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"
@@ -419,7 +428,31 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         db.commit()
                                         page_count += 1
                                         print(f"[parser] page {page_count}: {obj.get('title','')}")
+
+                                        # ── 图片元素向量检索：无匹配则直接移除，避免空占位框 ──
+                                        try:
+                                            from app.services.image_service import search_image_by_query
+                                            filtered_elements = []
+                                            for elem in obj.get("elements", []):
+                                                if elem.get("type") == "image":
+                                                    query = elem.get("query", "")
+                                                    if query:
+                                                        resolved = search_image_by_query(query, user_id or session_id)
+                                                        if resolved is not None:
+                                                            # 有匹配图片，保留并附加 resolved
+                                                            elem["resolved"] = resolved
+                                                            filtered_elements.append(elem)
+                                                        # 无匹配 → 丢弃这个 image element，不生成占位框
+                                                    # query 为空 → 也丢弃
+                                                else:
+                                                    filtered_elements.append(elem)
+                                            obj["elements"] = filtered_elements
+                                        except Exception as _img_err:
+                                            print(f"[image_resolve] error: {_img_err}")
+
                                         yield sse("page_chunk", obj)
+
+
 
                                     elif t == "word_start":
                                         word_mode = True

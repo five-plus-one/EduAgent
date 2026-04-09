@@ -73,7 +73,7 @@ def trigger_generation_stream(
     }
     
     return StreamingResponse(
-        stream_generation(session_id, body.selected_file_ids, body.generation_mode), 
+        stream_generation(session_id, body.selected_file_ids, body.generation_mode, user_id=current_user.id), 
         media_type="text/event-stream", 
         headers=sse_headers
     )
