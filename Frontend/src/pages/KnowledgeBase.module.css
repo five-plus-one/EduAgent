@@ -10,6 +10,27 @@
   width: 100%;
 }
 
+/* Panel root used by KnowledgeBasePanel (both route + drawer modes) */
+.panelRoot {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+/* Compact mode inside AssetDrawer — tighter spacing, no max-width constraint */
+.panelCompact {
+  gap: 16px;
+}
+
+.panelCompact .uploadZone {
+  padding: 24px 16px;
+}
+
+.panelCompact .uploadZone h3 {
+  font-size: 1rem;
+}
+
 .pageHeader {
   display: flex;
   flex-direction: row;
@@ -97,9 +118,12 @@
 }
 
 .tableHeader {
-  padding: 24px;
+  padding: 16px 24px;
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .tableTitle {
