@@ -65,6 +65,7 @@ export default function Workspace() {
   /** 参考资料 Tab 的子面板切换：docs（知识库文件） | images（会话图片） */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
   const [isUploadingKb, setIsUploadingKb] = useState(false);
+  const [isDraggingKb, setIsDraggingKb] = useState(false);
 
   const handleExportWord = () => {
     if (!wordDoc) return;
@@ -190,6 +191,22 @@ export default function Workspace() {
       await fetchKbDocs();
     } catch {
       alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / TXT / MD）');
+    } finally {
+      setIsUploadingKb(false);
+    }
+  };
+
+  const handleKbFilesDrop = async (files: FileList) => {
+    const valid = Array.from(files).filter(f =>
+      ['.pdf', '.docx', '.doc', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (!valid.length) { alert('仅支持 PDF / DOCX / TXT / MD 格式文件'); return; }
+    setIsUploadingKb(true);
+    try {
+      await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '通用类目' })));
+      await fetchKbDocs();
+    } catch {
+      alert('上传失败，请检查文件格式或网络');
     } finally {
       setIsUploadingKb(false);
     }
@@ -417,7 +434,7 @@ export default function Workspace() {
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  rows={1}
+                  rows={3}
                   disabled={isGenerating}
                 />
                 <div className={styles.actionsBox}>
@@ -505,22 +522,6 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
-              {pages.length === 0 && (
-                <button 
-                  className={clsx('button-primary', styles.generateBtn)}
-                  onClick={async () => {
-                    setActiveTab('ppt');
-                    // 全量重生成：先清空旧预览，避免新旧页叠加渲染
-                    clearPages();
-                    await startStreaming([], 'fast', true);
-                    fetchPreview();
-                  }}
-                  disabled={isGenerating || isStreaming || sessionId === 'new'}
-                >
-                  <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
-                  {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
-                </button>
-              )}
               {pages.length > 0 && (
                 <>
                   <button 
@@ -567,9 +568,17 @@ export default function Workspace() {
               {/* 知识库文档面板 */}
               {filesSubTab === 'docs' && (
                 <>
-                  {/* Header row: description + upload button */}
-                  <div className={styles.kbHeader}>
-                    <p>关联 RAG 知识材料，AI 将基于这些资料生成 PPT 课件。</p>
+                  {/* 拖拽上传区 */}
+                  <div
+                    className={clsx(styles.kbDropzone, isDraggingKb && styles.kbDropzoneDragging, isUploadingKb && styles.kbDropzoneUploading)}
+                    onDrop={(e) => { e.preventDefault(); setIsDraggingKb(false); if (e.dataTransfer.files.length) handleKbFilesDrop(e.dataTransfer.files); }}
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingKb(true); }}
+                    onDragLeave={() => setIsDraggingKb(false)}
+                    onClick={() => !isUploadingKb && kbFileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="点击或拖拽文档到此处上传"
+                  >
                     <input
                       ref={kbFileInputRef}
                       type="file"
@@ -577,21 +586,18 @@ export default function Workspace() {
                       style={{ display: 'none' }}
                       onChange={handleKbUpload}
                     />
-                    <button
-                      className={styles.kbUploadBtn}
-                      onClick={() => kbFileInputRef.current?.click()}
-                      disabled={isUploadingKb}
-                    >
-                      {isUploadingKb
-                        ? <><Loader2 size={13} className={styles.spinner} /> 上传中...</>
-                        : <><UploadCloud size={13} /> 上传文档</>
-                      }
-                    </button>
+                    {isUploadingKb ? (
+                      <><Loader2 size={20} className={styles.spinner} /> <span>上传中...</span></>
+                    ) : isDraggingKb ? (
+                      <><UploadCloud size={20} /> <span>松开即可上传</span></>
+                    ) : (
+                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · TXT · MD</small></>
+                    )}
                   </div>
 
                   {kbDocs.length === 0 ? (
                     <div className={styles.placeholderCentric}>
-                      暂无知识库文档，点击「上传文档」添加
+                      暂无知识库文档，拖拽或点击上方区域添加
                     </div>
                   ) : (
                     <div className={styles.kbList}>
@@ -724,6 +730,7 @@ export default function Workspace() {
                       key={page.page_index} 
                       page={page} 
                       isUpdating={updatingPages.has(page.page_index)}
+                      isStreaming={isStreaming}
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
                     />
                   ))}
@@ -737,6 +744,7 @@ export default function Workspace() {
                           key={page.page_index} 
                           page={page} 
                           isUpdating={false}
+                          isStreaming={true}
                           onIterate={() => {}} // Disabled during stream for stability
                         />
                      );
