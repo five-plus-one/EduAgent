@@ -582,6 +582,29 @@
   margin: 2.5em 0;
 }
 
+/* ── KaTeX 公式渲染适配 ────────────────────────────────── */
+.markdownWrapper .katex-display {
+  margin: 1.4em 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 0.2em 0;
+}
+
+.markdownWrapper .katex {
+  font-size: 1.05em; /* 与正文字号保持一致，不放大 */
+}
+
+/* 块级公式加淡底色，视觉层次分开 */
+.markdownWrapper .katex-display > .katex {
+  display: block;
+  padding: 12px 20px;
+  background: hsla(var(--hue, 220), 60%, 95%, 0.5);
+  border-left: 3px solid var(--accent-primary, #6366f1);
+  border-radius: 0 6px 6px 0;
+  overflow-x: auto;
+}
+
+
 /* Animations */
 @keyframes pulse-ring {
   0% { transform: scale(0.8); box-shadow: 0 0 0 0 hsla(var(--hue), 85%, 55%, 0.7); }

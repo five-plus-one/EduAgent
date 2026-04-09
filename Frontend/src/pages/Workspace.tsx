@@ -13,7 +13,10 @@ import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc } from '../utils/api';
@@ -792,8 +795,8 @@ export default function Workspace() {
               ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]} 
-                    rehypePlugins={[rehypeRaw]}
+                    remarkPlugins={[remarkGfm, remarkMath]} 
+                    rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }], rehypeRaw]}
                   >
                     {streamWordDoc || wordDoc}
                   </ReactMarkdown>
