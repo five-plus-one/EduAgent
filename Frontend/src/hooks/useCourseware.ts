@@ -282,5 +282,11 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus };
+  const clearPages = useCallback(() => {
+    setPages([]);
+    setWordDoc('');
+    setPreviewStatus('idle');
+  }, []);
+
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages };
 }

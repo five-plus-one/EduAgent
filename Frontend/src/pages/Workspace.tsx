@@ -36,7 +36,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -262,6 +262,8 @@ export default function Workspace() {
        if (ev.detail?.sessionId === sessionId) {
           console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
           setActiveTab('ppt');
+          // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+          clearPages();
           await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
           fetchPreview();
        }
@@ -508,6 +510,8 @@ export default function Workspace() {
                   className={clsx('button-primary', styles.generateBtn)}
                   onClick={async () => {
                     setActiveTab('ppt');
+                    // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+                    clearPages();
                     await startStreaming([], 'fast', true);
                     fetchPreview();
                   }}
@@ -701,7 +705,11 @@ export default function Workspace() {
                   </p>
                   <button
                     className='button-primary'
-                    onClick={() => startStreaming(Array.from(linkedDocs), 'fast', true)}
+                    onClick={() => {
+                      // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+                      clearPages();
+                      startStreaming(Array.from(linkedDocs), 'fast', true);
+                    }}
                     disabled={sessionId === 'new'}
                     style={{ padding: '10px 24px' }}
                   >
