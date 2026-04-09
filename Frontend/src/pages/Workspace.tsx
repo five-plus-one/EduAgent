@@ -537,7 +537,6 @@ export default function Workspace() {
                       导出讲义 (.doc)
                     </button>
                   )}
-                  )}
                 </>
               )}
             </div>
