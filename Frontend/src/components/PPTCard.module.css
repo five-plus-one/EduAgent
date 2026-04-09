@@ -504,18 +504,13 @@
 }
 
 .iterateBar {
-  position: absolute;
-  bottom: calc(0.2 * var(--in));
-  left: 50%;
-  transform: translateX(-50%);
+  /* position/coordinates injected by JS (position:fixed via barStyle) */
   display: flex;
-  width: 80%;
   gap: 8px;
   padding: 8px;
   border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  background: var(--ppt-bg);
-  z-index: 20;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  background: var(--ppt-bg, rgba(255,255,255,0.95));
 }
 
 .iterateInput {
