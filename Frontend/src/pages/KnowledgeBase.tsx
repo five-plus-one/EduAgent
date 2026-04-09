@@ -4,16 +4,19 @@ import { clsx } from 'clsx';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 
-interface KBDocument {
-  document_id: string; // backend field name (NOT doc_id)
+export interface KBDocument {
+  document_id: string;
   filename: string;
   status: string;
-  progress?: number;   // 0-100
+  progress?: number;
   summary?: string;
   created_at?: string;
 }
 
-export default function KnowledgeBase() {
+// ─────────────────────────────────────────────────────────────────────────────
+// KnowledgeBasePanel — reusable content component (used in both route + drawer)
+// ─────────────────────────────────────────────────────────────────────────────
+export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -24,7 +27,6 @@ export default function KnowledgeBase() {
     try {
       if (!isSilent) setLoading(true);
       const data = await listKnowledgeDocs(1, 50);
-      // Backend returns { total, items: [...] } or raw array
       const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
       setDocuments(items);
     } catch {
@@ -34,63 +36,38 @@ export default function KnowledgeBase() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchDocs();
-  }, [fetchDocs]);
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-  // AI/RAG Polling System: Keep fetching every 3s if any docs are processing
+  // Poll every 3s while any doc is processing
   useEffect(() => {
     const hasProcessing = documents.some(
       (doc) => doc.status === 'processing' || doc.status === 'pending'
     );
     if (!hasProcessing) return;
-
-    const timer = setInterval(() => {
-      fetchDocs(true); // silent fetch to prevent UI flashing
-    }, 3000);
-
+    const timer = setInterval(() => fetchDocs(true), 3000);
     return () => clearInterval(timer);
   }, [documents, fetchDocs]);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(Array.from(e.dataTransfer.files));
-    }
+    if (e.dataTransfer.files?.length) handleFiles(Array.from(e.dataTransfer.files));
   };
-
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(Array.from(e.target.files));
-    }
+    if (e.target.files?.length) handleFiles(Array.from(e.target.files));
   };
 
   const handleFiles = async (files: File[]) => {
     setUploading(true);
     try {
-      await Promise.all(
-        files.map((file) =>
-          uploadKnowledgeDoc(file, { filename: file.name })
-        )
-      );
-      // Refresh list after upload
+      await Promise.all(files.map((f) => uploadKnowledgeDoc(f, { filename: f.name })));
       await fetchDocs();
     } catch {
       console.error('Upload failed');
     } finally {
       setUploading(false);
-      // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -106,131 +83,107 @@ export default function KnowledgeBase() {
   };
 
   return (
-    <div className={styles.kbContainer}>
-      <header className={styles.pageHeader}>
-        <div>
-          <h1 className={styles.title}>知识库管理 (RAG Admin)</h1>
-          <p className={styles.subtitle}>
-            上传专业课件资料、教案文档或视频。它们将被自动分析并向量化，用于强化 AI 智能体的领域理解能力。
-          </p>
-        </div>
-        <button
-          className={clsx('button-base', styles.refreshBtn)}
-          onClick={() => fetchDocs(false)}
-          title="刷新列表"
-        >
-          <RefreshCw size={16} />
-        </button>
-      </header>
+    <div className={clsx(styles.panelRoot, compact && styles.panelCompact)}>
+      {/* Header (only in non-compact / route mode) */}
+      {!compact && (
+        <header className={styles.pageHeader}>
+          <div>
+            <h1 className={styles.title}>知识库管理 (RAG Admin)</h1>
+            <p className={styles.subtitle}>
+              上传专业课件资料、教案文档或视频。它们将被自动分析并向量化，用于强化 AI 智能体的领域理解能力。
+            </p>
+          </div>
+          <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新列表">
+            <RefreshCw size={16} />
+          </button>
+        </header>
+      )}
 
-      <section className={styles.contentArea}>
-        {/* UPPER: Upload Zone */}
-        <div 
-          className={clsx(
-            styles.uploadZone, 
-            'glass-panel', 
-            isDragging && styles.dragging,
-            uploading && styles.uploading
+      {/* Upload Zone */}
+      <div
+        className={clsx(styles.uploadZone, 'glass-panel', isDragging && styles.dragging, uploading && styles.uploading)}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onClick={() => !uploading && fileInputRef.current?.click()}
+      >
+        <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileSelect} multiple />
+        <div className={styles.uploadContent}>
+          <div className={styles.uploadIconWrapper}>
+            <UploadCloud size={compact ? 32 : 48} className={clsx(uploading && styles.rotating)} />
+          </div>
+          <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件到这里上传'}</h3>
+          <p>支持 PDF、Word、PPT、MP4 以及纯文本文件</p>
+        </div>
+      </div>
+
+      {/* Document Table */}
+      <div className={clsx(styles.tableContainer, 'glass-panel')}>
+        <div className={styles.tableHeader}>
+          <h3 className={styles.tableTitle}>已入库文档 ({loading ? '…' : documents.length})</h3>
+          {compact && (
+            <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新">
+              <RefreshCw size={14} />
+            </button>
           )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={() => !uploading && fileInputRef.current?.click()}
-        >
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            style={{ display: 'none' }} 
-            onChange={handleFileSelect}
-            multiple
-          />
-          <div className={styles.uploadContent}>
-             <div className={styles.uploadIconWrapper}>
-               <UploadCloud size={48} className={clsx(styles.uploadIcon, uploading && styles.rotating)} />
-             </div>
-             <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件到这里上传'}</h3>
-             <p>支持 PDF、Word、PPT、MP4 以及纯文本文件</p>
-          </div>
         </div>
+        <div className={styles.tableWrapper}>
+          <table className={styles.dataTable}>
+            <thead>
+              <tr>
+                <th>文件名</th>
+                <th>上传日期</th>
+                <th>解析状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={4} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{display:'inline', marginRight:6}} />加载中...</td></tr>
+              ) : documents.length === 0 ? (
+                <tr><td colSpan={4} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
+              ) : (
+                documents.map((doc) => (
+                  <tr key={doc.document_id} className={styles.tableRow}>
+                    <td>
+                      <div className={styles.cellFile}>
+                        <FileText size={16} className={styles.fileIcon} />
+                        <span className={styles.filename}>{doc.filename}</span>
+                      </div>
+                    </td>
+                    <td className={styles.cellDate}>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}</td>
+                    <td>
+                      {doc.status === 'completed' ? (
+                        <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={14} /> 解析完成</div>
+                      ) : doc.status === 'failed' ? (
+                        <div className={clsx(styles.statusBadge, styles.statusFailed)}><Clock size={14} /> 解析失败</div>
+                      ) : (
+                        <div className={clsx(styles.statusBadge, styles.statusPending)}><Clock size={14} className={styles.rotating} />向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}</div>
+                      )}
+                    </td>
+                    <td>
+                      <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
+                        <Trash2 size={14} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* LOWER: Data Table */}
-        <div className={clsx(styles.tableContainer, 'glass-panel')}>
-          <div className={styles.tableHeader}>
-            <h3 className={styles.tableTitle}>
-              已入库文档 ({loading ? '…' : documents.length})
-            </h3>
-          </div>
-          <div className={styles.tableWrapper}>
-            <table className={styles.dataTable}>
-              <thead>
-                <tr>
-                  <th>文件名</th>
-                  <th>上传日期</th>
-                  <th>解析状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={4} className={styles.emptyTable}>
-                      <Clock size={14} className={styles.rotating} style={{display:'inline', marginRight:6}} />
-                      加载中...
-                    </td>
-                  </tr>
-                ) : documents.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className={styles.emptyTable}>
-                      尚未上传任何知识库文件
-                    </td>
-                  </tr>
-                ) : (
-                  documents.map((doc) => (
-                    <tr key={doc.document_id} className={styles.tableRow}>
-                      <td>
-                        <div className={styles.cellFile}>
-                          <FileText size={16} className={styles.fileIcon} />
-                          <span className={styles.filename}>{doc.filename}</span>
-                        </div>
-                      </td>
-                      <td className={styles.cellDate}>
-                        {doc.created_at
-                          ? new Date(doc.created_at).toLocaleDateString('zh-CN')
-                          : '—'}
-                      </td>
-                      <td>
-                        {doc.status === 'completed' ? (
-                           <div className={clsx(styles.statusBadge, styles.statusSuccess)}>
-                             <CheckCircle size={14} /> 解析完成
-                           </div>
-                        ) : doc.status === 'failed' ? (
-                           <div className={clsx(styles.statusBadge, styles.statusFailed)}>
-                             <Clock size={14} /> 解析失败
-                           </div>
-                        ) : (
-                           <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                             <Clock size={14} className={styles.rotating} />
-                             向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}
-                           </div>
-                        )}
-                      </td>
-                      <td>
-                        <button
-                          className={styles.deleteBtn}
-                          onClick={() => handleDelete(doc.document_id)}
-                          title="删除"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+// ─────────────────────────────────────────────────────────────────────────────
+// KnowledgeBase — route-level page wrapper (keeps /knowledge route working)
+// ─────────────────────────────────────────────────────────────────────────────
+export default function KnowledgeBase() {
+  return (
+    <div className={styles.kbContainer}>
+      <KnowledgeBasePanel compact={false} />
     </div>
   );
 }

@@ -114,13 +114,39 @@
 
 .nav {
   flex: 1;
+  min-height: 0;          /* critical: allows flex child to shrink below content */
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;       /* nav itself doesn't scroll */
   margin: 0 -12px;
   padding: 0 12px;
 }
 
+.sessionList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;          /* allow shrink */
+  padding-bottom: 8px;
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+  scroll-behavior: smooth;
+}
+
+/* Thin scrollbar inside session list */
+.sessionList::-webkit-scrollbar { width: 4px; }
+.sessionList::-webkit-scrollbar-track { background: transparent; }
+.sessionList::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 2px;
+}
+.sessionList::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.22);
+}
 .navTitle {
   font-size: 0.8rem;
   font-weight: 700;
@@ -131,12 +157,6 @@
   padding-left: 12px;
 }
 
-.sessionList {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
 
 .sessionItem {
   display: flex;
@@ -182,6 +202,7 @@
   color: var(--text-primary);
   position: relative;
   background: transparent;
+  gap: 12px;
 }
 
 .profileBtn:hover {
@@ -194,11 +215,17 @@
   flex-direction: column;
   align-items: flex-start;
   text-align: left;
+  flex: 1;
+  min-width: 0;
 }
 
 .userName {
   font-size: 0.95rem;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .userRole {
@@ -207,8 +234,33 @@
   font-weight: 500;
 }
 
+/* Asset management button (LayoutGrid) */
+.assetBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, background 0.2s;
+}
+
+.profileBtn:hover .assetBtn {
+  opacity: 1;
+}
+
+.assetBtn:hover {
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* Logout button */
 .logoutBtn {
-  margin-left: auto;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -254,4 +306,22 @@
 
 @keyframes spin {
   100% { transform: rotate(360deg); }
+}
+
+/* Infinite scroll sentinel element */
+.sentinel {
+  list-style: none;
+  padding: 0;
+  min-height: 4px;
+}
+
+.loadMoreHint,
+.allLoadedHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
 }
