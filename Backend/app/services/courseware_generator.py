@@ -419,6 +419,35 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
                                     elif t == "page":
                                         obj.pop("__type", None)
+
+                                        # ── 图片过滤必须在 db.commit() 前完成 ──
+                                        # 若先 commit 再过滤，DB 存的是未过滤版本（含 image 占位，无 resolved），
+                                        # PPT 导出时会读到未过滤数据，导致空占位框。
+                                        from app.services.image_service import search_image_by_query
+                                        filtered_elements = []
+                                        for elem in obj.get("elements", []):
+                                            if elem.get("type") == "image":
+                                                # 同时支持 query 和 alt 字段作为搜索词
+                                                query = elem.get("query", "") or elem.get("alt", "")
+                                                if not query:
+                                                    print(f"[image_resolve] dropped (no query): {elem.get('alt','')[:30]}")
+                                                    continue
+                                                resolved = None
+                                                try:
+                                                    resolved = search_image_by_query(query, user_id or session_id)
+                                                except Exception as _img_err:
+                                                    print(f"[image_resolve] search error '{query[:30]}': {_img_err}")
+                                                if resolved is not None:
+                                                    elem["resolved"] = resolved
+                                                    filtered_elements.append(elem)
+                                                    print(f"[image_resolve] matched: {query[:30]} → {resolved.get('image_id','')}")
+                                                else:
+                                                    print(f"[image_resolve] no match, dropped: {query[:30]}")
+                                            else:
+                                                filtered_elements.append(elem)
+                                        obj["elements"] = filtered_elements  # 始终赋值，确保 ppt_data 干净
+
+                                        # ── 存入 DB（此时已是过滤后的干净数据）──
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
                                         pages = list(ppt_dict.get("ppt_data", []))
                                         pages.append(obj)
@@ -428,33 +457,6 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         db.commit()
                                         page_count += 1
                                         print(f"[parser] page {page_count}: {obj.get('title','')}")
-
-                                        # ── 图片元素向量检索：无匹配/搜索失败则直接移除，避免空占位框 ──
-                                        # 注意：obj["elements"] = filtered_elements 必须在任何情况下都执行
-                                        from app.services.image_service import search_image_by_query
-                                        filtered_elements = []
-                                        for elem in obj.get("elements", []):
-                                            if elem.get("type") == "image":
-                                                query = elem.get("query", "")
-                                                if not query:
-                                                    # query 为空 → 直接丢弃
-                                                    print(f"[image_resolve] dropped (no query): {elem.get('alt','')[:30]}")
-                                                    continue
-                                                resolved = None
-                                                try:
-                                                    resolved = search_image_by_query(query, user_id or session_id)
-                                                except Exception as _img_err:
-                                                    print(f"[image_resolve] search error for '{query[:30]}': {_img_err}")
-                                                if resolved is not None:
-                                                    elem["resolved"] = resolved
-                                                    filtered_elements.append(elem)
-                                                    print(f"[image_resolve] matched: {query[:30]} → {resolved.get('image_id','')}")
-                                                else:
-                                                    # 无匹配 → 丢弃，不生成占位框
-                                                    print(f"[image_resolve] no match, dropped: {query[:30]}")
-                                            else:
-                                                filtered_elements.append(elem)
-                                        obj["elements"] = filtered_elements  # 始终执行
 
                                         yield sse("page_chunk", obj)
 
