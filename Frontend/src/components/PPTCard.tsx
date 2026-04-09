@@ -121,10 +121,11 @@ function mergeStandaloneMath(items: string[]): string[] {
 interface Props {
   page: PPTPage;
   isUpdating: boolean;
+  isStreaming?: boolean;
   onIterate: (instruction: string) => void;
 }
 
-function PPTCardInner({ page, isUpdating, onIterate }: Props) {
+function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate }: Props) {
   const [instruction, setInstruction] = useState('');
 
   const handleSubmit = () => {
@@ -370,8 +371,8 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
         </div>
       )}
 
-      {/* Floating Action Input — always in DOM, shown via CSS :hover */}
-      {!isUpdating && (
+      {/* Floating Action Input — hidden during streaming or per-page update */}
+      {!isUpdating && !isStreaming && (
         <div className={clsx(styles.iterateBar, 'glass-panel')}>
           <input 
             type="text" 
