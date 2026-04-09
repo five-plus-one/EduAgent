@@ -188,12 +188,13 @@
   border: none;
   resize: none;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 1.05rem;
   color: var(--text-primary);
   padding: 8px 0;
-  min-height: 40px;
-  max-height: 200px;
+  min-height: 72px;
+  max-height: 240px;
   outline: none;
+  line-height: 1.6;
 }
 
 .actionsBox {
