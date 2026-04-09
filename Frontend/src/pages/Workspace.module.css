@@ -639,20 +639,50 @@
 
 
 .kbHeader {
-  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
   border-bottom: 1px solid var(--border-glass);
-}
-
-.kbHeader h3 {
-  font-size: 1.15rem;
-  color: var(--text-primary);
-  font-weight: 700;
+  flex-wrap: wrap;
 }
 
 .kbHeader p {
+  flex: 1;
   font-size: 0.85rem;
   color: var(--text-secondary);
   line-height: 1.5;
+  margin: 0;
+  min-width: 140px;
+}
+
+.kbUploadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent-primary, #6366f1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.kbUploadBtn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+}
+
+.kbUploadBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .kbList {
@@ -678,8 +708,8 @@
 .kbListItem:hover {
   background: var(--bg-glass-hover);
   border-color: hsla(var(--hue), 85%, 55%, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px hsla(0, 0%, 0%, 0.05);
+  box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.06);
+  /* translateY removed — causes mouse jitter on rapid movement */
 }
 
 .kbItemInfo {
@@ -724,7 +754,59 @@
   border-radius: var(--radius-pill);
   color: var(--text-tertiary);
   display: inline-block;
-  align-self: flex-start;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.kbItemMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Vectorization status badges ── */
+.docStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.statusCompleted {
+  background: rgba(16, 185, 129, 0.1);
+  color: hsl(160, 80%, 35%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.statusProcessing {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-primary, #6366f1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.statusPending {
+  background: rgba(245, 158, 11, 0.1);
+  color: hsl(38, 90%, 40%);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.statusFailed {
+  background: rgba(239, 68, 68, 0.1);
+  color: hsl(0, 80%, 45%);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.failedLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: hsl(0, 70%, 50%);
   font-weight: 500;
 }
 
