@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Send, Loader2, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
@@ -127,34 +127,6 @@ interface Props {
 function PPTCardInner({ page, isUpdating, onIterate }: Props) {
   const [instruction, setInstruction] = useState('');
   const [showIterate, setShowIterate] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const [barStyle, setBarStyle] = useState<React.CSSProperties>({});
-
-  // Compute fixed-position coordinates for iterateBar so it NEVER
-  // participates in the card's layout — prevents the MouseEnter→layout-shift
-  // →MouseLeave jitter feedback loop.
-  const updateBarPosition = useCallback(() => {
-    if (!cardRef.current) return;
-    const r = cardRef.current.getBoundingClientRect();
-    setBarStyle({
-      position: 'fixed',
-      bottom: `${window.innerHeight - r.bottom + 12}px`,
-      left: `${r.left + r.width * 0.1}px`,
-      width: `${r.width * 0.8}px`,
-      zIndex: 50,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!showIterate) return;
-    updateBarPosition();
-    window.addEventListener('resize', updateBarPosition);
-    window.addEventListener('scroll', updateBarPosition, true);
-    return () => {
-      window.removeEventListener('resize', updateBarPosition);
-      window.removeEventListener('scroll', updateBarPosition, true);
-    };
-  }, [showIterate, updateBarPosition]);
 
   const handleSubmit = () => {
     if (instruction.trim() && !isUpdating) {
@@ -282,7 +254,6 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
 
   return (
     <div 
-      ref={cardRef}
       className={clsx(styles.pptCard, isUpdating && styles.updating)}
       onMouseEnter={() => setShowIterate(true)}
       onMouseLeave={() => setShowIterate(false)}
@@ -403,8 +374,9 @@ function PPTCardInner({ page, isUpdating, onIterate }: Props) {
         </div>
       )}
 
+      {/* Floating Action Input */}
       {!isUpdating && showIterate && (
-        <div className={clsx(styles.iterateBar, 'glass-panel')} style={barStyle}>
+        <div className={clsx(styles.iterateBar, 'glass-panel')}>
           <input 
             type="text" 
             placeholder="例如：少一点文字，加一个公式推导动图..."
