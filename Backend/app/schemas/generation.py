@@ -25,6 +25,8 @@ class ElementModel(BaseModel):
     is_accent: Optional[bool] = False
     url: Optional[str] = None
     alt: Optional[str] = None
+    query: Optional[str] = None           # 图片搜索词（LLM 生成）
+    resolved: Optional[dict] = None       # 图片解析结果 {image_id, preview_url, source, similarity}
 
 class SlideModel(BaseModel):
     page_index: int

@@ -180,7 +180,9 @@ def iterate_slide(
 - elements 必须至少包含 1 个元素
 - 每个 element 必须有 element_id, type, position, content, is_accent 五个字段
 - position: "left"|"right_top"|"right_bottom"|"center"|"full"
-- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"
+- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"|"image"
+  - 若 type 为 "image"：必须同时提供 "query"（图片搜索词，10-20字中文描述）和 "alt"（图注文字）
+  - 示例: {{"type": "image", "query": "定轴转动刚体角速度角加速度示意图", "alt": "刚体定轴转动示意图", "element_id": "img_1", "content": [], "is_accent": false}}
 - 严禁输出 Markdown 围栏、注释、额外文本
 
 【数学公式规则 - 必须严格遵守】
@@ -281,6 +283,49 @@ def iterate_slide(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"单页修改失败：{str(e)}")
+
+    # ── 图片元素解析（与流式生成保持一致：无匹配则丢弃，有匹配则附加 resolved）──
+    from app.services.image_service import search_image_by_query
+
+    def _resolve_page_images(page: dict) -> dict:
+        """对单页的 elements 做图片向量检索，过滤无匹配的 image 元素。"""
+        filtered = []
+        for elem in page.get("elements", []):
+            if elem.get("type") == "image":
+                query = elem.get("query", "") or elem.get("alt", "")
+                if not query:
+                    continue  # 无搜索词 → 丢弃
+                try:
+                    resolved = search_image_by_query(query, current_user.id)
+                except Exception:
+                    resolved = None
+                if resolved is not None:
+                    elem["resolved"] = resolved
+                    filtered.append(elem)
+                # 无匹配 → 丢弃
+            else:
+                filtered.append(elem)
+        page["elements"] = filtered
+        return page
+
+    # 对所有受影响的新页面做图片解析
+    if isinstance(parsed_result, list):
+        slides_array_pages = [p for p in slides_array if any(
+            p.get("page_index") == np.get("page_index") for np in parsed_result
+        )]
+        for page in slides_array:
+            pi = page.get("page_index")
+            if any(pi == np.get("page_index") for np in parsed_result):
+                _resolve_page_images(page)
+        new_page = _resolve_page_images(new_page)
+    else:
+        _resolve_page_images(new_page)
+        if new_page in slides_array:
+            pass  # already modified in-place
+        else:
+            idx2 = next((i for i, p in enumerate(slides_array) if p.get("page_index") == new_page.get("page_index")), None)
+            if idx2 is not None:
+                slides_array[idx2] = new_page
 
     # 用 flag_modified 强制触发 SQLAlchemy JSON 变更检测
     new_data = dict(cw_data_raw) if isinstance(cw_data_raw, dict) else {}

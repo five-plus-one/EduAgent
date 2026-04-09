@@ -1973,50 +1973,75 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
         _render_image_placeholder(slide, elem, col_x, col_w, colors)
         return
 
-    # 2) 计算图片放置区域（占满整列高度，留边距）
-    img_x = col_x + 0.05
-    img_y = CONTENT_T + 0.05
-    img_w = col_w - 0.15
-    img_h = SLIDE_H - img_y - 0.45
+    # 2) 用 PIL 读取图片真实像素宽高（避免 add_picture 拉伸后再算比例的错误）
+    try:
+        from PIL import Image as _PilImg
+        with _PilImg.open(image_path) as _im:
+            real_w_px, real_h_px = _im.size
+    except Exception as _pe:
+        logger.warning(f"[image_elem] PIL size read failed: {_pe}, using 1:1")
+        real_w_px, real_h_px = 1, 1
+
+    aspect = real_w_px / real_h_px  # > 1: 横图; < 1: 竖图
+
+    # 3) 根据宽高比决定放置区域
+    #    横图/方图 (aspect >= 0.75) → 右列
+    #    竖图 (aspect < 0.75)      → 底部横幅
+    if aspect >= 0.75:
+        # ── 右列放置 ──
+        area_x = col_x + 0.08
+        area_y = CONTENT_T + 0.05
+        area_w = col_w - 0.16          # 可用宽度
+        area_h = SLIDE_H - area_y - 0.45  # 可用高度
+
+        # contain-fit: 保持比例缩放至 area_w × area_h 内
+        if area_w / area_h >= aspect:
+            # 高度受限
+            fit_h = area_h
+            fit_w = fit_h * aspect
+        else:
+            # 宽度受限
+            fit_w = area_w
+            fit_h = fit_w / aspect
+
+        # 居中
+        off_x = area_x + (area_w - fit_w) / 2.0
+        off_y = area_y + (area_h - fit_h) / 2.0
+    else:
+        # ── 底部横幅放置 ──
+        area_x = MARGIN_LEFT + 0.1
+        area_w = CONTENT_W - 0.2
+        area_h = min(3.5, CONTENT_H * 0.55)   # 高度不超过内容区的 55%
+        area_y = SLIDE_H - area_h - 0.42       # 底部留 caption 空间
+
+        if area_w / area_h >= aspect:
+            fit_h = area_h
+            fit_w = fit_h * aspect
+        else:
+            fit_w = area_w
+            fit_h = fit_w / aspect
+
+        # 水平居中
+        off_x = MARGIN_LEFT + (CONTENT_W - fit_w) / 2.0
+        off_y = area_y
 
     try:
-        # 插入图片
+        from pptx.util import Emu
         pic = slide.shapes.add_picture(
             image_path,
-            Inches(img_x), Inches(img_y),
-            Inches(img_w), Inches(img_h)
+            Inches(off_x), Inches(off_y),
+            Inches(fit_w), Inches(fit_h)   # 已按比例计算，直接传入
         )
-        # 微调：保持图片原始宽高比（python-pptx 默认按给定尺寸拉伸，改为按宽度适配）
-        from pptx.util import Emu
-        try:
-            orig_w = pic.width
-            orig_h = pic.height
-            if orig_w > 0 and orig_h > 0:
-                ratio = orig_h / orig_w
-                new_h = Emu(int(Inches(img_w) * ratio))
-                max_h = Inches(img_h)
-                if new_h > max_h:
-                    # 高度超限：改为按高度适配
-                    ratio_w = orig_w / orig_h
-                    pic.height = max_h
-                    pic.width  = Emu(int(max_h * ratio_w))
-                else:
-                    pic.width  = Inches(img_w)
-                    pic.height = new_h
-                # 居中对齐
-                pic.left = Inches(col_x) + (Inches(col_w) - pic.width) // 2
-        except Exception:
-            pass  # 保持默认尺寸
 
-        # 3) 添加 alt 文字图注（幻灯片底部小字）
+        # 4) 添加 alt 图注（底部小字）
         alt_text = elem.get("alt", "")
         if alt_text:
-            from pptx.util import Pt
+            cap_y = min(Inches(off_y + fit_h + 0.04), Inches(SLIDE_H - 0.35))
             alt_box = slide.shapes.add_textbox(
-                Inches(col_x + 0.05),
-                Inches(SLIDE_H - 0.4),
-                Inches(col_w - 0.1),
-                Inches(0.32)
+                Inches(col_x + 0.05 if aspect >= 0.75 else MARGIN_LEFT),
+                cap_y,
+                Inches(col_w - 0.1 if aspect >= 0.75 else CONTENT_W),
+                Inches(0.30)
             )
             tf = alt_box.text_frame
             tf.word_wrap = True
@@ -2025,7 +2050,7 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
             p.alignment = PP_ALIGN.CENTER
             run = p.add_run()
             run.text = alt_text
-            run.font.size = Pt(9)
+            run.font.size = Pt(8)
             run.font.color.rgb = hex2rgb(txt)
             run.font.italic = True
 
