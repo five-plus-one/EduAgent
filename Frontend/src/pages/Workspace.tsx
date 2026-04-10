@@ -20,7 +20,7 @@ import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock } from 'lucide-react';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -39,7 +39,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, setWordDocLocally } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -71,6 +71,10 @@ export default function Workspace() {
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
+  // 教案手动编辑模式
+  const [wordEditMode, setWordEditMode] = useState(false);
+  const [wordDraft, setWordDraft] = useState('');
+  const wordEditRef = useRef<HTMLTextAreaElement>(null);
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -752,6 +756,7 @@ export default function Workspace() {
                       isUpdating={updatingPages.has(page.page_index)}
                       isStreaming={isStreaming}
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
+                      onManualSave={(pageIndex, updated) => updatePageLocally(pageIndex, updated)}
                     />
                   ))}
                   
@@ -798,6 +803,55 @@ export default function Workspace() {
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
+            {/* 教案工具栏 */}
+            <div className={styles.wordToolbar}>
+              <span className={styles.wordToolbarTitle}>
+                讲义文稿
+              </span>
+              <div className={styles.wordToolbarActions}>
+                {(streamWordDoc || wordDoc) && (
+                  <>
+                    <button
+                      className={clsx(styles.wordModeBtn, !wordEditMode && styles.wordModeBtnActive)}
+                      onClick={() => setWordEditMode(false)}
+                    >
+                      预览
+                    </button>
+                    <button
+                      className={clsx(styles.wordModeBtn, wordEditMode && styles.wordModeBtnActive)}
+                      onClick={() => {
+                        setWordDraft(streamWordDoc || wordDoc);
+                        setWordEditMode(true);
+                        setTimeout(() => wordEditRef.current?.focus(), 80);
+                      }}
+                    >
+                      <Pencil size={12} /> 编辑
+                    </button>
+                    {wordEditMode && (
+                      <button
+                        className={styles.wordSaveBtn}
+                        onClick={() => {
+                          setWordDocLocally(wordDraft);
+                          setWordEditMode(false);
+                        }}
+                      >
+                        <Check size={12} /> 保存
+                      </button>
+                    )}
+                  </>
+                )}
+                {!wordEditMode && (streamWordDoc || wordDoc) && (
+                  <button
+                    className={clsx('button-primary', styles.exportWordBtn)}
+                    onClick={handleExportWord}
+                    disabled={isExportingWord || !wordDoc || sessionId === 'new'}
+                  >
+                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
               {isGenerating && !isStreaming ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
@@ -809,6 +863,16 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
+              ) : wordEditMode ? (
+                /* ── 手动编辑模式 */
+                <textarea
+                  ref={wordEditRef}
+                  className={styles.wordEditTextarea}
+                  value={wordDraft}
+                  onChange={e => setWordDraft(e.target.value)}
+                  placeholder="在此处编辑 Markdown 讲义内容..."
+                  spellCheck={false}
+                />
               ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 

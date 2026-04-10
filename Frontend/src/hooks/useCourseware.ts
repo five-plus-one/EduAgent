@@ -288,5 +288,17 @@ export function useCourseware(sessionId: string) {
     setPreviewStatus('idle');
   }, []);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages };
+  /** 直接用本地修改替换某页，无需 AI（手动编辑专用） */
+  const updatePageLocally = useCallback((pageIndex: number, updatedPage: Partial<PPTPage>) => {
+    setPages(prev => prev.map(p =>
+      p.page_index === pageIndex ? { ...p, ...updatedPage } : p
+    ));
+  }, []);
+
+  /** 直接修改讲义文本（手动编辑专用） */
+  const setWordDocLocally = useCallback((content: string) => {
+    setWordDoc(content);
+  }, []);
+
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, setWordDocLocally };
 }

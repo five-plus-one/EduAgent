@@ -1,0 +1,318 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  X, Search, Loader2, Check, Image as ImageIcon,
+  LayoutGrid, Maximize2, AlignCenter, Crop,
+  RefreshCw, Rows, Columns, BarChart2, Clock, Star,
+} from 'lucide-react';
+import { clsx } from 'clsx';
+import styles from './PPTImageEditDrawer.module.css';
+import { apiClient, resolveImagePreviewUrl } from '../utils/api';
+
+/* ─── 类型定义 ─────────────────────────────────────────────── */
+
+export type ObjectFitMode = 'cover' | 'contain' | 'fill';
+
+export interface ImageElement {
+  element_id: string;
+  type: 'image';
+  position: string;
+  url?: string;
+  alt?: string;
+  query?: string;
+  resolved?: {
+    preview_url?: string;
+    image_id?: string;
+    source?: string;
+  };
+}
+
+export interface PPTLayoutTemplate {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+}
+
+interface Props {
+  open: boolean;
+  pageIndex: number;
+  pageTitle: string;
+  element: ImageElement | null;
+  currentFit: ObjectFitMode;
+  onClose: () => void;
+  /** 触发页面级 iterate（自然语言指令） */
+  onIterate: (instruction: string) => void;
+  /** 仅替换该元素的本地图片 URL（无需等待 AI） */
+  onReplaceImage: (elementId: string, newUrl: string, newAlt: string) => void;
+  /** 修改该元素 object-fit 样式 */
+  onChangeFit: (elementId: string, fit: ObjectFitMode) => void;
+}
+
+/* ─── 布局模板列表 ─────────────────────────────────────────── */
+const LAYOUT_TEMPLATES: PPTLayoutTemplate[] = [
+  { id: 'standard',   name: '标准',     icon: <Rows size={18} />,      description: '内容列表，适用于一般知识点' },
+  { id: 'two_column', name: '双栏',     icon: <Columns size={18} />,   description: '左文右图，视觉均衡对比' },
+  { id: 'cover',      name: '封面',     icon: <Star size={18} />,      description: '大标题居中，首页或章节页' },
+  { id: 'stat_callout', name: '数据强调', icon: <BarChart2 size={18} />, description: '凸显关键数字或统计数据' },
+  { id: 'timeline',   name: '时间轴',   icon: <Clock size={18} />,     description: '展示流程步骤或历史事件' },
+  { id: 'image_gallery', name: '图片墙', icon: <LayoutGrid size={18} />, description: '多图并排，视觉展示型页面' },
+];
+
+const FIT_OPTIONS: { value: ObjectFitMode; icon: React.ReactNode; label: string }[] = [
+  { value: 'cover',   icon: <Maximize2 size={14} />,  label: '自动裁剪' },
+  { value: 'contain', icon: <AlignCenter size={14} />, label: '完整显示' },
+  { value: 'fill',    icon: <Crop size={14} />,        label: '拉伸填充' },
+];
+
+/* ─── 图片搜索结果类型 ─────────────────────────────────────── */
+interface ImageResult {
+  image_id: string;
+  preview_url: string;
+  label?: string;
+  tags?: string[];
+}
+
+export default function PPTImageEditDrawer({
+  open, pageIndex, pageTitle, element, currentFit,
+  onClose, onIterate, onReplaceImage, onChangeFit,
+}: Props) {
+  const [activeTab, setActiveTab] = useState<'image' | 'layout'>('image');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<ImageResult[]>([]);
+  const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
+
+  // 重置状态当 element 变化
+  useEffect(() => {
+    if (element) {
+      setSearchQuery(element.alt || element.query || '');
+      setResults([]);
+      setSelectedImageId(element.resolved?.image_id ?? null);
+    }
+  }, [element?.element_id]);
+
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      // 使用用户图库接口搜索
+      const res = await apiClient.get('/users/me/images', {
+        params: { page: 1, size: 12, keyword: searchQuery.trim() },
+      });
+      const items = res.data?.data?.items ?? res.data?.items ?? [];
+      setResults(items.map((img: any) => ({
+        image_id: img.image_id,
+        preview_url: img.preview_url ?? img.url ?? '',
+        label: img.label ?? img.filename ?? '',
+        tags: img.tags ?? [],
+      })));
+    } catch (e) {
+      console.error('Image search failed', e);
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery]);
+
+  const handleApplyImage = () => {
+    const selected = results.find(r => r.image_id === selectedImageId);
+    if (!selected || !element) return;
+    const previewUrl = resolveImagePreviewUrl(selected.preview_url);
+    onReplaceImage(element.element_id, previewUrl, selected.label || searchQuery);
+    onClose();
+  };
+
+  const handleApplyLayout = (templateId: string) => {
+    onIterate(`将这一页的布局切换为"${LAYOUT_TEMPLATES.find(t => t.id === templateId)?.name}"（layout_type: ${templateId}），保持现有内容不变。`);
+    onClose();
+  };
+
+  if (!open || !element) return null;
+
+  const currentPreviewUrl = element.resolved?.preview_url
+    ? resolveImagePreviewUrl(element.resolved.preview_url)
+    : element.url ?? null;
+
+  return (
+    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.drawer}>
+
+        {/* ── Header ─────────────────────────────────────────── */}
+        <div className={styles.header}>
+          <div className={styles.headerLeft}>
+            <ImageIcon size={15} />
+            <span>第 {pageIndex} 页 · 图片编辑</span>
+          </div>
+          <button className={styles.closeBtn} onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* ── 当前图片预览 ─────────────────────────────────────── */}
+        <div className={styles.currentPreview}>
+          {currentPreviewUrl ? (
+            <img src={currentPreviewUrl} alt={element.alt || '当前图片'} style={{ objectFit: currentFit }} />
+          ) : (
+            <div className={styles.previewEmpty}>
+              <ImageIcon size={36} opacity={0.25} />
+              <span>暂无匹配图片</span>
+            </div>
+          )}
+          <div className={styles.previewMeta}>
+            <span className={styles.previewAlt}>{element.alt || element.query || '未命名图片'}</span>
+          </div>
+        </div>
+
+        {/* ── Object-Fit 快速切换 ─────────────────────────────── */}
+        <div className={styles.fitRow}>
+          <span className={styles.fitLabel}>显示方式</span>
+          <div className={styles.fitOptions}>
+            {FIT_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                className={clsx(styles.fitBtn, currentFit === opt.value && styles.fitBtnActive)}
+                onClick={() => onChangeFit(element.element_id, opt.value)}
+              >
+                {opt.icon}
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Tab 切换 ────────────────────────────────────────── */}
+        <div className={styles.tabs}>
+          <button
+            className={clsx(styles.tab, activeTab === 'image' && styles.tabActive)}
+            onClick={() => setActiveTab('image')}
+          >
+            <RefreshCw size={13} /> 换图
+          </button>
+          <button
+            className={clsx(styles.tab, activeTab === 'layout' && styles.tabActive)}
+            onClick={() => setActiveTab('layout')}
+          >
+            <LayoutGrid size={13} /> 切换模板
+          </button>
+        </div>
+
+        {/* ── 换图面板 ─────────────────────────────────────────── */}
+        {activeTab === 'image' && (
+          <div className={styles.body}>
+            <div className={styles.searchRow}>
+              <input
+                className={styles.searchInput}
+                placeholder="搜索关键词，例：显微镜、电路图..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              />
+              <button
+                className={styles.searchBtn}
+                onClick={handleSearch}
+                disabled={searching || !searchQuery.trim()}
+              >
+                {searching ? <Loader2 size={15} className={styles.spin} /> : <Search size={15} />}
+              </button>
+            </div>
+
+            {results.length > 0 ? (
+              <div className={styles.imageGrid}>
+                {results.map(img => {
+                  const url = resolveImagePreviewUrl(img.preview_url);
+                  const isSelected = selectedImageId === img.image_id;
+                  return (
+                    <button
+                      key={img.image_id}
+                      className={clsx(styles.imageThumb, isSelected && styles.imageThumbSelected)}
+                      onClick={() => setSelectedImageId(isSelected ? null : img.image_id)}
+                    >
+                      <img src={url} alt={img.label || ''} />
+                      {isSelected && (
+                        <div className={styles.imageCheck}>
+                          <Check size={14} />
+                        </div>
+                      )}
+                      {img.label && (
+                        <div className={styles.imageLabel}>{img.label}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : searching ? (
+              <div className={styles.searchPending}>
+                <Loader2 size={28} className={styles.spin} />
+                <span>搜索中...</span>
+              </div>
+            ) : (
+              <div className={styles.searchEmpty}>
+                <Search size={28} opacity={0.2} />
+                <span>输入关键词后按回车搜索图片库</span>
+              </div>
+            )}
+
+            {selectedImageId && (
+              <div className={styles.applyRow}>
+                <button className={styles.applyBtn} onClick={handleApplyImage}>
+                  <Check size={15} /> 应用选中图片
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 切换模板面板 ─────────────────────────────────────── */}
+        {activeTab === 'layout' && (
+          <div className={styles.body}>
+            <p className={styles.layoutHint}>
+              选择一个布局模板，AI 将在保留现有内容的前提下重排版此页
+            </p>
+            <div className={styles.layoutGrid}>
+              {LAYOUT_TEMPLATES.map(tpl => (
+                <button
+                  key={tpl.id}
+                  className={styles.layoutCard}
+                  onClick={() => handleApplyLayout(tpl.id)}
+                >
+                  <div className={styles.layoutCardIcon}>{tpl.icon}</div>
+                  <div className={styles.layoutCardText}>
+                    <span className={styles.layoutCardName}>{tpl.name}</span>
+                    <span className={styles.layoutCardDesc}>{tpl.description}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.customIterateRow}>
+              <p className={styles.customIterateLabel}>自定义指令</p>
+              <CustomIterateBox onIterate={(inst) => { onIterate(inst); onClose(); }} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── 自定义指令小组件 ─────────────────────────────────────── */
+function CustomIterateBox({ onIterate }: { onIterate: (s: string) => void }) {
+  const [value, setValue] = useState('');
+  return (
+    <div className={styles.customBox}>
+      <textarea
+        className={styles.customInput}
+        placeholder="例：改成深色背景，加一张展示分子结构的图片，标题居中对齐..."
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        rows={3}
+      />
+      <button
+        className={styles.customSubmitBtn}
+        disabled={!value.trim()}
+        onClick={() => { onIterate(value.trim()); setValue(''); }}
+      >
+        <RefreshCw size={14} /> AI 重排此页
+      </button>
+    </div>
+  );
+}
