@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Search, Loader2, Check, Image as ImageIcon,
   LayoutGrid, Maximize2, AlignCenter, Crop,
-  RefreshCw, Rows, Columns, BarChart2, Clock, Star,
+  RefreshCw, Rows, Columns, BarChart2, Clock, Star, Grid,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTImageEditDrawer.module.css';
@@ -40,22 +40,19 @@ interface Props {
   element: ImageElement | null;
   currentFit: ObjectFitMode;
   onClose: () => void;
-  /** 触发页面级 iterate（自然语言指令） */
   onIterate: (instruction: string) => void;
-  /** 仅替换该元素的本地图片 URL（无需等待 AI） */
   onReplaceImage: (elementId: string, newUrl: string, newAlt: string) => void;
-  /** 修改该元素 object-fit 样式 */
   onChangeFit: (elementId: string, fit: ObjectFitMode) => void;
 }
 
-/* ─── 布局模板列表 ─────────────────────────────────────────── */
+/* ─── 布局模板 ─────────────────────────────────────────────── */
 const LAYOUT_TEMPLATES: PPTLayoutTemplate[] = [
-  { id: 'standard',   name: '标准',     icon: <Rows size={18} />,      description: '内容列表，适用于一般知识点' },
-  { id: 'two_column', name: '双栏',     icon: <Columns size={18} />,   description: '左文右图，视觉均衡对比' },
-  { id: 'cover',      name: '封面',     icon: <Star size={18} />,      description: '大标题居中，首页或章节页' },
+  { id: 'standard',     name: '标准',     icon: <Rows size={18} />,      description: '内容列表，适用于一般知识点' },
+  { id: 'two_column',   name: '双栏',     icon: <Columns size={18} />,   description: '左文右图，视觉均衡对比' },
+  { id: 'cover',        name: '封面',     icon: <Star size={18} />,      description: '大标题居中，首页或章节页' },
   { id: 'stat_callout', name: '数据强调', icon: <BarChart2 size={18} />, description: '凸显关键数字或统计数据' },
-  { id: 'timeline',   name: '时间轴',   icon: <Clock size={18} />,     description: '展示流程步骤或历史事件' },
-  { id: 'image_gallery', name: '图片墙', icon: <LayoutGrid size={18} />, description: '多图并排，视觉展示型页面' },
+  { id: 'timeline',     name: '时间轴',   icon: <Clock size={18} />,     description: '展示流程步骤或历史事件' },
+  { id: 'image_gallery',name: '图片墙',   icon: <LayoutGrid size={18} />,description: '多图并排，视觉展示型页面' },
 ];
 
 const FIT_OPTIONS: { value: ObjectFitMode; icon: React.ReactNode; label: string }[] = [
@@ -64,7 +61,7 @@ const FIT_OPTIONS: { value: ObjectFitMode; icon: React.ReactNode; label: string 
   { value: 'fill',    icon: <Crop size={14} />,        label: '拉伸填充' },
 ];
 
-/* ─── 图片搜索结果类型 ─────────────────────────────────────── */
+/* ─── 图片结果类型 ─────────────────────────────────────────── */
 interface ImageResult {
   image_id: string;
   preview_url: string;
@@ -72,40 +69,61 @@ interface ImageResult {
   tags?: string[];
 }
 
+const PAGE_SIZE = 18; // 每次加载的图片数
+
 export default function PPTImageEditDrawer({
   open, pageIndex, pageTitle, element, currentFit,
   onClose, onIterate, onReplaceImage, onChangeFit,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'image' | 'layout'>('image');
+  /** 换图面板内的子模式：search = 搜索，all = 全部 */
+  const [imageMode, setImageMode] = useState<'search' | 'all'>('search');
+
+  // ── 搜索状态 ──────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<ImageResult[]>([]);
+  const [searchResults, setSearchResults] = useState<ImageResult[]>([]);
+
+  // ── 全部图片状态 ───────────────────────────────────────────
+  const [allImages, setAllImages] = useState<ImageResult[]>([]);
+  const [allPage, setAllPage] = useState(1);
+  const [allTotal, setAllTotal] = useState(0);
+  const [allLoading, setAllLoading] = useState(false);
+  const allLoadedOnce = useRef(false);
+
+  // ── 公共选择态 ─────────────────────────────────────────────
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
 
-  // 重置状态当 element 变化
+  /* 重置状态 */
   useEffect(() => {
     if (element) {
       setSearchQuery(element.alt || element.query || '');
-      setResults([]);
+      setSearchResults([]);
       setSelectedImageId(element.resolved?.image_id ?? null);
+      setAllImages([]);
+      setAllPage(1);
+      setAllTotal(0);
+      allLoadedOnce.current = false;
     }
   }, [element?.element_id]);
 
+  /* 切到「全部」时首次加载 */
+  useEffect(() => {
+    if (imageMode === 'all' && !allLoadedOnce.current) {
+      loadAllImages(1, true);
+    }
+  }, [imageMode]);
+
+  /* ── 搜索 ──────────────────────────────────────────────── */
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      // 使用用户图库接口搜索
       const res = await apiClient.get('/users/me/images', {
-        params: { page: 1, size: 12, keyword: searchQuery.trim() },
+        params: { page: 1, size: PAGE_SIZE, keyword: searchQuery.trim() },
       });
       const items = res.data?.data?.items ?? res.data?.items ?? [];
-      setResults(items.map((img: any) => ({
-        image_id: img.image_id,
-        preview_url: img.preview_url ?? img.url ?? '',
-        label: img.label ?? img.filename ?? '',
-        tags: img.tags ?? [],
-      })));
+      setSearchResults(normalizeImages(items));
     } catch (e) {
       console.error('Image search failed', e);
     } finally {
@@ -113,11 +131,35 @@ export default function PPTImageEditDrawer({
     }
   }, [searchQuery]);
 
+  /* ── 全部图片加载（分页） ───────────────────────────────── */
+  const loadAllImages = async (page: number, reset = false) => {
+    if (allLoading) return;
+    setAllLoading(true);
+    try {
+      const res = await apiClient.get('/users/me/images', {
+        params: { page, size: PAGE_SIZE },
+      });
+      const data = res.data?.data ?? res.data ?? {};
+      const items: ImageResult[] = normalizeImages(data.items ?? []);
+      setAllTotal(data.total ?? 0);
+      setAllImages(prev => reset ? items : [...prev, ...items]);
+      setAllPage(page);
+      if (reset) allLoadedOnce.current = true;
+    } catch (e) {
+      console.error('Load all images failed', e);
+    } finally {
+      setAllLoading(false);
+    }
+  };
+
+  /* ── 应用选中图片 ──────────────────────────────────────── */
+  const displayedResults = imageMode === 'search' ? searchResults : allImages;
+
   const handleApplyImage = () => {
-    const selected = results.find(r => r.image_id === selectedImageId);
+    const selected = displayedResults.find(r => r.image_id === selectedImageId);
     if (!selected || !element) return;
     const previewUrl = resolveImagePreviewUrl(selected.preview_url);
-    onReplaceImage(element.element_id, previewUrl, selected.label || searchQuery);
+    onReplaceImage(element.element_id, previewUrl, selected.label || searchQuery || '图片');
     onClose();
   };
 
@@ -131,6 +173,8 @@ export default function PPTImageEditDrawer({
   const currentPreviewUrl = element.resolved?.preview_url
     ? resolveImagePreviewUrl(element.resolved.preview_url)
     : element.url ?? null;
+
+  const hasMore = allImages.length < allTotal;
 
   return (
     <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
@@ -147,7 +191,7 @@ export default function PPTImageEditDrawer({
           </button>
         </div>
 
-        {/* ── 当前图片预览 ─────────────────────────────────────── */}
+        {/* ── 当前图片预览 ────────────────────────────────────── */}
         <div className={styles.currentPreview}>
           {currentPreviewUrl ? (
             <img src={currentPreviewUrl} alt={element.alt || '当前图片'} style={{ objectFit: currentFit }} />
@@ -162,7 +206,7 @@ export default function PPTImageEditDrawer({
           </div>
         </div>
 
-        {/* ── Object-Fit 快速切换 ─────────────────────────────── */}
+        {/* ── Object-Fit 快速切换 ──────────────────────────── */}
         <div className={styles.fitRow}>
           <span className={styles.fitLabel}>显示方式</span>
           <div className={styles.fitOptions}>
@@ -179,7 +223,7 @@ export default function PPTImageEditDrawer({
           </div>
         </div>
 
-        {/* ── Tab 切换 ────────────────────────────────────────── */}
+        {/* ── Tab 切换（换图 / 切换模板） ───────────────────── */}
         <div className={styles.tabs}>
           <button
             className={clsx(styles.tab, activeTab === 'image' && styles.tabActive)}
@@ -195,62 +239,94 @@ export default function PPTImageEditDrawer({
           </button>
         </div>
 
-        {/* ── 换图面板 ─────────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════
+            换图面板
+            ══════════════════════════════════════════════════════ */}
         {activeTab === 'image' && (
           <div className={styles.body}>
-            <div className={styles.searchRow}>
-              <input
-                className={styles.searchInput}
-                placeholder="搜索关键词，例：显微镜、电路图..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
-              />
+
+            {/* 二级切换：搜索 / 全部 */}
+            <div className={styles.imageModeBar}>
               <button
-                className={styles.searchBtn}
-                onClick={handleSearch}
-                disabled={searching || !searchQuery.trim()}
+                className={clsx(styles.imageModeBtn, imageMode === 'search' && styles.imageModeBtnActive)}
+                onClick={() => setImageMode('search')}
               >
-                {searching ? <Loader2 size={15} className={styles.spin} /> : <Search size={15} />}
+                <Search size={12} /> 搜索
+              </button>
+              <button
+                className={clsx(styles.imageModeBtn, imageMode === 'all' && styles.imageModeBtnActive)}
+                onClick={() => setImageMode('all')}
+              >
+                <Grid size={12} /> 全部图片
+                {allTotal > 0 && <span className={styles.totalBadge}>{allTotal}</span>}
               </button>
             </div>
 
-            {results.length > 0 ? (
-              <div className={styles.imageGrid}>
-                {results.map(img => {
-                  const url = resolveImagePreviewUrl(img.preview_url);
-                  const isSelected = selectedImageId === img.image_id;
-                  return (
-                    <button
-                      key={img.image_id}
-                      className={clsx(styles.imageThumb, isSelected && styles.imageThumbSelected)}
-                      onClick={() => setSelectedImageId(isSelected ? null : img.image_id)}
-                    >
-                      <img src={url} alt={img.label || ''} />
-                      {isSelected && (
-                        <div className={styles.imageCheck}>
-                          <Check size={14} />
-                        </div>
-                      )}
-                      {img.label && (
-                        <div className={styles.imageLabel}>{img.label}</div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : searching ? (
-              <div className={styles.searchPending}>
-                <Loader2 size={28} className={styles.spin} />
-                <span>搜索中...</span>
-              </div>
-            ) : (
-              <div className={styles.searchEmpty}>
-                <Search size={28} opacity={0.2} />
-                <span>输入关键词后按回车搜索图片库</span>
-              </div>
+            {/* ── 搜索模式 ──────────────────────────────────── */}
+            {imageMode === 'search' && (
+              <>
+                <div className={styles.searchRow}>
+                  <input
+                    className={styles.searchInput}
+                    placeholder="搜索关键词，例：显微镜、电路图..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  />
+                  <button
+                    className={styles.searchBtn}
+                    onClick={handleSearch}
+                    disabled={searching || !searchQuery.trim()}
+                  >
+                    {searching ? <Loader2 size={15} className={styles.spin} /> : <Search size={15} />}
+                  </button>
+                </div>
+
+                <ImageGrid
+                  images={searchResults}
+                  loading={searching}
+                  selectedId={selectedImageId}
+                  onSelect={setSelectedImageId}
+                  emptyIcon={<Search size={28} opacity={0.2} />}
+                  emptyText="输入关键词后按回车搜索图片库"
+                />
+              </>
             )}
 
+            {/* ── 全部图片模式 ────────────────────────────── */}
+            {imageMode === 'all' && (
+              <>
+                <ImageGrid
+                  images={allImages}
+                  loading={allLoading && allImages.length === 0}
+                  selectedId={selectedImageId}
+                  onSelect={setSelectedImageId}
+                  emptyIcon={<ImageIcon size={28} opacity={0.2} />}
+                  emptyText="图片库暂无内容"
+                />
+
+                {/* 加载更多 */}
+                {hasMore && (
+                  <button
+                    className={styles.loadMoreBtn}
+                    disabled={allLoading}
+                    onClick={() => loadAllImages(allPage + 1)}
+                  >
+                    {allLoading
+                      ? <><Loader2 size={13} className={styles.spin} /> 加载中...</>
+                      : <>加载更多 ({allImages.length}/{allTotal})</>
+                    }
+                  </button>
+                )}
+
+                {/* 刷新按钮 */}
+                {!hasMore && allImages.length > 0 && (
+                  <p className={styles.allLoadedHint}>已加载全部 {allTotal} 张图片</p>
+                )}
+              </>
+            )}
+
+            {/* 应用按钮 */}
             {selectedImageId && (
               <div className={styles.applyRow}>
                 <button className={styles.applyBtn} onClick={handleApplyImage}>
@@ -261,7 +337,9 @@ export default function PPTImageEditDrawer({
           </div>
         )}
 
-        {/* ── 切换模板面板 ─────────────────────────────────────── */}
+        {/* ══════════════════════════════════════════════════════
+            切换模板面板
+            ══════════════════════════════════════════════════════ */}
         {activeTab === 'layout' && (
           <div className={styles.body}>
             <p className={styles.layoutHint}>
@@ -294,7 +372,71 @@ export default function PPTImageEditDrawer({
   );
 }
 
-/* ─── 自定义指令小组件 ─────────────────────────────────────── */
+/* ─── 图片网格（公共子组件） ──────────────────────────────── */
+function ImageGrid({
+  images, loading, selectedId, onSelect, emptyIcon, emptyText,
+}: {
+  images: ImageResult[];
+  loading: boolean;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  emptyIcon: React.ReactNode;
+  emptyText: string;
+}) {
+  if (loading) {
+    return (
+      <div className={styles.searchPending}>
+        <Loader2 size={28} className={styles.spin} />
+        <span>加载中...</span>
+      </div>
+    );
+  }
+  if (images.length === 0) {
+    return (
+      <div className={styles.searchEmpty}>
+        {emptyIcon}
+        <span>{emptyText}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.imageGrid}>
+      {images.map(img => {
+        const url = resolveImagePreviewUrl(img.preview_url);
+        const isSelected = selectedId === img.image_id;
+        return (
+          <button
+            key={img.image_id}
+            className={clsx(styles.imageThumb, isSelected && styles.imageThumbSelected)}
+            onClick={() => onSelect(isSelected ? null : img.image_id)}
+          >
+            <img src={url} alt={img.label || ''} />
+            {isSelected && (
+              <div className={styles.imageCheck}>
+                <Check size={14} />
+              </div>
+            )}
+            {img.label && (
+              <div className={styles.imageLabel}>{img.label}</div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ─── 工具函数 ─────────────────────────────────────────────── */
+function normalizeImages(items: any[]): ImageResult[] {
+  return items.map((img: any) => ({
+    image_id: img.image_id,
+    preview_url: img.preview_url ?? img.url ?? '',
+    label: img.label ?? img.filename ?? '',
+    tags: img.tags ?? [],
+  }));
+}
+
+/* ─── 自定义指令 ───────────────────────────────────────────── */
 function CustomIterateBox({ onIterate }: { onIterate: (s: string) => void }) {
   const [value, setValue] = useState('');
   return (
