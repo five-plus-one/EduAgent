@@ -154,12 +154,11 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
 }
 
-.cardExpanded {
-  grid-column: 1 / -1; /* span full row when expanded */
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 12px;
+/* 已选中（对应模态框中正在编辑的图片） */
+.cardSelected {
+  border-color: var(--accent-primary, #6366f1);
+  background: rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
 }
 
 /* ── 缩略图 ─────────────────────────────────────────────── */
@@ -173,12 +172,6 @@
   flex-shrink: 0;
 }
 
-.cardExpanded .thumb {
-  width: 160px;
-  aspect-ratio: 4 / 3;
-  flex-shrink: 0;
-}
-
 .thumbImg {
   width: 100%;
   height: 100%;
@@ -188,6 +181,24 @@
 
 .thumb:hover .thumbImg {
   transform: scale(1.04);
+}
+
+/* 悬停时的编辑提示遮罩 */
+.thumbOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(99, 102, 241, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.thumb:hover .thumbOverlay {
+  opacity: 1;
 }
 
 /* ── 状态徽章 ────────────────────────────────────────────── */
@@ -219,49 +230,34 @@
   max-width: 100%;
 }
 
-/* ── 展开内容 ────────────────────────────────────────────── */
-.expandedContent {
-  flex: 1;
+/* ── 描述/标签预览行 ─────────────────────────────────────── */
+.metaPreview {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.labelPreview {
+  font-size: 10px;
+  color: var(--text-tertiary, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  flex: 1;
   min-width: 0;
 }
 
-.description {
-  font-size: 12.5px;
-  color: var(--text-primary, #e2e8f0);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-
-.tagIcon {
-  color: var(--accent-primary, #6366f1);
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.tag {
-  font-size: 10.5px;
-  padding: 2px 7px;
+.tagsCount {
+  font-size: 9.5px;
+  padding: 1px 5px;
   border-radius: 100px;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.2);
   color: var(--accent-primary, #818cf8);
-}
-
-.annotatingHint {
-  font-size: 11px;
-  color: var(--color-info, #60a5fa);
-  margin: 0;
-  opacity: 0.8;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 /* ── 操作栏 ─────────────────────────────────────────────── */
