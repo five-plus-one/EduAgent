@@ -187,6 +187,17 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
 
     doc = Document()
 
+    # ── 全局字体：宋体 ──
+    # 设置 Normal 样式的默认字体，涵盖西文和中文（eastAsia）
+    normal_style = doc.styles['Normal']
+    normal_style.font.name = '宋体'
+    # 通过 XML 设置东亚（CJK）字体
+    from docx.oxml.ns import qn as _qn
+    rFonts_el = normal_style.element.get_or_add_rPr().get_or_add_rFonts()
+    rFonts_el.set(_qn('w:eastAsia'), '宋体')
+    rFonts_el.set(_qn('w:ascii'), '宋体')
+    rFonts_el.set(_qn('w:hAnsi'), '宋体')
+
     # ── 页面设置（A4）──
     section = doc.sections[0]
     section.page_width    = Cm(21.0)

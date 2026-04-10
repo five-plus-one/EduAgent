@@ -13,17 +13,26 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "ProposePPTPlan",
             "description": (
-                "【第一步：方案提案】当用户首次提出想要生成整套PPT/课件时，必须先调用此工具展示生成方案供用户确认。"
-                "方案需包含：计划总页数、每页的标题与布局类型（cover封面/minimal_list内容列表/two_column左右双栏/timeline时间线）、以及每页2-3个核心内容要点。"
-                "提交方案后等待用户回复确认，用户认可后再调用 GenerateFullPPT 正式生成。"
-                "绝对不能在对话文本中直接输出PPT大纲，必须通过此工具提交。"
+                "【第一步：布局方案提案】当用户首次说出想生成整套PPT时，必须先调用此工具幕出布局方案。"
+                "方案要求：每页只需一行，格式为 「页码 [布局] 标题 —— 元素位置概述」，不要堆叠大段文字内容。"
+                "元素位置概述示例：「左：3条要点列表；右：配图」、「全幅大标题+副标题」、「顶部引導语；中部大数字卡片×4」。"
+                "绝对不需要写具体教学内容，只描述页面的“有什么”和“在哪里”。"
+                "提交方案后等待用户确认，用户认可后再调用 GenerateFullPPT 正式生成。"
+                "绝对不能在对话文本中直接输出大纲，必须通过此工具提交。"
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "plan_markdown": {
                         "type": "string",
-                        "description": "PPT生成方案（Markdown格式），例如：**第1页（cover）：课程标题**\\n**第2页（minimal_list）：教学目标**\\n- 要点1\\n- 要点2"
+                        "description": (
+                            "PPT布局方案，Markdown格式。每页一行，火车带进式展示，示例：\n"
+                            "**P1** [cover] 课程大标题 —— 全幅标题+副标题居中\n"
+                            "**P2** [minimal_list] 教学目标 —— 左上：标题；全幅：3-4条要点列表\n"
+                            "**P3** [two_column] 原理对比 —— 左：3条文字列表；右：配图\n"
+                            "**P4** [stat_callout] 核心数据 —— 居中大数字「98%」+说明文字\n"
+                            "(不需要写具体文字内容，只描述元素数量、排列方式和位置)"
+                        )
                     },
                     "total_pages": {
                         "type": "integer",
@@ -115,11 +124,14 @@ SYSTEM_PROMPT = (
     "   Your text response should only be brief conversational acknowledgement.\n"
     "2. AddSlide 工具与 UpdateSlide 工具参数格式完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。\n"
     "   AddSlide 禁止使用 content 字符串参数，必须构造完整的结构化 new_elements 数组。\n"
-    "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
+    "3. 当用户要求‘将某页分成两页’时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
     "4. 【两步生成流程（严格遵守）】\n"
     "   当用户首次表示想要生成整套PPT/课件时，必须严格执行以下两步：\n"
-    "   ▸ 第一步：调用 ProposePPTPlan 工具，提交包含每页标题、布局类型、核心要点的分页生成方案。\n"
-    "   ▸ 第二步：等待用户明确确认（如：'好的'/'可以'/'就这样'/'开始生成'/'没问题'等）后，再调用 GenerateFullPPT 正式生成。\n"
+    "   ▸ 第一步：调用 ProposePPTPlan 工具，以“布局素描”格式呈现每页方案。\n"
+    "   ▸ 布局素描要求：每页一行、格式为「Pn [layout] 页面标题 —— 元素位置描述」。\n"
+    "   ▸ 元素位置描述久要简潔：指出有几个区块、分别在哪里（左/右/居中/全幅）、是文字列表还是图片。	不需要写具体教学内容。\n"
+    "   ▸ 示例：P3 [two_column] 量子力学基础 —— 左：3条要点列表；右：配图\n"
+    "   ▸ 第二步：等待用户明确确认（如：‘好的’/‘可以’/‘就这样’’开始生成’’没问题’等）后，再调用 GenerateFullPPT 正式生成。\n"
     "   ▸ 若用户对方案有修改意见，先更新方案再次调用 ProposePPTPlan，直到用户满意并确认。\n"
     "   ▸ 严禁跳过 ProposePPTPlan 直接调用 GenerateFullPPT，这会导致用户无法预知生成结果。\n"
     "5. 在以下情况下绝对禁止调用 GenerateFullPPT 或 ProposePPTPlan：\n"
@@ -292,9 +304,14 @@ async def stream_chat_response(
             plan_md   = t_args.get("plan_markdown", "")
             total_pgs = t_args.get("total_pages", 0)
             if plan_md:
-                _suffix = "如方案满意，请回复\u300c可以\u300d或\u300c开始生成\u300d；若需调整请告诉我修改意见。"
+                # 将各页行强制拆为 Markdown 段落（\n\n），避免单换行被合并成一行
+                page_lines = [l.strip() for l in plan_md.splitlines() if l.strip()]
+                plan_md_formatted = "\n\n".join(page_lines)
+
+                _suffix = "如方案满意，请回复「可以」或「开始生成」；若需调整请告诉我修改意见。"
                 hint = (
-                    f"\n\n---\n\n{plan_md}\n\n---\n\n"
+                    f"\n\n{plan_md_formatted}\n\n"
+                    f"---\n\n"
                     f"📋 **以上是本次 PPT 生成方案，共计 {total_pgs} 页。**  \n"
                     + _suffix
                 )
