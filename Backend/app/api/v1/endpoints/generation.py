@@ -35,6 +35,7 @@ class ManualSlideEditRequest(BaseModel):
     speaker_notes: Optional[str] = None        # 演讲者注记
 
 
+router = APIRouter()
 
 # ---------------- GENERATION ----------------
 
