@@ -114,34 +114,72 @@ _INLINE_PATTERN = re.compile(
     re.DOTALL
 )
 
+_SONG_TI = '宋体'
 
-def _parse_inline(paragraph, text: str) -> None:
+
+def _add_run(paragraph, text: str, bold: bool = False, italic: bool = False):
     """
-    解析单行文本写入 python-docx 段落。
-    支持 **bold**、*italic*、`code`、$...$、$$...$$ (单行)。
+    添加一个显式设置宋体的文本 run。
+    python-docx 的 add_run() 会继承文档主题字体而非 Normal 样式字体，
+    因此必须在每个 run 上显式设置 eastAsia 字体，才能保证中英混排均为宋体。
+    """
+    if not text:
+        return None
+    r = paragraph.add_run(text)
+    r.bold = bold
+    r.italic = italic
+    r.font.name = _SONG_TI
+    # 设置东亚（CJK）字体
+    from docx.oxml.ns import qn as _qn
+    rPr = r._r.get_or_add_rPr()
+    rFonts = rPr.get_or_add_rFonts()
+    rFonts.set(_qn('w:eastAsia'), _SONG_TI)
+    rFonts.set(_qn('w:ascii'),    _SONG_TI)
+    rFonts.set(_qn('w:hAnsi'),   _SONG_TI)
+    return r
+
+
+def _parse_inline(paragraph, text: str, bold: bool = False, italic: bool = False) -> None:
+    """
+    递归解析行内 Markdown 并写入 python-docx 段落。
+
+    支持：
+    - **bold**、*italic*（递归处理，允许内部嵌套 $...$ 公式）
+    - `code`（Courier New）
+    - $inline$ 和 $$display$$ → OMML 数学对象
+    - 普通文本 → 宋体 run
+
+    bold / italic 参数由递归调用传入，控制当前层级的字体样式。
     """
     last = 0
     for m in _INLINE_PATTERN.finditer(text):
-        # 普通文本段
+        # 普通文本段（含继承的 bold/italic）
         if m.start() > last:
-            paragraph.add_run(text[last:m.start()])
+            _add_run(paragraph, text[last:m.start()], bold=bold, italic=italic)
+
         b, it, code, disp, inl = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+
         if b is not None:
-            r = paragraph.add_run(b); r.bold = True
+            # 递归处理粗体内容（可能含 $...$ 公式）
+            _parse_inline(paragraph, b, bold=True, italic=italic)
         elif it is not None:
-            r = paragraph.add_run(it); r.italic = True
+            # 递归处理斜体内容
+            _parse_inline(paragraph, it, bold=bold, italic=True)
         elif code is not None:
             r = paragraph.add_run(code)
-            r.font.name = 'Courier New'; r.font.size = Pt(10)
+            r.font.name = 'Courier New'
+            r.font.size = Pt(10)
         elif disp is not None:
             if not _add_inline_math_run(paragraph, disp):
-                paragraph.add_run(disp)
+                _add_run(paragraph, disp, bold=bold, italic=italic)
         elif inl is not None:
             if not _add_inline_math_run(paragraph, inl):
-                paragraph.add_run(inl)
+                _add_run(paragraph, inl, bold=bold, italic=italic)
+
         last = m.end()
+
     if last < len(text):
-        paragraph.add_run(text[last:])
+        _add_run(paragraph, text[last:], bold=bold, italic=italic)
 
 
 # ──────────────────────────────────────────────

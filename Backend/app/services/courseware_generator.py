@@ -249,12 +249,16 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 （讲义正文 Markdown，可多行）
 {{"__type": "done"}}
 
-# layout_type 对照表
+# layout_type 对照表（仅允许以下5种，严禁自造布局名称）
 - cover：封面（第1页专用）
 - minimal_list：要点页（多段落列表）
 - two_column：双栏对比页（左右各一组 elements）
 - stat_callout：数据强调页（含大号数字）
 - timeline：时间线/流程页
+
+# 重要：方案一致性约束
+如果课程背景中包含用户已确认的 PPT 生成方案（格式如「P1 [cover] ... P2 [minimal_list] ...」），
+必须严格按照该方案的页数、页面顺序和 layout_type 生成，不得自行增减页数或调换布局。
 
 # elements 结构
 每个 element 是一个 JSON 对象，包含：

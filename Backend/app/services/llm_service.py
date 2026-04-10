@@ -26,12 +26,15 @@ TOOLS_SCHEMA = [
                     "plan_markdown": {
                         "type": "string",
                         "description": (
-                            "PPT布局方案，Markdown格式。每页一行，火车带进式展示，示例：\n"
+                            "PPT布局方案，Markdown格式。每页一行。"
+                            "布局类型只能从cover/minimal_list/two_column/stat_callout/timeline这5种中选，禁止使用其他名称。"
+                            "示例：\n"
                             "**P1** [cover] 课程大标题 —— 全幅标题+副标题居中\n"
                             "**P2** [minimal_list] 教学目标 —— 左上：标题；全幅：3-4条要点列表\n"
                             "**P3** [two_column] 原理对比 —— 左：3条文字列表；右：配图\n"
                             "**P4** [stat_callout] 核心数据 —— 居中大数字「98%」+说明文字\n"
-                            "(不需要写具体文字内容，只描述元素数量、排列方式和位置)"
+                            "**P5** [timeline] 发展历程 —— 左到右：4个时间节点卡片\n"
+                            "(不需要写具体文字内容，只描述元素数量、位置。禁止使用以上5种之外的布局名)"
                         )
                     },
                     "total_pages": {
