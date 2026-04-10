@@ -57,8 +57,14 @@ async def upload_user_image(
     if len(content) > _MAX_SIZE:
         raise HTTPException(status_code=400, detail="Image exceeds 10 MB limit")
 
-    img_id = "img_" + uuid.uuid4().hex[:8]
+    # ── 生成本用户唯一的顺序编号显示名 ──
+    existing_count = db.query(UserImage).filter(UserImage.user_id == current_user.id).count()
+    seq_num = existing_count + 1
     ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
+    display_name = f"img_{seq_num:04d}{ext}"   # e.g. img_0001.jpg，每用户唯一顺序编号
+
+    # ── 物理文件用 UUID 命名（防冲突）──
+    img_id = "img_" + uuid.uuid4().hex[:8]
     safe_name = f"{img_id}{ext}"
     file_path = os.path.join(_IMAGE_DIR, safe_name)
     with open(file_path, "wb") as f:
@@ -67,7 +73,7 @@ async def upload_user_image(
     img = UserImage(
         id=img_id,
         user_id=current_user.id,
-        filename=file.filename or safe_name,
+        filename=display_name,        # 存顺序编号名，非原始文件名
         file_path=file_path,
         mime_type=mime,
         file_size=len(content),
@@ -77,7 +83,7 @@ async def upload_user_image(
     db.add(img)
     db.commit()
 
-    # 后台异步标注（文本推断式，必定成功）
+    # 后台异步 Vision 标注
     background_tasks.add_task(_run_annotate, img_id)
 
     return {
@@ -185,3 +191,119 @@ def retry_annotate_user_image(
     db.commit()
     background_tasks.add_task(_run_annotate, image_id)
     return {"image_id": image_id, "annotate_status": "processing"}
+
+
+# ── 修改用户描述（上传后补填/修改）────────────────────────────────────────────
+
+from pydantic import BaseModel
+from typing import Optional as _Opt, List as _List
+
+class UpdateLabelBody(BaseModel):
+    label: _Opt[str] = None   # 用户自填描述/备注，传 null 清空
+
+@router.patch("/{image_id}", status_code=200)
+def update_image_label(
+    image_id: str,
+    body: UpdateLabelBody,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """修改图片的用户描述字段（label）。
+    若标注已完成，会在后台重新将新 label 融入向量以提升检索精度。
+    """
+    img = db.query(UserImage).filter(
+        UserImage.id == image_id,
+        UserImage.user_id == current_user.id
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    img.label = body.label   # None 表示清空
+    db.commit()
+
+    # 若已标注完成，重新向量化（把新 label 融入检索文本）
+    if img.annotate_status == "done":
+        background_tasks.add_task(_update_image_vector, image_id)
+
+    db.refresh(img)
+    return {
+        "image_id": img.id,
+        "filename": img.filename,
+        "label": img.label,
+        "description": img.description,
+        "tags": img.tags or [],
+        "annotate_status": img.annotate_status,
+        "preview_url": _get_preview_url(img.id),
+    }
+
+
+# ── 修改标签列表 ──────────────────────────────────────────────────────────────
+
+class UpdateTagsBody(BaseModel):
+    tags: _List[str]   # 完整目标标签列表（替换式，非追加式）
+
+@router.put("/{image_id}/tags", status_code=200)
+def update_image_tags(
+    image_id: str,
+    body: UpdateTagsBody,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """替换图片的全部标签（整体覆盖，前端维护最新完整列表后提交）。
+    更新后自动重建向量索引，以保证语义检索精度。
+    """
+    img = db.query(UserImage).filter(
+        UserImage.id == image_id,
+        UserImage.user_id == current_user.id
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # 去重 + 去空白
+    cleaned = list(dict.fromkeys([t.strip() for t in body.tags if t.strip()]))
+    img.tags = cleaned
+    db.commit()
+
+    # 后台更新向量（标签变化影响语义检索）
+    background_tasks.add_task(_update_image_vector, image_id)
+
+    db.refresh(img)
+    return {
+        "image_id": img.id,
+        "filename": img.filename,
+        "label": img.label,
+        "description": img.description,
+        "tags": img.tags or [],
+        "annotate_status": img.annotate_status,
+        "preview_url": _get_preview_url(img.id),
+    }
+
+
+def _update_image_vector(image_id: str):
+    """后台同步任务：用最新 description + tags + label 重建向量索引。"""
+    import asyncio
+    from app.db.session import SessionLocal
+    from app.services.image_service import _store_image_vector, _COLLECTION_USER
+
+    db = SessionLocal()
+    try:
+        img = db.query(UserImage).filter(UserImage.id == image_id).first()
+        if not img or img.annotate_status != "done":
+            return
+        # 向量文本 = AI描述 + 全部标签 + 用户label
+        parts = [img.description or "", " ".join(img.tags or [])]
+        if img.label:
+            parts.append(img.label)
+        text = " ".join(p for p in parts if p).strip()
+        if text:
+            _store_image_vector(
+                _COLLECTION_USER, image_id, text,
+                {"user_id": img.user_id, "filename": img.filename}
+            )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"[_update_image_vector] {e}")
+    finally:
+        db.close()
