@@ -358,6 +358,57 @@ export const downloadExportedFile = async (urlOrFilename: string) => {
 };
 
 // ==========================================
+// Module 5b: Word 讲义
+// ==========================================
+
+/**
+ * 5b.1 AI 修改讲义内容
+ * POST /sessions/{session_id}/courseware/iterate-word
+ * 超时设为 240 秒（LLM 重写长文耗时较久）
+ */
+export const iterateWord = async (
+  sessionId: string,
+  instruction: string,
+  selectedText?: string
+): Promise<{ word_markdown: string }> => {
+  const res = await apiClient.post(
+    `/sessions/${sessionId}/courseware/iterate-word`,
+    { instruction, selected_text: selectedText },
+    { timeout: 240000 }
+  );
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * 5b.2 导出讲义为 .docx 文件（后端 python-docx 渲染，非 HTML 伪装）
+ * GET /sessions/{session_id}/courseware/export-word
+ * 必须用 fetch + blob，不能用 axios 默认模式（会把响应当 JSON 解析）。
+ */
+export const exportWordDocx = async (sessionId: string): Promise<void> => {
+  const token = localStorage.getItem('access_token') ?? '';
+  const res = await fetch(
+    `${API_BASE_URL}/sessions/${sessionId}/courseware/export-word`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    // 尝试解析错误 detail
+    let detail = `导出失败 (${res.status})`;
+    try {
+      const json = await res.json();
+      detail = json?.detail || detail;
+    } catch { /* ignore */ }
+    throw new Error(detail);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `EduAgent讲义_${sessionId.slice(0, 8)}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ==========================================
 // Module 6: Knowledge Base (RAG Admin)
 // ==========================================
 
