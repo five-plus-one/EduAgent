@@ -80,7 +80,42 @@
   margin: 0;
   letter-spacing: -0.02em;
   font-family: 'Outfit', system-ui, sans-serif;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+/* 手动编辑按钮（铅笔） */
+.editPageBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(2.8 * var(--in));
+  height: calc(2.8 * var(--in));
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(99,102,241,0.1);
+  color: rgba(99,102,241,0.7);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, background 0.18s, color 0.18s;
+  margin-left: auto;
+}
+
+.pptCard:hover .editPageBtn {
+  opacity: 1;
+}
+
+.editPageBtn:hover {
+  background: rgba(99,102,241,0.2);
+  color: #6366f1;
+}
+
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
 .stage {

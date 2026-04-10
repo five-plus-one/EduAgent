@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Send, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Send, Loader2, Image as ImageIcon, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTCard.module.css';
 import type { PPTPage } from '../hooks/useCourseware';
@@ -10,6 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { resolveImagePreviewUrl } from '../utils/api';
 import PPTImageEditDrawer, { type ImageElement, type ObjectFitMode } from './PPTImageEditDrawer';
+import PPTPageEditPanel from './PPTPageEditPanel';
 
 // ── Error isolation: one bad card must NOT crash siblings ─────────────────
 class PPTCardErrorBoundary extends React.Component<
@@ -124,14 +125,18 @@ interface Props {
   isUpdating: boolean;
   isStreaming?: boolean;
   onIterate: (instruction: string) => void;
+  /** 手动编辑保存回调（不经过 AI） */
+  onManualSave?: (pageIndex: number, updatedPage: Partial<PPTPage>) => void;
 }
 
-function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate }: Props) {
+function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate, onManualSave }: Props) {
   const [instruction, setInstruction] = useState('');
 
   // ── 图片编辑 Drawer 状态 ────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeElement, setActiveElement] = useState<ImageElement | null>(null);
+  // ── 手动编辑面板 ────────────────────────────────────────────
+  const [editPanelOpen, setEditPanelOpen] = useState(false);
   // 局部覆盖图片 URL（换图后立即生效，无需等待 AI）
   const [imageOverrides, setImageOverrides] = useState<Record<string, { url: string; alt: string }>>({});
   // Each element can have its own fit mode
@@ -306,6 +311,16 @@ function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate }: Prop
           <div className={styles.cardHeader}>
             <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
             <h4>{page.title}</h4>
+            {/* 手动编辑按钮 */}
+            {!isUpdating && !isStreaming && onManualSave && (
+              <button
+                className={styles.editPageBtn}
+                onClick={() => setEditPanelOpen(true)}
+                title="手动编辑此页"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
           </div>
         )}
 
@@ -459,6 +474,17 @@ function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate }: Prop
         onReplaceImage={handleReplaceImage}
         onChangeFit={handleChangeFit}
       />
+
+      {/* ── 手动编辑面板 */}
+      {onManualSave && (
+        <PPTPageEditPanel
+          open={editPanelOpen}
+          page={page}
+          onClose={() => setEditPanelOpen(false)}
+          onSave={(updated) => onManualSave(page.page_index, updated)}
+          onIterate={onIterate}
+        />
+      )}
     </>
   );
 }
