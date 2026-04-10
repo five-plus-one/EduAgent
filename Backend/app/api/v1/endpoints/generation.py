@@ -589,7 +589,7 @@ def replace_slide_image(
     element["resolved"] = {
         "image_id": body.image_id,
         "preview_url": preview_url,
-        "source": "library",
+        "source": "user",   # UserImage 表（用户个人素材库）；"library" 是管理员公共库
     }
 
     # 7. 强制触发 SQLAlchemy JSON 变更检测并提交
