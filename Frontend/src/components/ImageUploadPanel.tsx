@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import {
-  uploadUserImage,
   listUserImages,
   deleteUserImage,
   reannotateUserImage,
@@ -13,6 +12,7 @@ import {
   type UserImage,
 } from '../utils/api';
 import styles from './ImageUploadPanel.module.css';
+import PreUploadModal from './PreUploadModal';
 import ImageDetailModal from './ImageDetailModal';
 
 // API v2: 图片库已改为用户级，不再绑定会话，无需传 sessionId
@@ -24,26 +24,26 @@ const STATUS_CONFIG = {
   failed:     { label: '失败',   icon: AlertCircle,  color: 'var(--color-danger, #ef4444)'  },
 } as const;
 
-/** 轮询间隔（ms） */
 const POLL_INTERVAL = 3000;
 
 export default function ImageUploadPanel() {
   const [images, setImages] = useState<UserImage[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [reannotatingIds, setReannotatingIds] = useState<Set<string>>(new Set());
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  // ── 模态框状态 ─────────────────────────────────────────────
-  const [modalImage, setModalImage] = useState<UserImage | null>(null);
-  const [modalMode, setModalMode] = useState<'upload' | 'view'>('view');
+  // ── 预上传模态框（选文件后弹出，用于编辑 label/tags） ────
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
+
+  // ── 详情模态框（点击已上传图片弹出） ────────────────────
+  const [detailImage, setDetailImage] = useState<UserImage | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── 拉取图片列表 ──────────────────────────────────────────
+  // ── 拉取图片列表 ─────────────────────────────────────────
   const fetchImages = useCallback(async () => {
     try {
       const res = await listUserImages(1, 50);
@@ -53,16 +53,13 @@ export default function ImageUploadPanel() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchImages();
-  }, [fetchImages]);
+  useEffect(() => { fetchImages(); }, [fetchImages]);
 
-  // ── 轮询：对 pending/processing 图片定期刷新 ─────────────
+  // ── 轮询：pending/processing 图片定期刷新 ─────────────────
   useEffect(() => {
     const hasPending = images.some(
       img => img.annotate_status === 'pending' || img.annotate_status === 'processing'
     );
-
     if (hasPending) {
       if (!pollTimerRef.current) {
         pollTimerRef.current = setInterval(fetchImages, POLL_INTERVAL);
@@ -81,46 +78,33 @@ export default function ImageUploadPanel() {
     };
   }, [images, fetchImages]);
 
-  // 轮询时同步更新模态框内的图片数据（避免模态框内容过时）
+  // 轮询时同步更新详情模态框内的图片数据
   useEffect(() => {
-    if (!modalImage) return;
-    const updated = images.find(img => img.image_id === modalImage.image_id);
-    if (updated) setModalImage(updated);
+    if (!detailImage) return;
+    const updated = images.find(img => img.image_id === detailImage.image_id);
+    if (updated) setDetailImage(updated);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [images]);
 
-  // ── 上传处理 ─────────────────────────────────────────────
-  const handleFiles = async (files: FileList | File[]) => {
+  // ── 文件校验 + 打开预上传模态框（不直接上传！） ─────────
+  const handleFiles = (files: FileList | File[]) => {
     const valid = Array.from(files).filter(f =>
       ['image/jpeg', 'image/png', 'image/webp'].includes(f.type) && f.size <= 10 * 1024 * 1024
     );
     const skipped = Array.from(files).length - valid.length;
+    if (valid.length === 0) {
+      setUploadError('文件格式不支持或超出大小限制（仅支持 jpg/png/webp，最大 10MB）');
+      return;
+    }
     if (skipped > 0) {
-      setUploadError(`已跳过 ${skipped} 个不支持的文件（仅支持 jpg/png/webp，最大 10MB）`);
+      setUploadError(`已过滤 ${skipped} 个不支持的文件（仅支持 jpg/png/webp，最大 10MB）`);
     } else {
       setUploadError(null);
     }
-    if (!valid.length) return;
-
-    setUploading(true);
-    try {
-      // 逐一上传，取最后一张（或首张）上传结果打开模态框
-      const results: UserImage[] = [];
-      for (const f of valid) {
-        const img = await uploadUserImage(f);
-        results.push(img);
-      }
-      // 刷新列表
-      await fetchImages();
-      // 自动打开最后一张图片的模态框（上传模式）
-      const lastUploaded = results[results.length - 1];
-      setModalImage(lastUploaded);
-      setModalMode('upload');
-    } catch {
-      setUploadError('上传失败，请检查网络后重试。');
-    } finally {
-      setUploading(false);
-    }
+    // 打开预上传模态框，让用户先编辑 label/tags
+    setPendingFiles(valid);
+    // 重置 file input，确保同文件可再次触发
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -129,27 +113,25 @@ export default function ImageUploadPanel() {
     if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  // ── PreUploadModal 上传完成回调 ───────────────────────────
+  const handleUploaded = (newImages: UserImage[]) => {
+    // 把新图片插到列表头部，再刷新一次保证与服务器同步
+    setImages(prev => [...newImages, ...prev.filter(
+      img => !newImages.some(n => n.image_id === img.image_id)
+    )]);
+    fetchImages();
+    setPendingFiles(null);
   };
 
-  // ── 点击图片 → 打开模态框 ─────────────────────────────────
-  const handleOpenModal = (img: UserImage) => {
-    setModalImage(img);
-    setModalMode('view');
-  };
+  // ── 点击卡片 → 打开详情模态框 ─────────────────────────────
+  const handleOpenDetail = (img: UserImage) => setDetailImage(img);
 
-  const handleCloseModal = () => {
-    setModalImage(null);
-  };
-
-  // ── 模态框更新回调 → 同步到列表 ──────────────────────────
-  const handleModalUpdate = (updated: UserImage) => {
+  // ── 详情模态框更新回调 ────────────────────────────────────
+  const handleDetailUpdate = (updated: UserImage) => {
     setImages(prev =>
       prev.map(img => img.image_id === updated.image_id ? { ...img, ...updated } : img)
     );
-    setModalImage(updated);
+    setDetailImage(updated);
   };
 
   // ── 删除 ─────────────────────────────────────────────────
@@ -158,8 +140,7 @@ export default function ImageUploadPanel() {
     try {
       await deleteUserImage(imageId);
       setImages(prev => prev.filter(img => img.image_id !== imageId));
-      // 如果正好是模态框中的图片，关闭模态框
-      if (modalImage?.image_id === imageId) setModalImage(null);
+      if (detailImage?.image_id === imageId) setDetailImage(null);
     } catch {
       alert('删除失败，请重试。');
     } finally {
@@ -168,7 +149,7 @@ export default function ImageUploadPanel() {
     }
   };
 
-  // ── 重新标注 ─────────────────────────────────────────────
+  // ── 重新标注（卡片上的快捷操作，仅 failed 时显示） ────────
   const handleReannotate = async (imageId: string) => {
     setReannotatingIds(prev => new Set(prev).add(imageId));
     try {
@@ -187,17 +168,16 @@ export default function ImageUploadPanel() {
     }
   };
 
-  // ── 渲染 ─────────────────────────────────────────────────
   return (
     <>
       <div className={styles.panel}>
-        {/* 拖拽/点击上传区 */}
+        {/* ── 拖拽/点击上传区 ─────────────────────────────── */}
         <div
-          className={clsx(styles.dropzone, isDragging && styles.dragging, uploading && styles.uploading)}
+          className={clsx(styles.dropzone, isDragging && styles.dragging)}
           onDrop={handleDrop}
-          onDragOver={handleDragOver}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}
-          onClick={() => !uploading && fileInputRef.current?.click()}
+          onClick={() => fileInputRef.current?.click()}
           role="button"
           tabIndex={0}
           aria-label="点击或拖拽图片到此处上传"
@@ -210,18 +190,9 @@ export default function ImageUploadPanel() {
             style={{ display: 'none' }}
             onChange={e => e.target.files && handleFiles(e.target.files)}
           />
-          {uploading ? (
-            <>
-              <Loader2 size={28} className={styles.spinIcon} />
-              <span>上传中，请稍候...</span>
-            </>
-          ) : (
-            <>
-              <Upload size={28} className={styles.uploadIcon} />
-              <span className={styles.dropzoneTitle}>拖拽 / 点击上传图片素材</span>
-              <span className={styles.dropzoneHint}>支持 jpg · png · webp，单张最大 10 MB</span>
-            </>
-          )}
+          <Upload size={28} className={styles.uploadIcon} />
+          <span className={styles.dropzoneTitle}>拖拽 / 点击上传图片素材</span>
+          <span className={styles.dropzoneHint}>支持 jpg · png · webp，单张最大 10 MB</span>
         </div>
 
         {uploadError && (
@@ -234,12 +205,12 @@ export default function ImageUploadPanel() {
           </div>
         )}
 
-        {/* 图片网格 */}
+        {/* ── 图片网格 ─────────────────────────────────────── */}
         {images.length === 0 ? (
           <div className={styles.emptyState}>
             <ImageIcon size={36} className={styles.emptyIcon} />
             <p>暂无图片素材</p>
-            <small>上传后，AI 会自动识别并为图片生成语义描述与标签，用于 PPT 图文混排匹配。</small>
+            <small>上传后，AI 会自动识别并生成语义描述与标签，用于 PPT 图文混排匹配。</small>
           </div>
         ) : (
           <div className={styles.grid}>
@@ -249,24 +220,24 @@ export default function ImageUploadPanel() {
               const isDeleting = deletingIds.has(img.image_id);
               const isReannotating = reannotatingIds.has(img.image_id);
               const src = getImagePreviewUrl(img.preview_url);
-              const isSelected = modalImage?.image_id === img.image_id;
+              const isSelected = detailImage?.image_id === img.image_id;
 
               return (
                 <div
                   key={img.image_id}
                   className={clsx(styles.card, isSelected && styles.cardSelected)}
                 >
-                  {/* 缩略图 — 点击打开模态框 */}
+                  {/* 缩略图 — 点击打开详情模态框 */}
                   <div
                     className={styles.thumb}
-                    onClick={() => handleOpenModal(img)}
+                    onClick={() => handleOpenDetail(img)}
                     role="button"
                     tabIndex={0}
                     aria-label={`查看图片：${img.filename}`}
                   >
                     <img src={src} alt={img.filename} className={styles.thumbImg} />
 
-                    {/* 编辑提示遮罩 */}
+                    {/* 悬停编辑遮罩 */}
                     <div className={styles.thumbOverlay}>
                       <Edit3 size={16} />
                     </div>
@@ -290,7 +261,7 @@ export default function ImageUploadPanel() {
                     {img.filename}
                   </p>
 
-                  {/* 用户描述标签预览（如果有） */}
+                  {/* 描述/标签预览 */}
                   {(img.label || (img.tags && img.tags.length > 0)) && (
                     <div className={styles.metaPreview}>
                       {img.label && (
@@ -304,13 +275,13 @@ export default function ImageUploadPanel() {
 
                   {/* 操作按钮 */}
                   <div className={styles.cardActions}>
-                    {/* 重新标注（仅对 failed） */}
+                    {/* 重新标注（仅 failed 快捷入口） */}
                     {img.annotate_status === 'failed' && (
                       <button
                         className={styles.actionBtn}
                         onClick={() => handleReannotate(img.image_id)}
                         disabled={isReannotating}
-                        title="重新触发标注"
+                        title="重新触发 AI 标注"
                       >
                         <RefreshCw size={13} className={isReannotating ? styles.spinIcon : undefined} />
                       </button>
@@ -351,12 +322,20 @@ export default function ImageUploadPanel() {
         )}
       </div>
 
-      {/* 图片详情模态框（Portal at root level via overlay） */}
+      {/* ── 预上传模态框（选文件后，上传前编辑 label/tags） ── */}
+      {pendingFiles && (
+        <PreUploadModal
+          files={pendingFiles}
+          onClose={() => setPendingFiles(null)}
+          onUploaded={handleUploaded}
+        />
+      )}
+
+      {/* ── 图片详情模态框（点击已上传图片） ──────────────── */}
       <ImageDetailModal
-        image={modalImage}
-        mode={modalMode}
-        onClose={handleCloseModal}
-        onUpdate={handleModalUpdate}
+        image={detailImage}
+        onClose={() => setDetailImage(null)}
+        onUpdate={handleDetailUpdate}
       />
     </>
   );
