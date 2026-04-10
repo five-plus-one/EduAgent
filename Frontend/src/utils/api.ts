@@ -105,9 +105,20 @@ export const updateSession = async (sessionId: string, updates: Record<string, u
   await apiClient.put(`/sessions/${sessionId}`, updates);
 };
 
+/** 2.4b Rename session (convenience wrapper) */
+export const renameSession = async (sessionId: string, courseName: string) => {
+  await apiClient.put(`/sessions/${sessionId}`, { course_name: courseName });
+};
+
 /** 2.5 Delete a session */
 export const deleteSession = async (sessionId: string) => {
   await apiClient.delete(`/sessions/${sessionId}`);
+};
+
+/** 1.5 Update user profile (name / department) */
+export const updateProfile = async (params: { name?: string; department?: string }) => {
+  const res = await apiClient.put('/auth/me/preferences', params);
+  return res.data?.data ?? res.data;
 };
 
 // ==========================================
