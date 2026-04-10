@@ -567,3 +567,29 @@ export const reannotateSessionImage = async (
   imageId: string
 ): Promise<{ image_id: string; annotate_status: string }> =>
   reannotateUserImage(imageId);
+
+/**
+ * 7.5 修改图片用户描述（label）
+ * PATCH /users/me/images/{image_id}
+ * 传 null 则清空描述
+ */
+export const patchImageLabel = async (
+  imageId: string,
+  label: string | null
+): Promise<UserImage> => {
+  const res = await apiClient.patch(`/users/me/images/${imageId}`, { label });
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * 7.6 整体覆盖图片标签列表
+ * PUT /users/me/images/{image_id}/tags
+ * ⚠️ 整体覆盖语义：传入完整目标标签数组，后端去重去空
+ */
+export const updateImageTags = async (
+  imageId: string,
+  tags: string[]
+): Promise<UserImage> => {
+  const res = await apiClient.put(`/users/me/images/${imageId}/tags`, { tags });
+  return res.data?.data ?? res.data;
+};
