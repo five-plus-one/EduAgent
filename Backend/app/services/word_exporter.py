@@ -4,9 +4,9 @@ word_exporter.py — 将 word_markdown（Markdown 格式讲义）导出为标准
 
 支持：
   - 标题 (# ~ ####)、段落、有序/无序列表、加粗/斜体/代码行内格式、水平线
-  - 行内 LaTeX 公式：$...$  $$...$$  → OMML（Word 原生数学对象，可编辑）
-  - 块级 LaTeX 公式：$$\\n...\\n$$  \\begin{equation/align/matrix...}...\\end{...}  → oMathPara 居中显示
-  - 复用 ppt_exporter 中的 _append_omml_for_expr 统一渲染逻辑，与 PPT 导出保持一致
+  - 行内 LaTeX 公式：$...$  $$...$$ → OMML（Word 原生数学对象，可编辑）
+  - 块级 LaTeX 公式：多行 $$...$$  \\begin{equation/align/matrix...}...\\end{...} → 居中 oMathPara
+  - 复用 ppt_exporter 中的 _append_omml_for_expr 统一渲染逻辑，与 PPT 导出一致
 """
 import re
 import os
@@ -20,7 +20,7 @@ from docx.oxml import OxmlElement
 
 logger = logging.getLogger(__name__)
 
-# ── OMML 数学命名空间（与 ppt_exporter 完全相同）──────────────────────────────
+# ── OMML 数学命名空间（与 ppt_exporter 完全相同）────────────────────────────
 _NS_M = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
 
 
@@ -40,27 +40,31 @@ def _ppt_math():
 
 
 # ──────────────────────────────────────────────
+# 辅助：清洗 LaTeX 中的 XML 非法控制字符
+# ──────────────────────────────────────────────
+
+def _sanitize_latex(s: str) -> str:
+    """去除 XML 不兼容的控制字符（null、退格等），保留换行和制表。"""
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
+
+
+# ──────────────────────────────────────────────
 # OMML 插入辅助
 # ──────────────────────────────────────────────
 
 def _add_inline_math_run(para, latex: str) -> bool:
     """
-def _sanitize_latex(s: str) -> str:
-    """去除 XML 不兼容的控制字符（null、退格等），保留换行符和制表符。"""
-    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', s)
-
-
-    在 python-docx 段落的当前位置后追加一个内联 <m:oMath>。
+    在 python-docx 段落当前位置后追加内联 <m:oMath>。
     成功返回 True；失败降级为纯文本，返回 False。
     """
-    latex = latex.strip()
+    latex = _sanitize_latex(latex.strip())
     if not latex:
         return False
     try:
         _append_omml_for_expr, *_ = _ppt_math()
         m = _NS_M
         omath = etree.Element(f'{{{m}}}oMath', nsmap={'m': m})
-        _append_omml_for_expr(omath, latex, m, '1A1A1A')
+        _append_omml_for_expr(omath, latex, m, '')
         para._p.append(omath)
         return True
     except Exception as exc:
@@ -70,10 +74,10 @@ def _sanitize_latex(s: str) -> str:
 
 def _add_block_math_para(doc: Document, latex: str) -> bool:
     """
-    向文档追加一个居中块级数学段落（<m:oMathPara><m:oMath>…</m:oMath></m:oMathPara>）。
-    成功返回 True；失败降级为普通段落，返回 False。
+    向文档追加居中块级数学段落（<m:oMathPara>）。
+    成功返回 True；失败降级为普通文本段落，返回 False。
     """
-    latex = latex.strip()
+    latex = _sanitize_latex(latex.strip())
     if not latex:
         return False
     try:
@@ -88,11 +92,11 @@ def _add_block_math_para(doc: Document, latex: str) -> bool:
         jc = etree.SubElement(ompr, f'{{{m}}}jc')
         jc.set(f'{{{m}}}val', 'center')
         omath = etree.SubElement(omath_para, f'{{{m}}}oMath')
-        _append_omml_for_expr(omath, latex, m, '1A1A1A')
+        _append_omml_for_expr(omath, latex, m, '')
         return True
     except Exception as exc:
         logger.warning(f'[word_math] block OMML failed ({latex[:30]!r}): {exc}')
-        doc.add_paragraph(latex)   # 降级
+        doc.add_paragraph(_sanitize_latex(latex))   # 降级
         return False
 
 
@@ -105,7 +109,7 @@ _INLINE_PATTERN = re.compile(
     r'\*\*(.+?)\*\*'          # group 1: bold content
     r'|\*(.+?)\*'             # group 2: italic content
     r'|`(.+?)`'               # group 3: inline code
-    r'|\$\$(.+?)\$\$'         # group 4: display math (single-line)
+    r'|\$\$(.+?)\$\$'         # group 4: display math (single-line inline)
     r'|\$([^$\n]+?)\$',       # group 5: inline math
     re.DOTALL
 )
@@ -113,12 +117,12 @@ _INLINE_PATTERN = re.compile(
 
 def _parse_inline(paragraph, text: str) -> None:
     """
-    解析单行文本，写入 python-docx 段落。
-    支持 **bold**、*italic*、`code`、$...$、$$...$$（单行）。
+    解析单行文本写入 python-docx 段落。
+    支持 **bold**、*italic*、`code`、$...$、$$...$$ (单行)。
     """
     last = 0
     for m in _INLINE_PATTERN.finditer(text):
-        # 普通文本
+        # 普通文本段
         if m.start() > last:
             paragraph.add_run(text[last:m.start()])
         b, it, code, disp, inl = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
@@ -172,8 +176,11 @@ def _add_horizontal_rule(doc: Document) -> None:
 def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件讲义') -> str:
     """
     将 Markdown 格式的讲义文本转换为 .docx 文件。
-    - 完整 LaTeX 公式 → Word OMML 可编辑数学对象
+
+    - 完整 LaTeX 公式渲染：行内 $...$、块级 $$...$$、\\begin{env}...\\end{env}
+      均转换为 Word 原生 OMML 数学对象（可在 Word 中直接编辑）
     - 标准 Markdown 格式（标题/列表/行内样式/分割线）
+
     返回 output_path。
     """
     _, _has_env_open, _has_env_close, _ = _ppt_math()
@@ -182,8 +189,8 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
 
     # ── 页面设置（A4）──
     section = doc.sections[0]
-    section.page_width  = Cm(21.0)
-    section.page_height = Cm(29.7)
+    section.page_width    = Cm(21.0)
+    section.page_height   = Cm(29.7)
     section.left_margin   = Cm(2.5)
     section.right_margin  = Cm(2.5)
     section.top_margin    = Cm(2.5)
@@ -198,21 +205,20 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
     in_list = False
 
     # 块级数学状态机
-    in_display_math = False     # tracking $$ ... $$
+    in_display_math: bool = False       # 跨行 $$ ... $$
     display_math_buf: list[str] = []
-    in_block_env = False        # tracking \begin{...}...\end{...}
+    in_block_env: bool = False          # \begin{env}...\end{env}
     block_env_buf: list[str] = []
 
     while i < len(lines):
-        line  = lines[i]
+        line     = lines[i]
         stripped = line.strip()
 
         # ── 1. 累积 \begin{env}...\end{env} ────────────────────────────────
         if not in_block_env and _has_env_open(stripped):
             in_block_env = True
             block_env_buf = [stripped]
-            if _has_env_close(stripped):
-                # 单行内完整
+            if _has_env_close(stripped):          # 单行完整
                 _add_block_math_para(doc, '\n'.join(block_env_buf))
                 in_block_env = False
                 block_env_buf = []
@@ -229,7 +235,7 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
             i += 1
             continue
 
-        # ── 2. 块级 $$...$$ ────────────────────────────────────────────────
+        # ── 2. 块级 $$..$$ ─────────────────────────────────────────────────
         # 单行自闭合：$$expr$$
         m_single_disp = re.match(r'^\$\$(.+)\$\$$', stripped)
         if m_single_disp:
@@ -238,7 +244,7 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
             i += 1
             continue
 
-        # 开/关 $$
+        # 开/关 $$（独立行）
         if stripped == '$$':
             if not in_display_math:
                 in_display_math = True
