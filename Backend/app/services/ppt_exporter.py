@@ -1791,9 +1791,19 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
     stat_elems = [e for e in elements if _is_stat(e)]
-    body_elems = [e for e in elements if not _is_stat(e)] or elements
+    # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
+    img_elems  = [e for e in elements if e.get("type") == "image"]
+    body_elems = [e for e in elements if not _is_stat(e) and e.get("type") != "image"] or [
+        e for e in elements if e.get("type") != "image"
+    ]
 
-    left_w = CONTENT_W * 0.60 if stat_elems else CONTENT_W
+    # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
+    img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
+    img_col_w = CONTENT_W * 0.36
+    for _img_elem in img_elems:
+        _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
+
+    left_w = CONTENT_W * 0.60 if (stat_elems or img_elems) else CONTENT_W
 
     # ── Body cards (left / full column) ── explode each list item into its own card ──
     lx = MARGIN_LEFT
@@ -1973,50 +1983,75 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
         _render_image_placeholder(slide, elem, col_x, col_w, colors)
         return
 
-    # 2) 计算图片放置区域（占满整列高度，留边距）
-    img_x = col_x + 0.05
-    img_y = CONTENT_T + 0.05
-    img_w = col_w - 0.15
-    img_h = SLIDE_H - img_y - 0.45
+    # 2) 用 PIL 读取图片真实像素宽高（避免 add_picture 拉伸后再算比例的错误）
+    try:
+        from PIL import Image as _PilImg
+        with _PilImg.open(image_path) as _im:
+            real_w_px, real_h_px = _im.size
+    except Exception as _pe:
+        logger.warning(f"[image_elem] PIL size read failed: {_pe}, using 1:1")
+        real_w_px, real_h_px = 1, 1
+
+    aspect = real_w_px / real_h_px  # > 1: 横图; < 1: 竖图
+
+    # 3) 根据宽高比决定放置区域
+    #    横图/方图 (aspect >= 0.75) → 右列
+    #    竖图 (aspect < 0.75)      → 底部横幅
+    if aspect >= 0.75:
+        # ── 右列放置 ──
+        area_x = col_x + 0.08
+        area_y = CONTENT_T + 0.05
+        area_w = col_w - 0.16          # 可用宽度
+        area_h = SLIDE_H - area_y - 0.45  # 可用高度
+
+        # contain-fit: 保持比例缩放至 area_w × area_h 内
+        if area_w / area_h >= aspect:
+            # 高度受限
+            fit_h = area_h
+            fit_w = fit_h * aspect
+        else:
+            # 宽度受限
+            fit_w = area_w
+            fit_h = fit_w / aspect
+
+        # 居中
+        off_x = area_x + (area_w - fit_w) / 2.0
+        off_y = area_y + (area_h - fit_h) / 2.0
+    else:
+        # ── 底部横幅放置 ──
+        area_x = MARGIN_LEFT + 0.1
+        area_w = CONTENT_W - 0.2
+        area_h = min(3.5, CONTENT_H * 0.55)   # 高度不超过内容区的 55%
+        area_y = SLIDE_H - area_h - 0.42       # 底部留 caption 空间
+
+        if area_w / area_h >= aspect:
+            fit_h = area_h
+            fit_w = fit_h * aspect
+        else:
+            fit_w = area_w
+            fit_h = fit_w / aspect
+
+        # 水平居中
+        off_x = MARGIN_LEFT + (CONTENT_W - fit_w) / 2.0
+        off_y = area_y
 
     try:
-        # 插入图片
+        from pptx.util import Emu
         pic = slide.shapes.add_picture(
             image_path,
-            Inches(img_x), Inches(img_y),
-            Inches(img_w), Inches(img_h)
+            Inches(off_x), Inches(off_y),
+            Inches(fit_w), Inches(fit_h)   # 已按比例计算，直接传入
         )
-        # 微调：保持图片原始宽高比（python-pptx 默认按给定尺寸拉伸，改为按宽度适配）
-        from pptx.util import Emu
-        try:
-            orig_w = pic.width
-            orig_h = pic.height
-            if orig_w > 0 and orig_h > 0:
-                ratio = orig_h / orig_w
-                new_h = Emu(int(Inches(img_w) * ratio))
-                max_h = Inches(img_h)
-                if new_h > max_h:
-                    # 高度超限：改为按高度适配
-                    ratio_w = orig_w / orig_h
-                    pic.height = max_h
-                    pic.width  = Emu(int(max_h * ratio_w))
-                else:
-                    pic.width  = Inches(img_w)
-                    pic.height = new_h
-                # 居中对齐
-                pic.left = Inches(col_x) + (Inches(col_w) - pic.width) // 2
-        except Exception:
-            pass  # 保持默认尺寸
 
-        # 3) 添加 alt 文字图注（幻灯片底部小字）
+        # 4) 添加 alt 图注（底部小字）
         alt_text = elem.get("alt", "")
         if alt_text:
-            from pptx.util import Pt
+            cap_y = min(Inches(off_y + fit_h + 0.04), Inches(SLIDE_H - 0.35))
             alt_box = slide.shapes.add_textbox(
-                Inches(col_x + 0.05),
-                Inches(SLIDE_H - 0.4),
-                Inches(col_w - 0.1),
-                Inches(0.32)
+                Inches(col_x + 0.05 if aspect >= 0.75 else MARGIN_LEFT),
+                cap_y,
+                Inches(col_w - 0.1 if aspect >= 0.75 else CONTENT_W),
+                Inches(0.30)
             )
             tf = alt_box.text_frame
             tf.word_wrap = True
@@ -2025,7 +2060,7 @@ def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: di
             p.alignment = PP_ALIGN.CENTER
             run = p.add_run()
             run.text = alt_text
-            run.font.size = Pt(9)
+            run.font.size = Pt(8)
             run.font.color.rgb = hex2rgb(txt)
             run.font.italic = True
 
@@ -2356,23 +2391,37 @@ def render_default(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
     avail_h = SLIDE_H - CONTENT_T - 0.35
-    each_h = avail_h / max(len(elements), 1)
 
-    for i, elem in enumerate(elements):
+    # ── 图片元素单独渲染，不进入文字卡循环 ────────────────────────────────────
+    img_elems  = [e for e in elements if e.get("type") == "image"]
+    text_elems = [e for e in elements if e.get("type") != "image"]
+    has_img    = bool(img_elems)
+
+    # 图片放右列（40% 宽），文字占左 58%（有图时）
+    img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
+    img_col_w = CONTENT_W * 0.36
+    txt_col_w = CONTENT_W * 0.60 if has_img else CONTENT_W
+
+    for _img_elem in img_elems:
+        _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
+
+    each_h = avail_h / max(len(text_elems), 1)
+
+    for i, elem in enumerate(text_elems):
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
         is_acc = elem.get("is_accent", False) or etype in ("huge_number", "stat")
         cy = CONTENT_T + i * each_h
 
         if is_acc and items and len(str(items[0])) <= 10:
-            add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, CONTENT_W,
+            add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, min(52, max(24, int(each_h * 28))),
                          acc, acc, bold=True, align=PP_ALIGN.CENTER)
         elif etype == "list" and len(items) > 1:
-            add_list_box(slide, items, MARGIN_LEFT, cy, CONTENT_W, each_h - 0.05, 15, txt, acc)
+            add_list_box(slide, items, MARGIN_LEFT, cy, txt_col_w, each_h - 0.05, 15, txt, acc)
         else:
             sz = calc_safe_pt(each_h, max(len(items), 1), 15, 10, 18)
-            add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, CONTENT_W,
+            add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, sz, txt, acc)
 
 

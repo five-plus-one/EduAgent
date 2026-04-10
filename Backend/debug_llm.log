@@ -1,69 +1,48 @@
-{"__type": "theme", "name": "大学物理蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
-{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "刚体运动与角动量守恒", "speaker_notes": "各位同学好，今天我们学习大学物理中刚体运动和角动量守恒相关的内容，这部分是经典力学的重要组成部分，在机械、航天等领域有广泛应用。", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 · 力学模块"], "is_accent": false}]}
-{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "刚体与刚体的基本运动形式", "speaker_notes": "首先我们来明确刚体的定义，以及刚体的两种基本运动形式。", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["**刚体定义**：在力的作用下，任意两点间的距离始终保持不变的物体，是一种理想化的力学模型。"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "left", "content": ["**平动**：运动过程中，刚体任意两点的连线始终保持平行，平动规律与质点运动完全一致", "**转动**：刚体上所有点都绕同一条直线做圆周运动，该直线称为转轴"], "is_accent": false}, {"element_id": "e3", "type": "list", "position": "right_top", "content": ["定轴转动：转轴固定不动，如齿轮、风扇的转动", "定点转动：转轴上一点相对参考系不动，转轴方向随时间变化，如陀螺的转动"], "is_accent": true}]}
-{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "定轴转动的描述物理量", "speaker_notes": "接下来我们学习描述定轴转动的核心物理量，大家可以和质点运动的线物理量做对应理解。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["**角速度**：描述转动快慢和方向，满足右手螺旋定则，公式：$\vec{\omega}=\\frac{d\\vec{\\theta}}{dt}$", "**角加速度**：描述角速度的变化率，公式：$\vec{\\alpha}=\\frac{d \\vec{\\omega}}{dt}$", "切向加速度：$\vec{a_{t}}=\vec{\\alpha}\\times \\vec{r}$，法向加速度：$\vec{a_{n}}=\vec{\\omega}\\times \\vec{v}$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "刚体定轴转动角速度方向右手螺旋示意图", "alt": "刚体定轴转动角速度右手螺旋示意图", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 4, "layout_type": "two_column", "title": "转动惯量与平行轴定理", "speaker_notes": "转动惯量是描述刚体转动惯性的物理量，和质点力学中的质量对应，是一个非常重要的广延量。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["**定义式**：刚体对定轴的转动惯量 $J=\int_{V}r^2dm$，其中r为质元到转轴的垂直距离", "**平行轴定理**：若$J_{c}$为刚体对过质心转轴的转动惯量，两平行轴间距为d，则任意平行轴的转动惯量为 $J=J_{c}+md^2$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "right_top", "content": ["常见刚体转动惯量（转轴过质心）：", "均质薄圆环（垂直环面）：$J=mR^2$", "均质圆柱（垂直底面）：$J=\\frac{1}{2}mR^2$", "均质细杆（垂直杆）：$J=\\frac{1}{12}mL^2$", "均质球体（沿直径）：$J=\\frac{2}{5}mR^2$"], "is_accent": false}]}
-{"__type": "page", "page_index": 5, "layout_type": "minimal_list", "title": "刚体角动量定理与转动动能", "speaker_notes": "下面我们把质点的动力学规律拓展到刚体定轴转动，得到角动量定理和转动相关的能量公式。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["**角动量**：刚体绕定轴的角动量 $L=J\\omega$", "**刚体角动量定理**：合外力矩等于角动量的变化率 $M=\\frac{dL}{dt}=J\\alpha$", "**力矩的功**：力矩对空间的累积 $W=\int_{0}^{\\theta_{0}}Md\\theta$，功率 $P=M\\omega$", "**转动动能**：刚体转动的动能形式 $E_{k}=\\frac{1}{2}J\\omega^2$"], "is_accent": false}]}
-{"__type": "page", "page_index": 6, "layout_type": "two_column", "title": "角动量守恒与进动现象", "speaker_notes": "当合外力矩为0时，我们就得到了角动量守恒定律，这是自然界三大守恒定律之一，进动就是角动量守恒的典型应用。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["**角动量守恒定律**：当系统所受合外力矩$\vec{M}=0$时，系统的总角动量$\vec{L}$保持不变", "**进动现象**：自旋物体在外力矩作用下，自转轴绕某一中心旋转的现象，典型如陀螺的进动", "进动角速度：$\Omega=\\frac{r_{c}mg}{J\\omega}$，其中$r_c$为质心到支点的距离"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "陀螺进动原理示意图", "alt": "陀螺进动原理示意图", "content": [], "is_accent": false}]}
-{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "最后我们来梳理一下本次课程的核心知识点，大家要重点掌握定轴转动的规律和角动量守恒的应用。", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["明确刚体的平动、转动两类基本运动形式，掌握定轴转动的运动学描述方法", "理解转动惯量的物理意义，会用平行轴定理计算转动惯量", "掌握刚体角动量定理和转动动能公式，能够熟练应用角动量守恒定律解决实际问题", "了解进动现象的物理原理和相关应用场景"], "is_accent": false}]}
+{"__type": "theme", "name": "物理专业蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F1F5F9"}
+{"__type": "page", "page_index": 1, "layout_type": "cover", "title": "刚体运动规律", "speaker_notes": "开场介绍本次课程的核心内容为刚体的基本运动形式、转动相关物理量、角动量定理及进动现象", "elements": [{"element_id": "e1", "type": "subtitle", "position": "center", "content": ["大学物理 | 力学模块"], "is_accent": false}]}
+{"__type": "page", "page_index": 2, "layout_type": "minimal_list", "title": "刚体的基本概念与运动形式", "speaker_notes": "首先明确刚体的定义，以及两种最基本的运动形式平动和转动的特点", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["刚体：力的作用下任意两点间距离始终保持不变的理想模型", "平动：运动过程中任意两点连线始终平行，所有点运动状态完全一致", "转动：刚体所有点绕同一直线做圆周运动，该直线称为转轴"], "is_accent": false}, {"element_id": "e2", "type": "list", "position": "right_top", "content": ["定轴转动：转轴固定不动，如齿轮、风扇转动", "定点转动：转轴上一点固定，方向随时间变化，如陀螺转动"], "is_accent": true}]}
+{"__type": "page", "page_index": 3, "layout_type": "two_column", "title": "定轴转动的描述物理量", "speaker_notes": "讲解定轴转动对应的角速度、角加速度，以及线加速度与角量的关系", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角速度（右手螺旋定则确定方向）：$\vec{\omega}=\\frac{d\vec{\theta}}{dt}$", "角加速度：$\vec{\alpha}=\\frac{d\vec{\omega}}{dt}$", "切向加速度：$\vec{a_t}=\vec{\alpha}\\times\vec{r}$", "法向加速度：$\vec{a_n}=\vec{\omega}\\times\vec{v}$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "刚体定轴转动角速度线速度关系示意图", "alt": "刚体定轴转动量关系示意图", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 4, "layout_type": "minimal_list", "title": "转动惯量与平行轴定理", "speaker_notes": "介绍转动惯量的定义、常见刚体的转动惯量值，以及平行轴定理的应用", "elements": [{"element_id": "e1", "type": "text_block", "position": "left", "content": ["转动惯量（描述转动惯性的广延量，类似平动中的质量）：$$J=\int_{V}r^2dm$$"], "is_accent": false}, {"element_id": "e2", "type": "text_block", "position": "left", "content": ["平行轴定理（$J_c$为对过质心轴的转动惯量，$d$为两轴间距）：$$J=J_c+md^2$$"], "is_accent": true}, {"element_id": "e3", "type": "list", "position": "right_top", "content": ["均质细杆（过中心垂直杆）：$J=\\frac{1}{12}mL^2$", "均质圆柱（过中心垂直底面）：$J=\\frac{1}{2}mR^2$", "均质球体（过直径）：$J=\\frac{2}{5}mR^2$"], "is_accent": false}]}
+{"__type": "page", "page_index": 5, "layout_type": "minimal_list", "title": "刚体角动量定理", "speaker_notes": "讲解角动量、力矩的关系，以及力矩的功、功率和转动动能的表达式", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["角动量：$L=J\omega$", "力矩与角动量变化关系：$M=\\frac{dL}{dt}=J\alpha$", "力矩的功：$W=\int_{0}^{\theta_0}Md\theta$", "功率：$P=M\omega$", "转动动能：$E_k=\\frac{1}{2}J\omega^2$"], "is_accent": false}]}
+{"__type": "page", "page_index": 6, "layout_type": "two_column", "title": "进动现象与规律", "speaker_notes": "介绍陀螺进动的产生原因，推导进动角速度的表达式", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["重力矩（$\vec{r}_c$为重心位矢）：$\vec{M}=\vec{r}_c\\times m\vec{g}$", "重力矩始终与角动量$\vec{L}$垂直，仅改变角动量方向不改变大小", "进动角速度：$$\Omega=\\frac{M}{L\sin\theta}=\\frac{r_c mg}{J\omega}$$"], "is_accent": false}, {"element_id": "img1", "type": "image", "position": "right", "query": "陀螺进动原理示意图", "alt": "陀螺进动原理示意图", "content": [], "is_accent": false}]}
+{"__type": "page", "page_index": 7, "layout_type": "minimal_list", "title": "课程总结", "speaker_notes": "回顾本次课程的核心知识点，梳理知识框架", "elements": [{"element_id": "e1", "type": "list", "position": "left", "content": ["刚体两种基本运动形式：平动、转动（定轴/定点）", "定轴转动核心物理量：角速度、角加速度、转动惯量", "角动量定理核心关系：力矩是角动量变化的原因", "进动本质：垂直于角动量的力矩导致角动量方向持续改变"], "is_accent": false}]}
 {"__type": "word_start"}
-# 刚体运动与角动量守恒讲义
+# 刚体运动规律课程讲义
 ## 一、刚体的基本概念
-### 1. 刚体定义
-刚体是经典力学中的理想化模型，指在力的作用下，内部任意两点之间的距离始终保持不变的物体，忽略了物体的形变效应，适用于描述固体的宏观运动。
-
-### 2. 刚体的基本运动形式
-- **平动**：刚体运动过程中，任意两点的连线始终保持平行，平动时刚体上所有质点的运动规律完全相同，因此可以用质心的运动代表整个刚体的平动，规律与质点运动完全一致。
-- **转动**：刚体上所有的点都绕同一条直线做圆周运动，该直线称为转轴。根据转轴的运动特性又分为两类：
-  - 定轴转动：转轴在参考系中固定不动，如齿轮、风扇叶片的转动
-  - 定点转动：转轴上某一点相对参考系固定，转轴方向随时间变化，如陀螺、陀螺仪的转动
-
-## 二、定轴转动的运动学描述
-定轴转动通常用角量进行描述，和质点运动的线量存在一一对应的关系：
-1. **角速度**：描述刚体转动的快慢和方向，方向满足右手螺旋定则：四指沿转动方向弯曲，大拇指指向即为角速度$\vec{\omega}$的方向，定义式为：
-$$\vec{\omega}=\frac{d\vec{\theta}}{dt}$$
-2. **角加速度**：描述角速度随时间的变化率，定义式为：
-$$\vec{\alpha}=\frac{d \vec{\omega}}{dt}$$
-3. 线加速度与角量的关系：刚体上某点距离转轴的位矢为$\vec{r}$，则该点的切向加速度和法向加速度分别为：
-$$\vec{a_{t}}=\vec{\alpha}\times \vec{r}, \quad \vec{a_{n}}=\vec{\omega}\times \vec{v}$$
-
-## 三、转动惯量
-转动惯量是描述刚体转动惯性大小的物理量，与质点力学中的质量地位相当，属于广延量：
-1. **定义式**：刚体对某一定轴的转动惯量为所有质元的转动惯量之和：
+刚体是力学中的理想模型，定义为在力的作用下，内部任意两点间的距离始终保持不变的物体，忽略了形变对运动的影响，是研究固体运动的基础模型。
+刚体的基本运动分为两类：
+1. **平动**：运动过程中刚体上任意两点的连线始终保持平行，平动过程中刚体所有点的运动状态（位移、速度、加速度）完全一致，因此可以用质心的运动代表整个刚体的平动。
+2. **转动**：刚体上所有点都绕同一条直线做圆周运动，这条直线称为转轴。根据转轴的运动形式又分为：
+   - 定轴转动：转轴在参考系中固定不动，例如日常的齿轮转动、风扇转动都属于定轴转动；
+   - 定点转动：转轴上有一个点相对参考系固定，转轴的方向随时间变化，典型例子是陀螺的转动。
+## 二、定轴转动的描述物理量
+定轴转动通常用角量描述：
+- 角速度$\vec{\omega}$：描述转动的快慢和方向，方向由右手螺旋定则确定，四指沿转动方向，大拇指指向即为角速度方向，表达式为$\vec{\omega}=\frac{d\vec{\theta}}{dt}$。
+- 角加速度$\vec{\alpha}$：描述角速度变化的快慢，表达式为$\vec{\alpha}=\frac{d\vec{\omega}}{dt}$。
+刚体上某点的线加速度与角量的关系：
+- 切向加速度（改变速度大小）：$\vec{a_t}=\vec{\alpha}\times\vec{r}$，大小为$a_t=\alpha r$；
+- 法向加速度（改变速度方向）：$\vec{a_n}=\vec{\omega}\times\vec{v}$，大小为$a_n=\omega^2 r$。
+## 三、转动惯量与平行轴定理
+转动惯量是描述刚体转动惯性大小的物理量，地位等价于平动中的质量，定义为：
 $$J=\int_{V}r^2dm$$
-其中$r$为质元到转轴的垂直距离，转动惯量的大小与刚体的质量分布、转轴位置均有关。
-2. **平行轴定理**：若$J_{c}$为刚体对过质心的某一转轴的转动惯量，当转轴平行移动距离$d$时，刚体对新转轴的转动惯量为：
-$$J=J_{c}+md^2$$
-利用该定理可以简化非质心轴转动惯量的计算。
-3. 常见刚体的转动惯量（转轴过质心）：
-| 刚体形状 | 转轴方向 | 转动惯量 |
-| --- | --- | --- |
-| 均质薄圆环 | 垂直环面过中心 | $mR^2$ |
-| 均质圆柱 | 垂直底面过中心 | $\frac{1}{2}mR^2$ |
-| 均质细杆 | 垂直杆长过中点 | $\frac{1}{12}mL^2$ |
-| 均质球体 | 沿直径 | $\frac{2}{5}mR^2$ |
-
-## 四、刚体角动量定理与转动能量
-1. **角动量**：刚体绕定轴转动的角动量等于转动惯量与角速度的乘积：
-$$L=J\omega$$
-2. **刚体角动量定理**：刚体所受的合外力矩等于其角动量随时间的变化率：
-$$M=\frac{dL}{dt}=\frac{d(J\omega)}{dt}=J\alpha$$
-该式是刚体定轴转动的动力学核心方程，与质点力学的牛顿第二定律$F=ma$对应。
-3. 力矩的功与转动动能：
-- 力矩的功是力矩对空间的累积效应：$W=\int_{0}^{\theta_{0}}Md\theta$
-- 力矩的瞬时功率：$P=M\frac{d\theta}{dt}=M\omega$
-- 刚体的转动动能：$E_{k}=\frac{1}{2}J\omega^2$
-
-## 五、角动量守恒定律与进动
-1. **角动量守恒定律**：当系统（质点系或刚体）所受的合外力矩$\vec{M}=0$时，系统的总角动量$\vec{L}$保持不变。角动量守恒定律是自然界最基本的守恒定律之一，广泛应用于天体运动、航天器姿态控制、体育运动等领域。
-2. **进动现象**：进动是角动量定理的典型应用，指自旋物体在外力矩作用下，自转轴绕某一中心旋转的现象，最常见的例子是重力场中旋转的陀螺不会倒下，而是绕竖直轴进动。
-陀螺的进动角速度为：
-$$\Omega=\frac{r_{c}mg}{J\omega}$$
-其中$r_c$为陀螺质心到支点的距离，$\omega$为陀螺的自转角速度，自转角速度越大，进动角速度越小。
-
-## 六、核心考点总结
-1. 定轴转动的角量与线量的转换关系，转动运动学的相关计算
-2. 转动惯量的物理意义，平行轴定理的应用
-3. 刚体角动量定理的应用，定轴转动的动力学问题求解
-4. 角动量守恒定律的适用条件，结合平动、转动的综合守恒问题分析
+其中$r$是质元$dm$到转轴的垂直距离，转动惯量与刚体的质量分布、转轴的位置都有关系。
+常见刚体的转动惯量（转轴过质心）：
+- 均质薄圆环（转轴垂直环面过中心）：$J=mR^2$
+- 均质圆柱（转轴垂直底面过中心）：$J=\frac{1}{2}mR^2$
+- 均质细杆（转轴垂直杆过中心）：$J=\frac{1}{12}mL^2$
+- 均质球体（转轴过直径）：$J=\frac{2}{5}mR^2$
+**平行轴定理**：如果转轴与过质心的轴平行，间距为$d$，则刚体对该转轴的转动惯量为$J=J_c+md^2$，其中$J_c$是对过质心轴的转动惯量，$m$是刚体总质量。
+## 四、刚体角动量定理
+1. **角动量**：定轴转动刚体的角动量为$L=J\omega$，方向与角速度方向一致。
+2. **力矩的瞬时作用效果**：力矩是改变刚体转动状态的原因，满足$M=\frac{dL}{dt}$，当转动惯量不变时，可简化为$M=J\alpha$，这是转动中的牛顿第二定律。
+3. **力矩的空间累积效果**：力矩的功为$W=\int_{0}^{\theta_0}Md\theta$，力矩做功等于刚体转动动能的增量，转动动能表达式为$E_k=\frac{1}{2}J\omega^2$。
+4. **力矩的功率**：$P=M\omega$，对应平动中的$P=Fv$。
+## 五、进动现象
+进动是定点转动的典型例子，以陀螺为例：当陀螺高速自转时，即使轴线倾斜也不会倒下，而是会绕竖直轴缓慢转动，这个现象就是进动。
+产生原因：陀螺受到的重力对固定点的力矩为$\vec{M}=\vec{r}_c\times m\vec{g}$，该力矩的方向始终与陀螺自转角动量$\vec{L}$的方向垂直，因此只会改变角动量的方向，不会改变角动量的大小，使得角动量绕竖直轴持续旋转，形成进动。
+进动角速度的表达式为：
+$$\Omega=\frac{r_c mg}{J\omega}$$
+可以看到，自转角速度$\omega$越大，进动角速度$\Omega$越小，陀螺越稳定。
+## 六、课程总结
+本次课程围绕刚体运动展开，核心是掌握定轴转动的描述方法和规律，理解转动惯量、角动量、力矩等核心物理量的物理意义，能够运用角动量定理解释进动等常见的刚体运动现象，为后续更复杂的刚体动力学学习打下基础。
 {"__type": "done"}

@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 _COLLECTION_USER    = "images_user"
 _COLLECTION_LIBRARY = "images_library"
 
-# 相似度阈值
-_THRESHOLD_USER    = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.72))
-_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.68))
+# 相似度阈值 —— 基于文件名文本标注，相似度天然偏低，阈值不宜过高
+# 实测：相关图片分数在 0.35~0.57 之间，0.30 可以覆盖大多数匹配场景
+_THRESHOLD_USER    = float(getattr(settings, "IMAGE_SEARCH_SESSION_THRESHOLD", 0.30))
+_THRESHOLD_LIBRARY = float(getattr(settings, "IMAGE_SEARCH_LIBRARY_THRESHOLD", 0.25))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -84,8 +85,13 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     # 1. 搜用户个人图库（Python 层过滤 user_id）
     try:
         store = _get_image_vector_store(_COLLECTION_USER)
-        # 取足够多的候选，以便后续 Python 过滤仍有结果
-        candidates = store.similarity_search_with_relevance_scores(query, k=50)
+        # 获取向量数量，避免 k 超过集合大小导致 ChromaDB 退化为负分线性搜索
+        try:
+            n_total = store._collection.count()
+        except Exception:
+            n_total = 50
+        k = max(1, min(n_total, 30))  # 不超过集合大小，最多 30
+        candidates = store.similarity_search_with_relevance_scores(query, k=k)
         # Python 层过滤：只保留属于该用户且分数达标的
         for doc, score in candidates:
             if doc.metadata.get("user_id") == user_id and score >= _THRESHOLD_USER:
@@ -103,7 +109,12 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
     # 2. 搜默认图库（同样不用 filter，全量搜索后判断分数）
     try:
         store = _get_image_vector_store(_COLLECTION_LIBRARY)
-        results = store.similarity_search_with_relevance_scores(query, k=5)
+        try:
+            n_total = store._collection.count()
+        except Exception:
+            n_total = 50
+        k = max(1, min(n_total, 10))
+        results = store.similarity_search_with_relevance_scores(query, k=k)
         if results:
             doc, score = results[0]
             if score >= _THRESHOLD_LIBRARY:
@@ -122,82 +133,125 @@ def search_image_by_query(query: str, user_id: str) -> Optional[dict]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 文本推断式标注（不依赖 Vision 模型）
+# Vision 标注（豆包多模态看图）+ 文本降级
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _text_annotate(filename: str, label: str = "") -> Optional[dict]:
+async def _vision_annotate(file_path: str, filename: str, label: str = "") -> Optional[dict]:
     """
-    使用文本 LLM 根据图片文件名和用户标签推断标注。
-    无需多模态能力，兼容所有文本模型。
+    主标注函数：让豆包 Vision 模型（mimo-v2-omni）真实看图后输出 description 和 tags。
+    失败时自动降级到 _text_annotate（基于文件名推断）。
     """
-    model = settings.LLM_MODEL
-    logger.info(f"[text_annotate] start: model={model} filename={filename}")
-
-    hint_parts = []
-    if label:
-        hint_parts.append(f"用户标签：{label}")
-    # 去后缀后将下划线/连字符替换为空格，作为文件名提示
-    base = os.path.splitext(filename)[0].replace("_", " ").replace("-", " ")
-    if base and not base.startswith("img_"):
-        hint_parts.append(f"文件名提示：{base}")
-
-    prompt = (
-        "你是一个专业的教学图片标注助手。根据以下信息推断图片内容，以中文输出：\n"
-        + ("\n".join(hint_parts) if hint_parts else "（无额外提示，请根据图片用途给出通用标注）")
-        + "\n\n输出严格为 JSON 格式，不要包含其他内容：\n"
-        '{"description": "一句话精准描述（30字以内）", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]}'
-    )
-
+    import base64, re as _re
+    vision_model = getattr(settings, "VISION_MODEL", "mimo-v2-omni")
     url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
+
+    # ── Step 1: 读取图片 → 压缩 → base64 ──
+    # 大图（扫描件/截图可能 5MB+）会占满 Vision 模型上下文，需要先压缩
+    try:
+        from PIL import Image as PilImage
+        import io
+        with PilImage.open(file_path) as pil_img:
+            # 转 RGB（避免 RGBA/P 格式不兼容）
+            if pil_img.mode not in ("RGB", "L"):
+                pil_img = pil_img.convert("RGB")
+            # 缩小到最大 1024x1024，保持比例
+            pil_img.thumbnail((1024, 1024), PilImage.LANCZOS)
+            buf = io.BytesIO()
+            pil_img.save(buf, format="JPEG", quality=85)
+            raw = buf.getvalue()
+        b64 = base64.b64encode(raw).decode("utf-8")
+        mime = "image/jpeg"
+        image_data_url = f"data:{mime};base64,{b64}"
+        logger.info(f"[vision_annotate] image compressed: {len(raw)//1024}KB")
+    except Exception as e:
+        logger.warning(f"[vision_annotate] file read/resize failed: {e}, fallback to text")
+        return await _text_annotate(filename, label)
+
+    label_hint = f"\n用户补充说明（仅供参考）：{label}" if label else ""
+    user_prompt = (
+        "请仔细观察这张教学图片的视觉内容，给出标注。\n"
+        "【重要】只能根据你实际看到的图片画面进行描述，绝对不能参考文件名、路径或任何元数据。"
+        + label_hint + "\n\n"
+        "输出严格 JSON（不要 markdown 代码块）：\n"
+        '{"description": "一句话精准描述图片核心内容（30字以内，基于纯视觉理解）", '
+        '"tags": ["检索标签1", "检索标签2", "检索标签3", "检索标签4", "检索标签5"]}'
+    )
     payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 200,
-        "temperature": 0.3,
+        "model": vision_model,
+        "messages": [
+            {"role": "system", "content": "你是一个专业的教学图片标注助手，请仔细观察图片内容，以中文输出 JSON 格式标注结果，不要包含其他文字。"},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": image_data_url}},
+                {"type": "text", "text": user_prompt},
+            ]},
+        ],
+        "max_tokens": 300,
+        "temperature": 0.2,
         "stream": False,
     }
 
+    # ── Step 2: 调用 Vision API ──
     try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(url, headers=headers, json=payload)
+        logger.info(f"[vision_annotate] HTTP {resp.status_code} model={vision_model}")
+        if resp.status_code != 200:
+            logger.error(f"[vision_annotate] API error: {resp.text[:300]}")
+            return await _text_annotate(filename, label)
+        result_text = resp.json()["choices"][0]["message"]["content"]
+        logger.info(f"[vision_annotate] raw: {result_text[:200]}")
+    except Exception as e:
+        logger.error(f"[vision_annotate] request failed: {e}, fallback to text")
+        return await _text_annotate(filename, label)
+
+    # ── Step 3: 解析 JSON ──
+    result_text = _re.sub(r"```(?:json)?", "", result_text).strip()
+    m = _re.search(r"\{.*\}", result_text, _re.DOTALL)
+    if m:
+        try:
+            parsed = json.loads(m.group(0))
+            if "description" in parsed and "tags" in parsed:
+                logger.info(f"[vision_annotate] success: {parsed.get('description','')[:50]}")
+                return parsed
+        except json.JSONDecodeError:
+            pass
+    logger.warning("[vision_annotate] JSON parse failed, fallback to text")
+    return await _text_annotate(filename, label)
+
+
+async def _text_annotate(filename: str, label: str = "") -> Optional[dict]:
+    """降级标注：Vision 失败时的最后兜底，仅使用用户标签（若有）作为推断依据。"""
+    model = settings.LLM_MODEL
+    logger.info(f"[text_annotate] fallback: model={model}")
+    hint_parts = []
+    if label:
+        hint_parts.append(f"用户标签：{label}")
+    # NOTE: 不再使用文件名推断——文件名已改为顺序编号（img_0001），不含任何语义信息
+    prompt = (
+        "你是一个专业的教学图片标注助手。根据以下信息推断图片内容，以中文输出：\n"
+        + ("\n".join(hint_parts) if hint_parts else "（无额外提示，请给出通用教学图片标注）")
+        + "\n\n输出严格为 JSON 格式：\n"
+        '{"description": "一句话精准描述（30字以内）", "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]}'
+    )
+    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}", "Content-Type": "application/json"}
+    payload = {"model": model, "messages": [{"role": "user", "content": prompt}],
+               "max_tokens": 200, "temperature": 0.3, "stream": False}
+    try:
+        import re as _re
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(url, headers=headers, json=payload)
-            logger.info(f"[text_annotate] HTTP status: {resp.status_code}")
             if resp.status_code != 200:
-                logger.error(f"[text_annotate] API error: {resp.text[:300]}")
-                # 降级：直接用文件名构造最小标注
                 return _fallback_annotation(filename, label)
             result_text = resp.json()["choices"][0]["message"]["content"]
-            logger.info(f"[text_annotate] raw: {result_text[:150]}")
-
-        # 提取 JSON
-        import re as _re
-        if "```" in result_text:
-            parts = result_text.split("```")
-            for part in parts:
-                stripped = part.strip()
-                if stripped.startswith("json"):
-                    result_text = stripped[4:].strip()
-                    break
-                elif "{" in stripped:
-                    result_text = stripped
-                    break
-
+        result_text = _re.sub(r"```(?:json)?", "", result_text).strip()
         m = _re.search(r"\{.*\}", result_text, _re.DOTALL)
         if m:
-            parsed = json.loads(m.group(0))
-            logger.info(f"[text_annotate] success: {parsed.get('description','')[:40]}")
-            return parsed
-        else:
-            logger.warning(f"[text_annotate] no JSON, using fallback")
-            return _fallback_annotation(filename, label)
-
+            return json.loads(m.group(0))
+        return _fallback_annotation(filename, label)
     except Exception as e:
-        import traceback
-        logger.error(f"[text_annotate] FAILED: {type(e).__name__}: {e}")
-        logger.error(traceback.format_exc())
+        logger.error(f"[text_annotate] FAILED: {e}")
         return _fallback_annotation(filename, label)
 
 
@@ -215,7 +269,7 @@ def _fallback_annotation(filename: str, label: str = "") -> dict:
 
 async def annotate_user_image(image_id: str):
     """
-    后台任务：对指定 UserImage 执行文本推断式标注并存向量。
+    后台任务：对指定 UserImage 执行 Vision 看图标注并存向量。
     """
     from app.db.session import SessionLocal
     db: Session = SessionLocal()
@@ -227,7 +281,7 @@ async def annotate_user_image(image_id: str):
         img.annotate_status = "processing"
         db.commit()
 
-        result = await _text_annotate(img.filename, img.label or "")
+        result = await _vision_annotate(img.file_path, img.filename, img.label or "")
         desc = result.get("description", "")
         tags = result.get("tags", [])
         img.description = desc
@@ -269,7 +323,7 @@ def delete_user_image_data(db: Session, image_id: str):
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def annotate_library_image(lib_id: str):
-    """后台任务：对 ImageLibrary 图片做文本推断式标注并存向量。"""
+    """后台任务：对 ImageLibrary 图片做 Vision 看图标注并存向量。"""
     from app.db.session import SessionLocal
     db: Session = SessionLocal()
     img = db.query(ImageLibrary).filter(ImageLibrary.id == lib_id).first()
@@ -280,7 +334,7 @@ async def annotate_library_image(lib_id: str):
         img.annotate_status = "processing"
         db.commit()
 
-        result = await _text_annotate(img.filename, img.import_note or "")
+        result = await _vision_annotate(img.file_path, img.filename, img.import_note or "")
         desc = result.get("description", "")
         tags = result.get("tags", [])
         img.description = desc

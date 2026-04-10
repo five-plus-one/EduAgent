@@ -19,7 +19,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx } from '../utils/api';
 import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock } from 'lucide-react';
 
 export default function Workspace() {
@@ -70,6 +70,7 @@ export default function Workspace() {
   const [isUploadingKb, setIsUploadingKb] = useState(false);
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
+  const [isExportingWord, setIsExportingWord] = useState(false);
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -79,42 +80,16 @@ export default function Workspace() {
     setTimeout(() => setFilesHighlight(false), 1800);
   };
 
-  const handleExportWord = () => {
-    if (!wordDoc) return;
-    
-    let contentHtml = `<pre>${wordDoc}</pre>`;
-    if (wordDocRef.current) {
-        contentHtml = wordDocRef.current.innerHTML;
+  const handleExportWord = async () => {
+    if (!wordDoc || isExportingWord || sessionId === 'new') return;
+    setIsExportingWord(true);
+    try {
+      await exportWordDocx(sessionId);
+    } catch (e: any) {
+      alert('讲义导出失败：' + (e?.message || '未知错误'));
+    } finally {
+      setIsExportingWord(false);
     }
-
-    const htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>讲义导出</title>
-        <style>
-          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; color: #333; }
-          h1, h2, h3 { color: #1a1a1a; margin-top: 24px; margin-bottom: 12px; }
-          p { margin-bottom: 12px; }
-          ul, ol { padding-left: 24px; margin-bottom: 16px; margin-top: 8px; }
-          li { margin-bottom: 6px; }
-          strong { font-weight: bold; color: #111; }
-        </style>
-      </head>
-      <body>
-        <h1>${sessionId === 'new' ? '未命名讲义' : '课件讲义'}</h1>
-        <hr/>
-        ${contentHtml}
-      </body>
-      </html>
-    `;
-    const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `EduAgent讲义_${sessionId}.doc`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
   
   const fetchKbDocs = useCallback(async () => {
@@ -553,10 +528,10 @@ export default function Workspace() {
                     <button 
                       className={clsx('button-base', styles.exportBtn)}
                       onClick={handleExportWord}
-                      disabled={sessionId === 'new'}
+                      disabled={isExportingWord || sessionId === 'new'}
                     >
-                      <FileText size={16} /> 
-                      导出讲义 (.doc)
+                      <FileText size={16} className={clsx(isExportingWord && styles.rotating)} /> 
+                      {isExportingWord ? '导出中...' : '导出讲义 (.docx)'}
                     </button>
                   )}
                 </>

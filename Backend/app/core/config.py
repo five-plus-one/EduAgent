@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     IMAGE_UPLOAD_DIR: str = "uploads/session_images"
     IMAGE_LIBRARY_DIR: str = "uploads/image_library"
     ADMIN_SECRET_KEY: str = "admin_secret_change_me"
-    IMAGE_SEARCH_SESSION_THRESHOLD: float = 0.75
-    IMAGE_SEARCH_LIBRARY_THRESHOLD: float = 0.70
+    IMAGE_SEARCH_SESSION_THRESHOLD: float = 0.30
+    IMAGE_SEARCH_LIBRARY_THRESHOLD: float = 0.25
 
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
