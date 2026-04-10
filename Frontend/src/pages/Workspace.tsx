@@ -69,6 +69,15 @@ export default function Workspace() {
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
   const [isUploadingKb, setIsUploadingKb] = useState(false);
   const [isDraggingKb, setIsDraggingKb] = useState(false);
+  const [filesHighlight, setFilesHighlight] = useState(false);
+
+  /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
+  const handleOpenFiles = () => {
+    setActiveTab('files');
+    setFilesSubTab('docs');
+    setFilesHighlight(true);
+    setTimeout(() => setFilesHighlight(false), 1800);
+  };
 
   const handleExportWord = () => {
     if (!wordDoc) return;
@@ -427,7 +436,12 @@ export default function Workspace() {
             {/* OMNI-DOCK INPUT */}
             <div className={styles.inputDockContainer}>
               <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
-                <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
+                <button
+                  className={clsx(styles.iconButton, styles.paperclipBtn)}
+                  title="上传参考资料"
+                  disabled={isGenerating || sessionId === 'new'}
+                  onClick={handleOpenFiles}
+                >
                   <Paperclip size={20} />
                 </button>
                 <textarea 
@@ -551,7 +565,7 @@ export default function Workspace() {
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
-            <div className={styles.kbPanel}>
+            <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 子 Tab 切换（知识库文档 / 图片素材） */}
               <div className={styles.subTabBar}>
                 <button
