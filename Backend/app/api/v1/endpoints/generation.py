@@ -18,6 +18,12 @@ class IterateWordRequest(BaseModel):
     instruction: str
     selected_text: Optional[str] = None  # 当前选中的文字（可选，作为修改背景）
 
+
+class ReplaceImageRequest(BaseModel):
+    """PATCH /sessions/{id}/courseware/slides/{page}/elements/{elem}/image 的请求体"""
+    image_id: str  # 用户图片库中的 image_id
+
+
 router = APIRouter()
 
 # ---------------- GENERATION ----------------
@@ -509,3 +515,93 @@ def export_word_docx(
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 图片替换：PATCH /sessions/{id}/courseware/slides/{page}/elements/{elem}/image
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.patch("/sessions/{session_id}/courseware/slides/{page_index}/elements/{element_id}/image")
+def replace_slide_image(
+    session_id: str,
+    page_index: int,
+    element_id: str,
+    body: ReplaceImageRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    替换 PPT 某一页某一图片元素的图源。
+
+    效果：更新数据库中该 element 的 resolved 字段为指定用户图片。
+    - 预览：前端立即用返回的 preview_url 刷新预览显示
+    - 导出 PPT：ppt_exporter 已根据 resolved.image_id 读取本地文件  ✅
+    - 导出 Word：word_exporter 不包含图片（讲义文本），无需处理
+
+    权限验证：
+    - session_id 必须属于当前用户
+    - image_id 必须属于当前用户的图片库
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.models.image import UserImage
+
+    # 1. 验证会话归属当前用户
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 验证目标图片属于当前用户
+    img = db.query(UserImage).filter(
+        UserImage.id == body.image_id,
+        UserImage.user_id == current_user.id
+    ).first()
+    if not img:
+        raise HTTPException(status_code=404, detail="Image not found in your library")
+
+    # 3. 加载课件数据
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw or not cw.ppt_data:
+        raise HTTPException(status_code=404, detail="No courseware found for this session")
+
+    cw_data = cw.ppt_data if isinstance(cw.ppt_data, dict) else {}
+    slides: list = cw_data.get("ppt_data", [])
+
+    # 4. 定位目标页面
+    slide = next((s for s in slides if s.get("page_index") == page_index), None)
+    if not slide:
+        raise HTTPException(status_code=404, detail=f"Slide {page_index} not found")
+
+    # 5. 定位目标元素
+    element = next(
+        (e for e in slide.get("elements", []) if e.get("element_id") == element_id),
+        None
+    )
+    if not element:
+        raise HTTPException(status_code=404, detail=f"Element '{element_id}' not found on slide {page_index}")
+    if element.get("type") != "image":
+        raise HTTPException(status_code=400, detail="Target element is not an image type")
+
+    # 6. 更新 resolved 字段
+    preview_url = f"/api/v1/users/me/images/{body.image_id}/preview"
+    element["resolved"] = {
+        "image_id": body.image_id,
+        "preview_url": preview_url,
+        "source": "user",   # UserImage 表（用户个人素材库）；"library" 是管理员公共库
+    }
+
+    # 7. 强制触发 SQLAlchemy JSON 变更检测并提交
+    new_data = dict(cw_data)
+    new_data["ppt_data"] = slides
+    cw.ppt_data = new_data
+    flag_modified(cw, "ppt_data")
+    db.commit()
+
+    return {
+        "element_id": element_id,
+        "page_index": page_index,
+        "image_id": body.image_id,
+        "preview_url": preview_url,
+    }
