@@ -38,7 +38,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
@@ -373,23 +373,51 @@ export default function Workspace() {
             </div>
             <h3 className={styles.newSessionTitle}>开始你的 AI 创作之旅</h3>
             <p className={styles.newSessionDesc}>
-              请在左侧边栏<strong>新建会话</strong>，或选择一个已有会话，<br />
-              即可开启与 AI 的协作备课之旅。
+              新建一个会话，告诉 AI 你想设计什么课程，<br />
+              即可开启协作备课之旅。
             </p>
-            <div className={styles.newSessionArrow}>
-              ← 从左侧边栏选择或新建会话
+            <button
+              className={clsx('button-primary', styles.newSessionCta)}
+              onClick={() => {
+                // 触发 Sidebar 的新建弹窗，通过全局事件传递
+                window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
+              }}
+            >
+              <Sparkles size={16} /> 新建课件会话
+            </button>
+          </div>
+        ) : isLoadingHistory ? (
+          /* ── 历史记录加载骨架屏 ── */
+          <div className={styles.historyLoadingWrapper}>
+            <div className={styles.historyLoadingSpinner}>
+              <Loader2 size={36} className={styles.rotating} />
+            </div>
+            <p className={styles.historyLoadingTitle}>正在恢复会话...</p>
+            <p className={styles.historyLoadingHint}>正在从服务器加载历史对话记录</p>
+            <div className={styles.loadingSkeletonGroup}>
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonAi)} />
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonUser)} />
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonAiLong)} />
             </div>
           </div>
         ) : (
           <>
             <div className={styles.messageStream} onScroll={handleScroll}>
-              {messages.length === 0 ? (
+              {messages.length === 0 && !isSynthesizing ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
                     <Sparkles size={32} />
                   </div>
                   <h3>您想设计什么课程？</h3>
                   <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+                </div>
+              ) : messages.length === 0 && isSynthesizing ? (
+                /* AI 请求已发出但响应还未到：显示等待动画 */
+                <div className={styles.awaitingResponseWrapper}>
+                  <div className={styles.awaitingDots}>
+                    <span /><span /><span />
+                  </div>
+                  <p className={styles.awaitingText}>AI 正在思考中，请稍候...</p>
                 </div>
               ) : (
                 messages.map((msg) => (
