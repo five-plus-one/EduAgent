@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   X, Pencil, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Check, Loader2, Sparkles, StickyNote, Type, List,
+  Check, Sparkles, StickyNote, Type, List,
 } from 'lucide-react';
-import { clsx } from 'clsx';
 import styles from './PPTPageEditPanel.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 
