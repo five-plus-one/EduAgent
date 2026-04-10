@@ -11,8 +11,37 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "ProposePPTPlan",
+            "description": (
+                "【第一步：方案提案】当用户首次提出想要生成整套PPT/课件时，必须先调用此工具展示生成方案供用户确认。"
+                "方案需包含：计划总页数、每页的标题与布局类型（cover封面/minimal_list内容列表/two_column左右双栏/timeline时间线）、以及每页2-3个核心内容要点。"
+                "提交方案后等待用户回复确认，用户认可后再调用 GenerateFullPPT 正式生成。"
+                "绝对不能在对话文本中直接输出PPT大纲，必须通过此工具提交。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "plan_markdown": {
+                        "type": "string",
+                        "description": "PPT生成方案（Markdown格式），例如：**第1页（cover）：课程标题**\\n**第2页（minimal_list）：教学目标**\\n- 要点1\\n- 要点2"
+                    },
+                    "total_pages": {
+                        "type": "integer",
+                        "description": "预计生成的幻灯片总页数（建议6-12页）"
+                    }
+                },
+                "required": ["plan_markdown", "total_pages"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "GenerateFullPPT",
-            "description": "当用户明确要求从头智能生成课件大纲或整套PPT时调用。绝不要直接将PPT内容大纲在对话框里输出，必须调用此工具！",
+            "description": (
+                "【第二步：正式生成】仅在用户明确确认 ProposePPTPlan 方案后才调用此工具，启动实际PPT生成流程。"
+                "未经用户确认严禁调用。"
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -79,7 +108,7 @@ TOOLS_SCHEMA = [
 ]
 
 SYSTEM_PROMPT = (
-    "你是多模态AI互动式教学智能体。你有能力通过调用工具（如 UpdateSlide，GenerateFullPPT等）直接修改用户的课件或者大纲。\n"
+    "你是多模态AI互动式教学智能体。你有能力通过调用工具（如 UpdateSlide，ProposePPTPlan，GenerateFullPPT等）直接修改用户的课件或者大纲。\n"
     "CRITICAL RULES:\n"
     "1. NEVER output presentation content, outlines, or slide mockups in Markdown format directly in your conversational response.\n"
     "   Whenever the user asks to create, modify, or format a slide, you MUST ONLY use the provided tools.\n"
@@ -87,8 +116,13 @@ SYSTEM_PROMPT = (
     "2. AddSlide 工具与 UpdateSlide 工具参数格式完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。\n"
     "   AddSlide 禁止使用 content 字符串参数，必须构造完整的结构化 new_elements 数组。\n"
     "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
-    "4. 【重要约束】GenerateFullPPT 工具只能在用户 **明确** 提出要从头重新生成整套课件时调用（例如：'重新生成'、'从头做'、'全部重做'）。\n"
-    "   在以下情况下 **绝对禁止** 调用 GenerateFullPPT：\n"
+    "4. 【两步生成流程（严格遵守）】\n"
+    "   当用户首次表示想要生成整套PPT/课件时，必须严格执行以下两步：\n"
+    "   ▸ 第一步：调用 ProposePPTPlan 工具，提交包含每页标题、布局类型、核心要点的分页生成方案。\n"
+    "   ▸ 第二步：等待用户明确确认（如：'好的'/'可以'/'就这样'/'开始生成'/'没问题'等）后，再调用 GenerateFullPPT 正式生成。\n"
+    "   ▸ 若用户对方案有修改意见，先更新方案再次调用 ProposePPTPlan，直到用户满意并确认。\n"
+    "   ▸ 严禁跳过 ProposePPTPlan 直接调用 GenerateFullPPT，这会导致用户无法预知生成结果。\n"
+    "5. 在以下情况下绝对禁止调用 GenerateFullPPT 或 ProposePPTPlan：\n"
     "   - 用户只是要求修改某一页或某几页的内容（应调用 UpdateSlide）\n"
     "   - 用户要求新增或删除某页（应调用 AddSlide / DeleteSlide）\n"
     "   - 用户提出任何局部调整请求，即便表述含糊，也优先使用 UpdateSlide\n"
@@ -253,7 +287,25 @@ async def stream_chat_response(
         yield f"data: {tc_data}\n\n"
 
         should_refetch = False
-        if t_name in ["generatefullppt", "generate_full_ppt"]:
+        if t_name in ["proposepptplan", "propose_ppt_plan"]:
+            # ── ProposePPTPlan：将方案文本推送为普通 AI 消息，不触发生成 ─────────
+            plan_md   = t_args.get("plan_markdown", "")
+            total_pgs = t_args.get("total_pages", 0)
+            if plan_md:
+                _suffix = "如方案满意，请回复\u300c可以\u300d或\u300c开始生成\u300d；若需调整请告诉我修改意见。"
+                hint = (
+                    f"\n\n---\n\n{plan_md}\n\n---\n\n"
+                    f"📋 **以上是本次 PPT 生成方案，共计 {total_pgs} 页。**  \n"
+                    + _suffix
+                )
+                plan_evt = json.dumps(
+                    {"event_type": "text", "chunk": hint, "is_finished": False},
+                    ensure_ascii=False
+                )
+                yield f"data: {plan_evt}\n\n"
+            # 不设置 extracted_intent → 不触发任何生成流程
+
+        elif t_name in ["generatefullppt", "generate_full_ppt"]:
             extracted_intent = "generate_courseware"
 
         elif t_name in ["updateslide", "update_slide", "addslide", "add_slide", "deleteslide", "delete_slide"]:
@@ -365,3 +417,4 @@ async def stream_chat_response(
         "extracted_intent": extracted_intent
     }, ensure_ascii=False)
     yield f"data: {final_data}\n\n"
+
