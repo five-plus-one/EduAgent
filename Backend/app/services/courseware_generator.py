@@ -225,7 +225,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                 pass
             courseware.ppt_data = {"version": "v1", "ppt_data": []}
             courseware.word_markdown = ""
-            db.commit()  # SQLite commit <1ms, safe to call synchronously
+            await asyncio.to_thread(db.commit)  # 移至线程池，不阻塞事件循环
 
 
         prompt = f"""你是一位专业的 PPT 课件 JSON 生成器。严格按照以下格式输出，不能有任何偏差。
@@ -359,7 +359,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         word_buffer = word_buffer.replace(m, "")
                                     clean_word = word_buffer.strip()
                                     courseware.word_markdown = clean_word
-                                    db.commit()
+                                    await asyncio.to_thread(db.commit)
                                     yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     done_sent = True
@@ -413,7 +413,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         ppt_dict["theme"] = obj
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
 
@@ -434,7 +434,9 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                                     continue
                                                 resolved = None
                                                 try:
-                                                    resolved = search_image_by_query(query, user_id or session_id)
+                                                    resolved = await asyncio.to_thread(
+                                                        search_image_by_query, query, user_id or session_id
+                                                    )
                                                 except Exception as _img_err:
                                                     print(f"[image_resolve] search error '{query[:30]}': {_img_err}")
                                                 if resolved is not None:
@@ -454,7 +456,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                         ppt_dict["ppt_data"] = pages
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         page_count += 1
                                         print(f"[parser] page {page_count}: {obj.get('title','')}")
 
@@ -497,7 +499,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                 word_buffer = word_buffer.replace(m, "")
             clean_word = word_buffer.strip()
             courseware.word_markdown = clean_word
-            db.commit()
+            await asyncio.to_thread(db.commit)
             yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
 
