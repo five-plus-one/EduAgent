@@ -493,3 +493,93 @@
 .spin { animation: spinning 0.85s linear infinite; }
 
 @keyframes spinning { 100% { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════
+   换图二级模式切换栏（搜索 / 全部）
+   ═══════════════════════════════════════════════════════════ */
+.imageModeBar {
+  display: flex;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.imageModeBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.imageModeBtn:hover { color: #0f172a; }
+
+.imageModeBtnActive {
+  background: white !important;
+  color: #6366f1 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+}
+
+/* 图片总数徽章 */
+.totalBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 100px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+/* ── 加载更多 ─────────────────────────────────────────────── */
+.loadMoreBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.06);
+  color: #6366f1;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.loadMoreBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 全部加载完提示 ───────────────────────────────────────── */
+.allLoadedHint {
+  text-align: center;
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin: 0;
+  padding: 4px 0;
+}
+
