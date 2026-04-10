@@ -19,7 +19,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx } from '../utils/api';
 import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock } from 'lucide-react';
 
 export default function Workspace() {
@@ -38,7 +38,7 @@ export default function Workspace() {
       setInputText(prev => prev ? prev + ' ' + text : text);
     });
 
-  const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
+  const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
@@ -70,6 +70,7 @@ export default function Workspace() {
   const [isUploadingKb, setIsUploadingKb] = useState(false);
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
+  const [isExportingWord, setIsExportingWord] = useState(false);
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -79,42 +80,16 @@ export default function Workspace() {
     setTimeout(() => setFilesHighlight(false), 1800);
   };
 
-  const handleExportWord = () => {
-    if (!wordDoc) return;
-    
-    let contentHtml = `<pre>${wordDoc}</pre>`;
-    if (wordDocRef.current) {
-        contentHtml = wordDocRef.current.innerHTML;
+  const handleExportWord = async () => {
+    if (!wordDoc || isExportingWord || sessionId === 'new') return;
+    setIsExportingWord(true);
+    try {
+      await exportWordDocx(sessionId);
+    } catch (e: any) {
+      alert('讲义导出失败：' + (e?.message || '未知错误'));
+    } finally {
+      setIsExportingWord(false);
     }
-
-    const htmlContent = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>讲义导出</title>
-        <style>
-          body { font-family: 'Microsoft YaHei', sans-serif; padding: 20px; line-height: 1.6; color: #333; }
-          h1, h2, h3 { color: #1a1a1a; margin-top: 24px; margin-bottom: 12px; }
-          p { margin-bottom: 12px; }
-          ul, ol { padding-left: 24px; margin-bottom: 16px; margin-top: 8px; }
-          li { margin-bottom: 6px; }
-          strong { font-weight: bold; color: #111; }
-        </style>
-      </head>
-      <body>
-        <h1>${sessionId === 'new' ? '未命名讲义' : '课件讲义'}</h1>
-        <hr/>
-        ${contentHtml}
-      </body>
-      </html>
-    `;
-    const blob = new Blob([htmlContent], { type: 'application/msword;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `EduAgent讲义_${sessionId}.doc`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
   
   const fetchKbDocs = useCallback(async () => {
@@ -398,23 +373,51 @@ export default function Workspace() {
             </div>
             <h3 className={styles.newSessionTitle}>开始你的 AI 创作之旅</h3>
             <p className={styles.newSessionDesc}>
-              请在左侧边栏<strong>新建会话</strong>，或选择一个已有会话，<br />
-              即可开启与 AI 的协作备课之旅。
+              新建一个会话，告诉 AI 你想设计什么课程，<br />
+              即可开启协作备课之旅。
             </p>
-            <div className={styles.newSessionArrow}>
-              ← 从左侧边栏选择或新建会话
+            <button
+              className={clsx('button-primary', styles.newSessionCta)}
+              onClick={() => {
+                // 触发 Sidebar 的新建弹窗，通过全局事件传递
+                window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
+              }}
+            >
+              <Sparkles size={16} /> 新建课件会话
+            </button>
+          </div>
+        ) : isLoadingHistory ? (
+          /* ── 历史记录加载骨架屏 ── */
+          <div className={styles.historyLoadingWrapper}>
+            <div className={styles.historyLoadingSpinner}>
+              <Loader2 size={36} className={styles.rotating} />
+            </div>
+            <p className={styles.historyLoadingTitle}>正在恢复会话...</p>
+            <p className={styles.historyLoadingHint}>正在从服务器加载历史对话记录</p>
+            <div className={styles.loadingSkeletonGroup}>
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonAi)} />
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonUser)} />
+              <div className={clsx(styles.loadingSkeleton, styles.skeletonAiLong)} />
             </div>
           </div>
         ) : (
           <>
             <div className={styles.messageStream} onScroll={handleScroll}>
-              {messages.length === 0 ? (
+              {messages.length === 0 && !isSynthesizing ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
                     <Sparkles size={32} />
                   </div>
                   <h3>您想设计什么课程？</h3>
                   <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+                </div>
+              ) : messages.length === 0 && isSynthesizing ? (
+                /* AI 请求已发出但响应还未到：显示等待动画 */
+                <div className={styles.awaitingResponseWrapper}>
+                  <div className={styles.awaitingDots}>
+                    <span /><span /><span />
+                  </div>
+                  <p className={styles.awaitingText}>AI 正在思考中，请稍候...</p>
                 </div>
               ) : (
                 messages.map((msg) => (
@@ -553,10 +556,10 @@ export default function Workspace() {
                     <button 
                       className={clsx('button-base', styles.exportBtn)}
                       onClick={handleExportWord}
-                      disabled={sessionId === 'new'}
+                      disabled={isExportingWord || sessionId === 'new'}
                     >
-                      <FileText size={16} /> 
-                      导出讲义 (.doc)
+                      <FileText size={16} className={clsx(isExportingWord && styles.rotating)} /> 
+                      {isExportingWord ? '导出中...' : '导出讲义 (.docx)'}
                     </button>
                   )}
                 </>
