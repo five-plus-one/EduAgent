@@ -1,3 +1,7 @@
+/* ============================================================
+   Sidebar — 侧边栏完整样式
+   ============================================================ */
+
 .sidebar {
   width: 280px;
   height: 100vh;
@@ -5,16 +9,17 @@
   flex-direction: column;
   padding: 32px 24px;
   border-right: 1px solid rgba(15, 23, 42, 0.05);
-  background-color: transparent; /* Rely on global body gradient */
+  background-color: transparent;
   flex-shrink: 0;
   z-index: 10;
 }
 
+/* ── Header ─────────────────────────────────────────────── */
 .header {
   display: flex;
   flex-direction: column;
-  gap: 28px;
-  margin-bottom: 40px;
+  gap: 20px;
+  margin-bottom: 36px;
 }
 
 .logo {
@@ -58,78 +63,35 @@
   box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
 }
 
-.newInputContainer {
-  display: flex;
-  gap: 8px;
-  margin-top: -16px;
-  animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.newInput {
-  flex: 1;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  background: white;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.newInput:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-.newSubmitBtn {
-  background: var(--text-primary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  padding: 0 16px;
-  font-size: 0.95rem;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-
-.newSubmitBtn:hover {
-  background: var(--accent-primary);
-  transform: translateY(-1px);
-}
-
-.newSubmitBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
+/* ── Sessions 列表 ──────────────────────────────────────── */
 .nav {
   flex: 1;
-  min-height: 0;          /* critical: allows flex child to shrink below content */
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;       /* nav itself doesn't scroll */
+  overflow: hidden;
   margin: 0 -12px;
   padding: 0 12px;
+}
+
+.navTitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  padding-left: 12px;
 }
 
 .sessionList {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   overflow-y: auto;
-  min-height: 0;          /* allow shrink */
+  min-height: 0;
   padding-bottom: 8px;
   margin: 0 -8px;
   padding-left: 8px;
@@ -137,7 +99,6 @@
   scroll-behavior: smooth;
 }
 
-/* Thin scrollbar inside session list */
 .sessionList::-webkit-scrollbar { width: 4px; }
 .sessionList::-webkit-scrollbar-track { background: transparent; }
 .sessionList::-webkit-scrollbar-thumb {
@@ -147,28 +108,40 @@
 .sessionList::-webkit-scrollbar-thumb:hover {
   background: rgba(15, 23, 42, 0.22);
 }
-.navTitle {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-  letter-spacing: 1px;
-  margin-bottom: 16px;
-  padding-left: 12px;
+
+/* ── Session 行 ─────────────────────────────────────────── */
+.sessionLi {
+  list-style: none;
 }
 
-
-.sessionItem {
+.sessionRow {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
+  gap: 0;
+  border-radius: var(--radius-sm, 8px);
+  overflow: hidden;
+  position: relative;
+}
+
+.sessionRow:hover .menuTrigger {
+  opacity: 1;
+}
+
+.sessionItem {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-sm, 8px);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.2s ease;
+  min-width: 0;
+  /* 为菜单按钮留出空间 */
+  padding-right: 6px;
 }
 
 .sessionItem:hover {
@@ -182,13 +155,191 @@
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
+/* 三点菜单触发器 */
+.menuTrigger {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  margin-right: 4px;
+}
+
+.menuTrigger:hover {
+  background: rgba(15, 23, 42, 0.07);
+  color: var(--text-primary);
+}
+
+.sessionRow:hover .menuTrigger,
+.sessionItem.active ~ .menuTrigger {
+  opacity: 1;
+}
+
 .truncate {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 160px;
+  max-width: 150px;
 }
 
+/* ── 重命名行 ────────────────────────────────────────────── */
+.renameRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 12px;
+  background: white;
+  border-radius: var(--radius-sm, 8px);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.07);
+  border: 1px solid var(--accent-primary);
+}
+
+.renameInput {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-family: inherit;
+  min-width: 0;
+}
+
+.renameConfirmBtn,
+.renameCancelBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.renameConfirmBtn {
+  background: var(--accent-primary, #6366f1);
+  color: white;
+}
+
+.renameConfirmBtn:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.renameCancelBtn {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-secondary);
+}
+
+.renameCancelBtn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.renameConfirmBtn:disabled,
+.renameCancelBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 上下文菜单 ─────────────────────────────────────────── */
+.contextMenu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 148px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.15), 0 2px 8px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  padding: 5px;
+  animation: contextFade 0.14s ease;
+}
+
+@keyframes contextFade {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.contextMenuItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+}
+
+.contextMenuItem:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.contextDanger { color: #ef4444; }
+.contextDanger:hover { background: rgba(239, 68, 68, 0.07); }
+
+.contextDivider {
+  margin: 4px 0;
+  height: 1px;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+/* ── 加载状态 ────────────────────────────────────────────── */
+.loadingItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+}
+
+.emptyItem {
+  padding: 12px 14px;
+  color: var(--text-tertiary);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.spinner { animation: spin 1s linear infinite; }
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.sentinel {
+  list-style: none;
+  padding: 0;
+  min-height: 4px;
+}
+
+.loadMoreHint,
+.allLoadedHint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+}
+
+/* ── Footer ─────────────────────────────────────────────── */
 .footer {
   margin-top: auto;
   padding-top: 12px;
@@ -198,7 +349,6 @@
   gap: 6px;
 }
 
-/* ── Prominent asset management entry ── */
 .assetButtonRow {
   display: flex;
   align-items: center;
@@ -214,6 +364,7 @@
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
+  text-decoration: none;
 }
 
 .assetButtonRow:hover {
@@ -222,7 +373,6 @@
   box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
 }
 
-/* Active state when on /assets route */
 .assetButtonRowActive {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(139, 92, 246, 0.14)) !important;
   border-color: rgba(99, 102, 241, 0.55) !important;
@@ -250,6 +400,7 @@
   background: transparent;
   gap: 12px;
   border-radius: var(--radius-md, 10px);
+  cursor: pointer;
 }
 
 .profileBtn:hover {
@@ -281,7 +432,6 @@
   font-weight: 500;
 }
 
-/* Asset button (LayoutGrid) — REMOVED (now standalone assetButtonRow above) */
 .logoutBtn {
   flex-shrink: 0;
   display: flex;
@@ -297,53 +447,199 @@
   transition: opacity 0.2s, color 0.2s, background 0.2s;
 }
 
-.profileBtn:hover .logoutBtn {
-  opacity: 1;
-}
+.profileBtn:hover .logoutBtn { opacity: 1; }
+.logoutBtn:hover { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
 
-.logoutBtn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.loadingItem {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  color: var(--text-tertiary);
-  font-size: 0.9rem;
-}
-
-.emptyItem {
-  padding: 12px 14px;
-  color: var(--text-tertiary);
-  font-size: 0.9rem;
-  font-style: italic;
-}
-
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  100% { transform: rotate(360deg); }
-}
-
-/* Infinite scroll sentinel element */
-.sentinel {
-  list-style: none;
-  padding: 0;
-  min-height: 4px;
-}
-
-.loadMoreHint,
-.allLoadedHint {
+/* ════════════════════════════════════════════════════════
+   模态框通用样式
+   ════════════════════════════════════════════════════════ */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(6px);
+  animation: overlayFade 0.18s ease;
+}
+
+@keyframes overlayFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal {
+  background: #ffffff;
+  border-radius: 20px;
+  width: min(460px, 92vw);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2), 0 4px 16px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  animation: modalPop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+
+.modalSmall {
+  width: min(380px, 92vw);
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.94) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modalHeader {
+  padding: 32px 32px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.modalIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.1));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary, #6366f1);
+  margin-bottom: 2px;
+}
+
+.modalIconDanger {
+  background: rgba(239, 68, 68, 0.09);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.modalTitle {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.modalSubtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary, #64748b);
+  margin: 0;
+  line-height: 1.55;
+}
+
+.modalSubtitle strong { color: #ef4444; font-weight: 600; }
+
+.modalBody {
+  padding: 24px 32px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.modalLabel {
+  display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 8px 0;
-  font-size: 0.78rem;
-  color: var(--text-tertiary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary, #94a3b8);
+  margin-bottom: 8px;
+}
+
+.modalInput {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(15, 23, 42, 0.12);
+  font-size: 0.95rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text-primary, #0f172a);
+  background: rgba(15, 23, 42, 0.02);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.modalInput:focus {
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  background: white;
+}
+
+.modalInput::placeholder { color: rgba(15, 23, 42, 0.3); }
+.modalInput:disabled { opacity: 0.6; }
+
+.modalHint {
+  font-size: 0.8rem;
+  color: var(--text-tertiary, #94a3b8);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+.modalFooter {
+  display: flex;
+  gap: 10px;
+  padding: 24px 32px 28px;
+  justify-content: flex-end;
+}
+
+.modalCancelBtn {
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.03);
+  color: var(--text-secondary, #64748b);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.modalCancelBtn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.07);
+  border-color: rgba(15, 23, 42, 0.18);
+}
+
+.modalCancelBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.modalSubmitBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  font-family: inherit;
+}
+
+.modalSubmitBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.42);
+}
+
+.modalSubmitBtn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+.modalSubmitDanger {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3) !important;
+}
+
+.modalSubmitDanger:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.4) !important;
 }
