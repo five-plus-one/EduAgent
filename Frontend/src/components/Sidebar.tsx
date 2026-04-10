@@ -12,7 +12,6 @@ import { clsx } from 'clsx';
 import styles from './Sidebar.module.css';
 import { useAppStore } from '../store/useAppStore';
 import { logout, listSessions, createSession } from '../utils/api';
-import type { AssetTab } from './AssetDrawer';
 
 interface SessionItem {
   session_id: string;
@@ -20,13 +19,9 @@ interface SessionItem {
   updated_at: string;
 }
 
-interface SidebarProps {
-  onOpenAsset: (tab: AssetTab) => void;
-}
-
 const PAGE_SIZE = 20;
 
-export default function Sidebar({ onOpenAsset }: SidebarProps) {
+export default function Sidebar() {
   const navigate = useNavigate();
   const user = useAppStore((state) => state.user);
   const clearUser = useAppStore((state) => state.clearUser);
@@ -225,27 +220,29 @@ export default function Sidebar({ onOpenAsset }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* Footer — user info + asset button + logout ------------------------- */}
+      {/* Footer — asset entry + user profile -------------------------------- */}
       <div className={styles.footer}>
+        {/* ── Prominent asset management entry ── */}
+        <NavLink
+          to="/assets"
+          id="sidebar-asset-btn"
+          className={({ isActive }) =>
+            clsx(styles.assetButtonRow, isActive && styles.assetButtonRowActive)
+          }
+          aria-label="打开素材管理"
+        >
+          <LayoutGrid size={16} />
+          <span>素材管理</span>
+          <span className={styles.assetBadge}>知识库 & 图片</span>
+        </NavLink>
+
+        {/* ── User profile + logout ── */}
         <div className={clsx('button-base', styles.profileBtn)}>
           <UserCircle size={24} />
           <div className={styles.profileInfo}>
             <span className={styles.userName}>{user?.name ?? '未命名教师'}</span>
             <span className={styles.userRole}>{user?.department ?? ''}</span>
           </div>
-
-          {/* Asset management button */}
-          <button
-            id="sidebar-asset-btn"
-            className={styles.assetBtn}
-            onClick={() => onOpenAsset('knowledge')}
-            title="素材管理（知识库 & 图片）"
-            aria-label="打开素材管理"
-          >
-            <LayoutGrid size={16} />
-          </button>
-
-          {/* Logout button */}
           <button
             className={styles.logoutBtn}
             onClick={handleLogout}

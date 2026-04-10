@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
@@ -13,11 +13,14 @@ import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon } from 'lucide-react';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc } from '../utils/api';
+import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -25,6 +28,7 @@ export default function Workspace() {
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
+  const kbFileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -35,7 +39,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -63,6 +67,17 @@ export default function Workspace() {
   const [activeTab, setActiveTab] = useState<string>('files');
   /** 参考资料 Tab 的子面板切换：docs（知识库文件） | images（会话图片） */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
+  const [isUploadingKb, setIsUploadingKb] = useState(false);
+  const [isDraggingKb, setIsDraggingKb] = useState(false);
+  const [filesHighlight, setFilesHighlight] = useState(false);
+
+  /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
+  const handleOpenFiles = () => {
+    setActiveTab('files');
+    setFilesSubTab('docs');
+    setFilesHighlight(true);
+    setTimeout(() => setFilesHighlight(false), 1800);
+  };
 
   const handleExportWord = () => {
     if (!wordDoc) return;
@@ -102,13 +117,26 @@ export default function Workspace() {
     URL.revokeObjectURL(url);
   };
   
-  useEffect(() => {
-    let active = true;
-    listKnowledgeDocs(1, 50).then(res => {
-      if (active) setKbDocs(res?.items || []);
-    }).catch(e => console.error("Failed to load KB docs", e));
-    return () => { active = false; };
+  const fetchKbDocs = useCallback(async () => {
+    try {
+      const res = await listKnowledgeDocs(1, 50);
+      setKbDocs(res?.items || []);
+    } catch (e) {
+      console.error('Failed to load KB docs', e);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchKbDocs();
+  }, [fetchKbDocs]);
+
+  // Poll while any doc is still being vectorized
+  useEffect(() => {
+    const hasPending = kbDocs.some((d: any) => d.status === 'pending' || d.status === 'processing');
+    if (!hasPending) return;
+    const timer = setInterval(fetchKbDocs, 3000);
+    return () => clearInterval(timer);
+  }, [kbDocs, fetchKbDocs]);
 
   const handleToggleLink = async (docId: string, isLinked: boolean) => {
     if (sessionId === 'new') {
@@ -162,6 +190,37 @@ export default function Workspace() {
         next.delete(docId);
         return next;
       });
+    }
+  };
+
+  const handleKbUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = ''; // reset so same file can be re-selected
+    setIsUploadingKb(true);
+    try {
+      await uploadKnowledgeDoc(file, { subject: '通用类目' });
+      await fetchKbDocs();
+    } catch {
+      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / TXT / MD）');
+    } finally {
+      setIsUploadingKb(false);
+    }
+  };
+
+  const handleKbFilesDrop = async (files: FileList) => {
+    const valid = Array.from(files).filter(f =>
+      ['.pdf', '.docx', '.doc', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
+    );
+    if (!valid.length) { alert('仅支持 PDF / DOCX / TXT / MD 格式文件'); return; }
+    setIsUploadingKb(true);
+    try {
+      await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '通用类目' })));
+      await fetchKbDocs();
+    } catch {
+      alert('上传失败，请检查文件格式或网络');
+    } finally {
+      setIsUploadingKb(false);
     }
   };
 
@@ -232,6 +291,8 @@ export default function Workspace() {
        if (ev.detail?.sessionId === sessionId) {
           console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
           setActiveTab('ppt');
+          // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+          clearPages();
           await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
           fetchPreview();
        }
@@ -375,7 +436,12 @@ export default function Workspace() {
             {/* OMNI-DOCK INPUT */}
             <div className={styles.inputDockContainer}>
               <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
-                <button className={styles.iconButton} title="上传参考资料" disabled={isGenerating}>
+                <button
+                  className={clsx(styles.iconButton, styles.paperclipBtn)}
+                  title="上传参考资料"
+                  disabled={isGenerating || sessionId === 'new'}
+                  onClick={handleOpenFiles}
+                >
                   <Paperclip size={20} />
                 </button>
                 <textarea 
@@ -385,7 +451,7 @@ export default function Workspace() {
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  rows={1}
+                  rows={3}
                   disabled={isGenerating}
                 />
                 <div className={styles.actionsBox}>
@@ -473,20 +539,6 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
-              {pages.length === 0 && (
-                <button 
-                  className={clsx('button-primary', styles.generateBtn)}
-                  onClick={async () => {
-                    setActiveTab('ppt');
-                    await startStreaming([], 'fast', true);
-                    fetchPreview();
-                  }}
-                  disabled={isGenerating || isStreaming || sessionId === 'new'}
-                >
-                  <Sparkles size={16} className={clsx((isGenerating || isStreaming) && styles.rotating)} /> 
-                  {isGenerating || isStreaming ? 'AI生成中...' : 'AI 一键生成课件'}
-                </button>
-              )}
               {pages.length > 0 && (
                 <>
                   <button 
@@ -513,7 +565,7 @@ export default function Workspace() {
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
-            <div className={styles.kbPanel}>
+            <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 子 Tab 切换（知识库文档 / 图片素材） */}
               <div className={styles.subTabBar}>
                 <button
@@ -533,50 +585,111 @@ export default function Workspace() {
               {/* 知识库文档面板 */}
               {filesSubTab === 'docs' && (
                 <>
-                  <div className={styles.kbHeader}>
-                    <p>在此选取并关联 RAG 知识材料。绑定后，AI 会自动基于这些资料为您提炼并生成 PPT 课件。</p>
+                  {/* 拖拽上传区 */}
+                  <div
+                    className={clsx(styles.kbDropzone, isDraggingKb && styles.kbDropzoneDragging, isUploadingKb && styles.kbDropzoneUploading)}
+                    onDrop={(e) => { e.preventDefault(); setIsDraggingKb(false); if (e.dataTransfer.files.length) handleKbFilesDrop(e.dataTransfer.files); }}
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingKb(true); }}
+                    onDragLeave={() => setIsDraggingKb(false)}
+                    onClick={() => !isUploadingKb && kbFileInputRef.current?.click()}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="点击或拖拽文档到此处上传"
+                  >
+                    <input
+                      ref={kbFileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt,.md"
+                      style={{ display: 'none' }}
+                      onChange={handleKbUpload}
+                    />
+                    {isUploadingKb ? (
+                      <><Loader2 size={20} className={styles.spinner} /> <span>上传中...</span></>
+                    ) : isDraggingKb ? (
+                      <><UploadCloud size={20} /> <span>松开即可上传</span></>
+                    ) : (
+                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · TXT · MD</small></>
+                    )}
                   </div>
 
                   {kbDocs.length === 0 ? (
-                    <div className={styles.placeholderCentric}>暂无全局知识库文档，请先在左侧进入「知识库管理」上传</div>
+                    <div className={styles.placeholderCentric}>
+                      暂无知识库文档，拖拽或点击上方区域添加
+                    </div>
                   ) : (
                     <div className={styles.kbList}>
-                      {kbDocs.map(doc => {
+                      {kbDocs.map((doc: any) => {
                         const isLinked = linkedDocs.has(doc.document_id);
                         const isLinking = linkingDocs.has(doc.document_id);
+                        const isCompleted = doc.status === 'completed' || !doc.status;
+                        const isFailed   = doc.status === 'failed';
+                        const isProcessing = doc.status === 'processing';
+                        const isPending  = doc.status === 'pending';
                         return (
                           <div key={doc.document_id} className={clsx(styles.kbListItem, 'glass-panel')}>
                             <div className={styles.kbItemInfo}>
                               <FileText size={18} className={styles.docIcon} />
                               <div className={styles.kbItemTextWrap}>
                                 <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
-                                <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                                <div className={styles.kbItemMetaRow}>
+                                  <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                                  {isCompleted && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusCompleted)}>
+                                      <CheckCircle size={10} /> 已向量化
+                                    </span>
+                                  )}
+                                  {isProcessing && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusProcessing)}>
+                                      <Loader2 size={10} className={styles.spinner} /> 向量化中...
+                                    </span>
+                                  )}
+                                  {isPending && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusPending)}>
+                                      <Clock size={10} /> 等待处理
+                                    </span>
+                                  )}
+                                  {isFailed && (
+                                    <span className={clsx(styles.docStatusBadge, styles.statusFailed)}>
+                                      <AlertCircle size={10} /> 失败
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                             <div className={styles.kbItemActions}>
-                              <button
-                                className={clsx(
-                                  isLinked ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked) : 'button-primary',
-                                  styles.actionBtn
-                                )}
-                                disabled={isLinking || sessionId === 'new'}
-                                onClick={() => handleToggleLink(doc.document_id, isLinked)}
-                                onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
-                                onMouseLeave={() => setHoveredLinkDoc(null)}
-                                title={isLinked ? '点击解除绑定' : '点击加入会话'}
-                              >
-                                {isLinking ? (
-                                  <><Loader2 size={14} className={styles.spinner} /> 变更中</>
-                                ) : isLinked ? (
-                                  hoveredLinkDoc === doc.document_id ? (
-                                    <><Unlink size={14} /> 取消绑定</>
+                              {isFailed ? (
+                                <span className={styles.failedLabel}>
+                                  <AlertCircle size={13} /> 不可关联
+                                </span>
+                              ) : (
+                                <button
+                                  className={clsx(
+                                    isLinked
+                                      ? (hoveredLinkDoc === doc.document_id ? styles.btnUnlinkHover : styles.btnLinked)
+                                      : 'button-primary',
+                                    styles.actionBtn
+                                  )}
+                                  disabled={isLinking || sessionId === 'new' || !isCompleted}
+                                  onClick={() => handleToggleLink(doc.document_id, isLinked)}
+                                  onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
+                                  onMouseLeave={() => setHoveredLinkDoc(null)}
+                                  title={!isCompleted ? '向量化完成后方可关联' : isLinked ? '点击解除绑定' : '点击加入会话'}
+                                >
+                                  {isLinking ? (
+                                    <><Loader2 size={14} className={styles.spinner} /> 变更中</>
+                                  ) : !isCompleted ? (
+                                    <><Clock size={14} /> 处理中</>
+                                  ) : isLinked ? (
+                                    hoveredLinkDoc === doc.document_id ? (
+                                      <><Unlink size={14} /> 取消绑定</>
+                                    ) : (
+                                      <><CheckCircle size={14} /> 已绑定</>
+                                    )
                                   ) : (
-                                    <><CheckCircle size={14} /> 已绑定</>
-                                  )
-                                ) : (
-                                  <><Link size={14} /> 加入会话</>
-                                )}
-                              </button>
+                                    <><Link size={14} /> 加入会话</>
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -615,7 +728,11 @@ export default function Workspace() {
                   </p>
                   <button
                     className='button-primary'
-                    onClick={() => startStreaming(Array.from(linkedDocs), 'fast', true)}
+                    onClick={() => {
+                      // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+                      clearPages();
+                      startStreaming(Array.from(linkedDocs), 'fast', true);
+                    }}
                     disabled={sessionId === 'new'}
                     style={{ padding: '10px 24px' }}
                   >
@@ -630,6 +747,7 @@ export default function Workspace() {
                       key={page.page_index} 
                       page={page} 
                       isUpdating={updatingPages.has(page.page_index)}
+                      isStreaming={isStreaming}
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
                     />
                   ))}
@@ -643,6 +761,7 @@ export default function Workspace() {
                           key={page.page_index} 
                           page={page} 
                           isUpdating={false}
+                          isStreaming={true}
                           onIterate={() => {}} // Disabled during stream for stability
                         />
                      );
@@ -690,8 +809,8 @@ export default function Workspace() {
               ) : (streamWordDoc || wordDoc) ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]} 
-                    rehypePlugins={[rehypeRaw]}
+                    remarkPlugins={[remarkGfm, remarkMath]} 
+                    rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }], rehypeRaw]}
                   >
                     {streamWordDoc || wordDoc}
                   </ReactMarkdown>

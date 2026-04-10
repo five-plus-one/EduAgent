@@ -1,0 +1,132 @@
+/* ── Full-page Asset Management Layout ─────────────────────────────────────── */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+/* ── Page Header ─────────────────────────────────────────────────────────────  */
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 40px 22px;
+  border-bottom: 1px solid var(--border-glass);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: var(--bg-primary);
+}
+
+.headerLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pageTitle {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.pageDesc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Tab Bar ─────────────────────────────────────────────────────────────────  */
+.tabBar {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.tabBtn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px 10px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border-glass);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.tabBtn:hover {
+  background: var(--bg-glass-hover);
+  color: var(--text-primary);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.tabActive {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.07));
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--accent-primary, #6366f1);
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.12);
+}
+
+.tabIconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.05);
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.tabIconActive {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-primary, #6366f1);
+}
+
+.tabText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tabLabel {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tabDesc {
+  font-size: 0.76rem;
+  font-weight: 400;
+  opacity: 0.7;
+  line-height: 1.2;
+}
+
+/* ── Content Area ────────────────────────────────────────────────────────────  */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 40px;
+}
+
+.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb {
+  background: var(--border-glass);
+  border-radius: 3px;
+}
+.content::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.18);
+}
