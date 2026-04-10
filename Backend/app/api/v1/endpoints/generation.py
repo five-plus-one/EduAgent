@@ -24,7 +24,17 @@ class ReplaceImageRequest(BaseModel):
     image_id: str  # 用户图片库中的 image_id
 
 
-router = APIRouter()
+class ManualSlideEditRequest(BaseModel):
+    """
+    PUT /sessions/{id}/courseware/slides/{page_index} 的请求体。
+    前端手动编辑对话框关闭时调用，将当前页的完整状态持久化到 DB。
+    字段均可省略，只传实际改动了的部分。
+    """
+    title: Optional[str] = None                # 页面标题
+    elements: Optional[list] = None            # 完整元素数组（全量替换）
+    speaker_notes: Optional[str] = None        # 演讲者注记
+
+
 
 # ---------------- GENERATION ----------------
 
@@ -604,4 +614,107 @@ def replace_slide_image(
         "page_index": page_index,
         "image_id": body.image_id,
         "preview_url": preview_url,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 手动编辑单页保存：PUT /sessions/{id}/courseware/slides/{page_index}
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.put("/sessions/{session_id}/courseware/slides/{page_index}")
+def save_manual_slide_edit(
+    session_id: str,
+    page_index: int,
+    body: ManualSlideEditRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    手动编辑单页并保存到 DB。
+
+    前端在手动编辑对话框中修改标题 / 内容块 / 演讲者注记后，
+    关闭对话框前调用此接口将最新状态写入 DB。
+    后续导出 PPT 时 ppt_exporter 直接读取已存储的 elements，无需额外处理。
+
+    - title        : 更新页标题（可选）
+    - elements     : 全量替换当前页元素（可选，不传则保持原元素不变）
+    - speaker_notes: 演讲者注记（可选）
+
+    图片元素的 resolved 字段会被自动保留，防止手动编辑时丢失已替换的图片信息。
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    import json as _json
+
+    # 1. 验证会话归属当前用户
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 加载课件
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw or not cw.ppt_data:
+        raise HTTPException(status_code=404, detail="No courseware found for this session")
+
+    cw_data = cw.ppt_data
+    if isinstance(cw_data, str):
+        try:
+            cw_data = _json.loads(cw_data)
+        except Exception:
+            cw_data = {}
+    if not isinstance(cw_data, dict):
+        cw_data = {}
+
+    slides: list = list(cw_data.get("ppt_data", []))
+
+    # 3. 定位目标页
+    idx = next((i for i, s in enumerate(slides) if s.get("page_index") == page_index), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"Slide {page_index} not found")
+
+    slide = dict(slides[idx])  # shallow copy
+
+    # 4. 应用修改（仅更新已传入的字段）
+    if body.title is not None:
+        slide["title"] = body.title
+
+    if body.elements is not None:
+        # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
+        old_resolved: dict = {
+            e["element_id"]: e.get("resolved")
+            for e in slide.get("elements", [])
+            if e.get("type") == "image" and e.get("resolved")
+        }
+        new_elements = []
+        for elem in body.elements:
+            elem = dict(elem)
+            # 确保每个 element 有 element_id
+            if not elem.get("element_id"):
+                import uuid as _uuid
+                elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
+            # 图片元素：若前端未传 resolved，从旧数据回填
+            if elem.get("type") == "image" and "resolved" not in elem:
+                old_res = old_resolved.get(elem["element_id"])
+                if old_res:
+                    elem["resolved"] = old_res
+            new_elements.append(elem)
+        slide["elements"] = new_elements
+
+    if body.speaker_notes is not None:
+        slide["speaker_notes"] = body.speaker_notes
+
+    slides[idx] = slide
+
+    # 5. 强制触发 SQLAlchemy JSON 变更检测并提交
+    new_data = dict(cw_data)
+    new_data["ppt_data"] = slides
+    cw.ppt_data = new_data
+    flag_modified(cw, "ppt_data")
+    db.commit()
+
+    return {
+        "page_index": page_index,
+        "slide": slide,
     }
