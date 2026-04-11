@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
@@ -25,6 +25,42 @@ import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, P
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
   const [inputText, setInputText] = useState('');
+
+  // ── 可拖拽分割线 ────────────────────────────────────────
+  const CHAT_MIN = 280;
+  const CHAT_MAX = 680;
+  const CHAT_DEFAULT = 420;
+  const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWRef = useRef(0);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartWRef.current = chatWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = ev.clientX - dragStartXRef.current;
+      const next = Math.min(CHAT_MAX, Math.max(CHAT_MIN, dragStartWRef.current + delta));
+      setChatWidth(next);
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [chatWidth]);
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
@@ -354,7 +390,7 @@ export default function Workspace() {
     <div className={styles.workspace}>
       
       {/* LEFT PANEL: Chat Interaction */}
-      <section className={styles.chatPanel}>
+      <section className={styles.chatPanel} style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}>
         <header className={styles.chatHeader}>
           <div className={styles.sessionInfo}>
             <h2 className={styles.sessionTitle}>
@@ -505,7 +541,11 @@ export default function Workspace() {
       </section>
 
       {/* DRAG DIVIDER */}
-      <div className={styles.divider} />
+      <div
+        className={styles.divider}
+        onMouseDown={handleDividerMouseDown}
+        title="拖拽调整宽度"
+      />
 
       {/* RIGHT PANEL: Visual WorkSpace */}
       <section className={styles.visualPanel}>
