@@ -172,6 +172,13 @@ export default function PPTPageWorkbench({
   /* ── 布局面板状态 ────────────────────────────────────────── */
   const [applyingLayout, setApplyingLayout] = useState(false);
 
+  /**
+   * 当前打开的 ImagePickerModal 里「显示方式」的 fit 值。
+   * 独立于 props.currentFit（后者只代表从预览区点击进来时的图片 fit），
+   * 由打开 picker 时从 _raw.fit 初始化，避免与 activeImageElement 产生绑定。
+   */
+  const [pickerFit, setPickerFit] = useState<ObjectFitMode>('cover');
+
   /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return;
@@ -181,7 +188,7 @@ export default function PPTPageWorkbench({
     setElements(page.elements?.map(toEditable) ?? []);
     setIsDirty(false);
     setAiInstruction('');
-    // 图片面板重置
+    // 图片面板重置：有 activeImageElement 时预填搜索词，否则清空
     setSearchQuery(activeImageElement?.alt || activeImageElement?.query || '');
     setSelectedImageId(activeImageElement?.resolved?.image_id ?? null);
     setSearchResults([]);
@@ -521,6 +528,10 @@ export default function PPTPageWorkbench({
                                 <input className={styles.imageQueryInput} placeholder="AI 自动搜图关键词"
                                   value={el.query ?? ''} onChange={e => updateElement(idx, { query: e.target.value })} />
                                 <button className={styles.openPickerBtn} onClick={() => {
+                                  // 从元素的 _raw 读历史 fit，新元素默认 cover
+                                  const rawEl = el._raw as any;
+                                  const initFit: ObjectFitMode = rawEl?.fit ?? 'cover';
+                                  setPickerFit(initFit);
                                   setSearchQuery(el.alt || el.query || '');
                                   setSelectedImageId(null);
                                   setSearchResults([]);
@@ -588,7 +599,7 @@ export default function PPTPageWorkbench({
         {pickerOpen && pickerEl && (
           <ImagePickerModal
             el={pickerEl}
-            currentFit={pickerEl.element_id === (activeImageElement?.element_id) ? currentFit : 'cover'}
+            currentFit={pickerFit}
             imageMode={imageMode}
             setImageMode={(m) => { setImageMode(m); }}
             searchQuery={searchQuery}
@@ -603,7 +614,11 @@ export default function PPTPageWorkbench({
             onLoadMore={() => loadAllImages(allPage + 1)}
             selectedImageId={selectedImageId}
             onSelect={setSelectedImageId}
-            onChangeFit={(fit) => onChangeFit(pickerEl.element_id, fit)}
+            onChangeFit={(fit) => {
+              setPickerFit(fit);
+              // 同时通知父组件（用于导出时的 fit 持久化）
+              onChangeFit(pickerEl.element_id, fit);
+            }}
             onApply={() => handleApplyImage(pickerEl.element_id)}
             onClose={() => { setPickerOpen(false); setPickerEl(null); }}
           />
