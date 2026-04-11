@@ -571,6 +571,30 @@
 .imageAltInput:focus, .imageQueryInput:focus { border-color: rgba(99,102,241,0.35); box-shadow: 0 0 0 2px rgba(99,102,241,0.08); }
 .imageAltInput::placeholder, .imageQueryInput::placeholder { color: rgba(15,23,42,0.3); }
 
+/* ── 内联图片选择器 ──────────────────────────────────────── */
+.inlineImagePickerWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.inlinePickerBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px;
+  background: rgba(99,102,241,0.03);
+  border: 1px solid rgba(99,102,241,0.12);
+  border-radius: 10px;
+  animation: pickerSlideIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pickerSlideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ── Layout Tab ──────────────────────────────────────────── */
 .layoutHint { font-size: 12px; color: #64748b; margin: 0; line-height: 1.55; padding: 0 2px; }
 .layoutGrid { display: flex; flex-direction: column; gap: 7px; }

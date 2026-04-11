@@ -748,3 +748,138 @@ function AutoResizeTextarea({ value, onChange, placeholder, className }: {
   }, [value]);
   return <textarea ref={ref} className={className} value={value} placeholder={placeholder} rows={2} onChange={e => onChange(e.target.value)} />;
 }
+
+/* ─── 内联图片选择器（嵌在图片元素行内）────────────────────── */
+interface InlineImagePickerProps {
+  el: EditableEl;
+  expanded: boolean;
+  onToggle: () => void;
+  imageMode: 'search' | 'all';
+  setImageMode: (m: 'search' | 'all') => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+  searching: boolean;
+  onSearch: () => void;
+  searchResults: ImageResult[];
+  allImages: ImageResult[];
+  allLoading: boolean;
+  allTotal: number;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  selectedImageId: string | null;
+  onSelect: (id: string | null) => void;
+  currentFit: ObjectFitMode;
+  onChangeFit: (fit: ObjectFitMode) => void;
+  onApply: () => void;
+  onUpdateAlt: (v: string) => void;
+  onUpdateQuery: (v: string) => void;
+  styles: Record<string, string>;
+}
+
+function InlineImagePicker({
+  el, expanded, onToggle,
+  imageMode, setImageMode,
+  searchQuery, setSearchQuery, searching, onSearch, searchResults,
+  allImages, allLoading, allTotal, hasMore, onLoadMore,
+  selectedImageId, onSelect,
+  currentFit, onChangeFit,
+  onApply,
+  onUpdateAlt, onUpdateQuery,
+  styles,
+}: InlineImagePickerProps) {
+  const displayedResults = imageMode === 'search' ? searchResults : allImages;
+
+  return (
+    <div className={styles.inlineImagePickerWrap}>
+      {/* alt / query 字段 + 折叠触发器 */}
+      <div className={styles.imageEditArea}>
+        <div className={styles.imageEditIcon}><ImageIcon size={18} strokeWidth={1.5} /></div>
+        <div className={styles.imageEditFields}>
+          <input className={styles.imageAltInput} placeholder="描述文字 / alt 属性"
+            value={el.alt ?? ''} onChange={e => onUpdateAlt(e.target.value)} />
+          <input className={styles.imageQueryInput} placeholder="搜索关键词（AI 自动匹配图库）"
+            value={el.query ?? ''} onChange={e => onUpdateQuery(e.target.value)} />
+          <button className={styles.goToImageTabBtn} onClick={onToggle}>
+            <ImageIcon size={12} />
+            {expanded ? '收起图片选择' : '选择图片 ▾'}
+          </button>
+        </div>
+      </div>
+
+      {/* 展开区域：完整的图片选择器 */}
+      {expanded && (
+        <div className={styles.inlinePickerBody}>
+          {/* Fit 切换 */}
+          <div className={styles.fitRow}>
+            <span className={styles.fitLabel}>显示方式</span>
+            <div className={styles.fitOptions}>
+              {FIT_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  className={clsx(styles.fitBtn, currentFit === opt.value && styles.fitBtnActive)}
+                  onClick={() => onChangeFit(opt.value)}
+                >
+                  {opt.icon}<span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 搜索 / 全部 切换 */}
+          <div className={styles.imageModeBar}>
+            <button className={clsx(styles.imageModeBtn, imageMode === 'search' && styles.imageModeBtnActive)}
+              onClick={() => setImageMode('search')}>
+              <Search size={12} /> 搜索
+            </button>
+            <button className={clsx(styles.imageModeBtn, imageMode === 'all' && styles.imageModeBtnActive)}
+              onClick={() => setImageMode('all')}>
+              <Grid size={12} /> 全部图片
+              {allTotal > 0 && <span className={styles.totalBadge}>{allTotal}</span>}
+            </button>
+          </div>
+
+          {/* 搜索输入 */}
+          {imageMode === 'search' && (
+            <div className={styles.searchRow}>
+              <input
+                className={styles.searchInput}
+                placeholder="关键词，按回车搜索..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && onSearch()}
+              />
+              <button className={styles.searchBtn} onClick={onSearch} disabled={searching || !searchQuery.trim()}>
+                {searching ? <Loader2 size={14} className={styles.spin} /> : <Search size={14} />}
+              </button>
+            </div>
+          )}
+
+          {/* 图片网格 */}
+          <ImageGrid
+            images={displayedResults}
+            loading={(imageMode === 'search' && searching) || (imageMode === 'all' && allLoading && allImages.length === 0)}
+            selectedId={selectedImageId}
+            onSelect={onSelect}
+            emptyIcon={imageMode === 'search' ? <Search size={24} opacity={0.2} /> : <ImageIcon size={24} opacity={0.2} />}
+            emptyText={imageMode === 'search' ? '输入关键词后按回车搜索' : '图片库暂无内容'}
+            styles={styles}
+          />
+
+          {/* 加载更多 */}
+          {imageMode === 'all' && hasMore && (
+            <button className={styles.loadMoreBtn} disabled={allLoading} onClick={onLoadMore}>
+              {allLoading ? <><Loader2 size={13} className={styles.spin} /> 加载中...</> : <>加载更多 ({allImages.length}/{allTotal})</>}
+            </button>
+          )}
+
+          {/* 应用按钮 */}
+          {selectedImageId && (
+            <button className={styles.applyBtn} onClick={onApply}>
+              <Check size={14} /> 应用选中图片
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
