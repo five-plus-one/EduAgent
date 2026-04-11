@@ -546,53 +546,122 @@
 
 .allLoadedHint { text-align: center; font-size: 11.5px; color: #94a3b8; margin: 0; padding: 4px 0; }
 
-/* ── 图片Tab → 编辑内容Tab 跳转按钮 ─────────────────────── */
-.goToImageTabBtn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 9px; border-radius: 6px; border: 1px solid rgba(99,102,241,0.25);
-  background: rgba(99,102,241,0.06); color: #6366f1; font-size: 11px;
-  font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit;
-  align-self: flex-start;
-}
-.goToImageTabBtn:hover { background: rgba(99,102,241,0.13); border-color: rgba(99,102,241,0.45); }
-
-/* ── Image Edit Area (in edit tab) ──────────────────────── */
-.imageEditArea {
-  display: flex; align-items: flex-start; gap: 10px; padding: 10px 10px 6px;
-  background: rgba(99,102,241,0.04); border-radius: 9px; border: 1px dashed rgba(99,102,241,0.2);
-}
-.imageEditIcon { flex-shrink: 0; margin-top: 4px; color: rgba(99,102,241,0.4); }
-.imageEditFields { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.imageAltInput, .imageQueryInput {
-  width: 100%; padding: 6px 9px; border-radius: 7px; border: 1px solid rgba(15,23,42,0.1);
-  background: white; font-size: 12px; font-family: inherit; color: #1e293b;
-  outline: none; box-sizing: border-box; transition: border-color 0.15s;
-}
-.imageAltInput:focus, .imageQueryInput:focus { border-color: rgba(99,102,241,0.35); box-shadow: 0 0 0 2px rgba(99,102,241,0.08); }
-.imageAltInput::placeholder, .imageQueryInput::placeholder { color: rgba(15,23,42,0.3); }
-
-/* ── 内联图片选择器 ──────────────────────────────────────── */
-.inlineImagePickerWrap {
+/* ── 图片元素行（简化版） ─────────────────────────────────── */
+.imageElementRow {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
+}
+.imageElementMeta {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px 4px;
+  background: rgba(99,102,241,0.04);
+  border-radius: 8px;
+  border: 1px dashed rgba(99,102,241,0.18);
+}
+.openPickerBtn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 7px;
+  border: 1px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.08); color: #6366f1;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all 0.15s; align-self: flex-start;
+}
+.openPickerBtn:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.5); }
+
+/* ── 图片选择器二级弹窗 ──────────────────────────────────── */
+.pickerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.14s ease;
 }
 
-.inlinePickerBody {
+.pickerDialog {
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 24px 80px rgba(15,23,42,0.22), 0 4px 16px rgba(15,23,42,0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: pickerDialogIn 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pickerDialogIn {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.pickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(15,23,42,0.07);
+  flex-shrink: 0;
+}
+
+.pickerHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.pickerHeaderSub {
+  font-size: 12px;
+  color: #94a3b8;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.pickerCloseBtn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 8px; border: none;
+  background: none; color: #94a3b8; cursor: pointer; transition: all 0.14s;
+  flex-shrink: 0;
+}
+.pickerCloseBtn:hover { background: rgba(15,23,42,0.07); color: #0f172a; }
+
+.pickerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15,23,42,0.1) transparent;
+}
+
+.pickerGrid {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 10px;
-  padding: 12px;
-  background: rgba(99,102,241,0.03);
-  border: 1px solid rgba(99,102,241,0.12);
-  border-radius: 10px;
-  animation: pickerSlideIn 0.18s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes pickerSlideIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+.pickerFooter {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 12px 18px 14px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  flex-shrink: 0;
+  background: #fafafa;
 }
 
 /* ── Layout Tab ──────────────────────────────────────────── */

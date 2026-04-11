@@ -149,13 +149,15 @@ export default function PPTPageWorkbench({
   const dragSrcIdx = useRef<number | null>(null);
   /** 当前 hover 的放置目标索引（触发 re-render 以显示动画） */
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  /** 当前展开内联图片选择器的图片元素 ID */
-  const [expandedPickerElId, setExpandedPickerElId] = useState<string | null>(null);
 
   /* ── AI 指令状态 ────────────────────────────────────────── */
   const [aiInstruction, setAiInstruction] = useState('');
 
-  /* ── 图片面板状态（全局共享，内联选择器用） ────────────────── */
+  /* ── 图片选择器弹窗状态 */
+  /** 当前打开的图片选择器 */
+  const [pickerOpen, setPickerOpen] = useState(false);
+  /** 正在操作的图片元素 */
+  const [pickerEl, setPickerEl] = useState<EditableEl | null>(null);
   const [imageMode, setImageMode] = useState<'search' | 'all'>('search');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -310,7 +312,9 @@ export default function PPTPageWorkbench({
       resolveImagePreviewUrl(selected.preview_url),
       selected.label || searchQuery || '图片',
     );
-    setExpandedPickerElId(null);
+    // 关闭选择器弹窗，保留在编辑内容Tab
+    setPickerOpen(false);
+    setPickerEl(null);
     setSelectedImageId(null);
   };
 
@@ -473,42 +477,32 @@ export default function PPTPageWorkbench({
                         )}
 
                         {el.type === 'image' ? (
-                          /* ─── 图片元素：内联选择器 ─── */
-                          <InlineImagePicker
-                            el={el}
-                            expanded={expandedPickerElId === el.element_id}
-                            onToggle={() => {
-                              // 切换展开状态；展开同时重置搜索状态
-                              const next = expandedPickerElId === el.element_id ? null : el.element_id;
-                              setExpandedPickerElId(next);
-                              if (next) {
-                                setSearchQuery(el.alt || el.query || '');
+                          /* ─ 图片元素粀轻行：alt/query + 一个「换图」按钮 ─ */
+                          <div className={styles.imageElementRow}>
+                            <div className={styles.imageElementMeta}>
+                              <div className={styles.imageEditIcon}><ImageIcon size={16} strokeWidth={1.5} /></div>
+                              <div className={styles.imageEditFields}>
+                                <input className={styles.imageAltInput} placeholder="描述文字 / alt"
+                                  value={el.alt ?? ''} onChange={e => updateElement(idx, { alt: e.target.value })} />
+                                <input className={styles.imageQueryInput} placeholder="AI 搜图关键词"
+                                  value={el.query ?? ''} onChange={e => updateElement(idx, { query: e.target.value })} />
+                              </div>
+                            </div>
+                            <button
+                              className={styles.openPickerBtn}
+                              onClick={() => {
+                                setSearchQuery(el.alt || el.query || '');	
                                 setSelectedImageId(null);
                                 setSearchResults([]);
                                 setImageMode('search');
-                              }
-                            }}
-                            imageMode={imageMode}
-                            setImageMode={setImageMode}
-                            searchQuery={searchQuery}
-                            setSearchQuery={setSearchQuery}
-                            searching={searching}
-                            onSearch={handleSearch}
-                            searchResults={searchResults}
-                            allImages={allImages}
-                            allLoading={allLoading}
-                            allTotal={allTotal}
-                            hasMore={hasMore}
-                            onLoadMore={() => loadAllImages(allPage + 1)}
-                            selectedImageId={selectedImageId}
-                            onSelect={setSelectedImageId}
-                            currentFit={currentFit}
-                            onChangeFit={(fit) => onChangeFit(el.element_id, fit)}
-                            onApply={() => handleApplyImage(el.element_id)}
-                            onUpdateAlt={(v) => updateElement(idx, { alt: v })}
-                            onUpdateQuery={(v) => updateElement(idx, { query: v })}
-                            styles={styles}
-                          />
+                                allLoadedOnce.current = false;
+                                setPickerEl(el);
+                                setPickerOpen(true);
+                              }}
+                            >
+                              <ImageIcon size={12} /> 换图
+                            </button>
+                          </div>
                         ) : useItemEditor ? (
                           <InlineListEditor
                             items={el.textLines.length ? el.textLines : ['']}
@@ -563,6 +557,31 @@ export default function PPTPageWorkbench({
               </button>
             </div>
           </div>
+        )}
+
+        {/* ─── 图片选择器弹窗（二级） ───────────────────────────────────── */}
+        {pickerOpen && pickerEl && (
+          <ImagePickerModal
+            el={pickerEl}
+            currentFit={pickerEl.element_id === (activeImageElement?.element_id) ? currentFit : 'cover'}
+            imageMode={imageMode}
+            setImageMode={(m) => { setImageMode(m); }}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            searching={searching}
+            onSearch={handleSearch}
+            searchResults={searchResults}
+            allImages={allImages}
+            allLoading={allLoading}
+            allTotal={allTotal}
+            hasMore={hasMore}
+            onLoadMore={() => loadAllImages(allPage + 1)}
+            selectedImageId={selectedImageId}
+            onSelect={setSelectedImageId}
+            onChangeFit={(fit) => onChangeFit(pickerEl.element_id, fit)}
+            onApply={() => handleApplyImage(pickerEl.element_id)}
+            onClose={() => { setPickerOpen(false); setPickerEl(null); }}
+          />
         )}
 
         {/* ══════════════════════════════════════════════════════
@@ -749,11 +768,10 @@ function AutoResizeTextarea({ value, onChange, placeholder, className }: {
   return <textarea ref={ref} className={className} value={value} placeholder={placeholder} rows={2} onChange={e => onChange(e.target.value)} />;
 }
 
-/* ─── 内联图片选择器（嵌在图片元素行内）────────────────────── */
-interface InlineImagePickerProps {
+/* ─── 图片选择器弹窗（二级 Modal）────────────────────────── */
+interface ImagePickerModalProps {
   el: EditableEl;
-  expanded: boolean;
-  onToggle: () => void;
+  currentFit: ObjectFitMode;
   imageMode: 'search' | 'all';
   setImageMode: (m: 'search' | 'all') => void;
   searchQuery: string;
@@ -768,48 +786,38 @@ interface InlineImagePickerProps {
   onLoadMore: () => void;
   selectedImageId: string | null;
   onSelect: (id: string | null) => void;
-  currentFit: ObjectFitMode;
   onChangeFit: (fit: ObjectFitMode) => void;
   onApply: () => void;
-  onUpdateAlt: (v: string) => void;
-  onUpdateQuery: (v: string) => void;
-  styles: Record<string, string>;
+  onClose: () => void;
 }
 
-function InlineImagePicker({
-  el, expanded, onToggle,
+function ImagePickerModal({
+  el,
+  currentFit,
   imageMode, setImageMode,
   searchQuery, setSearchQuery, searching, onSearch, searchResults,
   allImages, allLoading, allTotal, hasMore, onLoadMore,
   selectedImageId, onSelect,
-  currentFit, onChangeFit,
-  onApply,
-  onUpdateAlt, onUpdateQuery,
-  styles,
-}: InlineImagePickerProps) {
+  onChangeFit, onApply, onClose,
+}: ImagePickerModalProps) {
   const displayedResults = imageMode === 'search' ? searchResults : allImages;
 
   return (
-    <div className={styles.inlineImagePickerWrap}>
-      {/* alt / query 字段 + 折叠触发器 */}
-      <div className={styles.imageEditArea}>
-        <div className={styles.imageEditIcon}><ImageIcon size={18} strokeWidth={1.5} /></div>
-        <div className={styles.imageEditFields}>
-          <input className={styles.imageAltInput} placeholder="描述文字 / alt 属性"
-            value={el.alt ?? ''} onChange={e => onUpdateAlt(e.target.value)} />
-          <input className={styles.imageQueryInput} placeholder="搜索关键词（AI 自动匹配图库）"
-            value={el.query ?? ''} onChange={e => onUpdateQuery(e.target.value)} />
-          <button className={styles.goToImageTabBtn} onClick={onToggle}>
-            <ImageIcon size={12} />
-            {expanded ? '收起图片选择' : '选择图片 ▾'}
-          </button>
-        </div>
-      </div>
+    <div className={styles.pickerOverlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className={styles.pickerDialog}>
 
-      {/* 展开区域：完整的图片选择器 */}
-      {expanded && (
-        <div className={styles.inlinePickerBody}>
-          {/* Fit 切换 */}
+        {/* 弹窗头部 */}
+        <div className={styles.pickerHeader}>
+          <div className={styles.pickerHeaderLeft}>
+            <ImageIcon size={15} />
+            <span>选择图片</span>
+            {el.alt && <span className={styles.pickerHeaderSub}>— {el.alt}</span>}
+          </div>
+          <button className={styles.pickerCloseBtn} onClick={onClose}><X size={16} /></button>
+        </div>
+
+        <div className={styles.pickerBody}>
+          {/* 显示方式 */}
           <div className={styles.fitRow}>
             <span className={styles.fitLabel}>显示方式</span>
             <div className={styles.fitOptions}>
@@ -827,12 +835,16 @@ function InlineImagePicker({
 
           {/* 搜索 / 全部 切换 */}
           <div className={styles.imageModeBar}>
-            <button className={clsx(styles.imageModeBtn, imageMode === 'search' && styles.imageModeBtnActive)}
-              onClick={() => setImageMode('search')}>
+            <button
+              className={clsx(styles.imageModeBtn, imageMode === 'search' && styles.imageModeBtnActive)}
+              onClick={() => setImageMode('search')}
+            >
               <Search size={12} /> 搜索
             </button>
-            <button className={clsx(styles.imageModeBtn, imageMode === 'all' && styles.imageModeBtnActive)}
-              onClick={() => setImageMode('all')}>
+            <button
+              className={clsx(styles.imageModeBtn, imageMode === 'all' && styles.imageModeBtnActive)}
+              onClick={() => setImageMode('all')}
+            >
               <Grid size={12} /> 全部图片
               {allTotal > 0 && <span className={styles.totalBadge}>{allTotal}</span>}
             </button>
@@ -847,6 +859,7 @@ function InlineImagePicker({
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && onSearch()}
+                autoFocus
               />
               <button className={styles.searchBtn} onClick={onSearch} disabled={searching || !searchQuery.trim()}>
                 {searching ? <Loader2 size={14} className={styles.spin} /> : <Search size={14} />}
@@ -855,31 +868,38 @@ function InlineImagePicker({
           )}
 
           {/* 图片网格 */}
-          <ImageGrid
-            images={displayedResults}
-            loading={(imageMode === 'search' && searching) || (imageMode === 'all' && allLoading && allImages.length === 0)}
-            selectedId={selectedImageId}
-            onSelect={onSelect}
-            emptyIcon={imageMode === 'search' ? <Search size={24} opacity={0.2} /> : <ImageIcon size={24} opacity={0.2} />}
-            emptyText={imageMode === 'search' ? '输入关键词后按回车搜索' : '图片库暂无内容'}
-            styles={styles}
-          />
+          <div className={styles.pickerGrid}>
+            <ImageGrid
+              images={displayedResults}
+              loading={(imageMode === 'search' && searching) || (imageMode === 'all' && allLoading && allImages.length === 0)}
+              selectedId={selectedImageId}
+              onSelect={onSelect}
+              emptyIcon={imageMode === 'search' ? <Search size={28} opacity={0.2} /> : <ImageIcon size={28} opacity={0.2} />}
+              emptyText={imageMode === 'search' ? '输入关键词后按回车搜索' : '图片库暂无内容'}
+              styles={styles}
+            />
 
-          {/* 加载更多 */}
-          {imageMode === 'all' && hasMore && (
-            <button className={styles.loadMoreBtn} disabled={allLoading} onClick={onLoadMore}>
-              {allLoading ? <><Loader2 size={13} className={styles.spin} /> 加载中...</> : <>加载更多 ({allImages.length}/{allTotal})</>}
-            </button>
-          )}
-
-          {/* 应用按钮 */}
-          {selectedImageId && (
-            <button className={styles.applyBtn} onClick={onApply}>
-              <Check size={14} /> 应用选中图片
-            </button>
-          )}
+            {/* 加载更多 */}
+            {imageMode === 'all' && hasMore && (
+              <button className={styles.loadMoreBtn} disabled={allLoading} onClick={onLoadMore}>
+                {allLoading
+                  ? <><Loader2 size={13} className={styles.spin} /> 加载中...</>
+                  : <>加载更多 ({allImages.length}/{allTotal})</>}
+              </button>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* 弹窗底部 */}
+        <div className={styles.pickerFooter}>
+          <button className={styles.cancelBtn} onClick={onClose}>取消</button>
+          <button className={styles.applyBtn} disabled={!selectedImageId} onClick={onApply}>
+            <Check size={15} /> 应用选中图片
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
+
+
