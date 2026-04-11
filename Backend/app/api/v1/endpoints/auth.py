@@ -67,24 +67,38 @@ def update_preferences(
     current_user: User = Depends(deps.get_current_user)
 ):
     """
-    Update global personalized settings.
+    更新全局个性化设置（theme / language / default_ai_model）
+    以及个人基本信息（name / department）。
+    前端个人信息弹窗与偏好设置均调用此接口。
     """
+    # ── 更新 preferences JSON 字段 ─────────────────────────────────────────
     current_prefs = current_user.preferences or {}
-    
+
     if prefs.theme is not None:
         current_prefs["theme"] = prefs.theme
     if prefs.language is not None:
         current_prefs["language"] = prefs.language
     if prefs.default_ai_model is not None:
         current_prefs["default_ai_model"] = prefs.default_ai_model
-        
+
     # Re-assign to force SQLAlchemy JSON update
     current_user.preferences = current_prefs
-    
+
+    # ── 更新个人信息列 ──────────────────────────────────────────────────────
+    if prefs.name is not None:
+        current_user.name = prefs.name
+    if prefs.department is not None:
+        current_user.department = prefs.department
+
     db.commit()
     db.refresh(current_user)
-    
-    return current_user.preferences
+
+    return {
+        "user_id": current_user.id,
+        "name": current_user.name,
+        "department": current_user.department,
+        "preferences": current_user.preferences,
+    }
 
 # Endpoint just for init test user easier
 @router.post("/register", response_model=UserResponse)

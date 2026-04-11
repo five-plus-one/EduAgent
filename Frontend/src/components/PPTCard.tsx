@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { resolveImagePreviewUrl } from '../utils/api';
+import { resolveImagePreviewUrl, replaceSlideImage } from '../utils/api';
 import PPTImageEditDrawer, { type ImageElement, type ObjectFitMode } from './PPTImageEditDrawer';
 import PPTPageEditPanel from './PPTPageEditPanel';
 
@@ -122,14 +122,17 @@ function mergeStandaloneMath(items: string[]): string[] {
 
 interface Props {
   page: PPTPage;
+  sessionId: string;               // 用于调用后端 PATCH 接口持久化图片替换
   isUpdating: boolean;
   isStreaming?: boolean;
   onIterate: (instruction: string) => void;
   /** 手动编辑保存回调（不经过 AI） */
   onManualSave?: (pageIndex: number, updatedPage: Partial<PPTPage>) => void;
+  /** 布局切换回调（不经过 AI） */
+  onApplyLayout?: (layoutType: string) => Promise<boolean>;
 }
 
-function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate, onManualSave }: Props) {
+function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave, onApplyLayout }: Props) {
   const [instruction, setInstruction] = useState('');
 
   // ── 图片编辑 Drawer 状态 ────────────────────────────────────
@@ -155,8 +158,13 @@ function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate, onManu
     setDrawerOpen(true);
   };
 
-  const handleReplaceImage = (elementId: string, newUrl: string, newAlt: string) => {
+  const handleReplaceImage = (elementId: string, imageId: string, newUrl: string, newAlt: string) => {
+    // 1. 乐观更新本地状态，预览立即生效
     setImageOverrides(prev => ({ ...prev, [elementId]: { url: newUrl, alt: newAlt } }));
+    // 2. 调用后端 PATCH 接口将替换写入 DB（导出 PPT 时使用新图片）
+    replaceSlideImage(sessionId, page.page_index, elementId, imageId).catch(err => {
+      console.error('[PPTCard] replaceSlideImage failed:', err);
+    });
   };
 
   const handleChangeFit = (elementId: string, fit: ObjectFitMode) => {
@@ -473,6 +481,7 @@ function PPTCardInner({ page, isUpdating, isStreaming = false, onIterate, onManu
         onIterate={onIterate}
         onReplaceImage={handleReplaceImage}
         onChangeFit={handleChangeFit}
+        onApplyLayout={onApplyLayout}
       />
 
       {/* ── 手动编辑面板 */}

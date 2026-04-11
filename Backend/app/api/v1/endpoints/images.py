@@ -101,18 +101,33 @@ def _run_annotate(image_id: str):
     asyncio.run(annotate_user_image(image_id))
 
 
-# ── 图片列表 ──────────────────────────────────────────────────────────────────
+# ── 图片列表 ──────────────────────────────────────────────────────────────────────────────
 
 @router.get("")
 def list_user_images(
     page: int = 1,
     size: int = 20,
+    keyword: str = Query(default=None, description="关键词，在 label / description / tags 中模糊匹配"),
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
 ):
     q = db.query(UserImage).filter(
         UserImage.user_id == current_user.id
-    ).order_by(UserImage.created_at.desc())
+    )
+
+    if keyword:
+        kw = f"%{keyword}%"
+        from sqlalchemy import or_, cast, String
+        q = q.filter(
+            or_(
+                UserImage.label.ilike(kw),
+                UserImage.description.ilike(kw),
+                # tags 是 JSON，转为字符串后做 LIKE（兴趣 SQLite 兼容）
+                cast(UserImage.tags, String).ilike(kw),
+            )
+        )
+
+    q = q.order_by(UserImage.created_at.desc())
     total = q.count()
     items = q.offset((page - 1) * size).limit(size).all()
     return {
