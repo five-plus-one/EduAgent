@@ -41,7 +41,7 @@ interface Props {
   currentFit: ObjectFitMode;
   onClose: () => void;
   onIterate: (instruction: string) => void;
-  onReplaceImage: (elementId: string, newUrl: string, newAlt: string) => void;
+  onReplaceImage: (elementId: string, imageId: string, newUrl: string, newAlt: string) => void;
   onChangeFit: (elementId: string, fit: ObjectFitMode) => void;
 }
 
@@ -159,7 +159,8 @@ export default function PPTImageEditDrawer({
     const selected = displayedResults.find(r => r.image_id === selectedImageId);
     if (!selected || !element) return;
     const previewUrl = resolveImagePreviewUrl(selected.preview_url);
-    onReplaceImage(element.element_id, previewUrl, selected.label || searchQuery || '图片');
+    // 将 image_id 传给父组件，父组件负责调用后端 PATCH 接口持久化
+    onReplaceImage(element.element_id, selected.image_id, previewUrl, selected.label || searchQuery || '图片');
     onClose();
   };
 

@@ -604,3 +604,69 @@ export const updateImageTags = async (
   const res = await apiClient.put(`/users/me/images/${imageId}/tags`, { tags });
   return res.data?.data ?? res.data;
 };
+
+// ==========================================
+// Module 8: PPT 课件图片替换 & 手动编辑
+// ==========================================
+
+/**
+ * 8.1 替换 PPT 某页某图片元素的图源（持久化到 DB）
+ * PATCH /sessions/{session_id}/courseware/slides/{page_index}/elements/{element_id}/image
+ *
+ * 前端在图片选择弹窗中确认新图片后调用此接口。
+ * 调用成功后，preview 和 导出 PPT 均使用新图片。
+ *
+ * @returns { element_id, page_index, image_id, preview_url }
+ */
+export const replaceSlideImage = async (
+  sessionId: string,
+  pageIndex: number,
+  elementId: string,
+  imageId: string
+): Promise<{ element_id: string; page_index: number; image_id: string; preview_url: string }> => {
+  const res = await apiClient.patch(
+    `/sessions/${sessionId}/courseware/slides/${pageIndex}/elements/${elementId}/image`,
+    { image_id: imageId }
+  );
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * 8.2 手动编辑单页并保存到 DB
+ * PUT /sessions/{session_id}/courseware/slides/{page_index}
+ *
+ * 手动编辑对话框关闭/保存时调用，将当前页最新状态写入 DB。
+ * 字段均可省略，只传实际改动了的部分。
+ */
+export const saveManualSlideEdit = async (
+  sessionId: string,
+  pageIndex: number,
+  edits: {
+    title?: string;
+    elements?: unknown[];
+    speaker_notes?: string;
+  }
+): Promise<{ page_index: number; slide: unknown }> => {
+  const res = await apiClient.put(
+    `/sessions/${sessionId}/courseware/slides/${pageIndex}`,
+    edits
+  );
+  return res.data?.data ?? res.data;
+};
+
+/**
+ * 8.3 获取用户图片库列表（支持关键词搜索）
+ * GET /users/me/images?page=1&size=20&keyword=xxx
+ *
+ * 替代旧版 listUserImages（新增 keyword 参数，用于图片选择弹窗搜索）
+ */
+export const searchUserImages = async (
+  page = 1,
+  size = 20,
+  keyword?: string
+): Promise<UserImageListResponse> => {
+  const res = await apiClient.get('/users/me/images', {
+    params: { page, size, ...(keyword ? { keyword } : {}) },
+  });
+  return res.data?.data ?? res.data;
+};
