@@ -212,11 +212,28 @@
   border: 1px solid rgba(15,23,42,0.08);
   border-radius: 11px;
   padding: 11px 10px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s, opacity 0.18s, transform 0.18s;
   /* 保证行内文本可正常选中，禁止整行触发浏览器拖动 */
   user-select: text;
 }
 .elementRow:hover { border-color: rgba(99,102,241,0.3); box-shadow: 0 2px 8px rgba(99,102,241,0.08); }
+
+/* 正在被拖动的源元素：半透明 + 轻微缩小 */
+.elementRowDragging {
+  opacity: 0.38 !important;
+  transform: scale(0.98);
+  border-color: rgba(99,102,241,0.2) !important;
+  box-shadow: none !important;
+}
+
+/* 鼠标悬停的放置目标：上方蓝色插入线 + 轻微下移 */
+.elementRowDropTarget {
+  border-color: #6366f1 !important;
+  border-top: 2.5px solid #6366f1 !important;
+  box-shadow: 0 -2px 0 0 rgba(99,102,241,0.25), 0 4px 14px rgba(99,102,241,0.12) !important;
+  transform: translateY(1px);
+  background: rgba(99,102,241,0.025) !important;
+}
 
 .elementReadonly { background: rgba(15,23,42,0.025); opacity: 0.7; }
 .elementReadonlyHint { font-size: 11px; color: #94a3b8; font-style: italic; }

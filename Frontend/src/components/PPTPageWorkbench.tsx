@@ -419,13 +419,20 @@ export default function PPTPageWorkbench({
                   return (
                     <div
                       key={el.element_id}
-                      className={styles.elementRow}
+                      data-element-row
+                      className={clsx(
+                        styles.elementRow,
+                        dragOverIdx === idx && styles.elementRowDropTarget,
+                        dragSrcIdx.current === idx && styles.elementRowDragging,
+                      )}
                       onDragOver={e => handleDragOver(e, idx)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={() => handleDrop(idx)}
                     >
                       <div
                         className={styles.elementDragHandle}
                         draggable
-                        onDragStart={() => handleDragStart(idx)}
+                        onDragStart={e => handleDragStart(idx, e)}
                         onDragEnd={handleDragEnd}
                         title="拖拽排序"
                       >
