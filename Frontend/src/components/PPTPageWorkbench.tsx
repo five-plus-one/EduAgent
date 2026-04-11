@@ -387,12 +387,17 @@ export default function PPTPageWorkbench({
                     <div
                       key={el.element_id}
                       className={styles.elementRow}
-                      draggable
-                      onDragStart={() => handleDragStart(idx)}
                       onDragOver={e => handleDragOver(e, idx)}
-                      onDragEnd={handleDragEnd}
                     >
-                      <div className={styles.elementDragHandle}><GripVertical size={14} /></div>
+                      <div
+                        className={styles.elementDragHandle}
+                        draggable
+                        onDragStart={() => handleDragStart(idx)}
+                        onDragEnd={handleDragEnd}
+                        title="拖拽排序"
+                      >
+                        <GripVertical size={14} />
+                      </div>
                       <div className={styles.elementMain}>
                         <div className={styles.elementMeta}>
                           <select className={styles.typeSelect} value={el.type}
