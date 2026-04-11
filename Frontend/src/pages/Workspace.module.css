@@ -33,6 +33,74 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.sessionTitleText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+/* 铅笔按钮：默认隐藏，hover 标题时显示 */
+.titleEditBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  padding: 0;
+}
+
+.sessionTitle:hover .titleEditBtn {
+  opacity: 1;
+}
+
+.titleEditBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-primary);
+}
+
+/* 内联编辑行 */
+.titleEditRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.titleInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: inherit;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--accent-primary, #6366f1);
+  border-radius: 8px;
+  padding: 4px 10px;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  transition: box-shadow 0.15s;
+}
+
+.titleInput:disabled {
+  opacity: 0.6;
 }
 
 .sessionStatus {
