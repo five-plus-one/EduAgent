@@ -220,6 +220,7 @@ async def stream_chat_response(
     base_url = settings.OPENAI_API_BASE.rstrip("/")
     tool_calls_buffer: dict[int, dict] = {}
     extracted_intent = ""
+    propose_plan_called = False  # True when ProposePPTPlan runs this turn
 
     try:
         # 使用 async httpx 避免阻塞事件循环（深度思考可能需要较长时间）
@@ -319,7 +320,7 @@ async def stream_chat_response(
                 _suffix = "如方案满意，请回复「可以」或「开始生成」；若需调整请告诉我修改意见。"
                 hint = (
                     f"\n\n{plan_md_formatted}\n\n"
-                    f"---\n\n"
+                    f"***\n\n"
                     f"📋 **以上是本次 PPT 生成方案，共计 {total_pgs} 页。**  \n"
                     + _suffix
                 )
@@ -329,6 +330,7 @@ async def stream_chat_response(
                 )
                 yield f"data: {plan_evt}\n\n"
             # 不设置 extracted_intent → 不触发任何生成流程
+            propose_plan_called = True  # 记录本轮已进入草稿阶段，阻断兜底意图
 
         elif t_name in ["generatefullppt", "generate_full_ppt"]:
             extracted_intent = "generate_courseware"
@@ -429,7 +431,10 @@ async def stream_chat_response(
         yield f"data: {tr_data}\n\n"
 
     # ── 5. 兜底意图识别 ───────────────────────────────────────────────────────
-    if not extracted_intent:
+    # SKIP fallback if ProposePPTPlan was called this turn:
+    # The user's message may contain "生成"+"ppt" keywords, but we're only at the
+    # plan-proposal stage — triggering generation here would bypass user confirmation.
+    if not extracted_intent and not propose_plan_called:
         user_text = new_user_input.lower()
         if ("生成" in user_text or "制作" in user_text) and ("ppt" in user_text or "课件" in user_text):
             extracted_intent = "generate_courseware"
