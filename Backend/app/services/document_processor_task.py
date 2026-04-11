@@ -64,5 +64,7 @@ def process_session_file_task(session_file_id: str):
     except Exception as e:
         sf.status = "failed"
         db.commit()
+
+
     finally:
         db.close()

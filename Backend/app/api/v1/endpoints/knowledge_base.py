@@ -125,3 +125,28 @@ def delete_document(
     db.delete(doc)
     db.commit()
     return None
+
+@router.post("/documents/{doc_id}/retry")
+def retry_document_processing(
+    doc_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db)
+):
+    """重新解析失败的文档（无需重新上传文件）。"""
+    doc = db.query(Document).filter(Document.id == doc_id, Document.user_id == current_user.id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.status not in ("failed", "pending"):
+        raise HTTPException(status_code=400, detail="只能对失败或未处理的文档重试")
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=400, detail="原始文件不存在，请重新上传")
+
+    # 重置状态
+    doc.status = "pending"
+    doc.progress = 0
+    doc.summary = None
+    db.commit()
+
+    background_tasks.add_task(process_global_document_task, doc_id, current_user.id)
+    return {"document_id": doc_id, "status": "processing"}
