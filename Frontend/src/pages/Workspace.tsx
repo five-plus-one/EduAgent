@@ -269,8 +269,14 @@ export default function Workspace() {
     try {
       await renameSession(sessionId, trimmed);
       setSessionTitle(trimmed);
+      // 通知 Sidebar 同步更新列表标题
+      window.dispatchEvent(
+        new CustomEvent('EduAgent_Session_Renamed', {
+          detail: { sessionId, courseName: trimmed },
+        })
+      );
     } catch {
-      // 失败时保展旧标题
+      // 失败时保留旧标题
     } finally {
       setTitleSaving(false);
       setTitleEditing(false);

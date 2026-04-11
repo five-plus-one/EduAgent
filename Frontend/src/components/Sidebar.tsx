@@ -68,6 +68,21 @@ export default function Sidebar() {
     return () => window.removeEventListener('EduAgent_Open_NewSession', handleGlobalNew);
   }, []);
 
+  // ── 监听 Workspace 标题修改，同步更新侧边栏列表 ──────────
+  useEffect(() => {
+    const handleRenamed = (e: Event) => {
+      const { sessionId: renamedId, courseName } = (e as CustomEvent).detail ?? {};
+      if (!renamedId || !courseName) return;
+      setSessions(prev =>
+        prev.map(s =>
+          s.session_id === renamedId ? { ...s, course_name: courseName } : s
+        )
+      );
+    };
+    window.addEventListener('EduAgent_Session_Renamed', handleRenamed);
+    return () => window.removeEventListener('EduAgent_Session_Renamed', handleRenamed);
+  }, []);
+
   // ── Initial load ─────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
