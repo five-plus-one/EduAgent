@@ -9,8 +9,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { resolveImagePreviewUrl, replaceSlideImage } from '../utils/api';
-import PPTImageEditDrawer, { type ImageElement, type ObjectFitMode } from './PPTImageEditDrawer';
-import PPTPageEditPanel from './PPTPageEditPanel';
+import PPTPageWorkbench, { type ImageElement, type ObjectFitMode, type WorkbenchTab } from './PPTPageWorkbench';
 
 // ── Error isolation: one bad card must NOT crash siblings ─────────────────
 class PPTCardErrorBoundary extends React.Component<
@@ -135,15 +134,14 @@ interface Props {
 function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave, onApplyLayout }: Props) {
   const [instruction, setInstruction] = useState('');
 
-  // ── 图片编辑 Drawer 状态 ────────────────────────────────────
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [activeElement, setActiveElement] = useState<ImageElement | null>(null);
-  // ── 手动编辑面板 ────────────────────────────────────────────
-  const [editPanelOpen, setEditPanelOpen] = useState(false);
+  // ── 统一工作台状态 ──────────────────────────────────────────
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [workbenchTab, setWorkbenchTab] = useState<WorkbenchTab>('edit');
+  const [activeImageElement, setActiveImageElement] = useState<ImageElement | null>(null);
   // 局部覆盖图片 URL（换图后立即生效，无需等待 AI）
-  const [imageOverrides, setImageOverrides] = useState<Record<string, { url: string; alt: string }>>({});
+  const [imageOverrides, setImageOverrides] = useState<Record<string, { url: string; alt: string }>>({}); 
   // Each element can have its own fit mode
-  const [fitModes, setFitModes] = useState<Record<string, ObjectFitMode>>({});
+  const [fitModes, setFitModes] = useState<Record<string, ObjectFitMode>>({}); 
 
   const handleSubmit = () => {
     if (instruction.trim() && !isUpdating) {
@@ -152,10 +150,19 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
     }
   };
 
+  // 点击图片 → 打开工作台 「替换图片」Tab
   const handleImageClick = (el: any) => {
     if (isUpdating || isStreaming) return;
-    setActiveElement(el as ImageElement);
-    setDrawerOpen(true);
+    setActiveImageElement(el as ImageElement);
+    setWorkbenchTab('image');
+    setWorkbenchOpen(true);
+  };
+
+  // 点击铅笔按钮 → 打开工作台 「编辑内容」Tab
+  const handleEditPageClick = () => {
+    setActiveImageElement(null);
+    setWorkbenchTab('edit');
+    setWorkbenchOpen(true);
   };
 
   const handleReplaceImage = (elementId: string, imageId: string, newUrl: string, newAlt: string) => {
@@ -319,12 +326,12 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div className={styles.cardHeader}>
             <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
             <h4>{page.title}</h4>
-            {/* 手动编辑按钮 */}
+            {/* 手动编辑按钮 → 统一工作台 */}
             {!isUpdating && !isStreaming && onManualSave && (
               <button
                 className={styles.editPageBtn}
-                onClick={() => setEditPanelOpen(true)}
-                title="手动编辑此页"
+                onClick={handleEditPageClick}
+                title="编辑此页（内容 / 图片 / 布局 / AI 指令）"
               >
                 <Pencil size={13} />
               </button>
@@ -470,28 +477,21 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
         )}
       </div>
 
-      {/* ── 图片编辑抽屉（渲染在卡片外以突破 overflow:hidden） */}
-      <PPTImageEditDrawer
-        open={drawerOpen}
-        pageIndex={page.page_index}
-        pageTitle={page.title}
-        element={activeElement}
-        currentFit={activeElement ? (fitModes[activeElement.element_id] ?? 'cover') : 'cover'}
-        onClose={() => setDrawerOpen(false)}
-        onIterate={onIterate}
-        onReplaceImage={handleReplaceImage}
-        onChangeFit={handleChangeFit}
-        onApplyLayout={onApplyLayout}
-      />
-
-      {/* ── 手动编辑面板 */}
+      {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (
-        <PPTPageEditPanel
-          open={editPanelOpen}
+        <PPTPageWorkbench
+          open={workbenchOpen}
           page={page}
-          onClose={() => setEditPanelOpen(false)}
+          sessionId={sessionId}
+          defaultTab={workbenchTab}
+          activeImageElement={activeImageElement}
+          currentFit={activeImageElement ? (fitModes[activeImageElement.element_id] ?? 'cover') : 'cover'}
+          onClose={() => setWorkbenchOpen(false)}
           onSave={(updated) => onManualSave(page.page_index, updated)}
           onIterate={onIterate}
+          onReplaceImage={handleReplaceImage}
+          onChangeFit={handleChangeFit}
+          onApplyLayout={onApplyLayout}
         />
       )}
     </>
