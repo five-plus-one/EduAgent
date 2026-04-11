@@ -252,6 +252,18 @@ export default function Workspace() {
     if (sessionId === 'new') setSessionTitle('');
   }, [sessionId]);
 
+  // 监听 Sidebar 重命名操作，同步更新顶部标题
+  useEffect(() => {
+    const handleRenamed = (e: Event) => {
+      const { sessionId: renamedId, courseName } = (e as CustomEvent).detail ?? {};
+      if (renamedId === sessionId && courseName) {
+        setSessionTitle(courseName);
+      }
+    };
+    window.addEventListener('EduAgent_Session_Renamed', handleRenamed);
+    return () => window.removeEventListener('EduAgent_Session_Renamed', handleRenamed);
+  }, [sessionId]);
+
   // 内联标题编辑 handlers
   const startTitleEdit = () => {
     setTitleDraft(sessionTitle);

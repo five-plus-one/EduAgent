@@ -202,12 +202,19 @@ export default function Sidebar() {
     }
     setIsSavingRename(true);
     try {
-      await renameSession(renamingId, renameValue.trim());
+      const trimmed = renameValue.trim();
+      await renameSession(renamingId, trimmed);
       setSessions(prev =>
         prev.map(s => s.session_id === renamingId
-          ? { ...s, course_name: renameValue.trim() }
+          ? { ...s, course_name: trimmed }
           : s
         )
+      );
+      // 通知 Workspace 顶部标题同步更新
+      window.dispatchEvent(
+        new CustomEvent('EduAgent_Session_Renamed', {
+          detail: { sessionId: renamingId, courseName: trimmed },
+        })
       );
     } catch {
       alert('重命名失败，请重试');
