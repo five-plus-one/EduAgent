@@ -145,7 +145,10 @@ export default function PPTPageWorkbench({
   const [elements, setElements] = useState<EditableEl[]>([]);
   const [isDirty, setIsDirty] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
-  const dragIdx = useRef<number | null>(null);
+  /** 被拖动元素的索引（不触发 re-render，只用于 drop 时读取） */
+  const dragSrcIdx = useRef<number | null>(null);
+  /** 当前 hover 的放置目标索引（触发 re-render 以显示动画） */
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   /* ── AI 指令状态 ──────────────────────────────────────────── */
   const [aiInstruction, setAiInstruction] = useState('');
@@ -222,20 +225,50 @@ export default function PPTPageWorkbench({
     onClose();
   };
 
-  const handleDragStart = (idx: number) => { dragIdx.current = idx; };
+  const handleDragStart = (idx: number, e: React.DragEvent) => {
+    dragSrcIdx.current = idx;
+    // 用整行卡片作为拖影，而不是只截取小小的 handle
+    const row = (e.currentTarget as HTMLElement).closest('[data-element-row]') as HTMLElement | null;
+    if (row) {
+      // offset 让光标大致在卡片中央偏上，体验更自然
+      e.dataTransfer.setDragImage(row, 24, row.offsetHeight / 2);
+    }
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
-    if (dragIdx.current === null || dragIdx.current === idx) return;
+    e.dataTransfer.dropEffect = 'move';
+    if (dragSrcIdx.current === null || dragSrcIdx.current === idx) return;
+    if (dragOverIdx !== idx) setDragOverIdx(idx);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    // 只有真正离开整行时才清除指示，避免子元素触发误清
+    const row = (e.currentTarget as HTMLElement);
+    if (!row.contains(e.relatedTarget as Node)) {
+      setDragOverIdx(null);
+    }
+  };
+
+  const handleDrop = (idx: number) => {
+    const src = dragSrcIdx.current;
+    if (src === null || src === idx) { setDragOverIdx(null); return; }
     setElements(prev => {
       const next = [...prev];
-      const [moved] = next.splice(dragIdx.current!, 1);
+      const [moved] = next.splice(src, 1);
       next.splice(idx, 0, moved);
-      dragIdx.current = idx;
       return next;
     });
     markDirty();
+    dragSrcIdx.current = null;
+    setDragOverIdx(null);
   };
-  const handleDragEnd = () => { dragIdx.current = null; };
+
+  const handleDragEnd = () => {
+    dragSrcIdx.current = null;
+    setDragOverIdx(null);
+  };
 
   /* ── 图片操作 ─────────────────────────────────────────────── */
   const handleSearch = useCallback(async () => {
