@@ -320,7 +320,7 @@ async def stream_chat_response(
                 _suffix = "如方案满意，请回复「可以」或「开始生成」；若需调整请告诉我修改意见。"
                 hint = (
                     f"\n\n{plan_md_formatted}\n\n"
-                    f"---\n\n"
+                    f"***\n\n"
                     f"📋 **以上是本次 PPT 生成方案，共计 {total_pgs} 页。**  \n"
                     + _suffix
                 )

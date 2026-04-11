@@ -472,7 +472,7 @@ def iterate_word(
     payload = {
         "model": settings.LLM_MODEL,
         "messages": [
-            {"role": "system", "content": "你是一个専业的教育内容编辑器。根据用户修改要求精确修订 Markdown 讲义，保持整体结构不变化。不要输出任何开场白、引言或 markdown 围栏。"},
+            {"role": "system", "content": "你是一个専业的教育内容编辑器。根据用户修改要求精确修订 Markdown 讲义，保持整体结构不变化。不要输出任何开场白、引言或 markdown 围栏。分隔线必须使用 ***，禁止使用 ---。"},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.3,
@@ -489,6 +489,8 @@ def iterate_word(
         # 去除可能的 markdown 围栏
         new_markdown = re.sub(r"^```[a-z]*\n?", "", new_markdown.strip(), flags=re.MULTILINE)
         new_markdown = re.sub(r"```$", "", new_markdown.strip(), flags=re.MULTILINE).strip()
+        # 将所有单行 "---" 分隔线替换为 "***"
+        new_markdown = re.sub(r"(?m)^-{3,}\s*$", "***", new_markdown)
     except HTTPException:
         raise
     except Exception as e:
@@ -501,6 +503,56 @@ def iterate_word(
     db.refresh(cw)
 
     return {"word_markdown": new_markdown}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 讲义直存：PUT /sessions/{id}/courseware/word
+# ──────────────────────────────────────────────────────────────────────────────
+
+class SaveWordRequest(BaseModel):
+    """讲义手动保存请求体"""
+    word_markdown: str
+
+
+@router.put("/sessions/{session_id}/courseware/word")
+def save_word_content(
+    session_id: str,
+    body: SaveWordRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    讲义直存接口——前端编辑模式保存使用。
+
+    不过 AI，直接将 word_markdown 内容写入 DB。
+    内容中所有 --- 分隔线自动替换为 ***。
+    导出 word 时 word_exporter 直接读取已存储的 word_markdown，无需额外处理。
+    """
+    import re as _re
+    from sqlalchemy.orm.attributes import flag_modified
+
+    # 1. 验证会话归属
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 加载课件
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw:
+        raise HTTPException(status_code=404, detail="Courseware not found")
+
+    # 3. 规范化分隔线 --- → ***
+    content = body.word_markdown
+    content = _re.sub(r"(?m)^-{3,}\s*$", "***", content)
+
+    # 4. 写入 DB
+    cw.word_markdown = content
+    flag_modified(cw, "word_markdown")
+    db.commit()
+
+    return {"word_markdown": content}
 
 
 # ---------------- WORD DOCX EXPORT ----------------
