@@ -1,1 +1,205 @@
-﻿.messageRow { display: flex; margin-bottom: 24px; gap: 12px; width: 100%; } .rowTeacher { justify-content: flex-end; } .rowAI { justify-content: flex-start; } .avatar { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; color: #6366f1; } .bubble { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.6; position: relative; } .bubbleTeacher { background: #6366f1; color: white; border-bottom-right-radius: 2px; } .bubbleAI { background: white; color: #1e293b !important; border: 1px solid #e2e8f0; border-bottom-left-radius: 2px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); } .markdownWrapper { display: flex; flex-direction: column; gap: 12px; min-width: 60px; color: #1e293b !important; } .thinkBlock { background: #f8faff; border: 1px solid #dbeafe; border-radius: 8px; margin-bottom: 8px; overflow: hidden; } .thinkHeader { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: transparent; border: none; cursor: pointer; color: #4f46e5; font-size: 13px; } .thinkBody { padding: 8px 12px; font-size: 13px; color: #475569; border-top: 1px solid #e2e8f0; background: rgba(255,255,255,0.4); } .toolBlock { background: #fffbeb; border-color: #fde68a; } .cursor { display: inline-block; width: 2px; height: 1.2em; background: #6366f1; animation: blink 0.8s infinite; } .thinkingDots { display: flex; gap: 4px; } .thinkingDots span { width: 6px; height: 6px; background: #6366f1; border-radius: 50%; opacity: 0.4; animation: dotBounce 1.4s infinite; } @keyframes blink { 0%, 100% { opacity: 0; } 50% { opacity: 1; } } @keyframes dotBounce { 0%, 80%, 100% { transform: scale(0.6); } 40% { transform: scale(1); } }
+/* ── Layout ─────────────────────────────────────────────── */
+.messageRow {
+  display: flex;
+  margin-bottom: 24px;
+  gap: 12px;
+  width: 100%;
+}
+.rowTeacher { justify-content: flex-end; }
+.rowAI      { justify-content: flex-start; }
+
+.avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6366f1;
+}
+
+.bubble {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  position: relative;
+}
+.bubbleTeacher {
+  background: #6366f1;
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+.bubbleAI {
+  background: white;
+  color: #1e293b !important;
+  border: 1px solid #e2e8f0;
+  border-bottom-left-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.markdownWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 60px;
+  color: #1e293b !important;
+}
+
+/* ── Thinking / Tool Block ─────────────────────────────── */
+.thinkBlock {
+  background: #f8faff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.3s ease;
+}
+
+/* 思考进行中：边框高亮 */
+.thinkBlockActive {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.08);
+}
+
+.thinkHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #4f46e5;
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  user-select: none;
+  transition: background 0.15s;
+}
+.thinkHeader:hover { background: rgba(99,102,241,0.04); }
+
+.thinkLabel {
+  flex: 1;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ChevronUp 图标，折叠时旋转 180° */
+.thinkChevron {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: #6366f1;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.thinkChevronCollapsed {
+  transform: rotate(180deg);
+}
+
+/* ── 内容折叠过渡容器 ──────────────────────────────────── */
+/*
+  用 max-height + opacity 双重过渡：
+  - max-height 驱动空间折叠（内容不突变）
+  - opacity 让淡出更柔和
+  展开时用较快速度（cubic-bezier 回弹）；折叠时稍慢（ease-in）
+*/
+.thinkBodyWrap {
+  overflow: hidden;
+  transition:
+    max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity    0.3s ease;
+  opacity: 1;
+}
+.thinkBodyWrap[style*="max-height: 0"] {
+  /* 折叠时淡出 */
+  opacity: 0;
+}
+
+.thinkBody {
+  padding: 8px 12px 12px;
+  font-size: 13px;
+  color: #475569;
+  border-top: 1px solid #e2e8f0;
+  background: rgba(255,255,255,0.45);
+}
+
+.toolBlock {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.toolBlock .thinkHeader { color: #92400e; }
+.toolBlock .thinkChevron { color: #92400e; }
+
+/* ── Icons ──────────────────────────────────────────────── */
+.thinkIcon { flex-shrink: 0; }
+
+@keyframes thinkPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.88); }
+}
+.thinkIconPulse {
+  animation: thinkPulse 1.2s ease-in-out infinite;
+}
+
+/* ── Text & Cursors ─────────────────────────────────────── */
+.textContent { color: #1e293b; }
+
+.thinkPlaceholder {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.thinkCursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: #6366f1;
+  border-radius: 1px;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 0.8s infinite;
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: #6366f1;
+  animation: blink 0.8s infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0; }
+  50%       { opacity: 1; }
+}
+
+/* ── Streaming "···" dots ───────────────────────────────── */
+.thinkingDots {
+  display: flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+.thinkingDots span {
+  width: 6px;
+  height: 6px;
+  background: #6366f1;
+  border-radius: 50%;
+  opacity: 0.4;
+  animation: dotBounce 1.4s infinite;
+}
+.thinkingDots span:nth-child(2) { animation-delay: 0.16s; }
+.thinkingDots span:nth-child(3) { animation-delay: 0.32s; }
+
+@keyframes dotBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1; }
+}
