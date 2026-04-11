@@ -189,16 +189,14 @@ export default function PPTPageWorkbench({
     setAllPage(1);
     setAllTotal(0);
     allLoadedOnce.current = false;
-    // 自动展开传入的图片元素的内联选择器
-    setExpandedPickerElId(activeImageElement?.element_id ?? null);
   }, [page.page_index, open, defaultTab]);
 
-  /* ── 切到「全部」时首次加载 ────────────────────────────── */
+  /* ── 全部图片首次加载（picker 打开时触发） */
   useEffect(() => {
-    if (expandedPickerElId && imageMode === 'all' && !allLoadedOnce.current) {
+    if (pickerOpen && imageMode === 'all' && !allLoadedOnce.current) {
       loadAllImages(1, true);
     }
-  }, [expandedPickerElId, imageMode]);
+  }, [pickerOpen, imageMode]);
 
   const markDirty = () => setIsDirty(true);
 
