@@ -41,7 +41,7 @@ export interface ImageElement {
   resolved?: { preview_url?: string; image_id?: string; source?: string };
 }
 
-export type WorkbenchTab = 'edit' | 'image' | 'layout' | 'ai';
+export type WorkbenchTab = 'edit' | 'layout' | 'ai';
 
 export interface PPTPageWorkbenchProps {
   open: boolean;
@@ -149,11 +149,13 @@ export default function PPTPageWorkbench({
   const dragSrcIdx = useRef<number | null>(null);
   /** 当前 hover 的放置目标索引（触发 re-render 以显示动画） */
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  /** 当前展开内联图片选择器的图片元素 ID */
+  const [expandedPickerElId, setExpandedPickerElId] = useState<string | null>(null);
 
-  /* ── AI 指令状态 ──────────────────────────────────────────── */
+  /* ── AI 指令状态 ────────────────────────────────────────── */
   const [aiInstruction, setAiInstruction] = useState('');
 
-  /* ── 图片面板状态 ─────────────────────────────────────────── */
+  /* ── 图片面板状态（全局共享，内联选择器用） ────────────────── */
   const [imageMode, setImageMode] = useState<'search' | 'all'>('search');
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -165,10 +167,10 @@ export default function PPTPageWorkbench({
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const allLoadedOnce = useRef(false);
 
-  /* ── 布局面板状态 ─────────────────────────────────────────── */
+  /* ── 布局面板状态 ────────────────────────────────────────── */
   const [applyingLayout, setApplyingLayout] = useState(false);
 
-  /* ── 重置（换页时）─────────────────────────────────────────── */
+  /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return;
     setActiveTab(defaultTab);
@@ -178,23 +180,23 @@ export default function PPTPageWorkbench({
     setIsDirty(false);
     setAiInstruction('');
     // 图片面板重置
-    if (activeImageElement) {
-      setSearchQuery(activeImageElement.alt || activeImageElement.query || '');
-      setSelectedImageId(activeImageElement.resolved?.image_id ?? null);
-    }
+    setSearchQuery(activeImageElement?.alt || activeImageElement?.query || '');
+    setSelectedImageId(activeImageElement?.resolved?.image_id ?? null);
     setSearchResults([]);
     setAllImages([]);
     setAllPage(1);
     setAllTotal(0);
     allLoadedOnce.current = false;
+    // 自动展开传入的图片元素的内联选择器
+    setExpandedPickerElId(activeImageElement?.element_id ?? null);
   }, [page.page_index, open, defaultTab]);
 
-  /* ── 切到「全部」时首次加载 ───────────────────────────────── */
+  /* ── 切到「全部」时首次加载 ────────────────────────────── */
   useEffect(() => {
-    if (activeTab === 'image' && imageMode === 'all' && !allLoadedOnce.current) {
+    if (expandedPickerElId && imageMode === 'all' && !allLoadedOnce.current) {
       loadAllImages(1, true);
     }
-  }, [activeTab, imageMode]);
+  }, [expandedPickerElId, imageMode]);
 
   const markDirty = () => setIsDirty(true);
 
@@ -298,17 +300,18 @@ export default function PPTPageWorkbench({
     finally { setAllLoading(false); }
   };
 
-  const handleApplyImage = () => {
+  const handleApplyImage = (elementId: string) => {
     const displayedResults = imageMode === 'search' ? searchResults : allImages;
     const selected = displayedResults.find(r => r.image_id === selectedImageId);
-    if (!selected || !activeImageElement) return;
+    if (!selected) return;
     onReplaceImage(
-      activeImageElement.element_id,
+      elementId,
       selected.image_id,
       resolveImagePreviewUrl(selected.preview_url),
       selected.label || searchQuery || '图片',
     );
-    onClose();
+    setExpandedPickerElId(null);
+    setSelectedImageId(null);
   };
 
   /* ── 布局操作 ─────────────────────────────────────────────── */
@@ -327,13 +330,9 @@ export default function PPTPageWorkbench({
   if (!open) return null;
 
   const hasMore = allImages.length < allTotal;
-  const currentPreviewUrl = activeImageElement?.resolved?.preview_url
-    ? resolveImagePreviewUrl(activeImageElement.resolved.preview_url)
-    : activeImageElement?.url ?? null;
 
   const TAB_DEFS: { key: WorkbenchTab; label: string; icon: React.ReactNode }[] = [
     { key: 'edit',   label: '编辑内容', icon: <Pencil size={13} /> },
-    { key: 'image',  label: '替换图片', icon: <ImageIcon size={13} /> },
     { key: 'layout', label: '切换布局', icon: <LayoutGrid size={13} /> },
     { key: 'ai',     label: 'AI 指令',  icon: <Wand2 size={13} /> },
   ];
@@ -474,21 +473,42 @@ export default function PPTPageWorkbench({
                         )}
 
                         {el.type === 'image' ? (
-                          <div className={styles.imageEditArea}>
-                            <div className={styles.imageEditIcon}><ImageIcon size={18} strokeWidth={1.5} /></div>
-                            <div className={styles.imageEditFields}>
-                              <input className={styles.imageAltInput} placeholder="描述文字 / alt 属性"
-                                value={el.alt ?? ''} onChange={e => updateElement(idx, { alt: e.target.value })} />
-                              <input className={styles.imageQueryInput} placeholder="搜索关键词（AI 自动匹配图库）"
-                                value={el.query ?? ''} onChange={e => updateElement(idx, { query: e.target.value })} />
-                              <button
-                                className={styles.goToImageTabBtn}
-                                onClick={() => setActiveTab('image')}
-                              >
-                                <ImageIcon size={12} /> 切换到「替换图片」Tab 直接换图
-                              </button>
-                            </div>
-                          </div>
+                          /* ─── 图片元素：内联选择器 ─── */
+                          <InlineImagePicker
+                            el={el}
+                            expanded={expandedPickerElId === el.element_id}
+                            onToggle={() => {
+                              // 切换展开状态；展开同时重置搜索状态
+                              const next = expandedPickerElId === el.element_id ? null : el.element_id;
+                              setExpandedPickerElId(next);
+                              if (next) {
+                                setSearchQuery(el.alt || el.query || '');
+                                setSelectedImageId(null);
+                                setSearchResults([]);
+                                setImageMode('search');
+                              }
+                            }}
+                            imageMode={imageMode}
+                            setImageMode={setImageMode}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            searching={searching}
+                            onSearch={handleSearch}
+                            searchResults={searchResults}
+                            allImages={allImages}
+                            allLoading={allLoading}
+                            allTotal={allTotal}
+                            hasMore={hasMore}
+                            onLoadMore={() => loadAllImages(allPage + 1)}
+                            selectedImageId={selectedImageId}
+                            onSelect={setSelectedImageId}
+                            currentFit={currentFit}
+                            onChangeFit={(fit) => onChangeFit(el.element_id, fit)}
+                            onApply={() => handleApplyImage(el.element_id)}
+                            onUpdateAlt={(v) => updateElement(idx, { alt: v })}
+                            onUpdateQuery={(v) => updateElement(idx, { query: v })}
+                            styles={styles}
+                          />
                         ) : useItemEditor ? (
                           <InlineListEditor
                             items={el.textLines.length ? el.textLines : ['']}
@@ -542,110 +562,6 @@ export default function PPTPageWorkbench({
                 <Check size={15} /> 保存修改
               </button>
             </div>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════
-            Tab: 替换图片
-            ══════════════════════════════════════════════════════ */}
-        {activeTab === 'image' && (
-          <div className={styles.body}>
-            {/* 当前图片预览 */}
-            {activeImageElement && (
-              <div className={styles.currentPreview}>
-                {currentPreviewUrl ? (
-                  <img src={currentPreviewUrl} alt={activeImageElement.alt || '当前图片'} style={{ objectFit: currentFit }} />
-                ) : (
-                  <div className={styles.previewEmpty}>
-                    <ImageIcon size={32} opacity={0.2} />
-                    <span>暂无匹配图片</span>
-                  </div>
-                )}
-                <span className={styles.previewAlt}>{activeImageElement.alt || activeImageElement.query || '未命名图片'}</span>
-              </div>
-            )}
-
-            {!activeImageElement && (
-              <div className={styles.noImageHint}>
-                <ImageIcon size={24} opacity={0.3} />
-                <p>请在预览卡片中点击图片区域，或在「编辑内容」中选择图片元素后跳转到此标签页。</p>
-              </div>
-            )}
-
-            {/* Object-Fit 快速切换 */}
-            {activeImageElement && (
-              <div className={styles.fitRow}>
-                <span className={styles.fitLabel}>显示方式</span>
-                <div className={styles.fitOptions}>
-                  {FIT_OPTIONS.map(opt => (
-                    <button
-                      key={opt.value}
-                      className={clsx(styles.fitBtn, currentFit === opt.value && styles.fitBtnActive)}
-                      onClick={() => activeImageElement && onChangeFit(activeImageElement.element_id, opt.value)}
-                    >
-                      {opt.icon}<span>{opt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 二级切换：搜索 / 全部 */}
-            <div className={styles.imageModeBar}>
-              <button className={clsx(styles.imageModeBtn, imageMode === 'search' && styles.imageModeBtnActive)} onClick={() => setImageMode('search')}>
-                <Search size={12} /> 搜索
-              </button>
-              <button className={clsx(styles.imageModeBtn, imageMode === 'all' && styles.imageModeBtnActive)} onClick={() => setImageMode('all')}>
-                <Grid size={12} /> 全部图片
-                {allTotal > 0 && <span className={styles.totalBadge}>{allTotal}</span>}
-              </button>
-            </div>
-
-            {/* 搜索模式 */}
-            {imageMode === 'search' && (
-              <>
-                <div className={styles.searchRow}>
-                  <input
-                    className={styles.searchInput}
-                    placeholder="搜索关键词，例：显微镜、电路图..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  />
-                  <button className={styles.searchBtn} onClick={handleSearch} disabled={searching || !searchQuery.trim()}>
-                    {searching ? <Loader2 size={14} className={styles.spin} /> : <Search size={14} />}
-                  </button>
-                </div>
-                <ImageGrid images={searchResults} loading={searching} selectedId={selectedImageId}
-                  onSelect={setSelectedImageId} emptyIcon={<Search size={28} opacity={0.2} />}
-                  emptyText="输入关键词后按回车搜索图片库" styles={styles} />
-              </>
-            )}
-
-            {/* 全部模式 */}
-            {imageMode === 'all' && (
-              <>
-                <ImageGrid images={allImages} loading={allLoading && allImages.length === 0}
-                  selectedId={selectedImageId} onSelect={setSelectedImageId}
-                  emptyIcon={<ImageIcon size={28} opacity={0.2} />}
-                  emptyText="图片库暂无内容" styles={styles} />
-                {hasMore && (
-                  <button className={styles.loadMoreBtn} disabled={allLoading} onClick={() => loadAllImages(allPage + 1)}>
-                    {allLoading ? <><Loader2 size={13} className={styles.spin} /> 加载中...</> : <>加载更多 ({allImages.length}/{allTotal})</>}
-                  </button>
-                )}
-                {!hasMore && allImages.length > 0 && <p className={styles.allLoadedHint}>已加载全部 {allTotal} 张图片</p>}
-              </>
-            )}
-
-            {/* 应用按钮 */}
-            {selectedImageId && activeImageElement && (
-              <div className={styles.applyRow}>
-                <button className={styles.applyBtn} onClick={handleApplyImage}>
-                  <Check size={15} /> 应用选中图片
-                </button>
-              </div>
-            )}
           </div>
         )}
 
