@@ -39,7 +39,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -833,9 +833,9 @@ export default function Workspace() {
                     {wordEditMode && (
                       <button
                         className={styles.wordSaveBtn}
-                        onClick={() => {
-                          setWordDocLocally(wordDraft);
-                          setWordEditMode(false);
+                        onClick={async () => {
+                          setWordEditMode(false);       // 乐观退出，用户不感知延迟
+                          await saveWordDoc(wordDraft); // 后台持久化，失败也保留本地
                         }}
                       >
                         <Check size={12} /> 保存
