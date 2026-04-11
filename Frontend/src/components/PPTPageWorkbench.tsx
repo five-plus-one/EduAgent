@@ -307,13 +307,29 @@ export default function PPTPageWorkbench({
     const displayedResults = imageMode === 'search' ? searchResults : allImages;
     const selected = displayedResults.find(r => r.image_id === selectedImageId);
     if (!selected) return;
-    onReplaceImage(
-      elementId,
-      selected.image_id,
-      resolveImagePreviewUrl(selected.preview_url),
-      selected.label || searchQuery || '图片',
-    );
-    // 关闭选择器弹窗，保留在编辑内容Tab
+    const newUrl = resolveImagePreviewUrl(selected.preview_url);
+    const newAlt = selected.label || searchQuery || '图片';
+
+    // 1. 通知父组件执行实际换图
+    onReplaceImage(elementId, selected.image_id, newUrl, newAlt);
+
+    // 2. 同步更新本地 elements 状态，让缩略图立刻刻刷新
+    setElements(prev => prev.map(el => {
+      if (el.element_id !== elementId) return el;
+      return {
+        ...el,
+        alt: newAlt,
+        _raw: {
+          ...(el._raw as any),
+          url: newUrl,
+          alt: newAlt,
+          resolved: { preview_url: selected.preview_url, image_id: selected.image_id, source: 'library' },
+        } as any,
+      };
+    }));
+    markDirty();
+
+    // 3. 关闭选择器弹窗
     setPickerOpen(false);
     setPickerEl(null);
     setSelectedImageId(null);
@@ -353,7 +369,11 @@ export default function PPTPageWorkbench({
             <span className={styles.headerTitle}>{page.title || '幻灯片编辑'}</span>
           </div>
           <div className={styles.headerRight}>
-            {isDirty && <span className={styles.dirtyBadge}>● 未保存</span>}
+            {isDirty && (
+              <button className={styles.headerSaveBtn} onClick={handleSave}>
+                <Check size={14} /> 保存
+              </button>
+            )}
             <button className={styles.closeBtn} onClick={onClose}><X size={18} /></button>
           </div>
         </div>
@@ -561,13 +581,6 @@ export default function PPTPageWorkbench({
               )}
             </section>
 
-            {/* Footer */}
-            <div className={styles.footer}>
-              <button className={styles.cancelBtn} onClick={onClose}>取消</button>
-              <button className={styles.saveBtn} onClick={handleSave} disabled={!isDirty}>
-                <Check size={15} /> 保存修改
-              </button>
-            </div>
           </div>
         )}
 
@@ -818,15 +831,27 @@ function ImagePickerModal({
     <div className={styles.pickerOverlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className={styles.pickerDialog}>
 
-        {/* 弹窗头部 */}
-        <div className={styles.pickerHeader}>
-          <div className={styles.pickerHeaderLeft}>
-            <ImageIcon size={15} />
-            <span>选择图片</span>
-            {el.alt && <span className={styles.pickerHeaderSub}>— {el.alt}</span>}
-          </div>
-          <button className={styles.pickerCloseBtn} onClick={onClose}><X size={16} /></button>
-        </div>
+        {/* 弹窗头部：当前图 + 标题 */}
+        {(() => {
+          const rawEl = el._raw as any;
+          const curUrl = rawEl?.resolved?.preview_url || rawEl?.url;
+          const curThumb = curUrl ? resolveImagePreviewUrl(curUrl) : null;
+          return (
+            <div className={styles.pickerHeader}>
+              <div className={styles.pickerCurrentImg}>
+                {curThumb
+                  ? <img src={curThumb} alt={el.alt || ''} />
+                  : <div className={styles.pickerCurrentImgEmpty}><ImageIcon size={22} opacity={0.25} /></div>
+                }
+              </div>
+              <div className={styles.pickerHeaderInfo}>
+                <span className={styles.pickerHeaderTitle}>选择图片</span>
+                <span className={styles.pickerHeaderSub}>{el.alt || el.query || '无描述'}</span>
+              </div>
+              <button className={styles.pickerCloseBtn} onClick={onClose}><X size={16} /></button>
+            </div>
+          );
+        })()}
 
         <div className={styles.pickerBody}>
           {/* 显示方式 */}
