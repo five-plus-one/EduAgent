@@ -419,6 +419,23 @@ export const exportWordDocx = async (sessionId: string): Promise<void> => {
   URL.revokeObjectURL(url);
 };
 
+/**
+ * 5b.3 直接保存讲义内容（不经过 AI，手动编辑持久化）
+ * PUT /sessions/{session_id}/courseware/word
+ *
+ * 后端会将所有 `---` 替换为 `***`，响应里返回规范化后的 word_markdown。
+ */
+export const saveWordContent = async (
+  sessionId: string,
+  wordMarkdown: string
+): Promise<{ word_markdown: string }> => {
+  const res = await apiClient.put(
+    `/sessions/${sessionId}/courseware/word`,
+    { word_markdown: wordMarkdown }
+  );
+  return res.data?.data ?? res.data;
+};
+
 // ==========================================
 // Module 6: Knowledge Base (RAG Admin)
 // ==========================================
