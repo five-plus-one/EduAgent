@@ -14,11 +14,20 @@ __pycache__/
 
 # SQLite Database
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
+
+# Debug / log files
+*.log
+debug_*.log
 
 # Local storage for Phase 3
 uploads/
 chroma_db/
+
+# Test files & scripts (local dev only, not for version control)
+tests/
 
 # Distribution / packaging
 dist/
