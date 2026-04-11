@@ -2177,16 +2177,41 @@ def render_table_element(slide, elem: dict, colors: dict,
 
     def _fill(cell, text: str, bold: bool, size: int,
                fg: "RGBColor", bg_c: "RGBColor", align):
-        """Style one table cell."""
+        """Style one table cell — uses OMML for LaTeX formulas."""
+        # Background
         f = cell.fill
         f.solid()
         f.fore_color.rgb = bg_c
+
         tf = cell.text_frame
         tf.word_wrap = True
+
         p = tf.paragraphs[0]
         p.alignment = align
-        run = p.runs[0] if p.runs else p.add_run()
-        run.text = convert_latex(str(text)) if text else ""
+
+        if not text:
+            run = p.runs[0] if p.runs else p.add_run()
+            run.text = ""
+            run.font.bold  = bold
+            run.font.size  = Pt(size)
+            run.font.color.rgb = fg
+            return
+
+        # Clear existing runs/content, keep paragraph properties (<a:pPr>)
+        p_elem = p._p
+        keep_tag = qn('a:pPr')
+        for child in list(p_elem):
+            if child.tag != keep_tag:
+                p_elem.remove(child)
+
+        # Try OMML inline math path (handles $...$ with LaTeX constructs)
+        if _add_inline_math_para(p_elem, str(text), size, fg, fg, bold=bold):
+            return  # OMML rendered — done
+
+        # Fallback: plain text run (convert_latex gives Unicode approximation
+        # for simple non-LaTeX content like plain text or bare numbers)
+        run = p.add_run()
+        run.text = convert_latex(str(text))
         run.font.bold  = bold
         run.font.size  = Pt(size)
         run.font.color.rgb = fg
