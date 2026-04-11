@@ -670,3 +670,29 @@ export const searchUserImages = async (
   });
   return res.data?.data ?? res.data;
 };
+
+/**
+ * 8.4 切换单页布局模板（不经过 AI，确定性可靠）
+ * POST /sessions/{session_id}/courseware/slides/{page_index}/apply-layout
+ *
+ * 支持的 layout_type: cover / minimal_list / two_column / stat_callout / timeline
+ * 以及映射值: standard / image_gallery / full_content / card_grid / title_slide
+ *
+ * 返回的 slide 可直接替换本地状态，无需重新拉取 preview 接口。
+ */
+export const applySlideLayout = async (
+  sessionId: string,
+  pageIndex: number,
+  layoutType: string
+): Promise<{
+  page_index: number;
+  layout_type: string;
+  original_layout_type: string;
+  slide: unknown;
+}> => {
+  const res = await apiClient.post(
+    `/sessions/${sessionId}/courseware/slides/${pageIndex}/apply-layout`,
+    { layout_type: layoutType }
+  );
+  return res.data?.data ?? res.data;
+};

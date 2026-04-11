@@ -43,6 +43,8 @@ interface Props {
   onIterate: (instruction: string) => void;
   onReplaceImage: (elementId: string, imageId: string, newUrl: string, newAlt: string) => void;
   onChangeFit: (elementId: string, fit: ObjectFitMode) => void;
+  /** 切换布局模板（不经过 AI）回调，返回 Promise<boolean> 表示是否成功 */
+  onApplyLayout?: (layoutType: string) => Promise<boolean>;
 }
 
 /* ─── 布局模板 ─────────────────────────────────────────────── */
@@ -73,11 +75,13 @@ const PAGE_SIZE = 18; // 每次加载的图片数
 
 export default function PPTImageEditDrawer({
   open, pageIndex, pageTitle, element, currentFit,
-  onClose, onIterate, onReplaceImage, onChangeFit,
+  onClose, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'image' | 'layout'>('image');
   /** 换图面板内的子模式：search = 搜索，all = 全部 */
   const [imageMode, setImageMode] = useState<'search' | 'all'>('search');
+  /** 布局切换加载状态 */
+  const [applyingLayout, setApplyingLayout] = useState(false);
 
   // ── 搜索状态 ──────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,8 +168,24 @@ export default function PPTImageEditDrawer({
     onClose();
   };
 
-  const handleApplyLayout = (templateId: string) => {
-    onIterate(`将这一页的布局切换为"${LAYOUT_TEMPLATES.find(t => t.id === templateId)?.name}"（layout_type: ${templateId}），保持现有内容不变。`);
+  const handleApplyLayout = async (templateId: string) => {
+    // 优先使用后端确定性接口；出错时降级为发送 AI 指令
+    if (onApplyLayout) {
+      setApplyingLayout(true);
+      try {
+        const ok = await onApplyLayout(templateId);
+        if (ok) {
+          onClose();
+          return;
+        }
+        // 后端失败，降级为 AI 指令
+        console.warn('[PPTImageEditDrawer] apply-layout failed, falling back to AI iterate');
+      } finally {
+        setApplyingLayout(false);
+      }
+    }
+    // Fallback: 通过 AI 指令实现（无 onApplyLayout 或后端失败时）
+    onIterate(`将这一页的布局切换为“${LAYOUT_TEMPLATES.find(t => t.id === templateId)?.name}”（layout_type: ${templateId}），保持现有内容不变。`);
     onClose();
   };
 
@@ -351,6 +371,7 @@ export default function PPTImageEditDrawer({
                 <button
                   key={tpl.id}
                   className={styles.layoutCard}
+                  disabled={applyingLayout}
                   onClick={() => handleApplyLayout(tpl.id)}
                 >
                   <div className={styles.layoutCardIcon}>{tpl.icon}</div>
@@ -361,6 +382,13 @@ export default function PPTImageEditDrawer({
                 </button>
               ))}
             </div>
+
+            {applyingLayout && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                <Loader2 size={14} className={styles.spin} />
+                <span>正在应用布局...</span>
+              </div>
+            )}
 
             <div className={styles.customIterateRow}>
               <p className={styles.customIterateLabel}>自定义指令</p>

@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   X, Pencil, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Check, Sparkles, StickyNote, Type, List,
+  Check, Sparkles, StickyNote, Type, List, Image as ImageIcon,
+  Hash, Clock, AlignLeft, ChevronRight,
 } from 'lucide-react';
+import { clsx } from 'clsx';
 import styles from './PPTPageEditPanel.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 
@@ -19,6 +21,78 @@ function toArr(content: unknown): string[] {
 /** 将字符串数组合成可编辑文本（换行分隔） */
 const arrToText = (arr: string[]) => arr.join('\n');
 const textToArr = (text: string) => text.split('\n').filter(s => s.trim() !== '');
+
+/* ─── 元素类型定义 ─────────────────────────────────────────── */
+interface ElementTypeDef {
+  type: string;
+  label: string;
+  icon: React.ReactNode;
+  defaultContent: string[];
+  defaultPosition: string;
+  description: string;
+  /** 是否为图片占位类型（特殊渲染） */
+  isImage?: boolean;
+  /** 是否支持 time 字段 */
+  hasTime?: boolean;
+  /** 是否支持 is_accent 字段 */
+  hasAccent?: boolean;
+}
+
+const ELEMENT_TYPES: ElementTypeDef[] = [
+  {
+    type: 'text_block',
+    label: '文本块',
+    icon: <AlignLeft size={14} />,
+    defaultContent: ['新增文本内容'],
+    defaultPosition: 'full',
+    description: '段落文字，支持 Markdown',
+  },
+  {
+    type: 'list',
+    label: '列表',
+    icon: <List size={14} />,
+    defaultContent: ['要点一', '要点二', '要点三'],
+    defaultPosition: 'full',
+    description: '多行要点列表，每行一条',
+  },
+  {
+    type: 'subtitle',
+    label: '副标题',
+    icon: <Type size={14} />,
+    defaultContent: ['副标题文字'],
+    defaultPosition: 'center',
+    description: '页面副标题或说明文字',
+  },
+  {
+    type: 'huge_number',
+    label: '数据强调',
+    icon: <Hash size={14} />,
+    defaultContent: ['98%'],
+    defaultPosition: 'center',
+    description: '凸显大数字或关键指标',
+    hasAccent: true,
+  },
+  {
+    type: 'timeline_item',
+    label: '时间节点',
+    icon: <Clock size={14} />,
+    defaultContent: ['事件说明'],
+    defaultPosition: 'left',
+    description: '时间轴条目，需填写时间节点',
+    hasTime: true,
+  },
+  {
+    type: 'image',
+    label: '图片占位',
+    icon: <ImageIcon size={14} />,
+    defaultContent: [],
+    defaultPosition: 'right',
+    description: '图片区域，可在预览区点击替换',
+    isImage: true,
+  },
+];
+
+const TYPE_MAP = Object.fromEntries(ELEMENT_TYPES.map(t => [t.type, t]));
 
 /* ─── 类型 ─────────────────────────────────────────────────── */
 interface Props {
@@ -39,6 +113,8 @@ interface EditableEl {
   textLines: string[];   // 用户正在编辑的文本行
   time?: string;         // timeline_item
   is_accent?: boolean;
+  alt?: string;          // image: 替代描述
+  query?: string;        // image: 搜索关键词
   // 保留原始字段（图片/interactive 不被破坏）
   _raw: PPTElement;
 }
@@ -51,23 +127,74 @@ function toEditable(el: PPTElement): EditableEl {
     textLines: toArr((el as any).content),
     time: (el as any).time,
     is_accent: (el as any).is_accent,
+    alt: (el as any).alt,
+    query: (el as any).query,
     _raw: el,
   };
 }
 
 function fromEditable(e: EditableEl): PPTElement {
-  return {
+  const base: any = {
     ...(e._raw),
     element_id: e.element_id,
     type: e.type,
     position: e.position,
-    content: e.textLines.length > 0 ? e.textLines : undefined,
     time: e.time,
     is_accent: e.is_accent,
-  } as PPTElement;
+  };
+  if (e.type === 'image') {
+    base.alt = e.alt;
+    base.query = e.query || e.alt;
+    // 图片不设 content
+    delete base.content;
+  } else {
+    base.content = e.textLines.length > 0 ? e.textLines : undefined;
+    delete base.alt;
+    delete base.query;
+  }
+  return base as PPTElement;
 }
 
-const EDITABLE_TYPES = ['text_block', 'list', 'list_item', 'title', 'subtitle', 'huge_number', 'stat', 'timeline_item'];
+const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
+
+/* ─── 添加元素 Dropdown ────────────────────────────────────── */
+function AddElementDropdown({ onAdd }: { onAdd: (type: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className={styles.addDropdownWrap} ref={ref}>
+      <button className={styles.addBtn} onClick={() => setOpen(v => !v)}>
+        <Plus size={12} /> 添加元素 <ChevronRight size={11} className={clsx(styles.addChevron, open && styles.addChevronOpen)} />
+      </button>
+      {open && (
+        <div className={styles.addDropdown}>
+          {ELEMENT_TYPES.map(t => (
+            <button
+              key={t.type}
+              className={styles.addDropdownItem}
+              onClick={() => { onAdd(t.type); setOpen(false); }}
+            >
+              <span className={styles.addDropdownIcon}>{t.icon}</span>
+              <div className={styles.addDropdownText}>
+                <span className={styles.addDropdownLabel}>{t.label}</span>
+                <span className={styles.addDropdownDesc}>{t.description}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ─── 主组件 ─────────────────────────────────────────────────  */
 export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterate }: Props) {
@@ -102,15 +229,26 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
     markDirty();
   };
 
-  const addTextBlock = () => {
+  /* 添加新元素 */
+  const addElement = (type: string) => {
+    const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
+    const id = uid();
     setElements(prev => [
       ...prev,
       {
-        element_id: uid(),
-        type: 'text_block',
-        position: 'center',
-        textLines: ['新增文本内容'],
-        _raw: { element_id: uid(), type: 'text_block', position: 'center', content: ['新增文本内容'] } as any,
+        element_id: id,
+        type: def.type,
+        position: def.defaultPosition,
+        textLines: def.defaultContent,
+        alt: def.isImage ? '请在预览区点击替换图片' : undefined,
+        query: def.isImage ? '' : undefined,
+        _raw: {
+          element_id: id,
+          type: def.type,
+          position: def.defaultPosition,
+          content: def.isImage ? undefined : def.defaultContent,
+          alt: def.isImage ? '请在预览区点击替换图片' : undefined,
+        } as any,
       },
     ]);
     markDirty();
@@ -190,28 +328,33 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
           <section className={styles.section}>
             <div className={styles.sectionLabelRow}>
               <label className={styles.sectionLabel}>
-                <List size={13} /> 内容模块
+                <List size={13} /> 内容模块 <span className={styles.elementCount}>{elements.length}</span>
               </label>
-              <button className={styles.addBtn} onClick={addTextBlock}>
-                <Plus size={12} /> 添加文本块
-              </button>
+              <AddElementDropdown onAdd={addElement} />
             </div>
 
             {elements.length === 0 && (
-              <p className={styles.emptyHint}>暂无可编辑的文本元素，点击右侧「添加文本块」</p>
+              <div className={styles.emptyHint}>
+                <Plus size={20} strokeWidth={1.5} className={styles.emptyHintIcon} />
+                <p>此页暂无内容模块，点击右侧「添加元素」开始构建</p>
+              </div>
             )}
 
             <div className={styles.elementList}>
               {elements.map((el, idx) => {
-                const isEditable = EDITABLE_TYPES.includes(el.type);
-                if (!isEditable) {
+                const def = TYPE_MAP[el.type];
+                const isImage = el.type === 'image';
+                const isInteractive = ['interactive_game', 'animation', 'html5'].includes(el.type);
+
+                if (isInteractive) {
                   return (
                     <div key={el.element_id} className={clsx(styles.elementRow, styles.elementReadonly)}>
-                      <span className={styles.elementTypeBadge}>{el.type}</span>
-                      <span className={styles.elementReadonlyHint}>（图片/交互元素，在 PPT 预览区点击编辑）</span>
+                      <span className={styles.elementTypeBadge} style={{ color: '#94a3b8', borderColor: 'rgba(148,163,184,0.25)', background: 'rgba(148,163,184,0.07)' }}>{el.type}</span>
+                      <span className={styles.elementReadonlyHint}>交互/动画元素，暂不支持文本编辑</span>
                     </div>
                   );
                 }
+
                 return (
                   <div
                     key={el.element_id}
@@ -228,16 +371,48 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
                     <div className={styles.elementMain}>
                       {/* 类型 + 位置徽章 */}
                       <div className={styles.elementMeta}>
-                        <span className={styles.elementTypeBadge}>{el.type}</span>
+                        {/* 类型选择 */}
+                        <select
+                          className={styles.typeSelect}
+                          value={el.type}
+                          onChange={e => {
+                            const newDef = TYPE_MAP[e.target.value];
+                            updateElement(idx, {
+                              type: e.target.value,
+                              // 切换到图片时清空文字内容
+                              textLines: newDef?.isImage ? [] : (el.textLines.length ? el.textLines : newDef?.defaultContent ?? []),
+                              alt: newDef?.isImage ? (el.alt || '') : undefined,
+                              query: newDef?.isImage ? (el.query || '') : undefined,
+                              position: newDef?.defaultPosition ?? el.position,
+                            });
+                          }}
+                        >
+                          {ELEMENT_TYPES.map(t => (
+                            <option key={t.type} value={t.type}>{t.label}</option>
+                          ))}
+                        </select>
+
+                        {/* 位置选择 */}
                         <select
                           className={styles.positionSelect}
                           value={el.position}
                           onChange={e => updateElement(idx, { position: e.target.value })}
                         >
-                          {['center','left','right','top','bottom','right_top','right_bottom','full'].map(p => (
+                          {POSITIONS.map(p => (
                             <option key={p} value={p}>{p}</option>
                           ))}
                         </select>
+
+                        {/* is_accent 开关（数据强调） */}
+                        {def?.hasAccent && (
+                          <button
+                            className={clsx(styles.accentToggle, el.is_accent && styles.accentToggleOn)}
+                            onClick={() => updateElement(idx, { is_accent: !el.is_accent })}
+                            title="设为强调色"
+                          >
+                            强调
+                          </button>
+                        )}
                       </div>
 
                       {/* timeline time 字段 */}
@@ -250,13 +425,47 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
                         />
                       )}
 
-                      {/* 内容编辑区 */}
-                      <AutoResizeTextarea
-                        className={styles.elementTextarea}
-                        value={arrToText(el.textLines)}
-                        placeholder="输入内容，多行文本请换行分隔..."
-                        onChange={v => updateElement(idx, { textLines: textToArr(v) })}
-                      />
+                      {/* 图片元素：alt + query 编辑 */}
+                      {isImage ? (
+                        <div className={styles.imageEditArea}>
+                          <div className={styles.imageEditIcon}>
+                            <ImageIcon size={18} strokeWidth={1.5} />
+                          </div>
+                          <div className={styles.imageEditFields}>
+                            <input
+                              className={styles.imageAltInput}
+                              placeholder="描述文字 / alt 属性"
+                              value={el.alt ?? ''}
+                              onChange={e => updateElement(idx, { alt: e.target.value })}
+                            />
+                            <input
+                              className={styles.imageQueryInput}
+                              placeholder="搜索关键词（AI 自动匹配图库）"
+                              value={el.query ?? ''}
+                              onChange={e => updateElement(idx, { query: e.target.value })}
+                            />
+                            <p className={styles.imageHint}>
+                              图片文件请在预览卡片中点击图片区域进行替换
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        /* 文本内容编辑区 */
+                        <AutoResizeTextarea
+                          className={styles.elementTextarea}
+                          value={arrToText(el.textLines)}
+                          placeholder={
+                            el.type === 'list'
+                              ? '每行一条要点，回车分隔...'
+                              : el.type === 'huge_number'
+                              ? '输入数据（如 98%、3.5亿）'
+                              : el.type === 'timeline_item'
+                              ? '输入事件描述...'
+                              : '输入内容，支持 Markdown...'
+                          }
+                          onChange={v => updateElement(idx, { textLines: textToArr(v) })}
+                        />
+                      )}
                     </div>
 
                     <button

@@ -39,7 +39,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, setWordDocLocally } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -758,6 +758,7 @@ export default function Workspace() {
                       isStreaming={isStreaming}
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
                       onManualSave={(pageIndex, updated) => updatePageLocally(pageIndex, updated)}
+                      onApplyLayout={(layoutType) => applyLayoutAndRefresh(page.page_index, layoutType)}
                     />
                   ))}
                   
