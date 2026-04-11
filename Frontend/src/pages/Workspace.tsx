@@ -752,7 +752,8 @@ export default function Workspace() {
                   {pages.map(page => (
                     <PPTCard 
                       key={page.page_index} 
-                      page={page} 
+                      page={page}
+                      sessionId={sessionId}
                       isUpdating={updatingPages.has(page.page_index)}
                       isStreaming={isStreaming}
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
@@ -765,13 +766,14 @@ export default function Workspace() {
                      // Deduplicate if pages hasn't synced yet
                      if (pages.some(p => p.page_index === page.page_index)) return null;
                      return (
-                        <PPTCard 
-                          key={page.page_index} 
-                          page={page} 
-                          isUpdating={false}
-                          isStreaming={true}
-                          onIterate={() => {}} // Disabled during stream for stability
-                        />
+                       <PPTCard 
+                         key={page.page_index} 
+                         page={page}
+                         sessionId={sessionId}
+                         isUpdating={false}
+                         isStreaming={true}
+                         onIterate={() => {}} // Disabled during stream for stability
+                       />
                      );
                   })}
                   
