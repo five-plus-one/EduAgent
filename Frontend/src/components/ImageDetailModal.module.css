@@ -219,29 +219,36 @@
   border-radius: 10px;
 }
 
-/* ── Textarea ───────────────────────────────────────────────── */
+/* ── Textarea ───────────────────────────────── */
 .textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  /* slate-400 中性灰色，亮色/暗色主题均可被看见 */
+  border: 1.5px solid rgba(148, 163, 184, 0.6);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 13px;
   color: var(--text-primary, #e2e8f0);
   resize: none;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
   box-sizing: border-box;
   line-height: 1.6;
+  min-height: 82px;
+}
+
+.textarea:hover {
+  border-color: rgba(148, 163, 184, 0.9);
 }
 
 .textarea:focus {
   outline: none;
   border-color: var(--accent-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.05);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }
 
-.textarea::placeholder { color: rgba(255,255,255,0.22); font-size: 12px; }
+/* 中性灰，亮/暗主题均可读 */
+.textarea::placeholder { color: rgba(148, 163, 184, 0.85); font-size: 12.5px; }
 
 /* ── 保存按钮 ────────────────────────────────────────────────── */
 .saveBtn {
@@ -321,8 +328,8 @@
 
 .tagInput {
   flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border: 1.5px solid rgba(148, 163, 184, 0.6);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 12.5px;
@@ -331,8 +338,14 @@
   font-family: inherit;
 }
 
-.tagInput:focus { outline: none; border-color: var(--accent-primary, #6366f1); }
-.tagInput::placeholder { color: rgba(255,255,255,0.22); }
+.tagInput:hover { border-color: rgba(148, 163, 184, 0.9); }
+
+.tagInput:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+.tagInput::placeholder { color: rgba(148, 163, 184, 0.85); }
 
 .addTagBtn {
   display: flex;
