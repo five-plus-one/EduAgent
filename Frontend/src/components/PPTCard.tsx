@@ -150,11 +150,11 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
     }
   };
 
-  // 点击图片 → 打开工作台 「替换图片」Tab
+  // 点击图片 → 打开工作台 「编辑内容」Tab，图片选择器在元素行内自动展开
   const handleImageClick = (el: any) => {
     if (isUpdating || isStreaming) return;
     setActiveImageElement(el as ImageElement);
-    setWorkbenchTab('image');
+    setWorkbenchTab('edit');
     setWorkbenchOpen(true);
   };
 
