@@ -24,6 +24,25 @@ class ReplaceImageRequest(BaseModel):
     image_id: str  # 用户图片库中的 image_id
 
 
+class ManualSlideEditRequest(BaseModel):
+    """
+    PUT /sessions/{id}/courseware/slides/{page_index} 的请求体。
+    前端手动编辑对话框关闭时调用，将当前页的完整状态持久化到 DB。
+    字段均可省略，只传实际改动了的部分。
+    """
+    title: Optional[str] = None                # 页面标题
+    elements: Optional[list] = None            # 完整元素数组（全量替换）
+    speaker_notes: Optional[str] = None        # 演讲者注记
+
+
+class ApplyLayoutRequest(BaseModel):
+    """
+    POST /sessions/{id}/courseware/slides/{page_index}/apply-layout 的请求体。
+    程序化地切换布局模板，不经过 AI（结果确定可靠）。
+    """
+    layout_type: str  # cover | minimal_list | two_column | stat_callout | timeline | full_content
+
+
 router = APIRouter()
 
 # ---------------- GENERATION ----------------
@@ -604,4 +623,261 @@ def replace_slide_image(
         "page_index": page_index,
         "image_id": body.image_id,
         "preview_url": preview_url,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 手动编辑单页保存：PUT /sessions/{id}/courseware/slides/{page_index}
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.put("/sessions/{session_id}/courseware/slides/{page_index}")
+def save_manual_slide_edit(
+    session_id: str,
+    page_index: int,
+    body: ManualSlideEditRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    手动编辑单页并保存到 DB。
+
+    前端在手动编辑对话框中修改标题 / 内容块 / 演讲者注记后，
+    关闭对话框前调用此接口将最新状态写入 DB。
+    后续导出 PPT 时 ppt_exporter 直接读取已存储的 elements，无需额外处理。
+
+    - title        : 更新页标题（可选）
+    - elements     : 全量替换当前页元素（可选，不传则保持原元素不变）
+    - speaker_notes: 演讲者注记（可选）
+
+    图片元素的 resolved 字段会被自动保留，防止手动编辑时丢失已替换的图片信息。
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    import json as _json
+
+    # 1. 验证会话归属当前用户
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 加载课件
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw or not cw.ppt_data:
+        raise HTTPException(status_code=404, detail="No courseware found for this session")
+
+    cw_data = cw.ppt_data
+    if isinstance(cw_data, str):
+        try:
+            cw_data = _json.loads(cw_data)
+        except Exception:
+            cw_data = {}
+    if not isinstance(cw_data, dict):
+        cw_data = {}
+
+    slides: list = list(cw_data.get("ppt_data", []))
+
+    # 3. 定位目标页
+    idx = next((i for i, s in enumerate(slides) if s.get("page_index") == page_index), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"Slide {page_index} not found")
+
+    slide = dict(slides[idx])  # shallow copy
+
+    # 4. 应用修改（仅更新已传入的字段）
+    if body.title is not None:
+        slide["title"] = body.title
+
+    if body.elements is not None:
+        # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
+        old_resolved: dict = {
+            e["element_id"]: e.get("resolved")
+            for e in slide.get("elements", [])
+            if e.get("type") == "image" and e.get("resolved")
+        }
+        new_elements = []
+        for elem in body.elements:
+            elem = dict(elem)
+            # 确保每个 element 有 element_id
+            if not elem.get("element_id"):
+                import uuid as _uuid
+                elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
+            # 图片元素：若前端未传 resolved，从旧数据回填
+            if elem.get("type") == "image" and "resolved" not in elem:
+                old_res = old_resolved.get(elem["element_id"])
+                if old_res:
+                    elem["resolved"] = old_res
+            new_elements.append(elem)
+        slide["elements"] = new_elements
+
+    if body.speaker_notes is not None:
+        slide["speaker_notes"] = body.speaker_notes
+
+    slides[idx] = slide
+
+    # 5. 强制触发 SQLAlchemy JSON 变更检测并提交
+    new_data = dict(cw_data)
+    new_data["ppt_data"] = slides
+    cw.ppt_data = new_data
+    flag_modified(cw, "ppt_data")
+    db.commit()
+
+    return {
+        "page_index": page_index,
+        "slide": slide,
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 布局模板切换：POST /sessions/{id}/courseware/slides/{page_index}/apply-layout
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 布局 → element position 分配规则
+#
+# ppt_exporter.render_two_column: 按 position 字段分栏（含 "left" → 左，含 "right" → 右）
+# ppt_exporter.render_minimal_list: 按 type 分区（image → 右，其他 → 左），不看 position
+# 其他布局：不看 position，按 elements 顺序渲染
+
+SUPPORTED_LAYOUTS = {"cover", "minimal_list", "two_column",
+                     "stat_callout", "timeline", "full_content"}
+# 不支持的布局映射到最接近的支持布局
+LAYOUT_ALIAS = {
+    "standard":      "minimal_list",
+    "image_gallery": "two_column",
+    "full_content":  "minimal_list",
+    "card_grid":     "minimal_list",
+    "title_slide":   "cover",
+}
+
+
+def _reassign_positions(elements: list, layout_type: str) -> list:
+    """
+    根据目标布局重新分配元素的 position 字段。
+
+    two_column:
+      image 元素 → right_{top|mid|bottom}
+      其他元素 → left_{top|mid|bottom}
+    cover:
+      第一个 subtitle/text_block → subtitle，其他左居中
+    其他布局：不调整 position（exporter 按 type 分区，使用现有字段即可）
+    """
+    if not elements:
+        return elements
+
+    # 不修改 position 的布局（exporter 按 type 分区， position 不影响结果）
+    if layout_type in ("minimal_list", "stat_callout", "timeline",
+                      "full_content", "cover"):
+        return elements
+
+    # two_column: 必须按 position 分栏
+    if layout_type == "two_column":
+        img_elems  = [e for e in elements if e.get("type") == "image"]
+        text_elems = [e for e in elements if e.get("type") != "image"]
+
+        # position slot names: top/mid/bottom 连续分配
+        def _position_slots(prefix: str, n: int) -> list:
+            if n == 1:
+                return [f"{prefix}"]
+            if n == 2:
+                return [f"{prefix}_top", f"{prefix}_bottom"]
+            return [f"{prefix}_top"] + [f"{prefix}_mid"] * (n - 2) + [f"{prefix}_bottom"]
+
+        for e, pos in zip(text_elems, _position_slots("left", max(len(text_elems), 1))):
+            e["position"] = pos
+        for e, pos in zip(img_elems, _position_slots("right", max(len(img_elems), 1))):
+            e["position"] = pos
+
+        # 如果没有图片元素，把最后一个文字元素放右列作占位
+        if not img_elems and len(text_elems) >= 2:
+            half = len(text_elems) // 2
+            for i, e in enumerate(text_elems):
+                e["position"] = "left" if i < half else "right"
+
+        return elements
+
+    return elements  # 满足未知布局
+
+
+@router.post("/sessions/{session_id}/courseware/slides/{page_index}/apply-layout")
+def apply_layout_template(
+    session_id: str,
+    page_index: int,
+    body: ApplyLayoutRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    程序化切换单页布局模板，不过 AI。
+
+    操作：
+    1. 把 layout_type 改为目标布局
+    2. 按布局规则重新分配 elements 的 position 字段
+    3. 写入 DB（导出 PPT 时 ppt_exporter 直接读取已存储数据）
+
+    ppt_exporter 支持的布局（其他会自动映射到最接近的）：
+      cover | minimal_list | two_column | stat_callout | timeline
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+    import json as _json
+
+    # 1. 验证会话
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 加载课件
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw or not cw.ppt_data:
+        raise HTTPException(status_code=404, detail="No courseware found for this session")
+
+    cw_data = cw.ppt_data
+    if isinstance(cw_data, str):
+        try:
+            cw_data = _json.loads(cw_data)
+        except Exception:
+            cw_data = {}
+    if not isinstance(cw_data, dict):
+        cw_data = {}
+
+    slides: list = list(cw_data.get("ppt_data", []))
+
+    # 3. 定位目标页
+    idx = next((i for i, s in enumerate(slides) if s.get("page_index") == page_index), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"Slide {page_index} not found")
+
+    slide = dict(slides[idx])
+
+    # 4. 布局映射（不支持的映射到最接近的）
+    target_layout = LAYOUT_ALIAS.get(body.layout_type, body.layout_type)
+    if target_layout not in SUPPORTED_LAYOUTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported layout_type: {body.layout_type}. "
+                   f"Supported: {sorted(SUPPORTED_LAYOUTS | set(LAYOUT_ALIAS.keys()))}"
+        )
+
+    # 5. 应用布局：修改布局类型 + 重分配 positions
+    slide["layout_type"] = target_layout
+    elements = list(slide.get("elements", []))
+    slide["elements"] = _reassign_positions(elements, target_layout)
+
+    slides[idx] = slide
+
+    # 6. 写入 DB
+    new_data = dict(cw_data)
+    new_data["ppt_data"] = slides
+    cw.ppt_data = new_data
+    flag_modified(cw, "ppt_data")
+    db.commit()
+
+    return {
+        "page_index": page_index,
+        "layout_type": target_layout,         # 实际应用的布局（可能已被映射）
+        "original_layout_type": body.layout_type,  # 前端请求的布局
+        "slide": slide,                       # 完整更新后的页面数据
     }
