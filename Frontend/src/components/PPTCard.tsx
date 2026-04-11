@@ -314,6 +314,62 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
       );
     }
 
+    // ── Table element ──────────────────────────────────────────
+    if (el.type === 'table') {
+      const headers: string[] = Array.isArray(el.headers) ? el.headers : [];
+      const rows: string[][] = Array.isArray(el.rows) ? el.rows : [];
+      if (headers.length === 0 && rows.length === 0) return null;
+
+      return (
+        <div key={el.element_id} className={clsx(styles.tableWrapper, positionClass)}>
+          <table className={styles.tableElement}>
+            {headers.length > 0 && (
+              <thead>
+                <tr>
+                  {headers.map((h, i) => (
+                    <th key={i}>
+                      <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        rehypePlugins={REHYPE_PLUGINS}
+                        components={{ p: React.Fragment as any }}
+                      >
+                        {preprocessMath(String(h))}
+                      </ReactMarkdown>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri}>
+                  {(Array.isArray(row) ? row : []).map((cell, ci) => (
+                    <td key={ci}>
+                      <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        rehypePlugins={REHYPE_PLUGINS}
+                        components={{ p: React.Fragment as any }}
+                      >
+                        {preprocessMath(String(cell ?? ''))}
+                      </ReactMarkdown>
+                    </td>
+                  ))}
+                  {/* 补齐行尾缺列，避免列数不一致导致布局问题 */}
+                  {headers.length > 0 &&
+                    Array.isArray(row) &&
+                    row.length < headers.length &&
+                    Array.from({ length: headers.length - row.length }).map((_, ci) => (
+                      <td key={`pad_${ci}`} />
+                    ))
+                  }
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
     return null;
   };
 
