@@ -212,9 +212,11 @@ def iterate_slide(
 - elements 必须至少包含 1 个元素
 - 每个 element 必须有 element_id, type, position, content, is_accent 五个字段
 - position: "left"|"right_top"|"right_bottom"|"center"|"full"
-- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"|"image"
+- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"|"image"|"table"
   - 若 type 为 "image"：必须同时提供 "query"（图片搜索词，10-20字中文描述）和 "alt"（图注文字）
-  - 示例: {{"type": "image", "query": "定轴转动刚体角速度角加速度示意图", "alt": "刚体定轴转动示意图", "element_id": "img_1", "content": [], "is_accent": false}}
+    示例: {{"type": "image", "query": "定轴转动刚体角速度角加速度示意图", "alt": "刚体定轴转动示意图", "element_id": "img_1", "content": [], "is_accent": false}}
+  - 若 type 为 "table"：必须同时提供 "headers"（表头列名数组）和 "rows"（数据行二维数组），content 填 []
+    示例: {{"type": "table", "headers": ["属性", "公式"], "rows": [["转动惯量", "$\\frac{{1}}{{2}}mR^2$"]], "element_id": "t_1", "position": "full", "content": [], "is_accent": false}}
 - 严禁输出 Markdown 围栏、注释、额外文本
 
 【数学公式规则 - 必须严格遵守】
@@ -770,10 +772,12 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
                       "full_content", "cover"):
         return elements
 
-    # two_column: 必须按 position 分栏
+    # two_column: image 元素 → right，table 元素 → full（保持全宽），其他 → left
     if layout_type == "two_column":
-        img_elems  = [e for e in elements if e.get("type") == "image"]
-        text_elems = [e for e in elements if e.get("type") != "image"]
+        img_elems   = [e for e in elements if e.get("type") == "image"]
+        tbl_elems   = [e for e in elements if e.get("type") == "table"]
+        text_elems  = [e for e in elements
+                       if e.get("type") not in ("image", "table")]
 
         # position slot names: top/mid/bottom 连续分配
         def _position_slots(prefix: str, n: int) -> list:
@@ -787,6 +791,9 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
             e["position"] = pos
         for e, pos in zip(img_elems, _position_slots("right", max(len(img_elems), 1))):
             e["position"] = pos
+        # Table elements keep "full" so render_two_column places them at full width
+        for e in tbl_elems:
+            e["position"] = "full"
 
         # 如果没有图片元素，把最后一个文字元素放右列作占位
         if not img_elems and len(text_elems) >= 2:

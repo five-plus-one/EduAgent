@@ -2298,18 +2298,24 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
 
+    # Table elements with position="full" are rendered at full width after columns
+    full_table_elems = [e for e in elements if e.get("type") == "table"
+                        and str(e.get("position", "")).lower() in ("full", "center", "")]
+    # Non-table elements (or table elements explicitly assigned left/right)
+    col_elements = [e for e in elements if e not in full_table_elems]
+
     # Flexible position detection:
     #   left / left_top / left_bottom  → left column
     #   right / right_top / right_bottom → right column
     def _col(e):
         return str(e.get("position", "left")).lower()
 
-    left_elems  = [e for e in elements if "left"  in _col(e)]
-    right_elems = [e for e in elements if "right" in _col(e)]
+    left_elems  = [e for e in col_elements if "left"  in _col(e)]
+    right_elems = [e for e in col_elements if "right" in _col(e)]
 
     if not left_elems and not right_elems:
-        half = max(len(elements) // 2, 1)
-        left_elems, right_elems = elements[:half], elements[half:]
+        half = max(len(col_elements) // 2, 1)
+        left_elems, right_elems = col_elements[:half], col_elements[half:]
     elif not left_elems:           # all labeled right — split evenly
         half = max(len(right_elems) // 2, 1)
         left_elems, right_elems = right_elems[:half], right_elems[half:]
@@ -2441,8 +2447,20 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     _render_col(left_elems,  lx)
     _render_col(right_elems, rx)
 
-
-
+    # ── Full-width table elements rendered below both columns ──────────────────
+    if full_table_elems:
+        # Estimate where the columns end (use full available height as conservative fallback)
+        tbl_y = CONTENT_T + avail_h * 0.55  # below the mid-point of columns
+        # Actually: prefer to start tables right after estimated column content
+        # We use a simple heuristic: reserve top 55% for columns, bottom 45% for tables
+        tbl_h_budget = SLIDE_H - tbl_y - 0.28
+        if tbl_h_budget > 0.4:
+            for tbl_elem in full_table_elems:
+                consumed = render_table_element(
+                    slide, tbl_elem, colors,
+                    x=MARGIN_LEFT, y=tbl_y, w=CONTENT_W,
+                )
+                tbl_y += consumed + 0.1
 
 
 def render_stat_callout(slide, page: dict, colors: dict) -> None:
