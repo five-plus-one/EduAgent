@@ -128,9 +128,11 @@ interface Props {
   onIterate: (instruction: string) => void;
   /** 手动编辑保存回调（不经过 AI） */
   onManualSave?: (pageIndex: number, updatedPage: Partial<PPTPage>) => void;
+  /** 布局切换回调（不经过 AI） */
+  onApplyLayout?: (layoutType: string) => Promise<boolean>;
 }
 
-function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave }: Props) {
+function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave, onApplyLayout }: Props) {
   const [instruction, setInstruction] = useState('');
 
   // ── 图片编辑 Drawer 状态 ────────────────────────────────────
@@ -479,6 +481,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
         onIterate={onIterate}
         onReplaceImage={handleReplaceImage}
         onChangeFit={handleChangeFit}
+        onApplyLayout={onApplyLayout}
       />
 
       {/* ── 手动编辑面板 */}

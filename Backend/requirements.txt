@@ -1,14 +1,42 @@
-fastapi
-uvicorn
-pydantic
-pydantic-settings
-sqlalchemy
-pyjwt
-bcrypt
-python-multipart
-langchain
-langchain-openai
-chromadb
-python-docx
-python-pptx
-pypdf
+# EduAgent Backend — Python 依赖清单
+# 运行环境：Python 3.10+（推荐 Anaconda）
+#
+# 安装：pip install -r requirements.txt
+
+# ── Web 框架 ──────────────────────────────────────────────────
+fastapi==0.135.2
+uvicorn[standard]==0.42.0      # [standard] 包含 websockets / watchfiles
+python-multipart==0.0.22       # 文件上传支持（FastAPI 需要）
+
+# ── 数据验证 & 配置 ────────────────────────────────────────────
+pydantic==2.12.5
+pydantic-settings==2.13.1
+python-dotenv==1.2.2           # 从 .env 文件读取环境变量
+
+# ── 数据库 ─────────────────────────────────────────────────────
+SQLAlchemy==2.0.48
+
+# ── 认证 ─────────────────────────────────────────────────────
+PyJWT==2.12.1
+bcrypt==5.0.0
+passlib==1.7.4                 # 密码哈希工具（bcrypt 后端）
+
+# ── HTTP 客户端 ────────────────────────────────────────────────
+httpx==0.28.1                  # 异步 HTTP（图片标注、OpenAI直连等）
+
+# ── LLM & 向量检索 ─────────────────────────────────────────────
+langchain==1.2.13
+langchain-openai==1.1.12
+langchain-chroma==1.1.0        # ChromaDB 向量库 LangChain 集成
+langchain-community==0.4.1     # 社区加载器（文档解析等）
+langchain-text-splitters==1.1.1
+chromadb==1.5.5
+openai==2.30.0                 # OpenAI SDK（langchain-openai 的底层依赖）
+tiktoken==0.12.0               # Token 计数（OpenAI 模型用）
+
+# ── 文档处理 ────────────────────────────────────────────────────
+python-docx==1.2.0             # Word 文档生成
+python-pptx==1.0.2             # PPT 文档生成
+pypdf==6.9.2                   # PDF 解析
+lxml==6.0.2                    # XML 解析（word/ppt 内部使用）
+pillow==12.1.1                 # 图片处理（图片标注、缩放、读尺寸）

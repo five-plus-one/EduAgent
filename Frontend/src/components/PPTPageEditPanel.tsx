@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   X, Pencil, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
-  Check, Sparkles, StickyNote, Type, List,
+  Check, Sparkles, StickyNote, Type, List, Image as ImageIcon,
+  Hash, Clock, AlignLeft, ChevronRight, CornerDownRight,
 } from 'lucide-react';
+import { clsx } from 'clsx';
 import styles from './PPTPageEditPanel.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 
@@ -16,30 +18,98 @@ function toArr(content: unknown): string[] {
   return [String(content)];
 }
 
-/** 将字符串数组合成可编辑文本（换行分隔） */
-const arrToText = (arr: string[]) => arr.join('\n');
-const textToArr = (text: string) => text.split('\n').filter(s => s.trim() !== '');
+/* ─── 元素类型定义 ─────────────────────────────────────────── */
+interface ElementTypeDef {
+  type: string;
+  label: string;
+  icon: React.ReactNode;
+  defaultContent: string[];
+  defaultPosition: string;
+  description: string;
+  isImage?: boolean;
+  hasTime?: boolean;
+  hasAccent?: boolean;
+  /** 是否使用逐条编辑模式（list / timeline_item） */
+  useItemEditor?: boolean;
+}
 
-/* ─── 类型 ─────────────────────────────────────────────────── */
+const ELEMENT_TYPES: ElementTypeDef[] = [
+  {
+    type: 'text_block',
+    label: '文本块',
+    icon: <AlignLeft size={14} />,
+    defaultContent: ['新增文本内容'],
+    defaultPosition: 'full',
+    description: '段落文字，支持 Markdown',
+  },
+  {
+    type: 'list',
+    label: '列表',
+    icon: <List size={14} />,
+    defaultContent: ['要点一', '要点二', '要点三'],
+    defaultPosition: 'full',
+    description: '多行要点列表，可逐条增删',
+    useItemEditor: true,
+  },
+  {
+    type: 'subtitle',
+    label: '副标题',
+    icon: <Type size={14} />,
+    defaultContent: ['副标题文字'],
+    defaultPosition: 'center',
+    description: '页面副标题或说明文字',
+  },
+  {
+    type: 'huge_number',
+    label: '数据强调',
+    icon: <Hash size={14} />,
+    defaultContent: ['98%'],
+    defaultPosition: 'center',
+    description: '凸显大数字或关键指标',
+    hasAccent: true,
+  },
+  {
+    type: 'timeline_item',
+    label: '时间节点',
+    icon: <Clock size={14} />,
+    defaultContent: ['事件说明'],
+    defaultPosition: 'left',
+    description: '时间轴条目，需填写时间节点',
+    hasTime: true,
+    useItemEditor: true,
+  },
+  {
+    type: 'image',
+    label: '图片占位',
+    icon: <ImageIcon size={14} />,
+    defaultContent: [],
+    defaultPosition: 'right',
+    description: '图片区域，可在预览区点击替换',
+    isImage: true,
+  },
+];
+
+const TYPE_MAP = Object.fromEntries(ELEMENT_TYPES.map(t => [t.type, t]));
+
+/* ─── Props ─────────────────────────────────────────────────── */
 interface Props {
   open: boolean;
   page: PPTPage;
   onClose: () => void;
-  /** 本地立即更新 */
   onSave: (updatedPage: Partial<PPTPage>) => void;
-  /** 发送 AI 指令重排此页 */
   onIterate: (instruction: string) => void;
 }
 
-/* ─── 可编辑元素行 ─────────────────────────────────────────── */
+/* ─── EditableEl ─────────────────────────────────────────────── */
 interface EditableEl {
   element_id: string;
   type: string;
   position: string;
-  textLines: string[];   // 用户正在编辑的文本行
-  time?: string;         // timeline_item
+  textLines: string[];
+  time?: string;
   is_accent?: boolean;
-  // 保留原始字段（图片/interactive 不被破坏）
+  alt?: string;
+  query?: string;
   _raw: PPTElement;
 }
 
@@ -51,25 +121,170 @@ function toEditable(el: PPTElement): EditableEl {
     textLines: toArr((el as any).content),
     time: (el as any).time,
     is_accent: (el as any).is_accent,
+    alt: (el as any).alt,
+    query: (el as any).query,
     _raw: el,
   };
 }
 
 function fromEditable(e: EditableEl): PPTElement {
-  return {
+  const base: any = {
     ...(e._raw),
     element_id: e.element_id,
     type: e.type,
     position: e.position,
-    content: e.textLines.length > 0 ? e.textLines : undefined,
     time: e.time,
     is_accent: e.is_accent,
-  } as PPTElement;
+  };
+  if (e.type === 'image') {
+    base.alt = e.alt;
+    base.query = e.query || e.alt;
+    delete base.content;
+  } else {
+    base.content = e.textLines.length > 0 ? e.textLines : undefined;
+    delete base.alt;
+    delete base.query;
+  }
+  return base as PPTElement;
 }
 
-const EDITABLE_TYPES = ['text_block', 'list', 'list_item', 'title', 'subtitle', 'huge_number', 'stat', 'timeline_item'];
+const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
 
-/* ─── 主组件 ─────────────────────────────────────────────────  */
+/* ══════════════════════════════════════════════════════════════
+   逐条列表编辑器（list / timeline_item 专用）
+   ══════════════════════════════════════════════════════════════ */
+function InlineListEditor({
+  items,
+  onChange,
+  placeholder,
+  addLabel,
+}: {
+  items: string[];
+  onChange: (items: string[]) => void;
+  placeholder?: string;
+  addLabel?: string;
+}) {
+  /** 修改某条 */
+  const updateItem = (idx: number, value: string) => {
+    const next = [...items];
+    next[idx] = value;
+    onChange(next);
+  };
+
+  /** 删除某条 */
+  const removeItem = (idx: number) => {
+    onChange(items.filter((_, i) => i !== idx));
+  };
+
+  /** 末尾添加一条 */
+  const addItem = () => {
+    onChange([...items, '']);
+  };
+
+  /** 按 Enter 在当前行下方插入新行，按 Backspace 在行头空行时删除 */
+  const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const next = [...items];
+      next.splice(idx + 1, 0, '');
+      onChange(next);
+      // focus 新行 — 需要 RAF 等渲染完成
+      requestAnimationFrame(() => {
+        const inputs = document.querySelectorAll<HTMLInputElement>(`.${styles.inlineItemInput}`);
+        (inputs[idx + 1] as HTMLInputElement | undefined)?.focus();
+      });
+    }
+    if (e.key === 'Backspace' && items[idx] === '' && items.length > 1) {
+      e.preventDefault();
+      removeItem(idx);
+      requestAnimationFrame(() => {
+        const inputs = document.querySelectorAll<HTMLInputElement>(`.${styles.inlineItemInput}`);
+        const target = inputs[Math.max(0, idx - 1)] as HTMLInputElement | undefined;
+        target?.focus();
+        // 光标放到行尾
+        if (target) {
+          const len = target.value.length;
+          target.setSelectionRange(len, len);
+        }
+      });
+    }
+  };
+
+  return (
+    <div className={styles.inlineListEditor}>
+      {items.map((item, idx) => (
+        <div key={idx} className={styles.inlineItemRow}>
+          <span className={styles.inlineItemDot} />
+          <input
+            className={styles.inlineItemInput}
+            value={item}
+            placeholder={placeholder ?? `条目 ${idx + 1}`}
+            onChange={e => updateItem(idx, e.target.value)}
+            onKeyDown={e => handleKeyDown(idx, e)}
+          />
+          <button
+            className={styles.inlineItemDelete}
+            onClick={() => removeItem(idx)}
+            title="删除此条"
+            tabIndex={-1}
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+      <button className={styles.inlineItemAdd} onClick={addItem}>
+        <Plus size={11} />
+        <span>{addLabel ?? '添加条目'}</span>
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   添加元素 Dropdown
+   ══════════════════════════════════════════════════════════════ */
+function AddElementDropdown({ onAdd }: { onAdd: (type: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className={styles.addDropdownWrap} ref={ref}>
+      <button className={styles.addBtn} onClick={() => setOpen(v => !v)}>
+        <Plus size={12} /> 添加元素
+        <ChevronRight size={11} className={clsx(styles.addChevron, open && styles.addChevronOpen)} />
+      </button>
+      {open && (
+        <div className={styles.addDropdown}>
+          {ELEMENT_TYPES.map(t => (
+            <button
+              key={t.type}
+              className={styles.addDropdownItem}
+              onClick={() => { onAdd(t.type); setOpen(false); }}
+            >
+              <span className={styles.addDropdownIcon}>{t.icon}</span>
+              <div className={styles.addDropdownText}>
+                <span className={styles.addDropdownLabel}>{t.label}</span>
+                <span className={styles.addDropdownDesc}>{t.description}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   主组件
+   ══════════════════════════════════════════════════════════════ */
 export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterate }: Props) {
   const [title, setTitle] = useState(page.title ?? '');
   const [speakerNotes, setSpeakerNotes] = useState(page.speaker_notes ?? '');
@@ -77,11 +292,8 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
   const [aiInstruction, setAiInstruction] = useState('');
   const [notesOpen, setNotesOpen] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-
-  // drag-to-reorder state
   const dragIdx = useRef<number | null>(null);
 
-  // 每次页面变化重置
   useEffect(() => {
     setTitle(page.title ?? '');
     setSpeakerNotes(page.speaker_notes ?? '');
@@ -92,7 +304,6 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 
   const markDirty = () => setIsDirty(true);
 
-  /* 元素更新 */
   const updateElement = (idx: number, patch: Partial<EditableEl>) => {
     setElements(prev => {
       const next = [...prev];
@@ -102,15 +313,25 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
     markDirty();
   };
 
-  const addTextBlock = () => {
+  const addElement = (type: string) => {
+    const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
+    const id = uid();
     setElements(prev => [
       ...prev,
       {
-        element_id: uid(),
-        type: 'text_block',
-        position: 'center',
-        textLines: ['新增文本内容'],
-        _raw: { element_id: uid(), type: 'text_block', position: 'center', content: ['新增文本内容'] } as any,
+        element_id: id,
+        type: def.type,
+        position: def.defaultPosition,
+        textLines: def.isImage ? [] : [...def.defaultContent],
+        alt: def.isImage ? '请在预览区点击替换图片' : undefined,
+        query: def.isImage ? '' : undefined,
+        _raw: {
+          element_id: id,
+          type: def.type,
+          position: def.defaultPosition,
+          content: def.isImage ? undefined : def.defaultContent,
+          alt: def.isImage ? '请在预览区点击替换图片' : undefined,
+        } as any,
       },
     ]);
     markDirty();
@@ -121,18 +342,13 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
     markDirty();
   };
 
-  /* 保存 */
   const handleSave = () => {
-    onSave({
-      title,
-      speaker_notes: speakerNotes,
-      elements: elements.map(fromEditable),
-    });
+    onSave({ title, speaker_notes: speakerNotes, elements: elements.map(fromEditable) });
     setIsDirty(false);
     onClose();
   };
 
-  /* 拖拽排序 */
+  /* 外层元素拖拽排序 */
   const handleDragStart = (idx: number) => { dragIdx.current = idx; };
   const handleDragOver = (e: React.DragEvent, idx: number) => {
     e.preventDefault();
@@ -161,12 +377,8 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
             <span>手动编辑 · 第 {page.page_index} 页</span>
           </div>
           <div className={styles.headerRight}>
-            {isDirty && (
-              <span className={styles.dirtyBadge}>● 未保存</span>
-            )}
-            <button className={styles.closeBtn} onClick={onClose}>
-              <X size={18} />
-            </button>
+            {isDirty && <span className={styles.dirtyBadge}>● 未保存</span>}
+            <button className={styles.closeBtn} onClick={onClose}><X size={18} /></button>
           </div>
         </div>
 
@@ -175,9 +387,7 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 
           {/* 标题 */}
           <section className={styles.section}>
-            <label className={styles.sectionLabel}>
-              <Type size={13} /> 页面标题
-            </label>
+            <label className={styles.sectionLabel}><Type size={13} /> 页面标题</label>
             <input
               className={styles.titleInput}
               value={title}
@@ -191,27 +401,33 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
             <div className={styles.sectionLabelRow}>
               <label className={styles.sectionLabel}>
                 <List size={13} /> 内容模块
+                <span className={styles.elementCount}>{elements.length}</span>
               </label>
-              <button className={styles.addBtn} onClick={addTextBlock}>
-                <Plus size={12} /> 添加文本块
-              </button>
+              <AddElementDropdown onAdd={addElement} />
             </div>
 
             {elements.length === 0 && (
-              <p className={styles.emptyHint}>暂无可编辑的文本元素，点击右侧「添加文本块」</p>
+              <div className={styles.emptyHint}>
+                <Plus size={20} strokeWidth={1.5} className={styles.emptyHintIcon} />
+                <p>此页暂无内容，点击「添加元素」开始构建</p>
+              </div>
             )}
 
             <div className={styles.elementList}>
               {elements.map((el, idx) => {
-                const isEditable = EDITABLE_TYPES.includes(el.type);
-                if (!isEditable) {
+                const def = TYPE_MAP[el.type];
+                const isInteractive = ['interactive_game', 'animation', 'html5'].includes(el.type);
+                const useItemEditor = def?.useItemEditor ?? false;
+
+                if (isInteractive) {
                   return (
                     <div key={el.element_id} className={clsx(styles.elementRow, styles.elementReadonly)}>
-                      <span className={styles.elementTypeBadge}>{el.type}</span>
-                      <span className={styles.elementReadonlyHint}>（图片/交互元素，在 PPT 预览区点击编辑）</span>
+                      <span className={styles.elementTypeBadge} style={{ color: '#94a3b8', borderColor: 'rgba(148,163,184,0.25)', background: 'rgba(148,163,184,0.07)' }}>{el.type}</span>
+                      <span className={styles.elementReadonlyHint}>交互/动画元素，暂不支持文本编辑</span>
                     </div>
                   );
                 }
+
                 return (
                   <div
                     key={el.element_id}
@@ -226,44 +442,101 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
                     </div>
 
                     <div className={styles.elementMain}>
-                      {/* 类型 + 位置徽章 */}
+                      {/* 类型 + 位置 */}
                       <div className={styles.elementMeta}>
-                        <span className={styles.elementTypeBadge}>{el.type}</span>
+                        <select
+                          className={styles.typeSelect}
+                          value={el.type}
+                          onChange={e => {
+                            const newDef = TYPE_MAP[e.target.value];
+                            updateElement(idx, {
+                              type: e.target.value,
+                              textLines: newDef?.isImage ? [] : (el.textLines.length ? el.textLines : (newDef?.defaultContent ?? [])),
+                              alt: newDef?.isImage ? (el.alt || '') : undefined,
+                              query: newDef?.isImage ? (el.query || '') : undefined,
+                              position: newDef?.defaultPosition ?? el.position,
+                            });
+                          }}
+                        >
+                          {ELEMENT_TYPES.map(t => <option key={t.type} value={t.type}>{t.label}</option>)}
+                        </select>
+
                         <select
                           className={styles.positionSelect}
                           value={el.position}
                           onChange={e => updateElement(idx, { position: e.target.value })}
                         >
-                          {['center','left','right','top','bottom','right_top','right_bottom','full'].map(p => (
-                            <option key={p} value={p}>{p}</option>
-                          ))}
+                          {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
+
+                        {def?.hasAccent && (
+                          <button
+                            className={clsx(styles.accentToggle, el.is_accent && styles.accentToggleOn)}
+                            onClick={() => updateElement(idx, { is_accent: !el.is_accent })}
+                            title="设为强调色"
+                          >强调</button>
+                        )}
                       </div>
 
                       {/* timeline time 字段 */}
                       {el.type === 'timeline_item' && (
-                        <input
-                          className={styles.timeInput}
-                          placeholder="时间节点（如 2024）"
-                          value={el.time ?? ''}
-                          onChange={e => updateElement(idx, { time: e.target.value })}
-                        />
+                        <div className={styles.timeRow}>
+                          <Clock size={12} className={styles.timeIcon} />
+                          <input
+                            className={styles.timeInput}
+                            placeholder="时间节点（如 2024、第一阶段）"
+                            value={el.time ?? ''}
+                            onChange={e => updateElement(idx, { time: e.target.value })}
+                          />
+                        </div>
                       )}
 
-                      {/* 内容编辑区 */}
-                      <AutoResizeTextarea
-                        className={styles.elementTextarea}
-                        value={arrToText(el.textLines)}
-                        placeholder="输入内容，多行文本请换行分隔..."
-                        onChange={v => updateElement(idx, { textLines: textToArr(v) })}
-                      />
+                      {/* 图片元素 */}
+                      {el.type === 'image' ? (
+                        <div className={styles.imageEditArea}>
+                          <div className={styles.imageEditIcon}><ImageIcon size={18} strokeWidth={1.5} /></div>
+                          <div className={styles.imageEditFields}>
+                            <input
+                              className={styles.imageAltInput}
+                              placeholder="描述文字 / alt 属性"
+                              value={el.alt ?? ''}
+                              onChange={e => updateElement(idx, { alt: e.target.value })}
+                            />
+                            <input
+                              className={styles.imageQueryInput}
+                              placeholder="搜索关键词（AI 自动匹配图库）"
+                              value={el.query ?? ''}
+                              onChange={e => updateElement(idx, { query: e.target.value })}
+                            />
+                            <p className={styles.imageHint}>图片文件请在预览卡片中点击图片区域进行替换</p>
+                          </div>
+                        </div>
+
+                      /* ── 逐条列表编辑（list / timeline_item 内容部分） */
+                      ) : useItemEditor ? (
+                        <InlineListEditor
+                          items={el.textLines.length ? el.textLines : ['']}
+                          onChange={lines => updateElement(idx, { textLines: lines })}
+                          placeholder={el.type === 'timeline_item' ? '事件说明...' : '输入要点内容...'}
+                          addLabel={el.type === 'timeline_item' ? '添加说明行' : '添加要点'}
+                        />
+
+                      /* ── 普通文本区域（text_block / subtitle / huge_number） */
+                      ) : (
+                        <AutoResizeTextarea
+                          className={styles.elementTextarea}
+                          value={el.textLines.join('\n')}
+                          placeholder={
+                            el.type === 'huge_number' ? '输入数据（如 98%、3.5亿）'
+                              : el.type === 'subtitle' ? '输入副标题...'
+                              : '输入内容，支持 Markdown...'
+                          }
+                          onChange={v => updateElement(idx, { textLines: v.split('\n').filter(s => s.trim() !== '') })}
+                        />
+                      )}
                     </div>
 
-                    <button
-                      className={styles.elementDeleteBtn}
-                      onClick={() => removeElement(idx)}
-                      title="删除此模块"
-                    >
+                    <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除此模块">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -274,10 +547,7 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 
           {/* 演讲注记（折叠） */}
           <section className={styles.section}>
-            <button
-              className={styles.collapseTrigger}
-              onClick={() => setNotesOpen(v => !v)}
-            >
+            <button className={styles.collapseTrigger} onClick={() => setNotesOpen(v => !v)}>
               <StickyNote size={13} />
               <span>演讲注记</span>
               {notesOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -294,9 +564,7 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 
           {/* AI 精修 */}
           <section className={styles.section}>
-            <label className={styles.sectionLabel}>
-              <Sparkles size={13} /> AI 精修此页
-            </label>
+            <label className={styles.sectionLabel}><Sparkles size={13} /> AI 精修此页</label>
             <div className={styles.aiRow}>
               <AutoResizeTextarea
                 className={styles.aiTextarea}
@@ -308,7 +576,6 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
                 className={styles.aiIterateBtn}
                 disabled={!aiInstruction.trim()}
                 onClick={() => {
-                  // 先把手动内容保存，再发 AI 指令
                   onSave({ title, speaker_notes: speakerNotes, elements: elements.map(fromEditable) });
                   onIterate(aiInstruction.trim());
                   setAiInstruction('');
@@ -323,14 +590,8 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 
         {/* ── Footer ─────────────────────────────────────────── */}
         <div className={styles.footer}>
-          <button className={styles.cancelBtn} onClick={onClose}>
-            取消
-          </button>
-          <button
-            className={styles.saveBtn}
-            onClick={handleSave}
-            disabled={!isDirty}
-          >
+          <button className={styles.cancelBtn} onClick={onClose}>取消</button>
+          <button className={styles.saveBtn} onClick={handleSave} disabled={!isDirty}>
             <Check size={15} /> 保存修改
           </button>
         </div>
@@ -340,30 +601,20 @@ export default function PPTPageEditPanel({ open, page, onClose, onSave, onIterat
 }
 
 /* ─── 自动高度 Textarea ────────────────────────────────────── */
-function AutoResizeTextarea({
-  value, onChange, placeholder, className,
-}: {
+function AutoResizeTextarea({ value, onChange, placeholder, className }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-
   useEffect(() => {
     if (!ref.current) return;
     ref.current.style.height = 'auto';
     ref.current.style.height = `${ref.current.scrollHeight}px`;
   }, [value]);
-
   return (
-    <textarea
-      ref={ref}
-      className={className}
-      value={value}
-      placeholder={placeholder}
-      rows={2}
-      onChange={e => onChange(e.target.value)}
-    />
+    <textarea ref={ref} className={className} value={value} placeholder={placeholder}
+      rows={2} onChange={e => onChange(e.target.value)} />
   );
 }

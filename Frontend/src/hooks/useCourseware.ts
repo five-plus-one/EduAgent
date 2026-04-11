@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
-import { iterateCoursewarePage, getCoursewarePreview, generateCourseware } from '../utils/api';
+import { iterateCoursewarePage, getCoursewarePreview, generateCourseware, saveManualSlideEdit, applySlideLayout } from '../utils/api';
 import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManager';
 
 export interface PPTElement {
@@ -288,17 +288,73 @@ export function useCourseware(sessionId: string) {
     setPreviewStatus('idle');
   }, []);
 
-  /** 直接用本地修改替换某页，无需 AI（手动编辑专用） */
+  /**
+   * 手动编辑后本地+远端同步（PPTPageEditPanel 保存时调用）
+   * 1. 立即更新本地 pages 状态（乐观更新，刷新预览）
+   * 2. 异步调用 PUT .../slides/{page} 持久化到 DB（导出时数据正确）
+   */
   const updatePageLocally = useCallback((pageIndex: number, updatedPage: Partial<PPTPage>) => {
+    // 1. 乐观本地更新
     setPages(prev => prev.map(p =>
       p.page_index === pageIndex ? { ...p, ...updatedPage } : p
     ));
-  }, []);
+    // 2. 跳过 sessionId === 'new' 防御
+    if (sessionId === 'new') return;
+    // 3. 异步持久化，失败只记日志（不回滚，用户可再存一次）
+    saveManualSlideEdit(sessionId, pageIndex, {
+      title: updatedPage.title,
+      elements: updatedPage.elements as unknown[] | undefined,
+      speaker_notes: updatedPage.speaker_notes,
+    }).then(res => {
+      // 用后端返回的 slide 再做一次精确覆盖（防止本地与 DB 产生 diff）
+      const authoritative = (res as any)?.slide;
+      if (authoritative) {
+        setPages(prev => prev.map(p =>
+          p.page_index === pageIndex ? { ...p, ...authoritative } : p
+        ));
+      }
+    }).catch(err => {
+      console.error('[useCourseware] saveManualSlideEdit failed:', err);
+    });
+  }, [sessionId]);
+
+  /**
+   * 切换单页布局（PPTImageEditDrawer 「切换模板」Tab 调用）
+   * 不经过 AI，确定性可靠。
+   * 1. 调用 POST .../apply-layout 写 DB
+   * 2. 用响应的 slide 直接替换本地状态，无需重拉 preview
+   */
+  const applyLayoutAndRefresh = useCallback(async (
+    pageIndex: number,
+    layoutType: string
+  ): Promise<boolean> => {
+    if (sessionId === 'new') return false;
+    setUpdatingPages(prev => new Set(prev).add(pageIndex));
+    try {
+      const res = await applySlideLayout(sessionId, pageIndex, layoutType);
+      const slide = (res as any)?.slide;
+      if (slide) {
+        setPages(prev => prev.map(p =>
+          p.page_index === pageIndex ? { ...p, ...slide } : p
+        ));
+      }
+      return true;
+    } catch (err) {
+      console.error('[useCourseware] applySlideLayout failed:', err);
+      return false;
+    } finally {
+      setUpdatingPages(prev => {
+        const next = new Set(prev);
+        next.delete(pageIndex);
+        return next;
+      });
+    }
+  }, [sessionId]);
 
   /** 直接修改讲义文本（手动编辑专用） */
   const setWordDocLocally = useCallback((content: string) => {
     setWordDoc(content);
   }, []);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, setWordDocLocally };
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally };
 }
