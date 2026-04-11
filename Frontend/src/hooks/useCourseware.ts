@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 
-import { iterateCoursewarePage, getCoursewarePreview, generateCourseware, saveManualSlideEdit, applySlideLayout } from '../utils/api';
+import { iterateCoursewarePage, getCoursewarePreview, generateCourseware, saveManualSlideEdit, applySlideLayout, saveWordContent } from '../utils/api';
 import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManager';
 
 export interface PPTElement {
@@ -356,5 +356,21 @@ export function useCourseware(sessionId: string) {
     setWordDoc(content);
   }, []);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally };
+  /**
+   * 持久化保存讲义内容到后端，同时更新本地状态
+   * 使用后端返回的规范化内容（--- 已替换为 ***）
+   * 即使后端失败也保留本地状态，避免用户内容丢失
+   */
+  const saveWordDoc = useCallback(async (content: string): Promise<void> => {
+    if (sessionId === 'new') return;
+    try {
+      const res = await saveWordContent(sessionId, content);
+      setWordDoc(res.word_markdown ?? content);
+    } catch (err) {
+      console.error('[useCourseware] saveWordDoc failed:', err);
+      setWordDoc(content);
+    }
+  }, [sessionId]);
+
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc };
 }

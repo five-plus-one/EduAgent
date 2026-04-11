@@ -150,11 +150,11 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
     }
   };
 
-  // 点击图片 → 打开工作台 「替换图片」Tab
+  // 点击图片 → 打开工作台 「编辑内容」Tab，图片选择器在元素行内自动展开
   const handleImageClick = (el: any) => {
     if (isUpdating || isStreaming) return;
     setActiveImageElement(el as ImageElement);
-    setWorkbenchTab('image');
+    setWorkbenchTab('edit');
     setWorkbenchOpen(true);
   };
 
@@ -310,6 +310,62 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div style={{ margin: '4px 0 0 0' }}>
             <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS}>{text}</ReactMarkdown>
           </div>
+        </div>
+      );
+    }
+
+    // ── Table element ──────────────────────────────────────────
+    if (el.type === 'table') {
+      const headers: string[] = Array.isArray(el.headers) ? el.headers : [];
+      const rows: string[][] = Array.isArray(el.rows) ? el.rows : [];
+      if (headers.length === 0 && rows.length === 0) return null;
+
+      return (
+        <div key={el.element_id} className={clsx(styles.tableWrapper, positionClass)}>
+          <table className={styles.tableElement}>
+            {headers.length > 0 && (
+              <thead>
+                <tr>
+                  {headers.map((h, i) => (
+                    <th key={i}>
+                      <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        rehypePlugins={REHYPE_PLUGINS}
+                        components={{ p: React.Fragment as any }}
+                      >
+                        {preprocessMath(String(h))}
+                      </ReactMarkdown>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {rows.map((row, ri) => (
+                <tr key={ri}>
+                  {(Array.isArray(row) ? row : []).map((cell, ci) => (
+                    <td key={ci}>
+                      <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        rehypePlugins={REHYPE_PLUGINS}
+                        components={{ p: React.Fragment as any }}
+                      >
+                        {preprocessMath(String(cell ?? ''))}
+                      </ReactMarkdown>
+                    </td>
+                  ))}
+                  {/* 补齐行尾缺列，避免列数不一致导致布局问题 */}
+                  {headers.length > 0 &&
+                    Array.isArray(row) &&
+                    row.length < headers.length &&
+                    Array.from({ length: headers.length - row.length }).map((_, ci) => (
+                      <td key={`pad_${ci}`} />
+                    ))
+                  }
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       );
     }

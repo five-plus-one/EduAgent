@@ -8,9 +8,8 @@
 
 /* ---------------- LEFT PANEL ---------------- */
 .chatPanel {
-  flex: 0 0 40%;
-  max-width: 600px;
-  min-width: 350px;
+  /* width 由 JS chatWidth state 控制，CSS 只负责约束和样式 */
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -34,6 +33,74 @@
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.sessionTitleText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+/* 铅笔按钮：默认隐藏，hover 标题时显示 */
+.titleEditBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  padding: 0;
+}
+
+.sessionTitle:hover .titleEditBtn {
+  opacity: 1;
+}
+
+.titleEditBtn:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-primary);
+}
+
+/* 内联编辑行 */
+.titleEditRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.titleInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: inherit;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--accent-primary, #6366f1);
+  border-radius: 8px;
+  padding: 4px 10px;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  transition: box-shadow 0.15s;
+}
+
+.titleInput:disabled {
+  opacity: 0.6;
 }
 
 .sessionStatus {
@@ -273,15 +340,47 @@
 
 /* ---------------- DRAG DIVIDER ---------------- */
 .divider {
+  /* 视觉宽度 1px，但 hit-area 通过 padding 加宽到 8px */
   width: 1px;
-  background-color: transparent;
+  flex-shrink: 0;
+  position: relative;
+  background-color: var(--border-glass, rgba(15,23,42,0.08));
   cursor: col-resize;
   z-index: 10;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 
-.workspace:hover .divider {
-  background-color: var(--border-glass);
+/* 透明 hit-area 扩展（两侧各加 4px） */
+.divider::before {
+  content: '';
+  position: absolute;
+  inset: 0 -4px;
+  cursor: col-resize;
+}
+
+/* 拖拽手柄指示器（居中小圆点） */
+.divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 32px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.divider:hover,
+.divider:active {
+  background-color: var(--accent-primary, #6366f1);
+}
+
+.divider:hover::after,
+.divider:active::after {
+  background: var(--accent-primary, #6366f1);
+  opacity: 0.7;
 }
 
 /* ---------------- RIGHT PANEL ---------------- */

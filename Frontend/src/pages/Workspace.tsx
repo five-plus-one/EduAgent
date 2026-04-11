@@ -19,12 +19,48 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
 import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
   const [inputText, setInputText] = useState('');
+
+  // ── 可拖拽分割线 ────────────────────────────────────────
+  const CHAT_MIN = 280;
+  const CHAT_MAX = 680;
+  const CHAT_DEFAULT = 420;
+  const [chatWidth, setChatWidth] = useState(CHAT_DEFAULT);
+  const isDraggingRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWRef = useRef(0);
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    dragStartXRef.current = e.clientX;
+    dragStartWRef.current = chatWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      const delta = ev.clientX - dragStartXRef.current;
+      const next = Math.min(CHAT_MAX, Math.max(CHAT_MIN, dragStartWRef.current + delta));
+      setChatWidth(next);
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [chatWidth]);
   const streamEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
@@ -39,7 +75,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -75,6 +111,13 @@ export default function Workspace() {
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
   const wordEditRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── Session 标题（读取 + 内联编辑）────────────────────
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [titleSaving, setTitleSaving] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -236,10 +279,57 @@ export default function Workspace() {
 
         setLinkedDocs(docIds);
         setDocToFileId(mapping);
+        // 读取 course_name 作为页面标题
+        if (res?.course_name) setSessionTitle(res.course_name);
       }).catch(e => console.warn('Failed to load linked docs for session', e));
       return () => { active = false; };
     }
+    // 新建模式清除标题
+    if (sessionId === 'new') setSessionTitle('');
   }, [sessionId]);
+
+  // 监听 Sidebar 重命名操作，同步更新顶部标题
+  useEffect(() => {
+    const handleRenamed = (e: Event) => {
+      const { sessionId: renamedId, courseName } = (e as CustomEvent).detail ?? {};
+      if (renamedId === sessionId && courseName) {
+        setSessionTitle(courseName);
+      }
+    };
+    window.addEventListener('EduAgent_Session_Renamed', handleRenamed);
+    return () => window.removeEventListener('EduAgent_Session_Renamed', handleRenamed);
+  }, [sessionId]);
+
+  // 内联标题编辑 handlers
+  const startTitleEdit = () => {
+    setTitleDraft(sessionTitle);
+    setTitleEditing(true);
+    setTimeout(() => titleInputRef.current?.select(), 30);
+  };
+
+  const commitTitleEdit = async () => {
+    const trimmed = titleDraft.trim();
+    if (!trimmed || trimmed === sessionTitle || sessionId === 'new') {
+      setTitleEditing(false);
+      return;
+    }
+    setTitleSaving(true);
+    try {
+      await renameSession(sessionId, trimmed);
+      setSessionTitle(trimmed);
+      // 通知 Sidebar 同步更新列表标题
+      window.dispatchEvent(
+        new CustomEvent('EduAgent_Session_Renamed', {
+          detail: { sessionId, courseName: trimmed },
+        })
+      );
+    } catch {
+      // 失败时保留旧标题
+    } finally {
+      setTitleSaving(false);
+      setTitleEditing(false);
+    }
+  };
 
   // Auto scroll to bottom only if user hasn't scrolled up
   const shouldAutoScroll = useRef(true);
@@ -354,12 +444,48 @@ export default function Workspace() {
     <div className={styles.workspace}>
       
       {/* LEFT PANEL: Chat Interaction */}
-      <section className={styles.chatPanel}>
+      <section className={styles.chatPanel} style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}>
         <header className={styles.chatHeader}>
           <div className={styles.sessionInfo}>
-            <h2 className={styles.sessionTitle}>
-              {sessionId === 'new' ? '新建课件会话' : '持续设计课件'}
-            </h2>
+            {sessionId === 'new' ? (
+              <h2 className={styles.sessionTitle}>新建课件会话</h2>
+            ) : titleEditing ? (
+              /* 内联编辑模式 */
+              <div className={styles.titleEditRow}>
+                <input
+                  ref={titleInputRef}
+                  className={styles.titleInput}
+                  value={titleDraft}
+                  onChange={e => setTitleDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitTitleEdit();
+                    if (e.key === 'Escape') setTitleEditing(false);
+                  }}
+                  onBlur={commitTitleEdit}
+                  disabled={titleSaving}
+                  maxLength={60}
+                  autoFocus
+                />
+                {titleSaving && <Loader2 size={14} className={styles.rotating} />}
+              </div>
+            ) : (
+              /* 展示模式：hover 显示铅笔 */
+              <h2
+                className={styles.sessionTitle}
+                title="点击修改标题"
+              >
+                <span className={styles.sessionTitleText}>
+                  {sessionTitle || '无标题会话'}
+                </span>
+                <button
+                  className={styles.titleEditBtn}
+                  onClick={startTitleEdit}
+                  title="修改标题"
+                >
+                  <Pencil size={12} />
+                </button>
+              </h2>
+            )}
             <span className={styles.sessionStatus}>
               {isSynthesizing ? (
                  <><Sparkles size={14} className={clsx(styles.sparkleIcon, styles.rotating)}/> 思考中...</>
@@ -505,7 +631,11 @@ export default function Workspace() {
       </section>
 
       {/* DRAG DIVIDER */}
-      <div className={styles.divider} />
+      <div
+        className={styles.divider}
+        onMouseDown={handleDividerMouseDown}
+        title="拖拽调整宽度"
+      />
 
       {/* RIGHT PANEL: Visual WorkSpace */}
       <section className={styles.visualPanel}>
@@ -833,9 +963,9 @@ export default function Workspace() {
                     {wordEditMode && (
                       <button
                         className={styles.wordSaveBtn}
-                        onClick={() => {
-                          setWordDocLocally(wordDraft);
-                          setWordEditMode(false);
+                        onClick={async () => {
+                          setWordEditMode(false);       // 乐观退出，用户不感知延迟
+                          await saveWordDoc(wordDraft); // 后台持久化，失败也保留本地
                         }}
                       >
                         <Check size={12} /> 保存

@@ -760,3 +760,72 @@
   margin-top: 4px;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   Table Element — 主题色表头 + 斑马纹 + LaTeX 支持
+   ═══════════════════════════════════════════════════════════ */
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  margin-bottom: calc(0.08 * var(--in));
+}
+
+.tableElement {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: calc(min(16, var(--dynamic-font, 16)) * var(--pt));
+}
+
+.tableElement thead tr {
+  background: var(--ppt-accent, #3b82f6);
+}
+
+.tableElement thead th {
+  padding: calc(0.10 * var(--in)) calc(0.14 * var(--in));
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  font-size: calc(14 * var(--pt));
+  letter-spacing: 0.02em;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  word-break: break-word;
+}
+
+.tableElement thead th:last-child { border-right: none; }
+.tableElement thead th:first-child { text-align: left; }
+
+.tableElement tbody tr:nth-child(even) {
+  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.35));
+}
+.tableElement tbody tr:nth-child(odd) { background: transparent; }
+.tableElement tbody tr:hover { background: rgba(99, 102, 241, 0.06); }
+
+.tableElement tbody td {
+  padding: calc(0.08 * var(--in)) calc(0.14 * var(--in));
+  border-bottom: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.06));
+  border-right: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.04));
+  text-align: center;
+  color: var(--ppt-text, #1e293b);
+  font-size: calc(14 * var(--pt));
+  line-height: 1.45;
+  word-break: break-word;
+  vertical-align: middle;
+}
+
+.tableElement tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ppt-primary, #0f172a);
+}
+
+.tableElement tbody td:last-child  { border-right: none; }
+.tableElement tbody tr:last-child td { border-bottom: none; }
+
+.tableElement td .katex,
+.tableElement th .katex { font-size: 1em; }
+
+.tableElement td p,
+.tableElement th p { margin: 0; }
