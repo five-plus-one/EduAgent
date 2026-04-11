@@ -208,14 +208,17 @@ export default function PPTPageWorkbench({
   const addElement = (type: string) => {
     const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
     const id = uid();
+    const isImg = (def as any).isImage;
     setElements(prev => [...prev, {
       element_id: id, type: def.type, position: def.defaultPosition,
-      textLines: (def as any).isImage ? [] : [...(def.defaultContent as any)],
-      alt: (def as any).isImage ? '请在预览区点击替换图片' : undefined,
-      query: (def as any).isImage ? '' : undefined,
+      textLines: isImg ? [] : [...(def.defaultContent as any)],
+      // 图片元素用空字符串作为默认，避免展示过时提示
+      alt: isImg ? '' : undefined,
+      query: isImg ? '' : undefined,
+      time: (def as any).hasTime ? '' : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
-        content: (def as any).isImage ? undefined : def.defaultContent,
-        alt: (def as any).isImage ? '请在预览区点击替换图片' : undefined } as any,
+        content: isImg ? undefined : def.defaultContent,
+        alt: isImg ? '' : undefined } as any,
     }]);
     markDirty();
   };
@@ -430,6 +433,7 @@ export default function PPTPageWorkbench({
                       onDragLeave={handleDragLeave}
                       onDrop={() => handleDrop(idx)}
                     >
+                      {/* 拖动 handle */}
                       <div
                         className={styles.elementDragHandle}
                         draggable
@@ -439,7 +443,9 @@ export default function PPTPageWorkbench({
                       >
                         <GripVertical size={14} />
                       </div>
+
                       <div className={styles.elementMain}>
+                        {/* 类型 / 位置 / 强调 选择器 */}
                         <div className={styles.elementMeta}>
                           <select className={styles.typeSelect} value={el.type}
                             onChange={e => {
@@ -449,6 +455,7 @@ export default function PPTPageWorkbench({
                                 textLines: (newDef as any)?.isImage ? [] : (el.textLines.length ? el.textLines : ((newDef as any)?.defaultContent ?? [])),
                                 alt: (newDef as any)?.isImage ? (el.alt || '') : undefined,
                                 query: (newDef as any)?.isImage ? (el.query || '') : undefined,
+                                time: (newDef as any)?.hasTime ? (el.time ?? '') : undefined,
                                 position: newDef?.defaultPosition ?? el.position,
                               });
                             }}>
@@ -466,6 +473,7 @@ export default function PPTPageWorkbench({
                           )}
                         </div>
 
+                        {/* 时间线时间字段 */}
                         {el.type === 'timeline_item' && (
                           <div className={styles.timeRow}>
                             <Clock size={12} className={styles.timeIcon} />
@@ -474,34 +482,39 @@ export default function PPTPageWorkbench({
                           </div>
                         )}
 
-                        {el.type === 'image' ? (
-                          /* ─ 图片元素粀轻行：alt/query + 一个「换图」按钮 ─ */
-                          <div className={styles.imageElementRow}>
-                            <div className={styles.imageElementMeta}>
-                              <div className={styles.imageEditIcon}><ImageIcon size={16} strokeWidth={1.5} /></div>
-                              <div className={styles.imageEditFields}>
-                                <input className={styles.imageAltInput} placeholder="描述文字 / alt"
+                        {/* 内容区：按元素类型分支 */}
+                        {el.type === 'image' ? (() => {
+                          const rawEl = el._raw as any;
+                          const rawUrl = rawEl?.resolved?.preview_url || rawEl?.url;
+                          const thumbUrl = rawUrl ? resolveImagePreviewUrl(rawUrl) : null;
+                          return (
+                            <div className={styles.imageElementRow}>
+                              <div className={styles.imageThumbPreview}>
+                                {thumbUrl
+                                  ? <img src={thumbUrl} alt={el.alt || ''} />
+                                  : <div className={styles.imageThumbEmpty}><ImageIcon size={20} opacity={0.3} /></div>
+                                }
+                              </div>
+                              <div className={styles.imageElementFields}>
+                                <input className={styles.imageAltInput} placeholder="图片描述 / alt 文字"
                                   value={el.alt ?? ''} onChange={e => updateElement(idx, { alt: e.target.value })} />
-                                <input className={styles.imageQueryInput} placeholder="AI 搜图关键词"
+                                <input className={styles.imageQueryInput} placeholder="AI 自动搜图关键词"
                                   value={el.query ?? ''} onChange={e => updateElement(idx, { query: e.target.value })} />
+                                <button className={styles.openPickerBtn} onClick={() => {
+                                  setSearchQuery(el.alt || el.query || '');
+                                  setSelectedImageId(null);
+                                  setSearchResults([]);
+                                  setImageMode('search');
+                                  allLoadedOnce.current = false;
+                                  setPickerEl(el);
+                                  setPickerOpen(true);
+                                }}>
+                                  <ImageIcon size={12} /> 选择图片
+                                </button>
                               </div>
                             </div>
-                            <button
-                              className={styles.openPickerBtn}
-                              onClick={() => {
-                                setSearchQuery(el.alt || el.query || '');	
-                                setSelectedImageId(null);
-                                setSearchResults([]);
-                                setImageMode('search');
-                                allLoadedOnce.current = false;
-                                setPickerEl(el);
-                                setPickerOpen(true);
-                              }}
-                            >
-                              <ImageIcon size={12} /> 换图
-                            </button>
-                          </div>
-                        ) : useItemEditor ? (
+                          );
+                        })() : useItemEditor ? (
                           <InlineListEditor
                             items={el.textLines.length ? el.textLines : ['']}
                             onChange={lines => updateElement(idx, { textLines: lines })}
@@ -521,6 +534,7 @@ export default function PPTPageWorkbench({
                           />
                         )}
                       </div>
+
                       <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除此模块">
                         <Trash2 size={13} />
                       </button>
