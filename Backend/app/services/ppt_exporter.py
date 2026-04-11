@@ -2156,24 +2156,73 @@ def render_table_element(slide, elem: dict, colors: dict,
     even_bg = blend(pri, bg, 0.12) if dark else blend(RGBColor(0xCC, 0xCC, 0xFF), bg, 0.05)
     odd_bg  = bg
 
-    # Compute heights, cap at slide bottom
-    HDR_H   = 0.44
-    DATA_H  = 0.40
-    avail   = SLIDE_H - y - 0.32
-    nat_h   = HDR_H * (1 if has_header else 0) + DATA_H * n_data_rows
-    total_h = min(nat_h, avail)
+    # ── Dynamic per-row height estimation ───────────────────────────────────────
+    # OMML formula height varies widely: integrals ~0.78in, fractions ~0.52in,
+    # plain text ~0.38in. Static DATA_H causes overflow for complex formulas.
+
+    def _formula_h(text: str) -> float:
+        """Estimate cell height (inches) needed for this LaTeX/text cell."""
+        if not text:
+            return 0.38
+        t = str(text)
+        if '$' not in t:
+            return 0.38  # plain text
+        # Integral / sum / product operators — very tall display symbols
+        if re.search(r'\\(int|iint|iiint|oint|sum|prod)\b', t):
+            return 0.80
+        # Cases / aligned environments
+        if r'\begin{cases}' in t or r'\begin{aligned}' in t:
+            n_lines = max(t.count(r'\\'), 1)
+            return max(0.68, 0.28 * n_lines)
+        # Nested fractions or sqrt inside a fraction
+        frac_pos = t.find(r'\frac')
+        if frac_pos >= 0:
+            inner = t[frac_pos + 5:]
+            if re.search(r'\\(frac|int|sum|sqrt)\b', inner):
+                return 0.64   # tall nested
+            return 0.54       # simple fraction
+        # sqrt alone
+        if r'\sqrt' in t:
+            return 0.50
+        # Any subscript / superscript
+        if re.search(r'[_^]', t):
+            return 0.44
+        return 0.40
+
+    HDR_H = 0.46
+    avail = SLIDE_H - y - 0.32
+
+    # Header row height
+    row_heights: list[float] = [HDR_H] if has_header else []
+
+    # Data row heights: max of all cells in the row
+    for row in rows_data:
+        rh = max((_formula_h(str(c)) for c in row if c), default=0.40)
+        row_heights.append(max(0.38, rh))
+
+    nat_h = sum(row_heights)
+
+    # Proportional scale-down if table would exceed available height
+    if nat_h > avail:
+        scale = avail / nat_h
+        # Enforce minimum readable row height (0.30in)
+        row_heights = [max(0.30, h * scale) for h in row_heights]
+
+    total_h = sum(row_heights)
     if total_h < 0.3:
         return 0.0
 
-    scale = total_h / nat_h if nat_h > 0 else 1.0
-
-    # Create python-pptx table shape
+    # Create python-pptx table with the computed total height
     tbl_shape = slide.shapes.add_table(
         n_rows, n_cols,
         Inches(x), Inches(y),
         Inches(w), Inches(total_h),
     )
     tbl = tbl_shape.table
+
+    # Overwrite individual row heights (python-pptx divides equally by default)
+    for ri, rh in enumerate(row_heights):
+        tbl.rows[ri].height = Inches(rh)
 
     def _fill(cell, text: str, bold: bool, size: int,
                fg: "RGBColor", bg_c: "RGBColor", align):
