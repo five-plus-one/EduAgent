@@ -263,7 +263,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 # elements 结构
 每个 element 是一个 JSON 对象，包含：
 - element_id: 字符串，如 "e1" "e2"（每页内唯一）
-- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item" 或 "image"
+- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item" 或 "image" 或 "table"
 - position: "left" 或 "right_top" 或 "right_bottom" 或 "center" 或 "full"
 - content: 字符串数组（非空，至少1个元素。**仅当 type=image 时可省略 content，改用 query 和 alt 字段**）
 - is_accent: true 或 false（type=image 时填 false）
@@ -271,6 +271,11 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 # image element 特殊字段（type=image 专用）
 - query: 字符串，描述需要什么图片（用于语义检索），如 "牛顿苹果树引力示意图"
 - alt: 字符串，图片说明文字，如 "牛顿引力示意图"
+
+# table element 特殊字段（type=table 专用）
+- headers: 字符串数组，表头列名，如 ["刚体形状", "转轴", "转动惯量"]
+- rows: 二维字符串数组，行列数据，如 [["均质圆柱", "轴心", "$\\frac{{1}}{{2}}mR^2$"]]
+- content: 填 [] （表格数据存在 headers 和 rows 里）
 
 # 完整输出示例（照此结构生成真实内容）：
 {{"__type": "theme", "name": "科技蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#475569", "accent": "#F59E0B", "text_color": "#F1F5F9"}}
@@ -300,7 +305,13 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
    - image element 必须包含 query（描述所需图片内容）和 alt（说明文字），content 字段填 []
    - 每页最多 1 个 image element；cover 页和 stat_callout 页禁止使用
    - 示例：{{"element_id": "img1", "type": "image", "position": "right", "query": "热力学第一定律能量守恒示意图", "alt": "能量守恒示意图", "content": [], "is_accent": false}}
-8. 现在开始输出，第一行是 theme JSON"""
+8. 【表格规则】当课程内容包含对比表、属性表、公式列表等，使用 type:"table" element。
+   - 表格 element 必须包含 headers（表头）和 rows（数据行），content 填 []
+   - 每页最多 1 个 table element；推荐在 minimal_list 布局中使用，position 填 "full"
+   - 表格列数建议 2-4 列，行数建议 3-8 行；单元格内公式用 LaTeX 格式
+   - 示例：{{"element_id": "t1", "type": "table", "position": "full", "headers": ["刚体形状", "转轴", "转动惯量"], "rows": [["均质圆柱", "轴心", "$\\frac{{1}}{{2}}mR^2$"], ["均质细杆", "杆中间", "$\\frac{{1}}{{12}}mL^2$"]], "content": [], "is_accent": false}}
+9. 现在开始输出，第一行是 theme JSON"""
+
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"

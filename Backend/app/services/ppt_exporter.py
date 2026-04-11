@@ -1790,11 +1790,13 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         return (e.get("type") in ("huge_number", "stat")
                 and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
 
-    stat_elems = [e for e in elements if _is_stat(e)]
+    stat_elems  = [e for e in elements if _is_stat(e)]
+    table_elems = [e for e in elements if e.get("type") == "table"]
     # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
     img_elems  = [e for e in elements if e.get("type") == "image"]
-    body_elems = [e for e in elements if not _is_stat(e) and e.get("type") != "image"] or [
-        e for e in elements if e.get("type") != "image"
+    body_elems = [e for e in elements
+                  if not _is_stat(e) and e.get("type") not in ("image", "table")] or [
+        e for e in elements if e.get("type") not in ("image", "table")
     ]
 
     # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
@@ -1910,10 +1912,12 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
             add_rich_box(slide, card_text, lx + 0.14, cy_m + 0.06,
                          left_w - 0.24, each_c - 0.12, sz, txt, acc)
             cy_m += each_c + GAP
-
+        content_end_y = cy_m
+    else:
+        content_end_y = CONTENT_T
 
     # ── Stat accent zone (right) ────────────────────────────────────────────────
-    if stat_elems:
+    if stat_elems and not table_elems:
         rx = MARGIN_LEFT + left_w + 0.18
         rw = CONTENT_W - left_w - 0.18
         ry = CONTENT_T
@@ -1928,6 +1932,14 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
             add_rich_box(slide, items[0] if items else "", rx, cy + 0.1, rw,
                          each_s - 0.2, sz_big, acc, acc,
                          bold=True, align=PP_ALIGN.CENTER)
+
+    # ── Table elements (full-width, renders after body cards) ────────────────────
+    if table_elems:
+        t_y = content_end_y + (0.08 if body_cards else 0)
+        t_avail = SLIDE_H - t_y - 0.32
+        if t_avail > 0.4:
+            render_table_element(slide, table_elems[0], colors,
+                                 MARGIN_LEFT, t_y, CONTENT_W)
 
 
 def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
@@ -2091,6 +2103,113 @@ def _render_image_placeholder(slide, elem: dict, col_x: float, col_w: float, col
     from pptx.enum.text import PP_ALIGN
     add_rich_box(slide, query_text, ph_x + 0.1, ph_y + ph_h * 0.3,
                  ph_w - 0.2, ph_h * 0.4, 12, txt, acc, align=PP_ALIGN.CENTER)
+
+
+# ──────────────────────────────────────────────
+# Table element renderer
+# ──────────────────────────────────────────────
+
+def render_table_element(slide, elem: dict, colors: dict,
+                         x: float, y: float, w: float) -> float:
+    """
+    Render a type=table element as a native python-pptx table.
+    Returns the height consumed in inches.
+
+    elem must contain:
+      headers : list[str]       — column header labels
+      rows    : list[list[str]] — data rows (each row is a list of cell strings)
+    LaTeX formulas in cells are converted to Unicode via convert_latex().
+    """
+    from pptx.enum.text import PP_ALIGN
+
+    headers   = elem.get("headers") or []
+    rows_data = elem.get("rows") or []
+    if not isinstance(headers, list):
+        headers = []
+    if not isinstance(rows_data, list):
+        rows_data = []
+    rows_data = [r for r in rows_data if isinstance(r, (list, tuple)) and r]
+
+    n_cols = max(
+        len(headers),
+        max((len(r) for r in rows_data), default=0),
+        1,
+    )
+    has_header  = bool(headers)
+    n_data_rows = len(rows_data)
+    n_rows      = n_data_rows + (1 if has_header else 0)
+
+    if n_rows == 0:
+        return 0.0
+
+    bg   = colors["bg"]
+    acc  = colors["acc"]
+    txt  = colors["txt"]
+    pri  = colors["pri"]
+    dark = _is_dark(colors)
+
+    # Header text color based on accent luminance
+    acc_luma = (0.299 * acc[0] + 0.587 * acc[1] + 0.114 * acc[2]) / 255.0
+    hdr_txt  = RGBColor(0xFF, 0xFF, 0xFF) if acc_luma < 0.55 else RGBColor(0x1F, 0x2D, 0x3D)
+
+    # Alternating row background colors
+    even_bg = blend(pri, bg, 0.12) if dark else blend(RGBColor(0xCC, 0xCC, 0xFF), bg, 0.05)
+    odd_bg  = bg
+
+    # Compute heights, cap at slide bottom
+    HDR_H   = 0.44
+    DATA_H  = 0.40
+    avail   = SLIDE_H - y - 0.32
+    nat_h   = HDR_H * (1 if has_header else 0) + DATA_H * n_data_rows
+    total_h = min(nat_h, avail)
+    if total_h < 0.3:
+        return 0.0
+
+    scale = total_h / nat_h if nat_h > 0 else 1.0
+
+    # Create python-pptx table shape
+    tbl_shape = slide.shapes.add_table(
+        n_rows, n_cols,
+        Inches(x), Inches(y),
+        Inches(w), Inches(total_h),
+    )
+    tbl = tbl_shape.table
+
+    def _fill(cell, text: str, bold: bool, size: int,
+               fg: "RGBColor", bg_c: "RGBColor", align):
+        """Style one table cell."""
+        f = cell.fill
+        f.solid()
+        f.fore_color.rgb = bg_c
+        tf = cell.text_frame
+        tf.word_wrap = True
+        p = tf.paragraphs[0]
+        p.alignment = align
+        run = p.runs[0] if p.runs else p.add_run()
+        run.text = convert_latex(str(text)) if text else ""
+        run.font.bold  = bold
+        run.font.size  = Pt(size)
+        run.font.color.rgb = fg
+
+    # Header row
+    row_off = 0
+    if has_header:
+        for ci in range(n_cols):
+            hdr_text = headers[ci] if ci < len(headers) else ""
+            align    = PP_ALIGN.LEFT if ci == 0 else PP_ALIGN.CENTER
+            _fill(tbl.cell(0, ci), hdr_text, True, 13, hdr_txt, acc, align)
+        row_off = 1
+
+    # Data rows
+    for ri, row in enumerate(rows_data):
+        row_bg = even_bg if ri % 2 == 0 else odd_bg
+        for ci in range(n_cols):
+            cell_text = row[ci] if ci < len(row) else ""
+            align_    = PP_ALIGN.LEFT if ci == 0 else PP_ALIGN.CENTER
+            _fill(tbl.cell(row_off + ri, ci), cell_text,
+                  ci == 0, 12, txt, row_bg, align_)
+
+    return total_h
 
 
 def render_two_column(slide, page: dict, colors: dict) -> None:
