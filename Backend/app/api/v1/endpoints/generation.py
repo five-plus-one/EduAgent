@@ -218,6 +218,7 @@ def iterate_slide(
   - 若 type 为 "table"：必须同时提供 "headers"（表头列名数组）和 "rows"（数据行二维数组），content 填 []
     示例: {{"type": "table", "headers": ["属性", "公式"], "rows": [["转动惯量", "$\\frac{{1}}{{2}}mR^2$"]], "element_id": "t_1", "position": "full", "content": [], "is_accent": false}}
 - 严禁输出 Markdown 围栏、注释、额外文本
+- **严禁**在 content 数组里放 Markdown 管道表格行（即 | 列A | 列B | ... | 这种格式），表格数据必须放在 headers/rows 字段
 
 【数学公式规则 - 必须严格遵守】
 - 所有数学公式、符号、方程必须使用 LaTeX 语法，用 $ ... $ 包裹
@@ -330,13 +331,53 @@ def iterate_slide(
             if _res.get("source") == "user" and _res.get("image_id"):
                 _user_resolved_by_id[_oe.get("element_id", "")] = _res
 
+    def _parse_md_table(content_items: list):
+        """
+        尝试把 Markdown 管道表格（每行 | A | B | C |）解析为 (headers, rows)。
+        成功返回 (list[str], list[list[str]])；失败返回 (None, None)。
+        """
+        import re as _re
+        sep_re = _re.compile(r'^[\|\s:\-]+$')
+        pipe_items = [str(c).strip() for c in content_items
+                      if str(c).strip().startswith('|')]
+        if not pipe_items:
+            return None, None
+
+        def _parse_row(row_str: str):
+            return [c.strip() for c in row_str.strip().strip('|').split('|')]
+
+        headers = None
+        rows: list = []
+        for row_str in pipe_items:
+            inner = row_str.strip().strip('|')
+            if sep_re.match(inner):          # 分隔行（:---:）直接跳过
+                continue
+            cells = _parse_row(row_str)
+            cells = [c for c in cells if c]  # 去掉空格列
+            if not cells:
+                continue
+            if headers is None:
+                headers = cells
+            else:
+                rows.append(cells)
+        if not headers:
+            return None, None
+        return headers, rows
+
     def _resolve_page_images(page: dict) -> dict:
         """对单页的 elements 做图片向量检索，过滤无匹配的 image 元素。
         对用户手动替换过的图片（source=user），优先恢复原 resolved，不重新检索。
-        同时校验 table 元素必须包含合法的 headers 和 rows，否则丢弃。"""
+        同时校验 table 元素必须包含合法的 headers 和 rows：
+          - 若 AI 把表格数据放在 content（Markdown 管道格式），自动解析恢复
+          - 若 type=list/text_block 且 content 全是管道行，转换为 type=table
+          - 仍无法恢复的恶意格式才丢弃
+        """
+        import logging as _log
         filtered = []
         for elem in page.get("elements", []):
-            if elem.get("type") == "image":
+            etype = elem.get("type", "")
+
+            if etype == "image":
                 eid = elem.get("element_id", "")
                 # 1. 优先恢复用户手动替换（element_id 匹配）
                 if eid and eid in _user_resolved_by_id:
@@ -355,22 +396,48 @@ def iterate_slide(
                     elem["resolved"] = resolved
                     filtered.append(elem)
                 # 无匹配 → 丢弃
-            elif elem.get("type") == "table":
-                # 校验表格必须包含合法的 headers 和 rows
+
+            elif etype == "table":
                 headers = elem.get("headers")
                 rows    = elem.get("rows")
-                if not isinstance(headers, list) or not headers:
-                    import logging as _log
-                    _log.warning(f"[iterate] dropped table (missing headers): eid={elem.get('element_id','?')}")
+                # 情况 A：正常 table（有 headers 和 rows）
+                if isinstance(headers, list) and headers and isinstance(rows, list) and rows:
+                    elem["content"] = []
+                    filtered.append(elem)
                     continue
-                if not isinstance(rows, list) or not rows:
-                    import logging as _log
-                    _log.warning(f"[iterate] dropped table (missing rows): eid={elem.get('element_id','?')}")
-                    continue
-                elem["content"] = []  # 确保 content 是 [] 而非 null
+                # 情况 B：AI 把表格数据放进了 content（Markdown 格式）
+                content = elem.get("content") or []
+                parsed_h, parsed_r = _parse_md_table(content)
+                if parsed_h:
+                    elem["headers"] = parsed_h
+                    elem["rows"]    = parsed_r or []
+                    elem["content"] = []
+                    _log.info(f"[iterate] recovered table from content markdown: eid={elem.get('element_id','?')}")
+                    filtered.append(elem)
+                else:
+                    _log.warning(f"[iterate] dropped unrecoverable table: eid={elem.get('element_id','?')}")
+                    # 丢弃
+
+            elif etype in ("list", "text_block", "text"):
+                # 情况 C：AI 误用 list/text_block 存储 Markdown 管道表格
+                content = elem.get("content") or []
+                pipe_cnt = sum(1 for c in content if str(c).strip().startswith('|'))
+                if content and pipe_cnt >= len(content) * 0.7:  # 70%+ 是管道行
+                    parsed_h, parsed_r = _parse_md_table(content)
+                    if parsed_h:
+                        elem["type"]    = "table"
+                        elem["headers"] = parsed_h
+                        elem["rows"]    = parsed_r or []
+                        elem["content"] = []
+                        _log.info(f"[iterate] converted {etype} to table (markdown content): eid={elem.get('element_id','?')}")
+                        filtered.append(elem)
+                        continue
+                # 正常 list/text_block 直接保留
                 filtered.append(elem)
+
             else:
                 filtered.append(elem)
+
         page["elements"] = filtered
         return page
 

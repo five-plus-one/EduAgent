@@ -2386,10 +2386,20 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
 
-    # 所有 table 元素都在双列下方全宽渲染，不受 position 字段限制
-    full_table_elems = [e for e in elements if e.get("type") == "table"]
-    # 排除 table 元素后的其他元素按左右列分布
-    col_elements = [e for e in elements if e not in full_table_elems]
+    # 表格按 position 分流：
+    #   position in (full, center, "") → 全宽渲染在双列下方
+    #   position left/right            → 进入对应列，在文字卡之后渲染
+    def _tbl_pos(e):
+        return str(e.get("position", "full")).lower()
+    full_table_elems  = [e for e in elements if e.get("type") == "table"
+                         and _tbl_pos(e) in ("full", "center", "")]
+    left_table_elems  = [e for e in elements if e.get("type") == "table"
+                         and "left"  in _tbl_pos(e)]
+    right_table_elems = [e for e in elements if e.get("type") == "table"
+                         and "right" in _tbl_pos(e)]
+    all_table_elems   = full_table_elems + left_table_elems + right_table_elems
+    # 非表格元素按左右分布
+    col_elements = [e for e in elements if e not in all_table_elems]
 
     # Flexible position detection:
     #   left / left_top / left_bottom  → left column
@@ -2414,8 +2424,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     lx      = MARGIN_LEFT
     rx      = MARGIN_LEFT + half_w + 0.28
     avail_h = SLIDE_H - CONTENT_T - 0.3
-    # 若有表格，列卡只用上方 55%，与表格放置位置 (55%) 一致，避免重叠
-    avail_h_col = avail_h * 0.55 if full_table_elems else avail_h
+    # 任何表格存在时（全宽或单列），列卡高度限制到 55% 避免重叠
+    avail_h_col = avail_h * 0.55 if all_table_elems else avail_h
 
     # Only truly short numeric/symbol content gets large font
     def _is_stat(e):
@@ -2491,7 +2501,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                     cards.append({"text": text, "stat": False})
 
         if not cards:
-            return
+            return CONTENT_T  # 没有卡片，返回 content 起始 Y
 
         # Dynamic heights: natural (text-fitted), expand up to 1.5x to fill slide
         GAP = 0.07
@@ -2530,18 +2540,32 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                 add_rich_box(slide, text, col_x + 0.14, cy + 0.08,
                              half_w - 0.26, each_h - 0.16, sz, txt, acc)
             cy += each_h + GAP
+        return cy - GAP  # 返回最后一张卡的底部 Y（减去多余的 GAP）
 
+    left_bottom  = _render_col(left_elems,  lx) or CONTENT_T
+    right_bottom = _render_col(right_elems, rx) or CONTENT_T
+    cols_bottom  = max(left_bottom, right_bottom)
 
+    # ── 单列表格：在对应列文字卡之后渲染 ─────────────────────────
+    def _render_col_tables(tbl_list, col_x, col_start_y):
+        ty = col_start_y + 0.12
+        for tbl in tbl_list:
+            t_avail = SLIDE_H - ty - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl, colors,
+                                            col_x, ty, half_w - 0.05)
+            ty += consumed + 0.10
 
-    _render_col(left_elems,  lx)
-    _render_col(right_elems, rx)
+    _render_col_tables(left_table_elems,  lx, left_bottom)
+    _render_col_tables(right_table_elems, rx, right_bottom)
 
-    # ── Full-width table elements rendered below both columns ──────────────────
+    # ── Full-width table elements: start right after the columns end ───────────
     if full_table_elems:
-        # Estimate where the columns end (use full available height as conservative fallback)
-        tbl_y = CONTENT_T + avail_h * 0.55  # below the mid-point of columns
-        # Actually: prefer to start tables right after estimated column content
-        # We use a simple heuristic: reserve top 55% for columns, bottom 45% for tables
+        # 使用列实际结束位置（而不是固定 55%），消除超大空隙
+        # 但不要超过 avail_h_col 边界（prevent overlapping title chrome from above）
+        tbl_y = min(cols_bottom + 0.12, CONTENT_T + avail_h_col + 0.12)
+        tbl_y = max(tbl_y, cols_bottom + 0.12)  # 永远在列之后
         tbl_h_budget = SLIDE_H - tbl_y - 0.28
         if tbl_h_budget > 0.4:
             for tbl_elem in full_table_elems:
