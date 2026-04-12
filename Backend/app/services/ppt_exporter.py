@@ -1958,7 +1958,9 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         n_c = len(body_cards)
         text_w_est = left_w - 0.24
         nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
-        avail_c = avail_h - GAP * (n_c - 1)
+        # 如果页面有表格，body cards 只用上方 55% 高度，给表格留空间
+        body_avail_h = avail_h * 0.55 if table_elems else avail_h
+        avail_c = body_avail_h - GAP * (n_c - 1)
         total_nat_c = sum(nat_c)
         # Math-env cards: keep exact natural height (OMML won't stretch)
         # Regular cards: expand proportionally up to 1.2x
@@ -2412,6 +2414,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     lx      = MARGIN_LEFT
     rx      = MARGIN_LEFT + half_w + 0.28
     avail_h = SLIDE_H - CONTENT_T - 0.3
+    # 若有表格，列卡只用上方 55%，与表格放置位置 (55%) 一致，避免重叠
+    avail_h_col = avail_h * 0.55 if full_table_elems else avail_h
 
     # Only truly short numeric/symbol content gets large font
     def _is_stat(e):
@@ -2495,7 +2499,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
         text_w_est = half_w - 0.26
         nat = [_est_card_h(c["text"], text_w_est) if not c["stat"] else 0.60
                for c in cards]
-        avail_c = avail_h - GAP * (n - 1)
+        avail_c = avail_h_col - GAP * (n - 1)
         total_nat = sum(nat)
         if total_nat <= avail_c:
             factor = min(avail_c / max(total_nat, 0.01), 1.5)
