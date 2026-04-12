@@ -21,6 +21,22 @@ _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".flv"}
 _MAX_VIDEO_BYTES = 500 * 1024 * 1024   # 500 MB
 _MAX_DOC_BYTES   = 100 * 1024 * 1024   # 100 MB
 
+# 视频处理阶段 → 前端展示文案（由后端统一维护，避免前端硬编码）
+_VIDEO_STAGE_LABELS: dict[str, str] = {
+    "reading_metadata":      "🎬 读取视频信息...",
+    "extracting_audio":      "🔊 提取音频...",
+    "transcribing":          "🎵 语音识别中...",
+    "transcribing_done":     "✅ 语音识别完成",
+    "extracting_frames":     "🖼 提取关键帧...",
+    "extracting_frames_done":"✅ 关键帧提取完成",
+    "analyzing_frames":      "🤖 AI 分析画面...",
+    "analyzing_frames_done": "✅ 画面分析完成",
+    "summarizing":           "📋 生成摘要...",
+    "summarizing_done":      "✅ 摘要生成完成",
+    "indexing":              "📦 向量化索引中...",
+    "done":                  "✅ 处理完成",
+}
+
 
 @router.post("/documents")
 async def upload_global_document(
@@ -118,9 +134,11 @@ def list_global_documents(
         }
         # 视频专用字段
         if item["file_type"] == "video":
+            stage = getattr(d, "process_stage", None)
             item.update({
                 "duration_sec":   getattr(d, "duration_sec", None),
-                "process_stage":  getattr(d, "process_stage", None),
+                "process_stage":  stage,
+                "stage_label":    _VIDEO_STAGE_LABELS.get(stage) if stage else None,
                 "transcript_json": getattr(d, "transcript_json", None),
                 "keyframes_json":  getattr(d, "keyframes_json", None),
                 "video_summary":   getattr(d, "video_summary", None),

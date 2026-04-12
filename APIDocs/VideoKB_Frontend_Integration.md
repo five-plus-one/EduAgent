@@ -1,56 +1,28 @@
-# 视频知识库 — 前端对接文档
+# 知识库视频处理 — 前端进度轮询 API 文档
 
-> **版本**: v1.0 | **更新**: 2026-04-12  
-> **前端对应文件**: `src/utils/videoKnowledgeApi.ts`（新增，不修改任何已有文件）  
-> **后端路由前缀**: `/api/v1/knowledge-base/`
-
----
-
-## 快速开始
-
-```typescript
-import {
-  uploadKnowledgeFile,
-  getKnowledgeDocument,
-  getKeyframeUrl,
-  pollVideoProgress,
-  validateUploadFile,
-  KBVideoDocument,
-} from '../utils/videoKnowledgeApi';
-```
+> **接口前缀**：`/api/v1/knowledge-base/`  
+> **认证方式**：请求头 `Authorization: Bearer <token>`  
+> **文档版本**：v1.1 (2026-04-12)
 
 ---
 
-## 端点一览
-
-| Method | Path | 说明 |
-|--------|------|------|
-| `POST` | `/knowledge-base/documents` | 上传文档或视频 |
-| `GET`  | `/knowledge-base/documents` | 获取文档列表（含视频字段）|
-| `GET`  | `/knowledge-base/documents/{doc_id}` | 🆕 获取单个文档详情 |
-| `DELETE` | `/knowledge-base/documents/{doc_id}` | 删除文档（含视频工作目录）|
-| `GET`  | `/knowledge-base/documents/{doc_id}/keyframes/{filename}` | 🆕 获取关键帧图片 |
-| `POST` | `/knowledge-base/documents/{doc_id}/retry` | 重试失败的文档 |
-
----
-
-## 1. 上传文档/视频
+## 一、上传视频文件
 
 ### `POST /knowledge-base/documents`
 
 **请求**（`multipart/form-data`）
 
-| 字段 | 类型 | 说明 |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `file` | File | ✅ | 视频文件 |
+| `metadata_json` | string | ❌ | 自定义 JSON 元数据（如 `{}`）|
+
+**支持格式与大小限制**
+
+| 类型 | 后缀 | 上限 |
 |------|------|------|
-| `file` | File | 文件本体 |
-| `metadata_json` | string | JSON 字符串，自定义元数据（可为 `{}`）|
-
-**支持的格式**
-
-| 类别 | 后缀 | 大小上限 |
-|------|------|--------|
-| 文档 | `.pdf` `.docx` `.doc` `.pptx` `.txt` `.md` `.json` `.csv` | 100 MB |
 | 视频 | `.mp4` `.mov` `.avi` `.webm` `.mkv` `.flv` | **500 MB** |
+| 文档 | `.pdf` `.docx` `.pptx` `.txt` `.md` | 100 MB |
 
 **响应** `200`
 
@@ -62,150 +34,59 @@ import {
 }
 ```
 
-**前端调用示例**
-
-```typescript
-// 1. 先校验（可选，防止无效请求）
-const err = validateUploadFile(file);
-if (err) { alert(err); return; }
-
-// 2. 上传
-const result = await uploadKnowledgeFile(file);
-
-// 3. 视频：开始轮询进度
-if (result.file_type === 'video') {
-  const cancel = pollVideoProgress(result.document_id, (doc) => {
-    console.log(`进度: ${doc.progress}%，阶段: ${(doc as KBVideoDocument).process_stage}`);
-    if (doc.status === 'completed') {
-      setVideoDoc(doc as KBVideoDocument);
-      cancel();
-    }
-  });
-}
-```
+上传成功后，后台立即启动异步 7 阶段处理流水线。**前端拿到 `document_id` 后应开始轮询进度**。
 
 ---
 
-## 2. 获取文档列表
+## 二、轮询进度（核心接口）
 
-### `GET /knowledge-base/documents?page=1&size=20`
+### `GET /knowledge-base/documents?page=1&size=50`
 
-**响应** `200`
+建议每 **3 秒**调用一次，直到 `status` 变为 `completed` 或 `failed`。
+
+**视频文档的响应字段**
 
 ```json
 {
-  "total": 5,
+  "total": 2,
   "page": 1,
-  "size": 20,
+  "size": 50,
   "has_more": false,
   "items": [
     {
       "document_id": "doc_a1b2c3d4",
       "filename": "lecture.mp4",
-      "status": "completed",
-      "progress": 100,
       "file_type": "video",
-      "duration_sec": 754,
-      "process_stage": "done",
-      "summary": "本视频讲解了转动惯量...",
-      "transcript_json": [{"start":0.0,"end":5.2,"text":"今天我们来学习..."}],
-      "keyframes_json": [{"filename":"frame_0001.jpg","timestamp_est":0,"description":"..."}],
-      "video_summary": "**主要内容**：...\n**核心知识点**：..."
-    },
-    {
-      "document_id": "doc_e5f6g7h8",
-      "filename": "教案.pdf",
-      "status": "completed",
-      "progress": 100,
-      "file_type": "document",
-      "summary": "Total length: 8432 characters extracted."
+      "status": "processing",
+      "progress": 35,
+      "process_stage": "extracting_frames",
+      "stage_label": "🖼 提取关键帧...",
+      "duration_sec": null,
+      "transcript_json": null,
+      "keyframes_json": null,
+      "video_summary": null,
+      "summary": null,
+      "created_at": "2026-04-12T15:00:00"
     }
   ]
 }
 ```
 
-> ⚠️ **旧数据兼容**：2026-04-12 前上传的文档 `file_type` 字段可能为 `null`，前端应将 `null` 视为 `"document"`。
+### 进度字段说明
 
----
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `status` | string | `pending` / `processing` / `completed` / `failed` |
+| `progress` | integer | 0 ~ 100，当前进度百分比 |
+| `process_stage` | string \| null | 当前处理阶段的机器码（处理中有值，完成/失败后为 null）|
+| `stage_label` | string \| null | **⭐ 当前阶段的中文展示文案**，直接用于 UI 显示 |
 
-## 3. 🆕 获取单个文档详情
+> **`stage_label` 由后端统一维护**，前端直接渲染即可，无需自己维护翻译表。
 
-### `GET /knowledge-base/documents/{doc_id}`
+### 处理阶段完整映射
 
-用于获取包含完整 `transcript_json` / `keyframes_json` / `video_summary` 的详情（列表接口同样包含这些字段，单独接口方便定向查询）。
-
-**响应** `200`（视频文档示例）
-
-```json
-{
-  "document_id": "doc_a1b2c3d4",
-  "filename": "lecture.mp4",
-  "status": "completed",
-  "progress": 100,
-  "file_type": "video",
-  "duration_sec": 754,
-  "process_stage": "done",
-  "transcript_json": [
-    {"start": 0.0,  "end": 5.2,  "text": "今天我们来学习转动惯量的基本概念。"},
-    {"start": 5.2,  "end": 12.8, "text": "转动惯量描述物体对旋转运动的惯性大小。"}
-  ],
-  "keyframes_json": [
-    {
-      "filename": "frame_0001.jpg",
-      "timestamp_est": 0,
-      "description": "PPT封面，标题：《转动惯量》，板书有定义式 I=∫r²dm。"
-    },
-    {
-      "filename": "frame_0002.jpg",
-      "timestamp_est": 180,
-      "description": "黑板推导，展示均质圆盘转动惯量公式 I=½mR²。"
-    }
-  ],
-  "video_summary": "**主要内容**：本视频系统讲解了转动惯量的定义...\n**核心知识点**：\n- 转动惯量定义\n- 平行轴定理\n**重要公式**：\n- $I = \\int r^2 dm$"
-}
-```
-
----
-
-## 4. 🆕 获取关键帧图片
-
-### `GET /knowledge-base/documents/{doc_id}/keyframes/{filename}?token={jwt}`
-
-**特殊说明**：`<img>` 标签无法发送 `Authorization` header，必须通过 `?token=` 查询参数传递 JWT。
-
-**✅ 正确用法**（使用 `getKeyframeUrl` 辅助函数）
-
-```tsx
-import { getKeyframeUrl } from '../utils/videoKnowledgeApi';
-
-// 组件中直接使用
-{doc.keyframes_json?.map((kf, i) => (
-  <img
-    key={i}
-    src={getKeyframeUrl(doc.document_id, kf.filename)}
-    alt={`关键帧 ${i + 1}`}
-    style={{ width: 180, height: 100, objectFit: 'cover' }}
-  />
-))}
-```
-
-**❌ 错误用法**（缺少 token，返回 403）
-
-```tsx
-// 不要这样写！
-<img src={`${API_BASE_URL}/knowledge-base/documents/${docId}/keyframes/${filename}`} />
-```
-
-**响应**：直接返回 JPEG 图片流（`Content-Type: image/jpeg`）。
-
----
-
-## 5. 视频处理进度
-
-### 阶段 → 进度映射
-
-| `process_stage` | `progress` | 展示文案 |
-|----------------|-----------|--------|
+| `process_stage` | `progress` | `stage_label` |
+|----------------|-----------|---------------|
 | `reading_metadata` | 5% | 🎬 读取视频信息... |
 | `extracting_audio` | 10% | 🔊 提取音频... |
 | `transcribing` | 15% | 🎵 语音识别中... |
@@ -219,129 +100,148 @@ import { getKeyframeUrl } from '../utils/videoKnowledgeApi';
 | `indexing` | 90% | 📦 向量化索引中... |
 | `done` | 100% | ✅ 处理完成 |
 
-### 轮询建议
-
-- **间隔**：3 秒（语音识别阶段可能停留较久，无需缩短）
-- **停止条件**：`status === 'completed'` 或 `status === 'failed'`
-- **推荐方式**：使用 `pollVideoProgress()` 辅助函数（自动管理定时器）
-
-```typescript
-// 使用 pollVideoProgress（推荐）
-const cancel = pollVideoProgress(docId, (doc) => {
-  setDoc(doc);
-  if (doc.status === 'completed' || doc.status === 'failed') cancel();
-});
-
-// 组件卸载时务必调用
-useEffect(() => cancel, []);
-```
-
 ---
 
-## 6. 类型定义速查
+## 三、处理完成后的数据结构
 
-```typescript
-// 从 videoKnowledgeApi.ts 导入
-import type {
-  TranscriptSegment,    // {start, end, text}
-  KeyframeInfo,         // {filename, timestamp_est, description}
-  KBVideoDocument,      // 视频文档完整类型
-  KBDocumentBase,       // 通用文档类型
-  VideoProcessStage,    // 处理阶段枚举字符串
-} from '../utils/videoKnowledgeApi';
-```
+当 `status === "completed"` 时，所有视频分析字段才有值：
 
----
-
-## 7. 常见问题
-
-**Q: 上传视频后列表里没有字幕/关键帧数据？**  
-A: 正常现象。视频处理是异步的，需要 3-10 分钟。通过轮询 `status` 字段等待 `completed` 后再读取这些字段。
-
-**Q: 关键帧图片显示 403？**  
-A: 必须使用 `getKeyframeUrl()` 函数构建 URL（附带 `?token=`），直接拼接 URL 不带 token 会 403。
-
-**Q: 视频处理失败？**  
-A: 调用 `retryKnowledgeDocument(docId)` 重试，无需重新上传文件。失败原因查看 `doc.summary` 字段。
-
-**Q: `file_type` 字段为 null？**  
-A: 旧数据（2026-04-12 前上传）缺少此字段，应视为 `"document"`：
-```typescript
-const fileType = doc.file_type ?? 'document';
-```
-
----
-
-## 8. 完整集成示例
-
-```tsx
-import React, { useEffect, useState } from 'react';
-import {
-  uploadKnowledgeFile,
-  getKeyframeUrl,
-  pollVideoProgress,
-  validateUploadFile,
-  formatDuration,
-  VIDEO_STAGE_LABELS,
-  KBVideoDocument,
-  KBDocumentBase,
-} from '../utils/videoKnowledgeApi';
-
-function VideoKBDemo() {
-  const [doc, setDoc] = useState<KBDocumentBase | KBVideoDocument | null>(null);
-
-  const handleUpload = async (file: File) => {
-    // 1. 前端校验
-    const err = validateUploadFile(file);
-    if (err) { alert(err); return; }
-
-    // 2. 上传
-    const result = await uploadKnowledgeFile(file);
-    setDoc({ document_id: result.document_id, filename: file.name, status: 'processing', file_type: result.file_type });
-
-    // 3. 轮询（仅视频需要等较长时间）
-    const cancel = pollVideoProgress(result.document_id, (updated) => {
-      setDoc(updated);
-      if (updated.status === 'completed' || updated.status === 'failed') cancel();
-    });
-  };
-
-  const videoDoc = doc as KBVideoDocument;
-  return (
-    <div>
-      <input type="file" accept=".mp4,.mov,.avi,.webm,.pdf,.docx" onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} />
-
-      {doc && (
-        <div>
-          <p>{doc.filename} — {doc.status} {doc.progress}%</p>
-
-          {/* 进度阶段 */}
-          {doc.status === 'processing' && videoDoc.process_stage && (
-            <p>{VIDEO_STAGE_LABELS[videoDoc.process_stage] ?? videoDoc.process_stage}</p>
-          )}
-
-          {/* 视频处理完成后展示 */}
-          {doc.status === 'completed' && doc.file_type === 'video' && (
-            <>
-              <p>时长：{formatDuration(videoDoc.duration_sec)}</p>
-
-              <h4>AI 摘要</h4>
-              <pre>{videoDoc.video_summary}</pre>
-
-              <h4>关键帧</h4>
-              {videoDoc.keyframes_json?.map((kf, i) => (
-                <img key={i} src={getKeyframeUrl(doc.document_id, kf.filename)} alt={`帧${i+1}`} width={180} />
-              ))}
-
-              <h4>字幕</h4>
-              {videoDoc.transcript_json?.map((seg, i) => (
-                <p key={i}>[{formatDuration(Math.floor(seg.start))}] {seg.text}</p>
-              ))}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
+```json
+{
+  "document_id": "doc_a1b2c3d4",
+  "filename": "lecture.mp4",
+  "file_type": "video",
+  "status": "completed",
+  "progress": 100,
+  "process_stage": null,
+  "stage_label": null,
+  "duration_sec": 1842,
+  "summary": "本视频讲解了转动惯量...",
+  "video_summary": "**主要内容**：...\n**核心知识点**：\n- 转动惯量定义\n- 平行轴定理\n**重要公式**：\n- $I = \\int r^2 dm$",
+  "transcript_json": [
+    { "start": 0.0,  "end": 5.2,  "text": "今天我们来学习转动惯量的基本概念。" },
+    { "start": 5.2,  "end": 12.8, "text": "转动惯量描述物体对旋转运动的惯性大小。" }
+  ],
+  "keyframes_json": [
+    {
+      "filename": "frame_0001.jpg",
+      "timestamp_est": 0,
+      "description": "PPT封面，标题《转动惯量》，板书有定义式 I=∫r²dm。"
+    },
+    {
+      "filename": "frame_0005.jpg",
+      "timestamp_est": 460,
+      "description": "黑板推导均质圆盘公式 I=½mR²，并给出积分过程。"
+    }
+  ],
+  "created_at": "2026-04-12T15:00:00"
 }
 ```
+
+### 各字段含义
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `duration_sec` | integer \| null | 视频总时长（秒），读取元数据后写入 |
+| `video_summary` | string \| null | LLM 生成的结构化综合摘要（含主要内容/知识点/公式） |
+| `summary` | string \| null | 简短摘要（500字以内），用于列表卡片展示 |
+| `transcript_json` | array \| null | Whisper 字幕段列表，见下表 |
+| `keyframes_json` | array \| null | 关键帧信息列表，见下表 |
+
+**`transcript_json` 元素结构**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `start` | float | 开始时间（秒） |
+| `end` | float | 结束时间（秒） |
+| `text` | string | 该段语音文字 |
+
+**`keyframes_json` 元素结构**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `filename` | string | 帧图片文件名（如 `frame_0001.jpg`）|
+| `timestamp_est` | integer | 估算时间戳（秒） |
+| `description` | string | Vision LLM 对该帧画面的描述 |
+
+---
+
+## 四、其他接口
+
+### 删除文档
+
+```
+DELETE /knowledge-base/documents/{doc_id}
+```
+
+同时清理：向量索引 + 原始文件 + 视频工作目录（含关键帧图片）。
+
+### 重试失败的视频
+
+```
+POST /knowledge-base/documents/{doc_id}/retry
+```
+
+对 `status === "failed"` 的文档重新触发处理，无需重新上传。
+
+**响应**
+
+```json
+{ "document_id": "doc_a1b2c3d4", "status": "processing" }
+```
+
+---
+
+## 五、前端推荐实现方式
+
+### 进度条展示逻辑
+
+```javascript
+// 轮询结果中的视频文档
+const doc = items.find(d => d.document_id === targetId);
+
+if (doc.status === 'processing') {
+  // progress 直接控制进度条宽度
+  progressBar.style.width = `${doc.progress}%`;
+
+  // stage_label 直接展示，后端已翻译好
+  statusText.textContent = doc.stage_label ?? `处理中 ${doc.progress}%`;
+}
+
+if (doc.status === 'completed') {
+  // 渲染摘要、关键帧、字幕
+  showSummary(doc.video_summary);
+  showKeyframes(doc.keyframes_json);
+  showTranscript(doc.transcript_json);
+}
+
+if (doc.status === 'failed') {
+  showError('处理失败，可点击重试');
+}
+```
+
+### 轮询控制
+
+```javascript
+// 开始轮询
+const timer = setInterval(async () => {
+  const data = await fetchDocuments();   // GET /knowledge-base/documents
+  const hasProcessing = data.items.some(
+    d => d.status === 'processing' || d.status === 'pending'
+  );
+  if (!hasProcessing) clearInterval(timer);  // 全部处理完毕，停止轮询
+}, 3000);  // 每 3 秒一次
+
+// 组件卸载时务必清理
+onUnmount(() => clearInterval(timer));
+```
+
+---
+
+## 六、旧数据兼容说明
+
+| 问题 | 处理方式 |
+|------|---------|
+| `file_type` 为 `null`（2026-04-12 前上传的文档）| 视为 `"document"` |
+| 视频但 `stage_label` 为 `null` | 表示处理完成或失败，参考 `status` 字段 |
+| `progress` 为 0 且 `status` 为 `"pending"` | 任务已入队，等待工作线程拾取（正常现象）|
