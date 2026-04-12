@@ -2,14 +2,33 @@ import os
 import shutil
 import uuid
 import json
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form
-from fastapi.responses import FileResponse
+import mimetypes
+import urllib.parse
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Form, Query
+from fastapi.responses import FileResponse, RedirectResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.api import deps
 from app.models.user import User
 from app.models.document import Document
 from app.services.document_processor_task import process_global_document_task, process_video_task
 from app.services.vector_store import delete_document_vectors
+
+# 支持浏览器内联预览的格式
+_INLINE_EXTS = {
+    ".pdf",
+    ".png", ".jpg", ".jpeg", ".webp", ".gif",
+    ".mp4", ".mov", ".webm", ".mkv",
+    ".txt", ".md", ".csv",
+}
+
+class PatchDocumentRequest(BaseModel):
+    description: str = Field(..., min_length=1, max_length=500)
+
+def _safe_path(file_path: str) -> str:
+    """返回规范化绝对路径，供路径穿越检查使用。"""
+    return os.path.realpath(os.path.abspath(file_path))
 
 router = APIRouter()
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "global")
@@ -236,3 +255,112 @@ def retry_document_processing(
         background_tasks.add_task(process_global_document_task, doc_id, current_user.id)
 
     return {"document_id": doc_id, "status": "processing"}
+
+
+# ── 新增：PATCH 更新文档描述 ──────────────────────────────────────────────────
+
+@router.patch("/documents/{doc_id}")
+def patch_document(
+    doc_id: str,
+    body: PatchDocumentRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """更新文档描述（仅写 description，不影响其他 metadata 字段）。"""
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    meta = dict(doc.metadata_json or {})
+    meta["description"] = body.description
+    doc.metadata_json = meta
+    db.commit()
+    return {"document_id": doc_id, "description": body.description}
+
+
+# ── 新增：下载原始文件 ─────────────────────────────────────────────────────────
+
+@router.get("/documents/{doc_id}/download")
+def download_document(
+    doc_id: str,
+    token: Optional[str] = Query(default=None),
+    current_user: User = Depends(deps.get_current_user_or_token),
+    db: Session = Depends(deps.get_db),
+):
+    """以 attachment 模式返回原始文件，触发浏览器下载对话框。支持 ?token= 降级鉴权。"""
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    # 路径穿越防护
+    upload_root = _safe_path(UPLOAD_DIR)
+    if not _safe_path(doc.file_path).startswith(upload_root):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    encoded_name = urllib.parse.quote(doc.filename or "file", safe="")
+    return FileResponse(
+        path=doc.file_path,
+        filename=doc.filename,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+        },
+    )
+
+
+# ── 新增：在线预览文件 ─────────────────────────────────────────────────────────
+
+@router.get("/documents/{doc_id}/preview")
+def preview_document(
+    doc_id: str,
+    token: Optional[str] = Query(default=None),
+    current_user: User = Depends(deps.get_current_user_or_token),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    内联预览文件。
+    - PDF / 图片 / 视频 / 纯文本：Content-Disposition: inline，浏览器直接渲染。
+    - 视频支持 Range 请求（Starlette FileResponse 原生支持）。
+    - Office 等格式：302 重定向到 /download。
+    支持 ?token= 降级鉴权（<iframe src=...> 场景）。
+    """
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.file_path or not os.path.exists(doc.file_path):
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    # 路径穿越防护
+    upload_root = _safe_path(UPLOAD_DIR)
+    if not _safe_path(doc.file_path).startswith(upload_root):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    ext = os.path.splitext(doc.filename or "")[1].lower()
+
+    if ext not in _INLINE_EXTS:
+        # 不支持内联的格式 → 重定向到下载
+        qs = f"?token={urllib.parse.quote(token)}" if token else ""
+        return RedirectResponse(
+            url=f"/api/v1/knowledge-base/documents/{doc_id}/download{qs}",
+            status_code=302,
+        )
+
+    mime_type, _ = mimetypes.guess_type(doc.filename or "")
+    encoded_name = urllib.parse.quote(doc.filename or "file", safe="")
+    return FileResponse(
+        path=doc.file_path,
+        media_type=mime_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{encoded_name}",
+            "Accept-Ranges": "bytes",       # 允许视频 Range 请求
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
