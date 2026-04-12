@@ -461,6 +461,21 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                                     print(f"[image_resolve] matched: {query[:30]} → {resolved.get('image_id','')}")
                                                 else:
                                                     print(f"[image_resolve] no match, dropped: {query[:30]}")
+
+                                            elif elem.get("type") == "table":
+                                                # 校验表格必须包含 headers 和 rows
+                                                headers = elem.get("headers")
+                                                rows    = elem.get("rows")
+                                                if not isinstance(headers, list) or not headers:
+                                                    print(f"[table_validate] dropped (missing headers): eid={elem.get('element_id','?')}")
+                                                    continue
+                                                if not isinstance(rows, list) or not rows:
+                                                    print(f"[table_validate] dropped (missing rows): eid={elem.get('element_id','?')}")
+                                                    continue
+                                                # 确保 content 是 [] 而非 null
+                                                elem["content"] = []
+                                                filtered_elements.append(elem)
+
                                             else:
                                                 filtered_elements.append(elem)
                                         obj["elements"] = filtered_elements  # 始终赋值，确保 ppt_data 干净

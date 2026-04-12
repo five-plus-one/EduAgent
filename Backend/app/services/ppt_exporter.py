@@ -1657,8 +1657,91 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
 
         # Fallback: plain rich text (bullet prefix + content)
         _add_rich_para(tf, full_text, safe, color, accent, first=(i == 0))
+# ──────────────────────────────────────────────
+# Background decoration layer (rendered before content)
+# ──────────────────────────────────────────────
 
+def draw_bg_decor(slide, page: dict, colors: dict) -> None:
+    """
+    Add decorative background shapes before any content is rendered.
+    Shapes use pre-blended colors (no real alpha) to simulate depth/gradient.
+    Shapes at slide edges "bleed off" for a modern, premium feel.
 
+    Call order in run_export_task:
+      1. bg_fill.solid()          ← solid base color
+      2. draw_bg_decor()          ← this function (decorative layer)
+      3. renderer(slide, page)    ← content (cards, text, images on top)
+    """
+    from pptx.util import Inches
+    bg        = colors["bg"]
+    pri       = colors["pri"]
+    acc       = colors["acc"]
+    sec       = colors["sec"]
+    dark      = _is_dark(colors)
+    layout    = page.get("layout_type", "minimal_list")
+    page_idx  = page.get("page_index", 1)
+
+    def _oval(ix, iy, iw, ih, mix_c, ratio):
+        """Oval at inches coords, color = blend(mix_c, bg, ratio)."""
+        c  = blend(mix_c, bg, ratio)
+        sp = slide.shapes.add_shape(9, Inches(ix), Inches(iy), Inches(iw), Inches(ih))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = c
+        sp.line.fill.background()
+
+    def _rect(ix, iy, iw, ih, mix_c, ratio):
+        """Rectangle at inches coords, color = blend(mix_c, bg, ratio)."""
+        c  = blend(mix_c, bg, ratio)
+        sp = slide.shapes.add_shape(1, Inches(ix), Inches(iy), Inches(iw), Inches(ih))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = c
+        sp.line.fill.background()
+
+    # ── Layer A: large top-left accent circle (partially off-edge) ────────────
+    # Accent-tinted, creates a colour vignette in the top-left corner.
+    _oval(-1.2, -1.2, 3.6, 3.6, acc, 0.24)
+
+    # ── Layer B: bottom-right primary glow (partially off-edge) ───────────────
+    _oval(SLIDE_W - 2.0, SLIDE_H - 2.0, 3.8, 3.8, pri, 0.20)
+
+    # ── Layer C: diagonal mid-zone rectangle (very faint — simulates gradient) ─
+    mid_mix   = pri if dark else RGBColor(0xFF, 0xFF, 0xFF)
+    mid_ratio = 0.10 if dark else 0.22
+    _rect(SLIDE_W * 0.40, SLIDE_H * 0.42,
+          SLIDE_W * 0.65, SLIDE_H * 0.62,
+          mid_mix, mid_ratio)
+
+    # ── Layer D: layout-specific accent ───────────────────────────────────────
+    if layout == "cover":
+        # Large right-side circle: balances the text-heavy left side
+        _oval(SLIDE_W - 1.8, 0.5, 4.2, 4.2, acc, 0.20)
+        _oval(SLIDE_W - 0.5, SLIDE_H - 1.4, 2.2, 2.2, sec, 0.22)
+
+    elif layout == "stat_callout":
+        # Centered halo ring: makes stats appear to float on a glowing plane
+        _oval(SLIDE_W / 2 - 2.4, CONTENT_T + 0.05, 4.8, 4.8, acc, 0.13)
+        _oval(SLIDE_W / 2 - 1.4, CONTENT_T + 0.95, 2.8, 2.8, acc, 0.09)
+
+    elif layout == "two_column":
+        # Soft vertical divider glow exactly between columns
+        mid_x = MARGIN_LEFT + (CONTENT_W - 0.28) / 2
+        _oval(mid_x - 0.65, CONTENT_T - 0.1, 1.3, SLIDE_H - CONTENT_T - 0.1,
+              acc, 0.10)
+
+    elif layout == "timeline":
+        # Horizontal mid-band (the "river" for the timeline events to flow through)
+        _rect(0, SLIDE_H * 0.42, SLIDE_W, SLIDE_H * 0.14, pri, 0.09)
+        # Left-edge vertical strip
+        _rect(0, CONTENT_T, 0.12, SLIDE_H - CONTENT_T, acc, 0.30)
+
+    elif layout in ("minimal_list", "standard"):
+        # Top-right corner dot (parity-alternating: accent vs secondary)
+        dot_mix = acc if page_idx % 2 == 0 else sec
+        _oval(SLIDE_W - 0.8, 0.06, 1.6, 1.6, dot_mix, 0.22)
+
+    # ── Layer E: even-page secondary accent (bottom-left) ─────────────────────
+    if page_idx % 2 == 0 and layout != "cover":
+        _oval(0.05, SLIDE_H - 1.2, 1.8, 1.8, sec, 0.20)
 
 
 # ──────────────────────────────────────────────
@@ -1875,7 +1958,9 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
         n_c = len(body_cards)
         text_w_est = left_w - 0.24
         nat_c = [_est_card_h(ct, text_w_est) for ct in body_cards]
-        avail_c = avail_h - GAP * (n_c - 1)
+        # 如果页面有表格，body cards 只用上方 55% 高度，给表格留空间
+        body_avail_h = avail_h * 0.55 if table_elems else avail_h
+        avail_c = body_avail_h - GAP * (n_c - 1)
         total_nat_c = sum(nat_c)
         # Math-env cards: keep exact natural height (OMML won't stretch)
         # Regular cards: expand proportionally up to 1.2x
@@ -1936,10 +2021,13 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     # ── Table elements (full-width, renders after body cards) ────────────────────
     if table_elems:
         t_y = content_end_y + (0.08 if body_cards else 0)
-        t_avail = SLIDE_H - t_y - 0.32
-        if t_avail > 0.4:
-            render_table_element(slide, table_elems[0], colors,
-                                 MARGIN_LEFT, t_y, CONTENT_W)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break  # 剩余高度不足，放弃后续表格
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
 
 
 def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
@@ -2298,11 +2386,20 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
 
-    # Table elements with position="full" are rendered at full width after columns
-    full_table_elems = [e for e in elements if e.get("type") == "table"
-                        and str(e.get("position", "")).lower() in ("full", "center", "")]
-    # Non-table elements (or table elements explicitly assigned left/right)
-    col_elements = [e for e in elements if e not in full_table_elems]
+    # 表格按 position 分流：
+    #   position in (full, center, "") → 全宽渲染在双列下方
+    #   position left/right            → 进入对应列，在文字卡之后渲染
+    def _tbl_pos(e):
+        return str(e.get("position", "full")).lower()
+    full_table_elems  = [e for e in elements if e.get("type") == "table"
+                         and _tbl_pos(e) in ("full", "center", "")]
+    left_table_elems  = [e for e in elements if e.get("type") == "table"
+                         and "left"  in _tbl_pos(e)]
+    right_table_elems = [e for e in elements if e.get("type") == "table"
+                         and "right" in _tbl_pos(e)]
+    all_table_elems   = full_table_elems + left_table_elems + right_table_elems
+    # 非表格元素按左右分布
+    col_elements = [e for e in elements if e not in all_table_elems]
 
     # Flexible position detection:
     #   left / left_top / left_bottom  → left column
@@ -2327,6 +2424,8 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     lx      = MARGIN_LEFT
     rx      = MARGIN_LEFT + half_w + 0.28
     avail_h = SLIDE_H - CONTENT_T - 0.3
+    # 任何表格存在时（全宽或单列），列卡高度限制到 55% 避免重叠
+    avail_h_col = avail_h * 0.55 if all_table_elems else avail_h
 
     # Only truly short numeric/symbol content gets large font
     def _is_stat(e):
@@ -2402,7 +2501,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                     cards.append({"text": text, "stat": False})
 
         if not cards:
-            return
+            return CONTENT_T  # 没有卡片，返回 content 起始 Y
 
         # Dynamic heights: natural (text-fitted), expand up to 1.5x to fill slide
         GAP = 0.07
@@ -2410,7 +2509,7 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
         text_w_est = half_w - 0.26
         nat = [_est_card_h(c["text"], text_w_est) if not c["stat"] else 0.60
                for c in cards]
-        avail_c = avail_h - GAP * (n - 1)
+        avail_c = avail_h_col - GAP * (n - 1)
         total_nat = sum(nat)
         if total_nat <= avail_c:
             factor = min(avail_c / max(total_nat, 0.01), 1.5)
@@ -2441,18 +2540,32 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
                 add_rich_box(slide, text, col_x + 0.14, cy + 0.08,
                              half_w - 0.26, each_h - 0.16, sz, txt, acc)
             cy += each_h + GAP
+        return cy - GAP  # 返回最后一张卡的底部 Y（减去多余的 GAP）
 
+    left_bottom  = _render_col(left_elems,  lx) or CONTENT_T
+    right_bottom = _render_col(right_elems, rx) or CONTENT_T
+    cols_bottom  = max(left_bottom, right_bottom)
 
+    # ── 单列表格：在对应列文字卡之后渲染 ─────────────────────────
+    def _render_col_tables(tbl_list, col_x, col_start_y):
+        ty = col_start_y + 0.12
+        for tbl in tbl_list:
+            t_avail = SLIDE_H - ty - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl, colors,
+                                            col_x, ty, half_w - 0.05)
+            ty += consumed + 0.10
 
-    _render_col(left_elems,  lx)
-    _render_col(right_elems, rx)
+    _render_col_tables(left_table_elems,  lx, left_bottom)
+    _render_col_tables(right_table_elems, rx, right_bottom)
 
-    # ── Full-width table elements rendered below both columns ──────────────────
+    # ── Full-width table elements: start right after the columns end ───────────
     if full_table_elems:
-        # Estimate where the columns end (use full available height as conservative fallback)
-        tbl_y = CONTENT_T + avail_h * 0.55  # below the mid-point of columns
-        # Actually: prefer to start tables right after estimated column content
-        # We use a simple heuristic: reserve top 55% for columns, bottom 45% for tables
+        # 使用列实际结束位置（而不是固定 55%），消除超大空隙
+        # 但不要超过 avail_h_col 边界（prevent overlapping title chrome from above）
+        tbl_y = min(cols_bottom + 0.12, CONTENT_T + avail_h_col + 0.12)
+        tbl_y = max(tbl_y, cols_bottom + 0.12)  # 永远在列之后
         tbl_h_budget = SLIDE_H - tbl_y - 0.28
         if tbl_h_budget > 0.4:
             for tbl_elem in full_table_elems:
@@ -2475,8 +2588,11 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    big   = [e for e in elements if e.get("is_accent") or e.get("type") in ("huge_number", "stat")]
-    other = [e for e in elements if e not in big]
+    # 表格单独处理，not 放进 big/other，避免 get_content_list 读到空 content
+    table_elems = [e for e in elements if e.get("type") == "table"]
+    big   = [e for e in elements if (e.get("is_accent") or e.get("type") in ("huge_number", "stat"))
+             and e not in table_elems]
+    other = [e for e in elements if e not in big and e not in table_elems]
 
     n_big   = max(len(big), 1)
     # ── 横排全部 big elements ──────────────────────────────────────────
@@ -2515,12 +2631,23 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     big_row_h = sz + 0.62
     sup_y     = big_top + big_row_h
     if other:
-        each_h = (SLIDE_H - sup_y - 0.35) / len(other)
+        each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
         for elem in other:
             items = get_content_list(elem)
             add_rich_box(slide, " ".join(items), MARGIN_LEFT, sup_y,
                          CONTENT_W, each_h - 0.05, 17, txt, acc, align=PP_ALIGN.CENTER)
             sup_y += each_h
+
+    # ── 表格元素全宽渲染（在 other 下方）──────────────────────────
+    if table_elems:
+        t_y = sup_y + (0.08 if other else 0)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
 
 
 def render_timeline(slide, page: dict, colors: dict) -> None:
@@ -2538,11 +2665,18 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     if not elements:
         return
 
+    # 表格元素单独渲染，不进入时间轴循环
+    table_elems    = [e for e in elements if e.get("type") == "table"]
+    timeline_elems = [e for e in elements if e not in table_elems]
+
     # ── Layout geometry ──────────────────────────────────────────
+    # 若有表格，时间轴只占上方 55%，给表格留空间
+    timeline_avail = (SLIDE_H * 0.55) if table_elems else (SLIDE_H - CONTENT_T - 0.45)
     spine_x  = MARGIN_LEFT + 2.1       # spine vertical line
     spine_t  = CONTENT_T + 0.1
-    avail_h  = SLIDE_H - spine_t - 0.45
-    each_h   = avail_h / max(len(elements), 1)
+    avail_h  = min(timeline_avail - spine_t, SLIDE_H - spine_t - 0.45)
+    n_tl     = max(len(timeline_elems), 1)
+    each_h   = avail_h / n_tl
 
     card_x   = spine_x + 0.38          # gap between spine and card
     card_w   = SLIDE_W - card_x - MARGIN_RIGHT - 0.10
@@ -2556,7 +2690,7 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     card_bg     = _card_bg(bg, acc, dark)
     card_border = _card_border(bg, dark)
 
-    for i, elem in enumerate(elements):
+    for i, elem in enumerate(timeline_elems):
         row_y   = spine_t + i * each_h
         dot_cy  = row_y + each_h * 0.50   # dot centred in its row
 
@@ -2601,6 +2735,17 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
                      card_w - 0.28, card_h - 0.14,
                      sz, txt, acc)
 
+    # ── 表格元素全宽渲染（在时间轴下方）──────────────────────────────
+    if table_elems:
+        t_y = spine_t + avail_h + 0.10
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
+
 
 def render_default(slide, page: dict, colors: dict) -> None:
     from pptx.enum.text import PP_ALIGN
@@ -2615,10 +2760,11 @@ def render_default(slide, page: dict, colors: dict) -> None:
     elements = page.get("elements", [])
     avail_h = SLIDE_H - CONTENT_T - 0.35
 
-    # ── 图片元素单独渲染，不进入文字卡循环 ────────────────────────────────────
-    img_elems  = [e for e in elements if e.get("type") == "image"]
-    text_elems = [e for e in elements if e.get("type") != "image"]
-    has_img    = bool(img_elems)
+    # ── 图片和表格分别单独渲染，不进入文字卡循环 ────────────────────────────────────
+    img_elems   = [e for e in elements if e.get("type") == "image"]
+    table_elems = [e for e in elements if e.get("type") == "table"]
+    text_elems  = [e for e in elements if e.get("type") not in ("image", "table")]
+    has_img     = bool(img_elems)
 
     # 图片放右列（40% 宽），文字占左 58%（有图时）
     img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
@@ -2628,13 +2774,18 @@ def render_default(slide, page: dict, colors: dict) -> None:
     for _img_elem in img_elems:
         _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
 
-    each_h = avail_h / max(len(text_elems), 1)
+    # ── 文字卡 ──────────────────────────────────────────────────────────────────────
+    # 若有表格，文字卡只占上半部分避免与表格重叠
+    txt_avail_h = (avail_h * 0.50) if table_elems else avail_h
+    each_h = txt_avail_h / max(len(text_elems), 1)
 
+    content_end_y = CONTENT_T
     for i, elem in enumerate(text_elems):
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
         is_acc = elem.get("is_accent", False) or etype in ("huge_number", "stat")
         cy = CONTENT_T + i * each_h
+        content_end_y = cy + each_h
 
         if is_acc and items and len(str(items[0])) <= 10:
             add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, txt_col_w,
@@ -2646,6 +2797,17 @@ def render_default(slide, page: dict, colors: dict) -> None:
             sz = calc_safe_pt(each_h, max(len(items), 1), 15, 10, 18)
             add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, sz, txt, acc)
+
+    # ── 表格元素全宽渲染（在文字卡下方）────────────────────────────────────────
+    if table_elems:
+        t_y = content_end_y + (0.08 if text_elems else 0)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            x=MARGIN_LEFT, y=t_y, w=CONTENT_W)
+            t_y += consumed + 0.10
 
 
 # ──────────────────────────────────────────────
@@ -2659,6 +2821,8 @@ LAYOUT_RENDERERS = {
     "stat_callout": render_stat_callout,
     "timeline":     render_timeline,
     "minimal_list": render_minimal_list,
+    "standard":     render_minimal_list,   # alias → 与前端 LAYOUT_ALIAS 保持一致
+    "full_content": render_default,        # 全内容布局 → 使用 render_default（已支持表格）
     "image_focus":  render_default,
 }
 
@@ -2724,6 +2888,9 @@ def run_export_task(task_id: str, session_id: str):
                 bg_fill = slide.background.fill
                 bg_fill.solid()
                 bg_fill.fore_color.rgb = colors["bg"]
+
+                # 背景装饰层（几何渐变效果），在内容渲染前绘制
+                draw_bg_decor(slide, page, colors)
 
                 layout_type = page.get("layout_type", "minimal_list")
                 renderer = LAYOUT_RENDERERS.get(layout_type, render_default)
