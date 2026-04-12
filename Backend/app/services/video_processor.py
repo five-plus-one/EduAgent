@@ -104,47 +104,65 @@ def extract_audio(video_path: str, output_path: str) -> bool:
 
 # ── 3. Whisper 语音转文字 ─────────────────────────────────────────────────
 
-_WHISPER_MAX_BYTES = 24 * 1024 * 1024   # 24MB (留 1MB 余量)
-_CHUNK_DURATION_MS = 20 * 60 * 1000     # 20 分钟
+_WHISPER_MAX_BYTES   = 24 * 1024 * 1024   # 24MB（留 1MB 余量，对应 Whisper 25MB 限制）
+_CHUNK_DURATION_SEC  = 20 * 60             # 20 分钟一块
+
+
+def _split_audio_ffmpeg(audio_path: str, chunk_sec: int = _CHUNK_DURATION_SEC) -> list[tuple[str, float]]:
+    """
+    用 ffmpeg -f segment 将音频切成多段（无需 ffprobe）。
+    返回 [(chunk_path, offset_sec), ...]，失败时返回 [(audio_path, 0.0)]。
+    """
+    ffmpeg = _get_ffmpeg()
+    base   = os.path.splitext(audio_path)[0]
+    pattern = f"{base}_chunk%03d.mp3"
+
+    result = subprocess.run(
+        [ffmpeg, "-i", audio_path,
+         "-f", "segment", "-segment_time", str(chunk_sec),
+         "-c", "copy", "-y", pattern],
+        stderr=subprocess.PIPE, stdout=subprocess.PIPE,
+    )
+    if result.returncode != 0:
+        log.warning(f"[video] ffmpeg segment failed: {result.stderr.decode(errors='replace')[-300:]}")
+        return [(audio_path, 0.0)]
+
+    chunks: list[tuple[str, float]] = []
+    i = 0
+    while True:
+        chunk_path = f"{base}_chunk{i:03d}.mp3"
+        if not os.path.exists(chunk_path):
+            break
+        chunks.append((chunk_path, float(i * chunk_sec)))
+        i += 1
+
+    return chunks if chunks else [(audio_path, 0.0)]
 
 
 def transcribe_whisper(audio_path: str, language: str = "zh") -> list[dict]:
     """
-    使用 OpenAI Whisper API 将音频转写为字幕段列表。
-    自动处理超 25MB 音频（按 20 分钟分块）。
+    使用 Whisper API 将音频转写为字幕段列表。
+    自动处理超 25MB 音频：用 ffmpeg 原生分段（不依赖 ffprobe / pydub）。
     返回 [{start: float, end: float, text: str}, ...]。
     """
     file_size = os.path.getsize(audio_path)
     segments: list[dict] = []
 
     if file_size <= _WHISPER_MAX_BYTES:
+        # 小文件：直接发给 Whisper API
         _whisper_chunk(audio_path, segments, language, offset_sec=0.0)
     else:
-        # 使用 pydub 分块
-        try:
-            from pydub import AudioSegment  # type: ignore
-        except ImportError:
-            log.error("[video] pydub not installed; cannot split large audio for Whisper")
-            _whisper_chunk(audio_path, segments, language, offset_sec=0.0)
-            return segments
-
-        # 告知 pydub 使用 imageio-ffmpeg 的 ffmpeg 二进制
-        try:
-            import imageio_ffmpeg  # type: ignore
-            AudioSegment.converter = imageio_ffmpeg.get_ffmpeg_exe()
-        except Exception:
-            pass
-
-        audio = AudioSegment.from_file(audio_path)
-        for i, start_ms in enumerate(range(0, len(audio), _CHUNK_DURATION_MS)):
-            chunk = audio[start_ms: start_ms + _CHUNK_DURATION_MS]
-            chunk_path = audio_path.replace(".mp3", f"_chunk{i}.mp3")
-            chunk.export(chunk_path, format="mp3")
-            _whisper_chunk(chunk_path, segments, language, offset_sec=start_ms / 1000.0)
-            try:
-                os.unlink(chunk_path)
-            except OSError:
-                pass
+        # 大文件：先用 ffmpeg 切块，再逐块转写
+        log.info(f"[video] Audio {file_size/1024/1024:.1f} MB > 24 MB, splitting with ffmpeg...")
+        chunks = _split_audio_ffmpeg(audio_path)
+        for chunk_path, offset_sec in chunks:
+            _whisper_chunk(chunk_path, segments, language, offset_sec=offset_sec)
+            # 清理临时块（原文件本身不要删）
+            if chunk_path != audio_path:
+                try:
+                    os.unlink(chunk_path)
+                except OSError:
+                    pass
 
     return segments
 

@@ -217,13 +217,19 @@ def retry_document_processing(
     if not doc.file_path or not os.path.exists(doc.file_path):
         raise HTTPException(status_code=400, detail="原始文件不存在，请重新上传")
 
+    # 视频重试：清理上次失败产生的临时工作目录（audio、关键帧等）
+    file_type = getattr(doc, "file_type", "document") or "document"
+    if file_type == "video":
+        vid_dir = os.path.join(os.path.dirname(doc.file_path), f"vid_{doc_id}")
+        if os.path.exists(vid_dir):
+            shutil.rmtree(vid_dir, ignore_errors=True)
+
     doc.status = "pending"
     doc.progress = 0
     doc.summary = None
     doc.process_stage = None
     db.commit()
 
-    file_type = getattr(doc, "file_type", "document") or "document"
     if file_type == "video":
         background_tasks.add_task(process_video_task, doc_id, current_user.id)
     else:
