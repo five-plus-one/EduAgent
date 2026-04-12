@@ -97,10 +97,37 @@ export function useCourseware(sessionId: string) {
           // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
           const uniquePagesMap = new Map();
           pptData.forEach(p => uniquePagesMap.set(p.page_index, p));
-          const uniquePages = Array.from(uniquePagesMap.values());
+          let uniquePages = Array.from(uniquePagesMap.values());
+
+          // ⚠️ 保险合并：防止后端 Pydantic schema 将表格的 headers/rows 静默丢弃
+          // 如果新数据里某 table element 的 headers/rows 为空，且当前 state 里有值，则保留
           // ⚠ Skip update if a manual iteratePage is in-flight (avoid stale-overwrite race)
           if (!isIteratingRef.current) {
-            setPages(uniquePages);
+            setPages(prevPages => {
+              const prevPageMap = new Map(prevPages.map(p => [p.page_index, p]));
+              return uniquePages.map(newPage => {
+                const prevPage = prevPageMap.get(newPage.page_index);
+                if (!prevPage || !Array.isArray(newPage.elements)) return newPage;
+                return {
+                  ...newPage,
+                  elements: newPage.elements.map((newEl: any) => {
+                    if (newEl.type !== 'table') return newEl;
+                    const prevEl = prevPage.elements?.find((e: any) => e.element_id === newEl.element_id);
+                    if (!prevEl) return newEl;
+                    // 若后端返回 headers/rows 为空但本地有值，则保留本地数据
+                    return {
+                      ...newEl,
+                      headers: (Array.isArray(newEl.headers) && newEl.headers.length > 0)
+                        ? newEl.headers
+                        : (Array.isArray((prevEl as any).headers) ? (prevEl as any).headers : newEl.headers),
+                      rows: (Array.isArray(newEl.rows) && newEl.rows.length > 0)
+                        ? newEl.rows
+                        : (Array.isArray((prevEl as any).rows) ? (prevEl as any).rows : newEl.rows),
+                    };
+                  }),
+                };
+              });
+            });
           }
         }
         if (resp.word_markdown) setWordDoc(resp.word_markdown);
