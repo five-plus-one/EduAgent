@@ -169,7 +169,11 @@ def transcribe_whisper(audio_path: str, language: str = "zh") -> list[dict]:
 
 def _whisper_chunk(audio_path: str, out: list, language: str, offset_sec: float):
     """对单个音频块调用 Whisper API，将 segments 追加到 out。"""
-    url = f"{settings.OPENAI_API_BASE.rstrip('/')}/audio/transcriptions"
+    model = settings.WHISPER_MODEL
+    if not model:
+        log.info("[video] WHISPER_MODEL 为空，跳过语音识别")
+        return
+    url   = f"{settings.OPENAI_API_BASE.rstrip('/')}/audio/transcriptions"
     try:
         with open(audio_path, "rb") as f:
             resp = requests.post(
@@ -177,7 +181,7 @@ def _whisper_chunk(audio_path: str, out: list, language: str, offset_sec: float)
                 headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},
                 files={"file": (os.path.basename(audio_path), f, "audio/mpeg")},
                 data={
-                    "model": "whisper-1",
+                    "model": model,
                     "language": language,
                     "response_format": "verbose_json",
                     "timestamp_granularities[]": "segment",
@@ -185,7 +189,7 @@ def _whisper_chunk(audio_path: str, out: list, language: str, offset_sec: float)
                 timeout=120,
             )
         if resp.status_code != 200:
-            log.warning(f"[video] Whisper API error {resp.status_code}: {resp.text[:300]}")
+            log.warning(f"[video] Whisper API error (model={model}) {resp.status_code}: {resp.text[:300]}")
             return
         data = resp.json()
         for seg in data.get("segments", []):
@@ -195,7 +199,7 @@ def _whisper_chunk(audio_path: str, out: list, language: str, offset_sec: float)
                 "text":  seg["text"].strip(),
             })
     except Exception as e:
-        log.warning(f"[video] Whisper transcription failed: {e}")
+        log.warning(f"[video] Whisper transcription failed (model={model}): {e}")
 
 
 # ── 4. 关键帧提取 ─────────────────────────────────────────────────────────
@@ -268,7 +272,7 @@ def analyze_frames(frames: list[dict], transcript_segments: list[dict],
     用 Vision LLM（mimo-v2-omni）分析每帧截图。
     为每帧附加 description 字段。
     """
-    model = vision_model or settings.LLM_MODEL
+    model = vision_model or settings.VISION_MODEL   # 默认用 VISION_MODEL（mimo-v2-omni）
     url   = f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions"
 
     for frame in frames:
