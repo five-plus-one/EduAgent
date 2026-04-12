@@ -672,6 +672,12 @@ def replace_slide_image(
     flag_modified(cw, "ppt_data")
     db.commit()
 
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        f"[replace_slide_image] session={session_id} page={page_index} "
+        f"element={element_id} -> image_id={body.image_id} committed OK"
+    )
+
     return {
         "element_id": element_id,
         "page_index": page_index,
@@ -745,10 +751,13 @@ def save_manual_slide_edit(
 
     if body.elements is not None:
         # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
+        # NOTE: resolved 只能通过 PATCH /elements/{id}/image 修改。
+        #       前端 fromEditable() 会把 _raw.resolved（可能是旧值）一并 spread 进来，
+        #       所以这里必须始终用 DB 当前的 resolved 覆盖前端发来的值，而不是仅在"not in elem"时才回填。
         old_resolved: dict = {
             e["element_id"]: e.get("resolved")
             for e in slide.get("elements", [])
-            if e.get("type") == "image" and e.get("resolved")
+            if e.get("type") == "image"
         }
         new_elements = []
         for elem in body.elements:
@@ -757,13 +766,16 @@ def save_manual_slide_edit(
             if not elem.get("element_id"):
                 import uuid as _uuid
                 elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
-            # 图片元素：若前端未传 resolved，从旧数据回填
-            if elem.get("type") == "image" and "resolved" not in elem:
-                old_res = old_resolved.get(elem["element_id"])
-                if old_res:
-                    elem["resolved"] = old_res
+            # 图片元素：resolved 字段始终以 DB 当前值为准（忽略前端发来的 resolved）
+            if elem.get("type") == "image":
+                db_res = old_resolved.get(elem["element_id"])
+                if db_res:
+                    elem["resolved"] = db_res          # 用 DB 中已替换的图片信息
+                elif "resolved" in elem:
+                    del elem["resolved"]               # 移除前端带来的过时 resolved
             new_elements.append(elem)
         slide["elements"] = new_elements
+
 
     if body.speaker_notes is not None:
         slide["speaker_notes"] = body.speaker_notes
