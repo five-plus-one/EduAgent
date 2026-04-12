@@ -332,7 +332,8 @@ def iterate_slide(
 
     def _resolve_page_images(page: dict) -> dict:
         """对单页的 elements 做图片向量检索，过滤无匹配的 image 元素。
-        对用户手动替换过的图片（source=user），优先恢复原 resolved，不重新检索。"""
+        对用户手动替换过的图片（source=user），优先恢复原 resolved，不重新检索。
+        同时校验 table 元素必须包含合法的 headers 和 rows，否则丢弃。"""
         filtered = []
         for elem in page.get("elements", []):
             if elem.get("type") == "image":
@@ -354,6 +355,20 @@ def iterate_slide(
                     elem["resolved"] = resolved
                     filtered.append(elem)
                 # 无匹配 → 丢弃
+            elif elem.get("type") == "table":
+                # 校验表格必须包含合法的 headers 和 rows
+                headers = elem.get("headers")
+                rows    = elem.get("rows")
+                if not isinstance(headers, list) or not headers:
+                    import logging as _log
+                    _log.warning(f"[iterate] dropped table (missing headers): eid={elem.get('element_id','?')}")
+                    continue
+                if not isinstance(rows, list) or not rows:
+                    import logging as _log
+                    _log.warning(f"[iterate] dropped table (missing rows): eid={elem.get('element_id','?')}")
+                    continue
+                elem["content"] = []  # 确保 content 是 [] 而非 null
+                filtered.append(elem)
             else:
                 filtered.append(elem)
         page["elements"] = filtered

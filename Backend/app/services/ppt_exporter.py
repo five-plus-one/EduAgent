@@ -2384,10 +2384,9 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
 
-    # Table elements with position="full" are rendered at full width after columns
-    full_table_elems = [e for e in elements if e.get("type") == "table"
-                        and str(e.get("position", "")).lower() in ("full", "center", "")]
-    # Non-table elements (or table elements explicitly assigned left/right)
+    # 所有 table 元素都在双列下方全宽渲染，不受 position 字段限制
+    full_table_elems = [e for e in elements if e.get("type") == "table"]
+    # 排除 table 元素后的其他元素按左右列分布
     col_elements = [e for e in elements if e not in full_table_elems]
 
     # Flexible position detection:
@@ -2561,8 +2560,11 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    big   = [e for e in elements if e.get("is_accent") or e.get("type") in ("huge_number", "stat")]
-    other = [e for e in elements if e not in big]
+    # 表格单独处理，not 放进 big/other，避免 get_content_list 读到空 content
+    table_elems = [e for e in elements if e.get("type") == "table"]
+    big   = [e for e in elements if (e.get("is_accent") or e.get("type") in ("huge_number", "stat"))
+             and e not in table_elems]
+    other = [e for e in elements if e not in big and e not in table_elems]
 
     n_big   = max(len(big), 1)
     # ── 横排全部 big elements ──────────────────────────────────────────
@@ -2601,12 +2603,23 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     big_row_h = sz + 0.62
     sup_y     = big_top + big_row_h
     if other:
-        each_h = (SLIDE_H - sup_y - 0.35) / len(other)
+        each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
         for elem in other:
             items = get_content_list(elem)
             add_rich_box(slide, " ".join(items), MARGIN_LEFT, sup_y,
                          CONTENT_W, each_h - 0.05, 17, txt, acc, align=PP_ALIGN.CENTER)
             sup_y += each_h
+
+    # ── 表格元素全宽渲染（在 other 下方）──────────────────────────
+    if table_elems:
+        t_y = sup_y + (0.08 if other else 0)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
 
 
 def render_timeline(slide, page: dict, colors: dict) -> None:
@@ -2624,11 +2637,18 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     if not elements:
         return
 
+    # 表格元素单独渲染，不进入时间轴循环
+    table_elems    = [e for e in elements if e.get("type") == "table"]
+    timeline_elems = [e for e in elements if e not in table_elems]
+
     # ── Layout geometry ──────────────────────────────────────────
+    # 若有表格，时间轴只占上方 55%，给表格留空间
+    timeline_avail = (SLIDE_H * 0.55) if table_elems else (SLIDE_H - CONTENT_T - 0.45)
     spine_x  = MARGIN_LEFT + 2.1       # spine vertical line
     spine_t  = CONTENT_T + 0.1
-    avail_h  = SLIDE_H - spine_t - 0.45
-    each_h   = avail_h / max(len(elements), 1)
+    avail_h  = min(timeline_avail - spine_t, SLIDE_H - spine_t - 0.45)
+    n_tl     = max(len(timeline_elems), 1)
+    each_h   = avail_h / n_tl
 
     card_x   = spine_x + 0.38          # gap between spine and card
     card_w   = SLIDE_W - card_x - MARGIN_RIGHT - 0.10
@@ -2642,7 +2662,7 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
     card_bg     = _card_bg(bg, acc, dark)
     card_border = _card_border(bg, dark)
 
-    for i, elem in enumerate(elements):
+    for i, elem in enumerate(timeline_elems):
         row_y   = spine_t + i * each_h
         dot_cy  = row_y + each_h * 0.50   # dot centred in its row
 
@@ -2686,6 +2706,17 @@ def render_timeline(slide, page: dict, colors: dict) -> None:
                      card_x + 0.20, card_y + 0.07,
                      card_w - 0.28, card_h - 0.14,
                      sz, txt, acc)
+
+    # ── 表格元素全宽渲染（在时间轴下方）──────────────────────────────
+    if table_elems:
+        t_y = spine_t + avail_h + 0.10
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
 
 
 def render_default(slide, page: dict, colors: dict) -> None:
