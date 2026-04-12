@@ -1657,8 +1657,91 @@ def add_list_box(slide, items: list, l, t, w, h, size: int,
 
         # Fallback: plain rich text (bullet prefix + content)
         _add_rich_para(tf, full_text, safe, color, accent, first=(i == 0))
+# ──────────────────────────────────────────────
+# Background decoration layer (rendered before content)
+# ──────────────────────────────────────────────
 
+def draw_bg_decor(slide, page: dict, colors: dict) -> None:
+    """
+    Add decorative background shapes before any content is rendered.
+    Shapes use pre-blended colors (no real alpha) to simulate depth/gradient.
+    Shapes at slide edges "bleed off" for a modern, premium feel.
 
+    Call order in run_export_task:
+      1. bg_fill.solid()          ← solid base color
+      2. draw_bg_decor()          ← this function (decorative layer)
+      3. renderer(slide, page)    ← content (cards, text, images on top)
+    """
+    from pptx.util import Inches
+    bg        = colors["bg"]
+    pri       = colors["pri"]
+    acc       = colors["acc"]
+    sec       = colors["sec"]
+    dark      = _is_dark(colors)
+    layout    = page.get("layout_type", "minimal_list")
+    page_idx  = page.get("page_index", 1)
+
+    def _oval(ix, iy, iw, ih, mix_c, ratio):
+        """Oval at inches coords, color = blend(mix_c, bg, ratio)."""
+        c  = blend(mix_c, bg, ratio)
+        sp = slide.shapes.add_shape(9, Inches(ix), Inches(iy), Inches(iw), Inches(ih))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = c
+        sp.line.fill.background()
+
+    def _rect(ix, iy, iw, ih, mix_c, ratio):
+        """Rectangle at inches coords, color = blend(mix_c, bg, ratio)."""
+        c  = blend(mix_c, bg, ratio)
+        sp = slide.shapes.add_shape(1, Inches(ix), Inches(iy), Inches(iw), Inches(ih))
+        sp.fill.solid()
+        sp.fill.fore_color.rgb = c
+        sp.line.fill.background()
+
+    # ── Layer A: large top-left accent circle (partially off-edge) ────────────
+    # Accent-tinted, creates a colour vignette in the top-left corner.
+    _oval(-1.2, -1.2, 3.6, 3.6, acc, 0.24)
+
+    # ── Layer B: bottom-right primary glow (partially off-edge) ───────────────
+    _oval(SLIDE_W - 2.0, SLIDE_H - 2.0, 3.8, 3.8, pri, 0.20)
+
+    # ── Layer C: diagonal mid-zone rectangle (very faint — simulates gradient) ─
+    mid_mix   = pri if dark else RGBColor(0xFF, 0xFF, 0xFF)
+    mid_ratio = 0.10 if dark else 0.22
+    _rect(SLIDE_W * 0.40, SLIDE_H * 0.42,
+          SLIDE_W * 0.65, SLIDE_H * 0.62,
+          mid_mix, mid_ratio)
+
+    # ── Layer D: layout-specific accent ───────────────────────────────────────
+    if layout == "cover":
+        # Large right-side circle: balances the text-heavy left side
+        _oval(SLIDE_W - 1.8, 0.5, 4.2, 4.2, acc, 0.20)
+        _oval(SLIDE_W - 0.5, SLIDE_H - 1.4, 2.2, 2.2, sec, 0.22)
+
+    elif layout == "stat_callout":
+        # Centered halo ring: makes stats appear to float on a glowing plane
+        _oval(SLIDE_W / 2 - 2.4, CONTENT_T + 0.05, 4.8, 4.8, acc, 0.13)
+        _oval(SLIDE_W / 2 - 1.4, CONTENT_T + 0.95, 2.8, 2.8, acc, 0.09)
+
+    elif layout == "two_column":
+        # Soft vertical divider glow exactly between columns
+        mid_x = MARGIN_LEFT + (CONTENT_W - 0.28) / 2
+        _oval(mid_x - 0.65, CONTENT_T - 0.1, 1.3, SLIDE_H - CONTENT_T - 0.1,
+              acc, 0.10)
+
+    elif layout == "timeline":
+        # Horizontal mid-band (the "river" for the timeline events to flow through)
+        _rect(0, SLIDE_H * 0.42, SLIDE_W, SLIDE_H * 0.14, pri, 0.09)
+        # Left-edge vertical strip
+        _rect(0, CONTENT_T, 0.12, SLIDE_H - CONTENT_T, acc, 0.30)
+
+    elif layout in ("minimal_list", "standard"):
+        # Top-right corner dot (parity-alternating: accent vs secondary)
+        dot_mix = acc if page_idx % 2 == 0 else sec
+        _oval(SLIDE_W - 0.8, 0.06, 1.6, 1.6, dot_mix, 0.22)
+
+    # ── Layer E: even-page secondary accent (bottom-left) ─────────────────────
+    if page_idx % 2 == 0 and layout != "cover":
+        _oval(0.05, SLIDE_H - 1.2, 1.8, 1.8, sec, 0.20)
 
 
 # ──────────────────────────────────────────────
@@ -2746,6 +2829,9 @@ def run_export_task(task_id: str, session_id: str):
                 bg_fill = slide.background.fill
                 bg_fill.solid()
                 bg_fill.fore_color.rgb = colors["bg"]
+
+                # 背景装饰层（几何渐变效果），在内容渲染前绘制
+                draw_bg_decor(slide, page, colors)
 
                 layout_type = page.get("layout_type", "minimal_list")
                 renderer = LAYOUT_RENDERERS.get(layout_type, render_default)
