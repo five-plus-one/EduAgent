@@ -224,7 +224,7 @@ export default function Workspace() {
       await uploadKnowledgeDoc(file, { subject: '通用类目' });
       await fetchKbDocs();
     } catch {
-      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / TXT / MD）');
+      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / PPTX / TXT / MD）');
     } finally {
       setIsUploadingKb(false);
     }
@@ -232,9 +232,9 @@ export default function Workspace() {
 
   const handleKbFilesDrop = async (files: FileList) => {
     const valid = Array.from(files).filter(f =>
-      ['.pdf', '.docx', '.doc', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
+      ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (!valid.length) { alert('仅支持 PDF / DOCX / TXT / MD 格式文件'); return; }
+    if (!valid.length) { alert('仅支持 PDF / DOCX / PPTX / TXT / MD 格式文件'); return; }
     setIsUploadingKb(true);
     try {
       await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '通用类目' })));
@@ -736,7 +736,7 @@ export default function Workspace() {
                     <input
                       ref={kbFileInputRef}
                       type="file"
-                      accept=".pdf,.docx,.doc,.txt,.md"
+                      accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
                       style={{ display: 'none' }}
                       onChange={handleKbUpload}
                     />
@@ -745,7 +745,7 @@ export default function Workspace() {
                     ) : isDraggingKb ? (
                       <><UploadCloud size={20} /> <span>松开即可上传</span></>
                     ) : (
-                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · TXT · MD</small></>
+                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · PPTX · TXT · MD</small></>
                     )}
                   </div>
 
