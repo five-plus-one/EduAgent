@@ -181,6 +181,8 @@ export default function PPTPageWorkbench({
   const dragSrcIdx = useRef<number | null>(null);
   /** 当前 hover 的放置目标索引（触发 re-render 以显示动画） */
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  /** 当前打开自定义类型下拉的元素索引，-1 表示全部关闭 */
+  const [typeMenuOpenIdx, setTypeMenuOpenIdx] = useState<number>(-1);
 
   /* ── AI 指令状态 ────────────────────────────────────────── */
   const [aiInstruction, setAiInstruction] = useState('');
@@ -228,7 +230,16 @@ export default function PPTPageWorkbench({
     setAllPage(1);
     setAllTotal(0);
     allLoadedOnce.current = false;
+    setTypeMenuOpenIdx(-1); // 换页时关闭菜单
   }, [page.page_index, open, defaultTab]);
+
+  /* ── 点击外部关闭类型下拉菜单 ──────────────────────────────── */
+  useEffect(() => {
+    if (typeMenuOpenIdx === -1) return;
+    const close = () => setTypeMenuOpenIdx(-1);
+    document.addEventListener('mousedown', close, true);
+    return () => document.removeEventListener('mousedown', close, true);
+  }, [typeMenuOpenIdx]);
 
   /* ── 全部图片首次加载（picker 打开时触发） */
   useEffect(() => {
@@ -512,20 +523,60 @@ export default function PPTPageWorkbench({
                       <div className={styles.elementMain}>
                         {/* 类型 / 位置 / 强调 选择器 */}
                         <div className={styles.elementMeta}>
-                          <select className={styles.typeSelect} value={el.type}
-                            onChange={e => {
-                              const newDef = TYPE_MAP[e.target.value];
-                              updateElement(idx, {
-                                type: e.target.value,
-                                textLines: (newDef as any)?.isImage ? [] : (el.textLines.length ? el.textLines : ((newDef as any)?.defaultContent ?? [])),
-                                alt: (newDef as any)?.isImage ? (el.alt || '') : undefined,
-                                query: (newDef as any)?.isImage ? (el.query || '') : undefined,
-                                time: (newDef as any)?.hasTime ? (el.time ?? '') : undefined,
-                                position: newDef?.defaultPosition ?? el.position,
-                              });
-                            }}>
-                            {ELEMENT_TYPES.map(t => <option key={t.type} value={t.type}>{t.label}</option>)}
-                          </select>
+                        {/* 自定义类型 Pill 下拉 */}
+                          <div className={styles.typePillWrap}>
+                            <button
+                              className={styles.typePill}
+                              onClick={() => setTypeMenuOpenIdx(typeMenuOpenIdx === idx ? -1 : idx)}
+                              type="button"
+                            >
+                              {def?.icon ?? <AlignLeft size={12} />}
+                              <span>{def?.label ?? el.type}</span>
+                              <ChevronDown size={11} className={clsx(styles.typePillChevron, typeMenuOpenIdx === idx && styles.typePillChevronOpen)} />
+                            </button>
+                            {typeMenuOpenIdx === idx && (
+                              <div className={styles.typeMenu}>
+                                {(ELEMENT_TYPES as readonly any[]).map(t => (
+                                  <button
+                                    key={t.type}
+                                    className={clsx(styles.typeMenuItem, el.type === t.type && styles.typeMenuItemActive)}
+                                    onClick={() => {
+                                      setTypeMenuOpenIdx(-1);
+                                      if (t.type === el.type) return;
+                                      const patch: Partial<EditableEl> = {
+                                        type: t.type,
+                                        position: t.defaultPosition ?? el.position,
+                                        // 图片字段
+                                        alt:   t.isImage  ? (el.alt   ?? '') : undefined,
+                                        query: t.isImage  ? (el.query ?? '') : undefined,
+                                        // 时间轴时间字桵
+                                        time:  t.hasTime  ? (el.time  ?? '') : undefined,
+                                        // 文本内容
+                                        textLines: t.isImage || t.isTable ? []
+                                          : (el.textLines.length ? el.textLines : (t.defaultContent ?? [])),
+                                        // 表格字桵
+                                        headers: t.isTable
+                                          ? (t.defaultHeaders ?? ['列标题1', '列标题2', '列标题3'])
+                                          : undefined,
+                                        rows: t.isTable
+                                          ? (el.type === 'list' && el.textLines.length > 0
+                                              // 智能转换：list 每条变一行数据行
+                                              ? el.textLines.map(line => [line, '', ''])
+                                              : (t.defaultRows ?? [['', '', '']]))
+                                          : undefined,
+                                      };
+                                      updateElement(idx, patch);
+                                    }}
+                                    type="button"
+                                  >
+                                    <span className={styles.typeMenuItemIcon}>{t.icon}</span>
+                                    <span className={styles.typeMenuItemLabel}>{t.label}</span>
+                                    <span className={styles.typeMenuItemDesc}>{t.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           <select className={styles.positionSelect} value={el.position}
                             onChange={e => updateElement(idx, { position: e.target.value })}>
                             {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
