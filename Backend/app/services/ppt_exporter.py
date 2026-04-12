@@ -1936,10 +1936,13 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     # ── Table elements (full-width, renders after body cards) ────────────────────
     if table_elems:
         t_y = content_end_y + (0.08 if body_cards else 0)
-        t_avail = SLIDE_H - t_y - 0.32
-        if t_avail > 0.4:
-            render_table_element(slide, table_elems[0], colors,
-                                 MARGIN_LEFT, t_y, CONTENT_W)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break  # 剩余高度不足，放弃后续表格
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            MARGIN_LEFT, t_y, CONTENT_W)
+            t_y += consumed + 0.10
 
 
 def _render_image_elem(slide, elem: dict, col_x: float, col_w: float, colors: dict) -> None:
@@ -2615,10 +2618,11 @@ def render_default(slide, page: dict, colors: dict) -> None:
     elements = page.get("elements", [])
     avail_h = SLIDE_H - CONTENT_T - 0.35
 
-    # ── 图片元素单独渲染，不进入文字卡循环 ────────────────────────────────────
-    img_elems  = [e for e in elements if e.get("type") == "image"]
-    text_elems = [e for e in elements if e.get("type") != "image"]
-    has_img    = bool(img_elems)
+    # ── 图片和表格分别单独渲染，不进入文字卡循环 ────────────────────────────────────
+    img_elems   = [e for e in elements if e.get("type") == "image"]
+    table_elems = [e for e in elements if e.get("type") == "table"]
+    text_elems  = [e for e in elements if e.get("type") not in ("image", "table")]
+    has_img     = bool(img_elems)
 
     # 图片放右列（40% 宽），文字占左 58%（有图时）
     img_col_x = MARGIN_LEFT + CONTENT_W * 0.62
@@ -2628,13 +2632,18 @@ def render_default(slide, page: dict, colors: dict) -> None:
     for _img_elem in img_elems:
         _render_image_elem(slide, _img_elem, img_col_x, img_col_w, colors)
 
-    each_h = avail_h / max(len(text_elems), 1)
+    # ── 文字卡 ──────────────────────────────────────────────────────────────────────
+    # 若有表格，文字卡只占上半部分避免与表格重叠
+    txt_avail_h = (avail_h * 0.50) if table_elems else avail_h
+    each_h = txt_avail_h / max(len(text_elems), 1)
 
+    content_end_y = CONTENT_T
     for i, elem in enumerate(text_elems):
         items = get_content_list(elem)
         etype = elem.get("type", "text_block")
         is_acc = elem.get("is_accent", False) or etype in ("huge_number", "stat")
         cy = CONTENT_T + i * each_h
+        content_end_y = cy + each_h
 
         if is_acc and items and len(str(items[0])) <= 10:
             add_rich_box(slide, items[0] if items else "", MARGIN_LEFT, cy, txt_col_w,
@@ -2646,6 +2655,17 @@ def render_default(slide, page: dict, colors: dict) -> None:
             sz = calc_safe_pt(each_h, max(len(items), 1), 15, 10, 18)
             add_rich_box(slide, "\n".join(items), MARGIN_LEFT, cy, txt_col_w,
                          each_h - 0.05, sz, txt, acc)
+
+    # ── 表格元素全宽渲染（在文字卡下方）────────────────────────────────────────
+    if table_elems:
+        t_y = content_end_y + (0.08 if text_elems else 0)
+        for tbl_elem in table_elems:
+            t_avail = SLIDE_H - t_y - 0.32
+            if t_avail <= 0.4:
+                break
+            consumed = render_table_element(slide, tbl_elem, colors,
+                                            x=MARGIN_LEFT, y=t_y, w=CONTENT_W)
+            t_y += consumed + 0.10
 
 
 # ──────────────────────────────────────────────
@@ -2659,6 +2679,8 @@ LAYOUT_RENDERERS = {
     "stat_callout": render_stat_callout,
     "timeline":     render_timeline,
     "minimal_list": render_minimal_list,
+    "standard":     render_minimal_list,   # alias → 与前端 LAYOUT_ALIAS 保持一致
+    "full_content": render_default,        # 全内容布局 → 使用 render_default（已支持表格）
     "image_focus":  render_default,
 }
 

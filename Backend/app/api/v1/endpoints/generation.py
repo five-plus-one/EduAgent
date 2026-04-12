@@ -321,11 +321,28 @@ def iterate_slide(
     # ── 图片元素解析（与流式生成保持一致：无匹配则丢弃，有匹配则附加 resolved）──
     from app.services.image_service import search_image_by_query
 
+    # 保存原始页面中用户手动替换的图片（resolved.source == "user"），
+    # 迭代后若 AI 生成同 element_id 的图片元素，恢复用户替换，避免手动替换丢失。
+    _user_resolved_by_id: dict = {}
+    for _oe in page_to_update.get("elements", []):
+        if _oe.get("type") == "image":
+            _res = _oe.get("resolved") or {}
+            if _res.get("source") == "user" and _res.get("image_id"):
+                _user_resolved_by_id[_oe.get("element_id", "")] = _res
+
     def _resolve_page_images(page: dict) -> dict:
-        """对单页的 elements 做图片向量检索，过滤无匹配的 image 元素。"""
+        """对单页的 elements 做图片向量检索，过滤无匹配的 image 元素。
+        对用户手动替换过的图片（source=user），优先恢复原 resolved，不重新检索。"""
         filtered = []
         for elem in page.get("elements", []):
             if elem.get("type") == "image":
+                eid = elem.get("element_id", "")
+                # 1. 优先恢复用户手动替换（element_id 匹配）
+                if eid and eid in _user_resolved_by_id:
+                    elem["resolved"] = _user_resolved_by_id[eid]
+                    filtered.append(elem)
+                    continue
+                # 2. 向量检索
                 query = elem.get("query", "") or elem.get("alt", "")
                 if not query:
                     continue  # 无搜索词 → 丢弃
