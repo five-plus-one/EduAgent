@@ -75,7 +75,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc, resolveImageInPage } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -107,6 +107,8 @@ export default function Workspace() {
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
+  // P2: 任意一张幻灯片正在保存图片，导出按鈕短暂禁用防竞态
+  const [anyImageSaving, setAnyImageSaving] = useState(false);
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -681,7 +683,8 @@ export default function Workspace() {
                   <button 
                     className={clsx('button-base', styles.exportBtn)}
                     onClick={exportCourseware}
-                    disabled={isExporting || sessionId === 'new'}
+                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                    title={anyImageSaving ? '图片保存中，请稍候再导出' : undefined}
                   >
                     <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
                     {isExporting ? '导出 PPT中...' : '导出 PPT'}
@@ -889,6 +892,10 @@ export default function Workspace() {
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
                       onManualSave={(pageIndex, updated) => updatePageLocally(pageIndex, updated)}
                       onApplyLayout={(layoutType) => applyLayoutAndRefresh(page.page_index, layoutType)}
+                      onImageResolved={(elementId, imageId, previewUrl) =>
+                        resolveImageInPage(page.page_index, elementId, imageId, previewUrl)
+                      }
+                      onSavingImageChange={(saving) => setAnyImageSaving(saving)}
                     />
                   ))}
                   
