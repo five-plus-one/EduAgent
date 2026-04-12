@@ -40,3 +40,8 @@ python-pptx==1.0.2             # PPT 文档生成
 pypdf==6.9.2                   # PDF 解析
 lxml==6.0.2                    # XML 解析（word/ppt 内部使用）
 pillow==12.1.1                 # 图片处理（图片标注、缩放、读尺寸）
+
+# ── 视频处理 ────────────────────────────────────────────────────
+imageio-ffmpeg>=0.4.9          # 内置 FFmpeg 二进制（无需系统安装），用于音视频处理
+pydub>=0.25.1                  # 音频分段（Whisper API 25MB 单文件限制）
+requests>=2.31.0               # Whisper / Vision LLM HTTP 调用
