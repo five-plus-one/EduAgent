@@ -201,7 +201,7 @@ export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
               className={styles.textarea}
               value={labelDraft}
               onChange={e => { setLabelDraft(e.target.value); setLabelDirty(true); }}
-              placeholder="描述图片内容，例：第三章受力分析示意图"
+              placeholder="点击以输入描述，例：第三章受力分析示意图"
               rows={3}
             />
             <button

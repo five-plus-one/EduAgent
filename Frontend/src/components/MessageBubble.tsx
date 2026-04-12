@@ -17,8 +17,8 @@ export interface MessageProps {
 export default function MessageBubble({ id, role, content, toolLog, thinking, isThinking, isTyping }: MessageProps) {
   const isAI = role === 'ai';
 
-  // 思考中默认展开；思考完成后自动折叠
-  const [thinkExpanded, setThinkExpanded] = useState(true);
+  // 思考进行中（isThinking=true）→ 展开；历史消息/已完成 → 默认折叠
+  const [thinkExpanded, setThinkExpanded] = useState(() => !!isThinking);
   const [toolExpanded, setToolExpanded] = useState(true);
 
   // thinkBody 的真实高度，用于 max-height 动画

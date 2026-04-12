@@ -2298,18 +2298,24 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
 
     elements = page.get("elements", [])
 
+    # Table elements with position="full" are rendered at full width after columns
+    full_table_elems = [e for e in elements if e.get("type") == "table"
+                        and str(e.get("position", "")).lower() in ("full", "center", "")]
+    # Non-table elements (or table elements explicitly assigned left/right)
+    col_elements = [e for e in elements if e not in full_table_elems]
+
     # Flexible position detection:
     #   left / left_top / left_bottom  → left column
     #   right / right_top / right_bottom → right column
     def _col(e):
         return str(e.get("position", "left")).lower()
 
-    left_elems  = [e for e in elements if "left"  in _col(e)]
-    right_elems = [e for e in elements if "right" in _col(e)]
+    left_elems  = [e for e in col_elements if "left"  in _col(e)]
+    right_elems = [e for e in col_elements if "right" in _col(e)]
 
     if not left_elems and not right_elems:
-        half = max(len(elements) // 2, 1)
-        left_elems, right_elems = elements[:half], elements[half:]
+        half = max(len(col_elements) // 2, 1)
+        left_elems, right_elems = col_elements[:half], col_elements[half:]
     elif not left_elems:           # all labeled right — split evenly
         half = max(len(right_elems) // 2, 1)
         left_elems, right_elems = right_elems[:half], right_elems[half:]
@@ -2441,8 +2447,20 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     _render_col(left_elems,  lx)
     _render_col(right_elems, rx)
 
-
-
+    # ── Full-width table elements rendered below both columns ──────────────────
+    if full_table_elems:
+        # Estimate where the columns end (use full available height as conservative fallback)
+        tbl_y = CONTENT_T + avail_h * 0.55  # below the mid-point of columns
+        # Actually: prefer to start tables right after estimated column content
+        # We use a simple heuristic: reserve top 55% for columns, bottom 45% for tables
+        tbl_h_budget = SLIDE_H - tbl_y - 0.28
+        if tbl_h_budget > 0.4:
+            for tbl_elem in full_table_elems:
+                consumed = render_table_element(
+                    slide, tbl_elem, colors,
+                    x=MARGIN_LEFT, y=tbl_y, w=CONTENT_W,
+                )
+                tbl_y += consumed + 0.1
 
 
 def render_stat_callout(slide, page: dict, colors: dict) -> None:
@@ -2460,37 +2478,49 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     big   = [e for e in elements if e.get("is_accent") or e.get("type") in ("huge_number", "stat")]
     other = [e for e in elements if e not in big]
 
-    big_y = CONTENT_T + 0.2
-    for elem in big[:1]:
+    n_big   = max(len(big), 1)
+    # ── 横排全部 big elements ──────────────────────────────────────────
+    cell_w  = CONTENT_W / n_big
+    sz      = min(2.6, cell_w - 0.4)      # 圆圈直径（受单元格宽度限制）
+    big_top = CONTENT_T + 0.2
+    font_pt = max(28, {1: 80, 2: 56, 3: 40}.get(n_big, 30))  # 按数量缩字号
+    circ_bg = blend(acc, bg, 0.14)
+
+    for i, elem in enumerate(big):
         items = get_content_list(elem)
-        val = items[0] if items else ""
-        sz = 2.6
-        cx = (SLIDE_W - sz) / 2
-        # Decorative bg circle
-        circ_bg = blend(acc, bg, 0.14)
-        sp = slide.shapes.add_shape(9, Inches(cx), Inches(big_y), Inches(sz), Inches(sz))
+        val   = items[0] if items else ""
+
+        cell_x = MARGIN_LEFT + i * cell_w
+        cx     = cell_x + (cell_w - sz) / 2.0  # 圆圈在单元格内水平居中
+
+        # ── 装饰圆背景 ──────────────────────────────────────────────
+        sp = slide.shapes.add_shape(9, Inches(cx), Inches(big_top), Inches(sz), Inches(sz))
         sp.fill.solid()
         sp.fill.fore_color.rgb = circ_bg
         sp.line.fill.background()
-        # Stat number
-        tb = slide.shapes.add_textbox(
-            Inches(cx - 0.6), Inches(big_y + 0.05), Inches(sz + 1.2), Inches(sz - 0.1))
-        tf = tb.text_frame
-        p = tf.paragraphs[0]
-        p.text = val
-        p.alignment = PP_ALIGN.CENTER
-        p.font.size = Pt(80)
-        p.font.bold = True
-        p.font.color.rgb = acc
-        big_y += sz + 0.2
 
-    sup_y = max(big_y, CONTENT_T + 3.3)
-    each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
-    for elem in other:
-        items = get_content_list(elem)
-        add_rich_box(slide, " ".join(items), MARGIN_LEFT, sup_y,
-                     CONTENT_W, each_h - 0.05, 17, txt, acc, align=PP_ALIGN.CENTER)
-        sup_y += each_h
+        # ── 数值文字（支持 LaTeX/OMML）───────────────────────────
+        tb_l = cx - 0.35
+        tb_t = big_top + sz * 0.12
+        tb_w = sz + 0.70
+        tb_h = sz * 0.76
+        add_rich_box(slide, val, tb_l, tb_t, tb_w, tb_h, font_pt, acc, acc, bold=True)
+
+        # ── 副标签（content 第 2 行起）──────────────────────────
+        if len(items) > 1:
+            sub = "  ".join(items[1:])
+            add_rich_box(slide, sub, cell_x, big_top + sz + 0.08, cell_w, 0.42, 12, txt, acc)
+
+    # ── 非 big 元素排布在圆圈行下方 ──────────────────────────────
+    big_row_h = sz + 0.62
+    sup_y     = big_top + big_row_h
+    if other:
+        each_h = (SLIDE_H - sup_y - 0.35) / len(other)
+        for elem in other:
+            items = get_content_list(elem)
+            add_rich_box(slide, " ".join(items), MARGIN_LEFT, sup_y,
+                         CONTENT_W, each_h - 0.05, 17, txt, acc, align=PP_ALIGN.CENTER)
+            sup_y += each_h
 
 
 def render_timeline(slide, page: dict, colors: dict) -> None:

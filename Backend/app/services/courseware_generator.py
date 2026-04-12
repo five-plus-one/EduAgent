@@ -310,7 +310,8 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
    - 每页最多 1 个 table element；推荐在 minimal_list 布局中使用，position 填 "full"
    - 表格列数建议 2-4 列，行数建议 3-8 行；单元格内公式用 LaTeX 格式
    - 示例：{{"element_id": "t1", "type": "table", "position": "full", "headers": ["刚体形状", "转轴", "转动惯量"], "rows": [["均质圆柱", "轴心", "$\\frac{{1}}{{2}}mR^2$"], ["均质细杆", "杆中间", "$\\frac{{1}}{{12}}mL^2$"]], "content": [], "is_accent": false}}
-9. 现在开始输出，第一行是 theme JSON"""
+9. 现在开始输出，第一行是 theme JSON
+10. 【讲义Markdown规范】word_start 后的讲义内容：分隔线必须使用 ***，禁止使用 ---。"""
 
 
         def sse(event: str, data: dict):
@@ -513,6 +514,9 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
             for m in ['{"__type": "done"}', '{"__type":"done"}']:
                 word_buffer = word_buffer.replace(m, "")
             clean_word = word_buffer.strip()
+            # 将所有单行 "---" 分隔线替换为 "***"
+            import re as _re
+            clean_word = _re.sub(r'(?m)^-{3,}\s*$', '***', clean_word)
             courseware.word_markdown = clean_word
             await asyncio.to_thread(db.commit)
             yield sse("word_ready", {"word_markdown": clean_word})

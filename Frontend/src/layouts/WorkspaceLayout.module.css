@@ -4,10 +4,68 @@
   width: 100vw;
   overflow: hidden;
   background-color: var(--bg-primary);
+  position: relative;
 }
 
+/* ── 侧边栏容器：max-width 过渡实现折叠动画 ──────────────── */
+.sidebarWrap {
+  flex-shrink: 0;
+  max-width: 280px;
+  width: 280px;
+  overflow: hidden;
+  transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity   0.25s ease;
+  opacity: 1;
+}
+
+.sidebarCollapsed {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ── 收起/展开悬浮按钮 ───────────────────────────────────── */
+.collapseBtn {
+  position: absolute;
+  /* 展开时：紧贴侧边栏右边沿 */
+  left: 272px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 50;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 44px;
+  border-radius: 0 8px 8px 0;
+  border: 1px solid var(--border-glass, rgba(15,23,42,0.08));
+  border-left: none;
+  background: var(--bg-primary, #fff);
+  color: var(--text-tertiary, #94a3b8);
+  cursor: pointer;
+  box-shadow: 2px 0 8px rgba(15,23,42,0.06);
+  transition:
+    left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.15s,
+    background 0.15s;
+  padding: 0;
+}
+
+.collapseBtn:hover {
+  color: var(--accent-primary, #6366f1);
+  background: var(--bg-glass-hover, rgba(99,102,241,0.04));
+}
+
+/* 折叠时：按钮贴左侧 */
+.collapseBtnCollapsed {
+  left: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+/* ── 主内容区 ─────────────────────────────────────────────── */
 .mainContent {
   flex: 1;
+  min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;

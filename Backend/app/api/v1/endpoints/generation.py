@@ -212,9 +212,11 @@ def iterate_slide(
 - elements 必须至少包含 1 个元素
 - 每个 element 必须有 element_id, type, position, content, is_accent 五个字段
 - position: "left"|"right_top"|"right_bottom"|"center"|"full"
-- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"|"image"
+- type: "text_block"|"list"|"huge_number"|"subtitle"|"timeline_item"|"image"|"table"
   - 若 type 为 "image"：必须同时提供 "query"（图片搜索词，10-20字中文描述）和 "alt"（图注文字）
-  - 示例: {{"type": "image", "query": "定轴转动刚体角速度角加速度示意图", "alt": "刚体定轴转动示意图", "element_id": "img_1", "content": [], "is_accent": false}}
+    示例: {{"type": "image", "query": "定轴转动刚体角速度角加速度示意图", "alt": "刚体定轴转动示意图", "element_id": "img_1", "content": [], "is_accent": false}}
+  - 若 type 为 "table"：必须同时提供 "headers"（表头列名数组）和 "rows"（数据行二维数组），content 填 []
+    示例: {{"type": "table", "headers": ["属性", "公式"], "rows": [["转动惯量", "$\\frac{{1}}{{2}}mR^2$"]], "element_id": "t_1", "position": "full", "content": [], "is_accent": false}}
 - 严禁输出 Markdown 围栏、注释、额外文本
 
 【数学公式规则 - 必须严格遵守】
@@ -470,7 +472,7 @@ def iterate_word(
     payload = {
         "model": settings.LLM_MODEL,
         "messages": [
-            {"role": "system", "content": "你是一个専业的教育内容编辑器。根据用户修改要求精确修订 Markdown 讲义，保持整体结构不变化。不要输出任何开场白、引言或 markdown 围栏。"},
+            {"role": "system", "content": "你是一个専业的教育内容编辑器。根据用户修改要求精确修订 Markdown 讲义，保持整体结构不变化。不要输出任何开场白、引言或 markdown 围栏。分隔线必须使用 ***，禁止使用 ---。"},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.3,
@@ -487,6 +489,8 @@ def iterate_word(
         # 去除可能的 markdown 围栏
         new_markdown = re.sub(r"^```[a-z]*\n?", "", new_markdown.strip(), flags=re.MULTILINE)
         new_markdown = re.sub(r"```$", "", new_markdown.strip(), flags=re.MULTILINE).strip()
+        # 将所有单行 "---" 分隔线替换为 "***"
+        new_markdown = re.sub(r"(?m)^-{3,}\s*$", "***", new_markdown)
     except HTTPException:
         raise
     except Exception as e:
@@ -499,6 +503,56 @@ def iterate_word(
     db.refresh(cw)
 
     return {"word_markdown": new_markdown}
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 讲义直存：PUT /sessions/{id}/courseware/word
+# ──────────────────────────────────────────────────────────────────────────────
+
+class SaveWordRequest(BaseModel):
+    """讲义手动保存请求体"""
+    word_markdown: str
+
+
+@router.put("/sessions/{session_id}/courseware/word")
+def save_word_content(
+    session_id: str,
+    body: SaveWordRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    讲义直存接口——前端编辑模式保存使用。
+
+    不过 AI，直接将 word_markdown 内容写入 DB。
+    内容中所有 --- 分隔线自动替换为 ***。
+    导出 word 时 word_exporter 直接读取已存储的 word_markdown，无需额外处理。
+    """
+    import re as _re
+    from sqlalchemy.orm.attributes import flag_modified
+
+    # 1. 验证会话归属
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 加载课件
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw:
+        raise HTTPException(status_code=404, detail="Courseware not found")
+
+    # 3. 规范化分隔线 --- → ***
+    content = body.word_markdown
+    content = _re.sub(r"(?m)^-{3,}\s*$", "***", content)
+
+    # 4. 写入 DB
+    cw.word_markdown = content
+    flag_modified(cw, "word_markdown")
+    db.commit()
+
+    return {"word_markdown": content}
 
 
 # ---------------- WORD DOCX EXPORT ----------------
@@ -618,6 +672,12 @@ def replace_slide_image(
     flag_modified(cw, "ppt_data")
     db.commit()
 
+    import logging as _logging
+    _logging.getLogger(__name__).info(
+        f"[replace_slide_image] session={session_id} page={page_index} "
+        f"element={element_id} -> image_id={body.image_id} committed OK"
+    )
+
     return {
         "element_id": element_id,
         "page_index": page_index,
@@ -691,10 +751,13 @@ def save_manual_slide_edit(
 
     if body.elements is not None:
         # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
+        # NOTE: resolved 只能通过 PATCH /elements/{id}/image 修改。
+        #       前端 fromEditable() 会把 _raw.resolved（可能是旧值）一并 spread 进来，
+        #       所以这里必须始终用 DB 当前的 resolved 覆盖前端发来的值，而不是仅在"not in elem"时才回填。
         old_resolved: dict = {
             e["element_id"]: e.get("resolved")
             for e in slide.get("elements", [])
-            if e.get("type") == "image" and e.get("resolved")
+            if e.get("type") == "image"
         }
         new_elements = []
         for elem in body.elements:
@@ -703,13 +766,16 @@ def save_manual_slide_edit(
             if not elem.get("element_id"):
                 import uuid as _uuid
                 elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
-            # 图片元素：若前端未传 resolved，从旧数据回填
-            if elem.get("type") == "image" and "resolved" not in elem:
-                old_res = old_resolved.get(elem["element_id"])
-                if old_res:
-                    elem["resolved"] = old_res
+            # 图片元素：resolved 字段始终以 DB 当前值为准（忽略前端发来的 resolved）
+            if elem.get("type") == "image":
+                db_res = old_resolved.get(elem["element_id"])
+                if db_res:
+                    elem["resolved"] = db_res          # 用 DB 中已替换的图片信息
+                elif "resolved" in elem:
+                    del elem["resolved"]               # 移除前端带来的过时 resolved
             new_elements.append(elem)
         slide["elements"] = new_elements
+
 
     if body.speaker_notes is not None:
         slide["speaker_notes"] = body.speaker_notes
@@ -770,10 +836,12 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
                       "full_content", "cover"):
         return elements
 
-    # two_column: 必须按 position 分栏
+    # two_column: image 元素 → right，table 元素 → full（保持全宽），其他 → left
     if layout_type == "two_column":
-        img_elems  = [e for e in elements if e.get("type") == "image"]
-        text_elems = [e for e in elements if e.get("type") != "image"]
+        img_elems   = [e for e in elements if e.get("type") == "image"]
+        tbl_elems   = [e for e in elements if e.get("type") == "table"]
+        text_elems  = [e for e in elements
+                       if e.get("type") not in ("image", "table")]
 
         # position slot names: top/mid/bottom 连续分配
         def _position_slots(prefix: str, n: int) -> list:
@@ -787,6 +855,9 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
             e["position"] = pos
         for e, pos in zip(img_elems, _position_slots("right", max(len(img_elems), 1))):
             e["position"] = pos
+        # Table elements keep "full" so render_two_column places them at full width
+        for e in tbl_elems:
+            e["position"] = "full"
 
         # 如果没有图片元素，把最后一个文字元素放右列作占位
         if not img_elems and len(text_elems) >= 2:
