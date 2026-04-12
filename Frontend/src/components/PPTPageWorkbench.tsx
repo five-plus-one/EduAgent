@@ -113,13 +113,21 @@ const toArr = (content: unknown): string[] => {
 function toEditable(el: PPTElement): EditableEl {
   const base: EditableEl = {
     element_id: el.element_id, type: el.type, position: el.position,
-    textLines: toArr((el as any).content), time: (el as any).time,
-    is_accent: (el as any).is_accent, alt: (el as any).alt,
-    query: (el as any).query, _raw: el,
+    textLines: Array.isArray(el.content) ? el.content.map(String).filter(Boolean) : [],
+    time: (el as any).time,
+    is_accent: el.is_accent,
+    alt: el.alt,
+    query: el.query,
+    _raw: el,
   };
   if (el.type === 'table') {
-    base.headers = Array.isArray((el as any).headers) ? (el as any).headers : [];
-    base.rows    = Array.isArray((el as any).rows)    ? (el as any).rows    : [];
+    // 优先用接口字段，降级到 _raw 增强兼容（防止 Pydantic strip 后前端导致数据丢失）
+    base.headers = Array.isArray(el.headers) ? el.headers
+      : Array.isArray((el as any)._raw?.headers) ? (el as any)._raw.headers
+      : [];
+    base.rows = Array.isArray(el.rows) ? el.rows
+      : Array.isArray((el as any)._raw?.rows) ? (el as any)._raw.rows
+      : [];
   }
   return base;
 }
