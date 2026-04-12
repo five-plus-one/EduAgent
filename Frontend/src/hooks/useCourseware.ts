@@ -5,13 +5,18 @@ import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManage
 
 export interface PPTElement {
   element_id: string;
-  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | string;
-  position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | string;
+  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | "table" | string;
+  position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | "full" | string;
   content?: string[];
   url?: string;
   alt?: string;
+  query?: string;
   is_accent?: boolean;
   time?: string;
+  resolved?: { image_id?: string; preview_url?: string; source?: string };
+  /** 表格元素专属字段 */
+  headers?: string[];
+  rows?: string[][];
 }
 
 export interface PPTPage {
