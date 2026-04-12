@@ -84,9 +84,13 @@ const ELEMENT_TYPES = [
   { type: 'huge_number',  label: '数据强调', icon: <Hash size={14} />,       defaultContent: ['98%'], defaultPosition: 'center', description: '凸显大数字', hasAccent: true },
   { type: 'timeline_item',label: '时间节点', icon: <Clock size={14} />,      defaultContent: ['事件说明'], defaultPosition: 'left', description: '时间轴条目', hasTime: true, useItemEditor: true },
   { type: 'image',        label: '图片占位', icon: <ImageIcon size={14} />,  defaultContent: [], defaultPosition: 'right', description: '图片区域', isImage: true },
+  { type: 'table',        label: '表格',     icon: <Grid size={14} />,       defaultContent: [], defaultPosition: 'full', description: '支持 LaTeX 公式的数据表格', isTable: true,
+    defaultHeaders: ['列标题1', '列标题2', '列标题3'],
+    defaultRows: [['', '', '']],
+  },
 ] as const;
 
-type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean };
+type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
 const TYPE_MAP = Object.fromEntries((ELEMENT_TYPES as readonly any[]).map(t => [t.type, t])) as Record<string, ElementTypeDef>;
 const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
 
@@ -95,6 +99,9 @@ interface EditableEl {
   element_id: string; type: string; position: string;
   textLines: string[]; time?: string; is_accent?: boolean;
   alt?: string; query?: string; _raw: PPTElement;
+  /** 表格专属字段 */
+  headers?: string[];
+  rows?: string[][];
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -104,16 +111,33 @@ const toArr = (content: unknown): string[] => {
   return [String(content)];
 };
 function toEditable(el: PPTElement): EditableEl {
-  return { element_id: el.element_id, type: el.type, position: el.position,
+  const base: EditableEl = {
+    element_id: el.element_id, type: el.type, position: el.position,
     textLines: toArr((el as any).content), time: (el as any).time,
     is_accent: (el as any).is_accent, alt: (el as any).alt,
-    query: (el as any).query, _raw: el };
+    query: (el as any).query, _raw: el,
+  };
+  if (el.type === 'table') {
+    base.headers = Array.isArray((el as any).headers) ? (el as any).headers : [];
+    base.rows    = Array.isArray((el as any).rows)    ? (el as any).rows    : [];
+  }
+  return base;
 }
 function fromEditable(e: EditableEl): PPTElement {
   const base: any = { ...(e._raw), element_id: e.element_id, type: e.type,
     position: e.position, time: e.time, is_accent: e.is_accent };
-  if (e.type === 'image') { base.alt = e.alt; base.query = e.query || e.alt; delete base.content; }
-  else { base.content = e.textLines.length > 0 ? e.textLines : undefined; delete base.alt; delete base.query; }
+  if (e.type === 'image') {
+    base.alt = e.alt; base.query = e.query || e.alt; delete base.content;
+  } else if (e.type === 'table') {
+    // 表格：直接写 headers/rows，content 保持为空数组
+    base.headers = e.headers ?? [];
+    base.rows    = e.rows    ?? [];
+    base.content = [];
+    delete base.alt; delete base.query;
+  } else {
+    base.content = e.textLines.length > 0 ? e.textLines : undefined;
+    delete base.alt; delete base.query;
+  }
   return base as PPTElement;
 }
 
@@ -215,18 +239,24 @@ export default function PPTPageWorkbench({
   const addElement = (type: string) => {
     const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
     const id = uid();
-    const isImg = (def as any).isImage;
-    setElements(prev => [...prev, {
+    const isImg   = (def as any).isImage;
+    const isTable = (def as any).isTable;
+    const newEl: EditableEl = {
       element_id: id, type: def.type, position: def.defaultPosition,
       textLines: isImg ? [] : [...(def.defaultContent as any)],
-      // 图片元素用空字符串作为默认，避免展示过时提示
-      alt: isImg ? '' : undefined,
-      query: isImg ? '' : undefined,
-      time: (def as any).hasTime ? '' : undefined,
+      alt:   isImg   ? '' : undefined,
+      query: isImg   ? '' : undefined,
+      time:  (def as any).hasTime ? '' : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
         content: isImg ? undefined : def.defaultContent,
         alt: isImg ? '' : undefined } as any,
-    }]);
+    };
+    // 表格元素预填默认结构
+    if (isTable) {
+      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
+      newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
+    }
+    setElements(prev => [...prev, newEl]);
     markDirty();
   };
   const removeElement = (idx: number) => { setElements(prev => prev.filter((_, i) => i !== idx)); markDirty(); };
@@ -545,7 +575,95 @@ export default function PPTPageWorkbench({
                               </div>
                             </div>
                           );
-                        })() : useItemEditor ? (
+                        })() : el.type === 'table' ? (
+                          /* ── 表格编辑器 ── */
+                          <div className={styles.tableEditor}>
+                            {/* Header 行 */}
+                            <div className={styles.tableEditorHeaderRow}>
+                              {(el.headers ?? []).map((h, ci) => (
+                                <input
+                                  key={ci}
+                                  className={styles.tableEditorCell}
+                                  value={h}
+                                  placeholder={`列1${ci + 1}`}
+                                  onChange={ev => {
+                                    const newH = [...(el.headers ?? [])];
+                                    newH[ci] = ev.target.value;
+                                    updateElement(idx, { headers: newH });
+                                  }}
+                                />
+                              ))}
+                              {/* 增列按鈕，最多 6 列 */}
+                              {(el.headers?.length ?? 0) < 6 && (
+                                <button
+                                  className={styles.tableAddColBtn}
+                                  onClick={() => updateElement(idx, {
+                                    headers: [...(el.headers ?? []), `列1${(el.headers?.length ?? 0) + 1}`],
+                                    rows: (el.rows ?? []).map(row => [...row, '']),
+                                  })}
+                                  title="添加列"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              )}
+                              {/* 删列按鈕 */}
+                              {(el.headers?.length ?? 0) > 1 && (
+                                <button
+                                  className={styles.tableDelColBtn}
+                                  onClick={() => {
+                                    const len = (el.headers?.length ?? 1) - 1;
+                                    updateElement(idx, {
+                                      headers: (el.headers ?? []).slice(0, len),
+                                      rows: (el.rows ?? []).map(row => row.slice(0, len)),
+                                    });
+                                  }}
+                                  title="删除最后一列"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* 数据行 */}
+                            {(el.rows ?? []).map((row, ri) => (
+                              <div key={ri} className={styles.tableEditorRow}>
+                                {row.map((cell, ci) => (
+                                  <input
+                                    key={ci}
+                                    className={styles.tableEditorCell}
+                                    value={cell}
+                                    placeholder={`单元格(支持 $LaTeX$)`}
+                                    onChange={ev => {
+                                      const newRows = (el.rows ?? []).map((r, i) =>
+                                        i === ri ? r.map((c, j) => j === ci ? ev.target.value : c) : r
+                                      );
+                                      updateElement(idx, { rows: newRows });
+                                    }}
+                                  />
+                                ))}
+                                <button
+                                  className={styles.tableDelRowBtn}
+                                  onClick={() => updateElement(idx, {
+                                    rows: (el.rows ?? []).filter((_, i) => i !== ri),
+                                  })}
+                                  title="删除此行"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            ))}
+
+                            {/* 增行按鈕 */}
+                            <button
+                              className={styles.tableAddRowBtn}
+                              onClick={() => updateElement(idx, {
+                                rows: [...(el.rows ?? []), new Array(el.headers?.length ?? 3).fill('')],
+                              })}
+                            >
+                              <Plus size={11} /> 添加行
+                            </button>
+                          </div>
+                        ) : useItemEditor ? (
                           <InlineListEditor
                             items={el.textLines.length ? el.textLines : ['']}
                             onChange={lines => updateElement(idx, { textLines: lines })}
