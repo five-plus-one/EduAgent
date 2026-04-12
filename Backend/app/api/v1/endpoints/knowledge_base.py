@@ -174,17 +174,26 @@ def get_document(
 def get_keyframe_image(
     doc_id: str,
     filename: str,
-    current_user: User = Depends(deps.get_current_user),
-    db: Session = Depends(deps.get_db)
+    token: str = None,         # ?token=xxx 供 <img src> 直接嵌入（header 认证缓冲）
+    db: Session = Depends(deps.get_db),
+    auth_user = Depends(deps.get_current_user_optional),
 ):
-    """返回视频关键帧图片文件。"""
+    """返回视频关键帧图片文件。支持 Authorization header 和 ?token= query 两种认证方式。"""
+    from fastapi import Query
+    # 优先用 header 认证，回退 query token
+    current_user = auth_user
+    if not current_user and token:
+        current_user = deps.get_user_from_token(token, db)
+    if not current_user:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     doc = db.query(Document).filter(
         Document.id == doc_id, Document.user_id == current_user.id
     ).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # 安全校验：只允许 .jpg 文件名
+    # 安全校验：只允许 .jpg 文件名，防路径穿越
     if not filename.endswith(".jpg") or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
