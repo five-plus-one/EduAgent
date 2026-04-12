@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, formatDuration,
+  getKeyframeUrl, formatDuration, retryKnowledgeDocument,
   VIDEO_STAGE_LABELS, VIDEO_STAGE_PROGRESS,
   type KBDocumentBase, type KBVideoDocument, type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
@@ -316,6 +316,32 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  /** 重试解析失败的文档 */
+  const handleRetry = async (documentId: string) => {
+    try {
+      // 乐观更新本地状态，让用户立即看到【处理中】
+      const patch = (prev: KBDocument[]) =>
+        prev.map(d =>
+          d.document_id === documentId
+            ? { ...d, status: 'processing', progress: 0, process_stage: undefined }
+            : d
+        );
+      setDocuments(patch);
+      setSelectedDoc(prev =>
+        prev?.document_id === documentId
+          ? { ...prev, status: 'processing', progress: 0 }
+          : prev
+      );
+      // 调用后端接口
+      await retryKnowledgeDocument(documentId);
+      // 刷新列表，让轮询接管理剩余状态
+      await fetchDocs(true);
+    } catch {
+      console.error('[handleRetry] failed, refreshing list');
+      fetchDocs(true);
+    }
+  };
+
   const handleRowClick = (doc: KBDocument) => {
     setSelectedDoc(prev => prev?.document_id === doc.document_id ? null : doc);
   };
@@ -455,6 +481,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
           doc={selectedDoc}
           onClose={() => setSelectedDoc(null)}
           onDelete={handleDelete}
+          onRetry={handleRetry}
         />
       )}
     </div>
