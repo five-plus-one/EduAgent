@@ -129,9 +129,13 @@ interface Props {
   onManualSave?: (pageIndex: number, updatedPage: Partial<PPTPage>) => void;
   /** 布局切换回调（不经过 AI） */
   onApplyLayout?: (layoutType: string) => Promise<boolean>;
+  /** P1: PATCH 成功后同步更新 pages 状态，确保 _raw.resolved 指向新图片 */
+  onImageResolved?: (elementId: string, imageId: string, previewUrl: string) => void;
+  /** P2: 向外暴露正在保存状态，供导出按鈕禁用防竞态 */
+  onSavingImageChange?: (saving: boolean) => void;
 }
 
-function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave, onApplyLayout }: Props) {
+function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIterate, onManualSave, onApplyLayout, onImageResolved, onSavingImageChange }: Props) {
   const [instruction, setInstruction] = useState('');
 
   // ── 统一工作台状态 ──────────────────────────────────────────
@@ -140,6 +144,8 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
   const [activeImageElement, setActiveImageElement] = useState<ImageElement | null>(null);
   // 局部覆盖图片 URL（换图后立即生效，无需等待 AI）
   const [imageOverrides, setImageOverrides] = useState<Record<string, { url: string; alt: string }>>({}); 
+  // P2: 图片正在保存中（PATCH 未完成）—— 防止竞态导出
+  const [isSavingImage, setIsSavingImage] = useState(false);
   // Each element can have its own fit mode
   const [fitModes, setFitModes] = useState<Record<string, ObjectFitMode>>({}); 
 
@@ -168,10 +174,22 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
   const handleReplaceImage = (elementId: string, imageId: string, newUrl: string, newAlt: string) => {
     // 1. 乐观更新本地状态，预览立即生效
     setImageOverrides(prev => ({ ...prev, [elementId]: { url: newUrl, alt: newAlt } }));
-    // 2. 调用后端 PATCH 接口将替换写入 DB（导出 PPT 时使用新图片）
-    replaceSlideImage(sessionId, page.page_index, elementId, imageId).catch(err => {
-      console.error('[PPTCard] replaceSlideImage failed:', err);
-    });
+    // 2. P2: 标记保存中，防止竞态导出
+    setIsSavingImage(true);
+    onSavingImageChange?.(true);
+    // 3. P1: PATCH 成功后同步更新 pages._raw.resolved，确保导出/下次编辑数据正确
+    replaceSlideImage(sessionId, page.page_index, elementId, imageId)
+      .then(() => {
+        const canonicalUrl = `/api/v1/users/me/images/${imageId}/preview`;
+        onImageResolved?.(elementId, imageId, canonicalUrl);
+      })
+      .catch(err => {
+        console.error('[PPTCard] replaceSlideImage failed:', err);
+      })
+      .finally(() => {
+        setIsSavingImage(false);
+        onSavingImageChange?.(false);
+      });
   };
 
   const handleChangeFit = (elementId: string, fit: ObjectFitMode) => {

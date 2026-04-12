@@ -372,5 +372,36 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc };
+  /**
+   * P1：PATCH /elements/{id}/image 成功后同步更新 pages 里的 resolved 字段
+   * 确保下次打开 workbench 时 toEditable(el) 拿到的 _raw.resolved 是最新值
+   * 从而避免 save_manual_slide_edit 发送陈旧 image_id 覆盖新图片
+   */
+  const resolveImageInPage = useCallback(
+    (pageIndex: number, elementId: string, imageId: string, previewUrl: string) => {
+      setPages(prev =>
+        prev.map(p => {
+          if (p.page_index !== pageIndex) return p;
+          return {
+            ...p,
+            elements: p.elements?.map(el =>
+              el.element_id === elementId
+                ? {
+                    ...el,
+                    resolved: {
+                      image_id: imageId,
+                      preview_url: previewUrl,
+                      source: 'user' as const,
+                    },
+                  }
+                : el
+            ),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc, resolveImageInPage };
 }
