@@ -105,11 +105,6 @@ interface EditableEl {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-const toArr = (content: unknown): string[] => {
-  if (Array.isArray(content)) return content.map(String).filter(Boolean);
-  if (content == null) return [];
-  return [String(content)];
-};
 function toEditable(el: PPTElement): EditableEl {
   const base: EditableEl = {
     element_id: el.element_id, type: el.type, position: el.position,
@@ -165,7 +160,7 @@ function normalizeImages(items: any[]): ImageResult[] {
    主组件
    ══════════════════════════════════════════════════════════════ */
 export default function PPTPageWorkbench({
-  open, page, defaultTab = 'edit', activeImageElement = null, currentFit = 'cover',
+  open, page, defaultTab = 'edit', activeImageElement = null,
   onClose, onSave, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: PPTPageWorkbenchProps) {
 

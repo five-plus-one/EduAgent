@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   X, Pencil, Plus, Trash2, GripVertical, ChevronDown, ChevronUp,
   Check, Sparkles, StickyNote, Type, List, Image as ImageIcon,
-  Hash, Clock, AlignLeft, ChevronRight, CornerDownRight,
+  Hash, Clock, AlignLeft, ChevronRight,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTPageEditPanel.module.css';

@@ -19,11 +19,12 @@ class Settings(BaseSettings):
     # LLM Settings
     OPENAI_API_BASE: str = "https://api.ai.five-plus-one.com/v1"
     OPENAI_API_KEY: str = ""  # 密钥已移除，通过本地 .env 文件提供
-    LLM_MODEL: str = "doubao-seed-2-0-pro-260215"
-    EMBEDDING_MODEL: str = "text-embedding-3-large"
+    LLM_MODEL: str = "doubao-seed-2-0-pro-260215"   # 文本生成/摄要用
+    EMBEDDING_MODEL: str = "text-embedding-3-large"  # 向量嵌入用
+    WHISPER_MODEL: str = "whisper-1"                 # 音频转写用；空字符串 = 跳过语音识别阶段
 
     # Image system
-    VISION_MODEL: str = "mimo-v2-omni"
+    VISION_MODEL: str = "mimo-v2-omni"              # 图像/视视频帧分析用
     IMAGE_UPLOAD_DIR: str = "uploads/session_images"
     IMAGE_LIBRARY_DIR: str = "uploads/image_library"
     ADMIN_SECRET_KEY: str = "admin_secret_change_me"
