@@ -122,6 +122,25 @@
   opacity: 0;
 }
 
+/* 流式输出中：固定高度 + 内部滚动 */
+.thinkBodyWrapStreaming {
+  max-height: 220px;
+  overflow-y: auto;
+  /* 细滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99,102,241,0.3) transparent;
+}
+.thinkBodyWrapStreaming::-webkit-scrollbar {
+  width: 4px;
+}
+.thinkBodyWrapStreaming::-webkit-scrollbar-thumb {
+  background: rgba(99,102,241,0.35);
+  border-radius: 2px;
+}
+.thinkBodyWrapStreaming::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .thinkBody {
   padding: 8px 12px 12px;
   font-size: 13px;

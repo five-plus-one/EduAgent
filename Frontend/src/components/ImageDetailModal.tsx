@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import {
   X, Tag, Sparkles, Save, Loader2, RefreshCw, Plus, CheckCircle,
   AlertCircle, Clock, Edit3,

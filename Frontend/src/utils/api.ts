@@ -341,31 +341,59 @@ export const streamCoursewareGeneration = async (
 };
 
 // ==========================================
-// Module 5: Export
-// NOTE: These endpoints are NOT yet implemented on the backend.
+// Module 5: Export & Themes
 // ==========================================
 
-/** 5.1 Trigger file export (initiates async task) */
-export const triggerExport = async (sessionId: string) => {
-  const res = await apiClient.post(`/sessions/${sessionId}/export`);
-  return res.data?.data ?? res.data;
+export interface PptTheme {
+  key: string;
+  label: string;
+  category: 'light' | 'dark';
+  bg_color: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text_color: string;
+}
+
+/** 5.0 获取所有 PPT 主题（颜色、标签） — 不需要 session_id */
+export const getThemes = async (): Promise<PptTheme[]> => {
+  const res = await apiClient.get('/export/themes');
+  return (res.data?.data ?? res.data)?.themes ?? [];
 };
 
-/** 5.2 Poll export task for download URLs */
+/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 哈希自动选择） */
+export const triggerExport = async (sessionId: string, themeKey?: string) => {
+  const body = themeKey ? { theme_key: themeKey } : undefined;
+  const res = await apiClient.post(`/sessions/${sessionId}/export`, body);
+  return res.data?.data ?? res.data; // { task_id, status, theme_key }
+};
+
+/** 5.2 查询导出任务进度 */
 export const getExportStatus = async (taskId: string) => {
   const res = await apiClient.get(`/export/tasks/${taskId}`);
   return res.data?.data ?? res.data;
+  // 返回结构: { task_id, status, stage, progress, result: { download_urls: { ppt_url }, filename, error } }
 };
 
-/** 5.3 Download exported file directly as blob */
+/** 5.3 Download exported file directly as blob （携带 Authorization header）*/
 export const downloadExportedFile = async (urlOrFilename: string) => {
-  const path = urlOrFilename.startsWith('/')
-    ? urlOrFilename.replace('/api/v1', '')
-    : `/export/download/${urlOrFilename}`;
-  const res = await apiClient.get(path, {
-    responseType: 'blob'
-  });
-  return res.data;
+  let path: string;
+  if (urlOrFilename.startsWith('http://') || urlOrFilename.startsWith('https://')) {
+    // 绝对地址：直接使用（axios 会将完整 URL 作为 baseURL 覆盖）
+    path = urlOrFilename;
+  } else if (urlOrFilename.startsWith('/api/v1/')) {
+    // 相对路径如 /api/v1/export/download/xxx.pptx
+    // apiClient.baseURL = http://host/api/v1，所以需去掉 /api/v1 前缀
+    path = urlOrFilename.slice('/api/v1'.length); // 得到 /export/download/xxx.pptx
+  } else if (urlOrFilename.startsWith('/')) {
+    // 其他 / 开头的相对路径，直接使用
+    path = urlOrFilename;
+  } else {
+    // 纯文件名
+    path = `/export/download/${urlOrFilename}`;
+  }
+  const res = await apiClient.get(path, { responseType: 'blob' });
+  return res.data as Blob;
 };
 
 // ==========================================
@@ -453,15 +481,20 @@ export const uploadKnowledgeDoc = async (file: File, metadata: Record<string, un
   return res.data?.data ?? res.data;
 };
 
-/** 6.2 List knowledge docs (paginated) */
-export const listKnowledgeDocs = async (page = 1, size = 20, status?: string, subject?: string) => {
-  const res = await apiClient.get('/knowledge-base/documents', { params: { page, size, status, subject } });
+/** 6.2 List knowledge docs (paginated)
+ * @deprecated Prefer `listKnowledgeDocuments` from videoKnowledgeApi.ts (supports v1.2 response shape)
+ */
+export const listKnowledgeDocs = async (page = 1, size = 20, status?: string) => {
+  const res = await apiClient.get('/knowledge-base/documents', { params: { page, size, ...(status ? { status } : {}) } });
   return res.data?.data ?? res.data;
 };
 
-/** 6.3 Update knowledge doc metadata */
+/** 6.3 Replace all metadata for a knowledge doc (PUT semantics: full overwrite)
+ * ⚠️ Sends metadata object directly — do NOT wrap in { metadata: {...} }.
+ * To update display_name/description, use `patchKnowledgeDocument` from videoKnowledgeApi.ts instead.
+ */
 export const updateKnowledgeDoc = async (docId: string, metadata: Record<string, unknown>) => {
-  await apiClient.put(`/knowledge-base/documents/${docId}`, { metadata });
+  await apiClient.put(`/knowledge-base/documents/${docId}`, metadata);
 };
 
 /** 6.4 Delete a knowledge doc from RAG */
