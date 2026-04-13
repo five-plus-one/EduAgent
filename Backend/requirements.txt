@@ -19,7 +19,6 @@ SQLAlchemy==2.0.48
 # ── 认证 ─────────────────────────────────────────────────────
 PyJWT==2.12.1
 bcrypt==5.0.0
-passlib==1.7.4                 # 密码哈希工具（bcrypt 后端）
 
 # ── HTTP 客户端 ────────────────────────────────────────────────
 httpx==0.28.1                  # 异步 HTTP（图片标注、OpenAI直连等）
@@ -28,7 +27,6 @@ httpx==0.28.1                  # 异步 HTTP（图片标注、OpenAI直连等）
 langchain==1.2.13
 langchain-openai==1.1.12
 langchain-chroma==1.1.0        # ChromaDB 向量库 LangChain 集成
-langchain-community==0.4.1     # 社区加载器（文档解析等）
 langchain-text-splitters==1.1.1
 chromadb==1.5.5
 openai==2.30.0                 # OpenAI SDK（langchain-openai 的底层依赖）
@@ -43,5 +41,4 @@ pillow==12.1.1                 # 图片处理（图片标注、缩放、读尺�
 
 # ── 视频处理 ────────────────────────────────────────────────────
 imageio-ffmpeg>=0.4.9          # 内置 FFmpeg 二进制（无需系统安装），用于音视频处理
-pydub>=0.25.1                  # 音频分段（Whisper API 25MB 单文件限制）
 requests>=2.31.0               # Whisper / Vision LLM HTTP 调用
