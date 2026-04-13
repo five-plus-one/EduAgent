@@ -366,9 +366,12 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 自有化删除确认弹窗状态
-  // phase: 'confirm' = 等待确认 | 'deleting' = API中 | 'success' = 已删除
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; phase: 'confirm' | 'deleting' | 'success' } | null>(null);
+  // 删除确认弹窗
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  // 弹窗退出动画状态
+  const [dialogExiting, setDialogExiting] = useState(false);
+  // 行删除状态: loading = API中 | exiting = 行退出动画中
+  const [deletingRow, setDeletingRow] = useState<{ id: string; phase: 'loading' | 'exiting' } | null>(null);
   // 表格行内重命名编辑状态
   const [editingRow, setEditingRow] = useState<{ id: string; value: string } | null>(null);
   const rowEditInputRef = useRef<HTMLInputElement>(null);
@@ -597,78 +600,90 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                     const isSelected = selectedDoc?.document_id === doc.document_id;
                     return (
                       <tr
-                        key={doc.document_id}
-                        className={clsx(styles.tableRow, isSelected && styles.tableRowSelected)}
-                        onClick={() => handleRowClick(doc)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td>
-                          <div className={styles.cellFile}>
-                            {fileTypeIcon(doc)}
-                            {editingRow?.id === doc.document_id ? (
-                              <input
-                                ref={rowEditInputRef}
-                                className={styles.rowRenameInput}
-                                value={editingRow.value}
-                                onChange={e => setEditingRow(r => r ? { ...r, value: e.target.value } : r)}
-                                onBlur={commitRowRename}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') { e.preventDefault(); commitRowRename(); }
-                                  if (e.key === 'Escape') setEditingRow(null);
-                                }}
-                                maxLength={100}
-                                autoFocus
-                                onClick={e => e.stopPropagation()}
-                              />
-                            ) : (
-                              <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
-                                {getDisplayTitle(doc)}
-                              </span>
-                            )}
-                            {isSelected && <ChevronRight size={13} className={styles.rowSelectedArrow} />}
-                          </div>
-                        </td>
-                        <td>
-                          <span className={clsx(styles.typeBadge, isVid ? styles.typeBadgeVideo : styles.typeBadgeDoc)}>
-                            {isVid ? <><Video size={11} /> 视频</> : <><FileText size={11} /> 文档</>}
-                          </span>
-                        </td>
-                        <td className={styles.cellDate}>
-                          {doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}
-                        </td>
-                        <td>
-                          {doc.status === 'completed' ? (
-                            <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={13} /> 解析完成</div>
-                          ) : doc.status === 'failed' ? (
-                            <div className={clsx(styles.statusBadge, styles.statusFailed)}>✕ 解析失败</div>
-                          ) : doc.status === 'pending' ? (
-                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                              <Clock size={13} className={styles.rotating} /> 排队中
-                            </div>
+                      key={doc.document_id}
+                      className={clsx(
+                        styles.tableRow,
+                        isSelected && styles.tableRowSelected,
+                        deletingRow?.id === doc.document_id && deletingRow.phase === 'exiting' && styles.tableRowExiting,
+                      )}
+                      onClick={() => handleRowClick(doc)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <td>
+                        <div className={styles.cellFile}>
+                          {fileTypeIcon(doc)}
+                          {editingRow?.id === doc.document_id ? (
+                            <input
+                              ref={rowEditInputRef}
+                              className={styles.rowRenameInput}
+                              value={editingRow.value}
+                              onChange={e => setEditingRow(r => r ? { ...r, value: e.target.value } : r)}
+                              onBlur={commitRowRename}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); commitRowRename(); }
+                                if (e.key === 'Escape') setEditingRow(null);
+                              }}
+                              maxLength={100}
+                              autoFocus
+                              onClick={e => e.stopPropagation()}
+                            />
                           ) : (
-                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                              <Clock size={13} className={styles.rotating} />
-                              {getStageLabelText(doc) || `处理中${doc.progress != null ? ` ${doc.progress}%` : ''}`}
-                            </div>
+                            <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
+                              {getDisplayTitle(doc)}
+                            </span>
                           )}
-                        </td>
-                        <td onClick={e => e.stopPropagation()} className={styles.cellActions}>
-                          <button
-                            className={styles.actionIconBtn}
-                            title="重命名"
-                            onClick={() => setEditingRow({ id: doc.document_id, value: getDisplayTitle(doc) })}
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button
-                            className={clsx(styles.actionIconBtn, styles.actionIconBtnDanger)}
-                            title="删除"
-                            onClick={() => handleDelete(doc.document_id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
+                          {isSelected && <ChevronRight size={13} className={styles.rowSelectedArrow} />}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={clsx(styles.typeBadge, isVid ? styles.typeBadgeVideo : styles.typeBadgeDoc)}>
+                          {isVid ? <><Video size={11} /> 视频</> : <><FileText size={11} /> 文档</>}
+                        </span>
+                      </td>
+                      <td className={styles.cellDate}>
+                        {doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}
+                      </td>
+                      <td>
+                        {/* 删除中：显示覆盖状态 */}
+                        {deletingRow?.id === doc.document_id ? (
+                          <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                            <Loader2 size={13} className={styles.rotating} />
+                            {deletingRow.phase === 'loading' ? '删除中…' : '清理中…'}
+                          </div>
+                        ) : doc.status === 'completed' ? (
+                          <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={13} /> 解析完成</div>
+                        ) : doc.status === 'failed' ? (
+                          <div className={clsx(styles.statusBadge, styles.statusFailed)}>✕ 解析失败</div>
+                        ) : doc.status === 'pending' ? (
+                          <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                            <Clock size={13} className={styles.rotating} /> 排队中
+                          </div>
+                        ) : (
+                          <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                            <Clock size={13} className={styles.rotating} />
+                            {getStageLabelText(doc) || `处理中${doc.progress != null ? ` ${doc.progress}%` : ''}`}
+                          </div>
+                        )}
+                      </td>
+                      <td onClick={e => e.stopPropagation()} className={styles.cellActions}>
+                        <button
+                          className={styles.actionIconBtn}
+                          title="重命名"
+                          disabled={!!deletingRow && deletingRow.id === doc.document_id}
+                          onClick={() => setEditingRow({ id: doc.document_id, value: getDisplayTitle(doc) })}
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                        <button
+                          className={clsx(styles.actionIconBtn, styles.actionIconBtnDanger)}
+                          title="删除"
+                          disabled={!!deletingRow && deletingRow.id === doc.document_id}
+                          onClick={() => handleDelete(doc.document_id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </td>
+                    </tr>
                     );
                   })
                 )}
@@ -689,56 +704,28 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
         />
       )}
 
-      {/* ── 自有删除确认弹窗 ── */}
+      {/* ── 删除确认弹窗 ── */}
       {confirmDelete && (
         <div
-          className={styles.dialogOverlay}
-          onClick={() => confirmDelete.phase === 'confirm' && setConfirmDelete(null)}
+          className={clsx(styles.dialogOverlay, dialogExiting && styles.dialogOverlayExiting)}
+          onClick={() => !dialogExiting && setConfirmDelete(null)}
         >
-          <div className={styles.dialogCard} onClick={e => e.stopPropagation()}>
-
-            {/* 阶段：确认 */}
-            {confirmDelete.phase === 'confirm' && (
-              <>
-                <div className={styles.dialogIcon}><Trash2 size={22} /></div>
-                <h3 className={styles.dialogTitle}>确认删除</h3>
-                <p className={styles.dialogBody}>
-                  将从知识库中删除
-                  <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
-                  包括向量索引、原始文件及视频工作目录。
-                  <br /><strong>此操作不可撤销。</strong>
-                </p>
-                <div className={styles.dialogActions}>
-                  <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
-                  <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
-                </div>
-              </>
-            )}
-
-            {/* 阶段：删除中 */}
-            {confirmDelete.phase === 'deleting' && (
-              <>
-                <div className={clsx(styles.dialogIcon, styles.dialogIconDeleting)}>
-                  <Loader2 size={24} className={styles.dialogSpinner} />
-                </div>
-                <h3 className={styles.dialogTitle}>删除中…</h3>
-                <p className={styles.dialogBody}>
-                  正在清理「{confirmDelete.name}」及关联资源，请稍候。
-                </p>
-              </>
-            )}
-
-            {/* 阶段：删除成功 */}
-            {confirmDelete.phase === 'success' && (
-              <>
-                <div className={clsx(styles.dialogIcon, styles.dialogIconSuccess)}>
-                  <CheckCircle size={24} />
-                </div>
-                <h3 className={clsx(styles.dialogTitle, styles.dialogTitleSuccess)}>删除成功</h3>
-                <p className={styles.dialogBody}>「{confirmDelete.name}」已从知识库中删除。</p>
-              </>
-            )}
-
+          <div
+            className={clsx(styles.dialogCard, dialogExiting && styles.dialogCardExiting)}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className={styles.dialogIcon}><Trash2 size={22} /></div>
+            <h3 className={styles.dialogTitle}>确认删除</h3>
+            <p className={styles.dialogBody}>
+              将从知识库中删除
+              <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
+              包括向量索引、原始文件及视频工作目录。
+              <br /><strong>此操作不可撤销。</strong>
+            </p>
+            <div className={styles.dialogActions}>
+              <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
+              <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
+            </div>
           </div>
         </div>
       )}
