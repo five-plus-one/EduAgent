@@ -11,7 +11,7 @@ from app.models.session import SessionContext
 from app.models.generation import GenerationTask, Courseware
 from app.schemas.generation import GenerateRequest, TaskResponse, TaskStatusResponse, CoursewarePreviewResponse, IterateRequest
 from app.services.courseware_generator import run_generation_task, stream_generation
-from app.services.ppt_exporter import run_export_task, EXPORT_DIR
+from app.services.ppt_exporter import run_export_task, EXPORT_DIR, PREMIUM_THEMES, LIGHT_THEME_KEYS
 from app.services.word_exporter import markdown_to_docx
 
 class IterateWordRequest(BaseModel):
@@ -470,19 +470,65 @@ def iterate_slide(
     # Return all updated pages (frontend will refresh all slides)
     return {"updated_pages": slides_array, "page": new_page}
 
-# ---------------- EXPORT ----------------
+# ---- 主题列表 ----
+
+# 主题中文标签表
+_THEME_LABELS = {
+    "modern_minimalist": "极简现代",
+    "sunset_boulevard":  "落日大道",
+    "golden_hour":       "黄金时刻",
+    "forest_canopy":     "森林林冠",
+    "desert_rose":       "沙漠玫瑰",
+    "arctic_frost":      "北极霜雪",
+    "ocean_depths":      "深海蓝",
+    "cyber_neon":        "赛博霍光",
+    "midnight_galaxy":   "星河宇宙",
+    "botanical_garden":  "菲翠花园",
+}
+
+@router.get("/export/themes")
+def get_export_themes():
+    """
+    返回所有可用的 PPT 主题列表，供前端选色 UI 展示。
+    每个主题包含：键名、中文标签、背景色、主色、辅助色、强调色、文字色。
+    前端选色器和预览渲染均可直接使用这些颜色。
+    """
+    themes = []
+    for key, val in PREMIUM_THEMES.items():
+        themes.append({
+            "key":        key,
+            "label":      _THEME_LABELS.get(key, key),
+            "category":   "light" if key in LIGHT_THEME_KEYS else "dark",
+            "bg_color":   val["bg_color"],
+            "primary":    val["primary"],
+            "secondary":  val["secondary"],
+            "accent":     val["accent"],
+            "text_color": val["text_color"],
+        })
+    return {"themes": themes}
+
+
+# ---- 导出触发 ----
+
+class ExportRequest(BaseModel):
+    theme_key: Optional[str] = None  # 不传 → 自动选择；传入主题键名就用对应主题
 
 @router.post("/sessions/{session_id}/export")
 def trigger_export(
     session_id: str,
     background_tasks: BackgroundTasks,
+    body: ExportRequest = None,
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db)
 ):
+    """触发 PPT 导出任务。
+    body.theme_key 匹配 PREMIUM_THEMES 键名则优先使用该主题，否则自动选色。"""
     session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
-        
+
+    theme_key = (body.theme_key if body else None) or None
+
     task_id = "exp_" + uuid.uuid4().hex[:8]
     task = GenerationTask(
         id=task_id,
@@ -493,9 +539,9 @@ def trigger_export(
     )
     db.add(task)
     db.commit()
-    
-    background_tasks.add_task(run_export_task, task_id, session_id)
-    return {"task_id": task_id, "status": "generating"}
+
+    background_tasks.add_task(run_export_task, task_id, session_id, theme_key)
+    return {"task_id": task_id, "status": "generating", "theme_key": theme_key}
 
 @router.get("/export/tasks/{task_id}")
 def get_export_status(
