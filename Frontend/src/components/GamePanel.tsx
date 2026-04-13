@@ -1,12 +1,12 @@
 /**
- * GamePanel v2 — 互动小游戏面板（重构版）
+ * GamePanel v3 — 互动小游戏面板（流式生成版）
  *
- * 新增：
- * - 侧边栏可折叠（让用户专注游戏）
- * - 全屏模式（Fullscreen API + 内部全屏覆盖层）
- * - 实时生成可视化（代码逐字打字动画 + 阶段进度条）
- * - Agent 工具调用后自动刷新列表（监听 isSynthesizing 结束事件）
- * - 500ms 高频轮询 + 生成进度百分比
+ * 核心升级：
+ * - 真实 HTML 代码流式渲染（SSE → fetchEventSource → 自动降级轮询）
+ * - StreamingCodeWindow：实时展示 LLM 输出的 HTML token
+ * - AbortController：组件卸载时安全中断流
+ * - 侧边栏折叠 / 全屏模式
+ * - Agent 工具调用后自动刷新列表
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { clsx } from 'clsx';
@@ -16,9 +16,10 @@ import {
   X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2,
 } from 'lucide-react';
 import {
-  listSessionGames, generateGame, getGameTask, getGameSource,
-  deleteGame, gamePreviewUrl, GAME_TYPE_DEFAULTS,
-  type GameMeta, type GameSpec, type GameSuggestData, type GameTask,
+  listSessionGames, generateGame, getGameSource,
+  deleteGame, gamePreviewUrl, streamGameTask,
+  GAME_TYPE_DEFAULTS,
+  type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
 import styles from './GamePanel.module.css';
 
@@ -34,51 +35,13 @@ interface GamePanelProps {
   onActiveGameChange: (gameId: string | null) => void;
 }
 
-const STAGES = ['pending', 'preparing', 'generating', 'writing', 'done'];
+const STAGES = ['pending', 'preparing', 'generating', 'writing'];
 const STAGE_LABELS: Record<string, string> = {
   pending:    '等待开始',
   preparing:  '准备素材',
   generating: 'AI 生成中',
   writing:    '写入文件',
-  done:       '完成',
 };
-
-// 假打字内容 — 仅用于生成动画的视觉效果
-const CODE_LINES = [
-  '<!DOCTYPE html>',
-  '<html lang="zh-CN">',
-  '<head>',
-  '  <meta charset="UTF-8">',
-  '  <title>互动小游戏</title>',
-  '  <style>',
-  '    body { font-family: "Outfit", sans-serif; }',
-  '    .quiz-card { border-radius: 16px; padding: 24px; }',
-  '    .option { cursor: pointer; border-radius: 8px; }',
-  '    .option:hover { background: rgba(99,102,241,0.1); }',
-  '    @keyframes fadeIn { from{opacity:0} to{opacity:1} }',
-  '  </style>',
-  '</head>',
-  '<body>',
-  '  <div id="game-root">',
-  '    <div class="quiz-card">',
-  '      <h2 class="question-text"></h2>',
-  '      <div class="options-grid"></div>',
-  '      <div class="score-bar"></div>',
-  '    </div>',
-  '  </div>',
-  '  <script>',
-  '    const questions = [];',
-  '    let current = 0, score = 0;',
-  '    function render() {',
-  '      const q = questions[current];',
-  '      document.querySelector(".question-text")',
-  '        .textContent = q.text;',
-  '    }',
-  '    render();',
-  '  </script>',
-  '</body>',
-  '</html>',
-];
 
 function fmtDate(iso: string): string {
   try {
@@ -90,7 +53,7 @@ function fmtDate(iso: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Sub: 游戏类型选择卡
+// Sub: 游戏类型卡
 // ─────────────────────────────────────────────────────────────────
 function GameTypeCard({ label, hint, active, onClick }: {
   label: string; hint: string; active: boolean; onClick: () => void;
@@ -107,38 +70,34 @@ function GameTypeCard({ label, hint, active, onClick }: {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Sub: 实时代码打字动画（生成中显示）
+// Sub: 真实流式代码窗口
 // ─────────────────────────────────────────────────────────────────
-function CodeTypingAnimation({ stage, progress }: { stage: string; progress: number }) {
-  const [visibleLines, setVisibleLines] = useState(0);
-  const [charIdx, setCharIdx] = useState(0);
+interface StreamingCodeWindowProps {
+  stage: string;
+  progress: number;
+  stageMessage?: string;
+  code: string;         // 实时累积的 HTML 代码
+  isStreaming: boolean; // true = SSE 中，false = 轮询降级
+}
 
-  useEffect(() => {
-    const totalLines = CODE_LINES.length;
-    // drive visible lines based on progress (0-100)
-    const targetLine = Math.min(totalLines, Math.floor((progress / 100) * totalLines) + 1);
-    setVisibleLines(targetLine);
-  }, [progress]);
-
-  // Typewriter for the current partial line
-  useEffect(() => {
-    if (visibleLines <= 0) return;
-    const currentLine = CODE_LINES[visibleLines - 1] ?? '';
-    if (charIdx >= currentLine.length) return;
-    const t = setTimeout(() => setCharIdx(c => c + 1), 22);
-    return () => clearTimeout(t);
-  }, [visibleLines, charIdx]);
-
-  useEffect(() => { setCharIdx(0); }, [visibleLines]);
-
+function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming }: StreamingCodeWindowProps) {
+  const codeBodyRef = useRef<HTMLDivElement>(null);
   const stageIdx = STAGES.indexOf(stage);
   const pct = Math.max(0, Math.min(100, progress));
 
+  // 自动滚动到代码底部
+  useEffect(() => {
+    const el = codeBodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [code]);
+
+  const lines = code ? code.split('\n') : [];
+
   return (
     <div className={styles.typingWrap}>
-      {/* 阶段进度条 */}
+      {/* 阶段步骤 */}
       <div className={styles.stageRow}>
-        {STAGES.slice(0, -1).map((s, i) => (
+        {STAGES.map((s, i) => (
           <div key={s} className={clsx(styles.stageStep, i <= stageIdx && styles.stageStepDone)}>
             <div className={styles.stageStepDot} />
             <span className={styles.stageStepLabel}>{STAGE_LABELS[s]}</span>
@@ -152,73 +111,95 @@ function CodeTypingAnimation({ stage, progress }: { stage: string; progress: num
         <span className={styles.progressPct}>{pct}%</span>
       </div>
 
-      {/* 代码打字区 */}
+      {/* 代码窗口 */}
       <div className={styles.codeWindow}>
         <div className={styles.codeWindowBar}>
           <span className={styles.codeDot} style={{ background: '#ff5f57' }} />
           <span className={styles.codeDot} style={{ background: '#febc2e' }} />
           <span className={styles.codeDot} style={{ background: '#28c840' }} />
-          <span className={styles.codeWindowTitle}>game.html — AI 正在生成...</span>
+          <span className={styles.codeWindowTitle}>
+            game.html
+            {isStreaming
+              ? <span className={styles.streamingBadge}>● LIVE</span>
+              : <span className={styles.pollingBadge}>↻ 轮询</span>}
+          </span>
         </div>
-        <div className={styles.codeBody}>
-          {CODE_LINES.slice(0, visibleLines - 1).map((line, i) => (
-            <div key={i} className={styles.codeLine}>
-              <span className={styles.codeLineNum}>{i + 1}</span>
-              <span className={styles.codeLineContent}>{line}</span>
+        <div className={styles.codeBody} ref={codeBodyRef}>
+          {lines.length === 0 ? (
+            <div className={styles.codeWaiting}>
+              <Loader2 size={14} className={styles.spin} />
+              <span>等待 AI 生成代码...</span>
             </div>
-          ))}
-          {visibleLines > 0 && (
+          ) : (
+            lines.map((line, i) => (
+              <div key={i} className={styles.codeLine}>
+                <span className={styles.codeLineNum}>{i + 1}</span>
+                <span className={styles.codeLineContent}>{line}</span>
+              </div>
+            ))
+          )}
+          {/* 最后一行的光标 */}
+          {lines.length > 0 && (
             <div className={styles.codeLine}>
-              <span className={styles.codeLineNum}>{visibleLines}</span>
+              <span className={styles.codeLineNum}></span>
               <span className={styles.codeLineContent}>
-                {CODE_LINES[visibleLines - 1]?.slice(0, charIdx)}
                 <span className={styles.cursor}>|</span>
               </span>
             </div>
           )}
         </div>
+
+        {/* 代码字符数统计 */}
+        {code.length > 0 && (
+          <div className={styles.codeStats}>
+            {code.length.toLocaleString()} 字符 · {lines.length} 行
+          </div>
+        )}
       </div>
 
       <p className={styles.typingHint}>
-        <Sparkles size={12} /> {STAGE_LABELS[stage] ?? 'AI 生成中...'} · 完成后将自动预览
+        <Sparkles size={12} />
+        {stageMessage ?? (STAGE_LABELS[stage] ?? 'AI 生成中...')} · 完成后将自动切换到预览
       </p>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Main Component
+// Main: GamePanel
 // ─────────────────────────────────────────────────────────────────
 export default function GamePanel({
   sessionId, pendingSuggest, pendingTrigger,
   onClearSuggest, onClearTrigger, onActiveGameChange,
 }: GamePanelProps) {
 
-  // ── 布局控制 ────────────────────────────────────────────────
+  // ── 布局 ────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const iframeContainerRef = useRef<HTMLDivElement>(null);
 
-  // ── 游戏列表 ────────────────────────────────────────────────
+  // ── 游戏列表 ─────────────────────────────────────────────────
   const [games, setGames] = useState<GameMeta[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
 
-  // ── 选中 / 视图模式 ─────────────────────────────────────────
+  // ── 选中 / 视图模式 ──────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<'preview' | 'source'>('preview');
 
-  // ── 源码 ────────────────────────────────────────────────────
+  // ── 源码 ─────────────────────────────────────────────────────
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceCode, setSourceCode] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // ── 生成任务 ─────────────────────────────────────────────────
+  // ── 流式生成状态 ─────────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
   const [genStage, setGenStage] = useState('pending');
   const [genProgress, setGenProgress] = useState(0);
+  const [genStageMsg, setGenStageMsg] = useState<string | undefined>();
+  const [streamedCode, setStreamedCode] = useState('');   // 实时累积 HTML
+  const [isLiveStream, setIsLiveStream] = useState(false); // SSE vs 轮询
   const [genError, setGenError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── 手动创建面板 ─────────────────────────────────────────────
   const [showManualPanel, setShowManualPanel] = useState(false);
@@ -227,12 +208,10 @@ export default function GamePanel({
   const [manualTopics, setManualTopics] = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
 
-  // ── 通知父组件当前预览的 game_id ─────────────────────────────
+  // ── 通知父组件 ───────────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 拉取游戏列表
-  // ─────────────────────────────────────────────────────────────
+  // ── 拉取游戏列表 ─────────────────────────────────────────────
   const fetchGames = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true);
     try {
@@ -246,80 +225,99 @@ export default function GamePanel({
     if (sessionId && sessionId !== 'new') fetchGames();
   }, [sessionId, fetchGames]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 监听 AI synthesis 结束事件 → 自动刷新列表
-  // 当 Agent 通过工具调用生成游戏时，synthesis 结束后应刷新列表
-  // ─────────────────────────────────────────────────────────────
+  // ── Agent 工具调用后自动刷新 ──────────────────────────────────
   useEffect(() => {
-    const handleSynthEnd = (e: Event) => {
+    const handler = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        // 延迟 800ms 让后端事务提交
         setTimeout(() => fetchGames(true), 800);
       }
     };
-    // 复用现有的 EduAgent_Generate_End 事件（streamManager 在 tool_result 时触发）
-    window.addEventListener('EduAgent_Generate_End', handleSynthEnd);
-    return () => window.removeEventListener('EduAgent_Generate_End', handleSynthEnd);
+    window.addEventListener('EduAgent_Generate_End', handler);
+    return () => window.removeEventListener('EduAgent_Generate_End', handler);
   }, [sessionId, fetchGames]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 任务轮询（500ms 高频）
-  // ─────────────────────────────────────────────────────────────
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-  }, []);
+  // ── 组件卸载时中断流 ─────────────────────────────────────────
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
-  const startPolling = useCallback((taskId: string, gameId: string) => {
-    stopPolling();
-    pollRef.current = setInterval(async () => {
-      try {
-        const task: GameTask = await getGameTask(taskId);
-        setGenStage(task.stage ?? 'generating');
-        setGenProgress(task.progress ?? 0);
-
-        if (task.status === 'completed') {
-          stopPolling();
-          setGenerating(false);
-          setGenProgress(100);
-          // 刷新列表然后自动选中新游戏
-          const list = await listSessionGames(sessionId);
-          setGames(list);
-          const finalId = task.result?.game_id ?? gameId;
-          setSelectedId(finalId);
-          setPreviewTab('preview');
-          setSourceCode(null);
-        } else if (task.status === 'failed') {
-          stopPolling();
-          setGenerating(false);
-          setGenError(task.result?.error ?? '生成失败，请重试');
-        }
-      } catch { /* keep polling */ }
-    }, 500);
-  }, [stopPolling, sessionId]);
-
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  // ── ESC 退出全屏 ─────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen]);
 
   // ─────────────────────────────────────────────────────────────
-  // 触发生成
+  // 触发生成（接入 streamGameTask）
   // ─────────────────────────────────────────────────────────────
   const triggerGenerate = useCallback(async (spec: GameSpec, refineId?: string | null) => {
     if (sessionId === 'new') return;
+
+    // 中断上次流
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    // 重置状态
     setGenerating(true);
     setGenError(null);
     setGenStage('pending');
     setGenProgress(0);
-    // 在生成时清空选中，让右侧显示动画
-    setSelectedId(null);
+    setGenStageMsg(undefined);
+    setStreamedCode('');
+    setSelectedId(null); // 清空选中，右侧展示流式窗口
+
+    let sseConnected = false;
 
     try {
       const result = await generateGame(sessionId, spec, refineId);
-      startPolling(result.task_id, result.game_id);
+
+      // 接入流（SSE 优先，自动降级轮询）
+      await streamGameTask(
+        result.task_id,
+        {
+          onStage(stage, progress, message) {
+            setGenStage(stage);
+            setGenProgress(progress);
+            setGenStageMsg(message);
+          },
+          onChunk(chunk, progress, accumulated) {
+            // 第一个 chunk 到达说明 SSE 生效
+            if (!sseConnected) { sseConnected = true; setIsLiveStream(true); }
+            setStreamedCode(accumulated);
+            setGenProgress(progress);
+            setGenStage('generating');
+          },
+          async onDone(gameId, _version) {
+            setGenProgress(100);
+            setGenerating(false);
+            setStreamedCode('');
+            setIsLiveStream(false);
+            // 刷新列表并自动选中
+            const list = await listSessionGames(sessionId);
+            setGames(list);
+            setSelectedId(gameId);
+            setPreviewTab('preview');
+            setSourceCode(null);
+          },
+          onError(message) {
+            setGenerating(false);
+            setGenError(message);
+            setStreamedCode('');
+            setIsLiveStream(false);
+          },
+        },
+        controller.signal,
+      );
     } catch (e: any) {
-      setGenerating(false);
-      setGenError(e?.message ?? '发起生成失败，请重试');
+      if (e?.name !== 'AbortError') {
+        setGenerating(false);
+        setGenError(e?.message ?? '发起生成失败，请重试');
+      }
     }
-  }, [sessionId, startPolling]);
+  }, [sessionId]);
 
   const handleConfirmTrigger = useCallback(() => {
     if (!pendingTrigger) return;
@@ -377,27 +375,6 @@ export default function GamePanel({
     });
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // 全屏模式
-  // ─────────────────────────────────────────────────────────────
-  const toggleFullscreen = useCallback(() => {
-    if (!isFullscreen) {
-      // 进入全屏：组件内部全屏覆盖层（不使用 Fullscreen API，兼容性更好）
-      setIsFullscreen(true);
-    } else {
-      setIsFullscreen(false);
-    }
-  }, [isFullscreen]);
-
-  // ESC 退出全屏
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isFullscreen]);
-
   const selectedGame = games.find(g => g.game_id === selectedId);
 
   // ─────────────────────────────────────────────────────────────
@@ -406,10 +383,8 @@ export default function GamePanel({
   return (
     <div className={clsx(styles.root, isFullscreen && styles.rootFullscreen)}>
 
-      {/* ─── 左栏：折叠面板 ─── */}
+      {/* ─── 左栏 ─── */}
       <div className={clsx(styles.sidebar, !sidebarOpen && styles.sidebarCollapsed)}>
-
-        {/* 折叠按钮 */}
         <button
           className={styles.collapseBtn}
           onClick={() => setSidebarOpen(v => !v)}
@@ -418,7 +393,6 @@ export default function GamePanel({
           {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
         </button>
 
-        {/* 以下内容仅在展开时显示 */}
         {sidebarOpen && (
           <>
             {/* AI 建议横幅 */}
@@ -444,7 +418,7 @@ export default function GamePanel({
               </div>
             )}
 
-            {/* AI 确认生成横幅 */}
+            {/* AI 触发横幅 */}
             {pendingTrigger && (
               <div className={styles.triggerBanner}>
                 <div className={styles.triggerHeader}>
@@ -488,12 +462,7 @@ export default function GamePanel({
               >
                 <Gamepad2 size={13} /> 手动创建
               </button>
-              <button
-                className={styles.refreshBtn}
-                onClick={() => fetchGames()}
-                disabled={loadingList}
-                title="刷新列表"
-              >
+              <button className={styles.refreshBtn} onClick={() => fetchGames()} disabled={loadingList} title="刷新列表">
                 <RefreshCw size={13} className={clsx(loadingList && styles.spin)} />
               </button>
             </div>
@@ -523,10 +492,8 @@ export default function GamePanel({
 
             {/* 游戏列表 */}
             {loadingList && games.length === 0 ? (
-              <div className={styles.listLoading}>
-                <Loader2 size={18} className={styles.spin} />
-              </div>
-            ) : games.length === 0 ? (
+              <div className={styles.listLoading}><Loader2 size={18} className={styles.spin} /></div>
+            ) : games.length === 0 && !generating ? (
               <div className={styles.emptyList}>
                 <Gamepad2 size={26} className={styles.emptyIcon} />
                 <p>暂无游戏</p>
@@ -534,14 +501,17 @@ export default function GamePanel({
               </div>
             ) : (
               <div className={styles.gameList}>
-                {/* 正在生成时显示骨架卡 */}
+                {/* 生成中骨架卡 */}
                 {generating && (
                   <div className={clsx(styles.gameItem, styles.gameItemGenerating)}>
                     <div className={styles.generatingPulse} />
                     <div className={styles.gameItemMain}>
-                      <span className={styles.gameItemTitle}>正在生成新游戏...</span>
+                      <span className={styles.gameItemTitle}>
+                        {isLiveStream ? '⚡ 实时生成中...' : '⏳ 生成中...'}
+                      </span>
                       <span className={styles.gameItemMeta}>
                         {STAGE_LABELS[genStage] ?? '处理中'} · {genProgress}%
+                        {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
                       </span>
                     </div>
                     <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
@@ -567,12 +537,9 @@ export default function GamePanel({
                       <button
                         className={styles.deleteBtn}
                         onClick={e => { e.stopPropagation(); handleDelete(g.game_id); }}
-                        disabled={deletingIds.has(g.game_id)}
-                        title="删除"
+                        disabled={deletingIds.has(g.game_id)} title="删除"
                       >
-                        {deletingIds.has(g.game_id)
-                          ? <Loader2 size={11} className={styles.spin} />
-                          : <Trash2 size={11} />}
+                        {deletingIds.has(g.game_id) ? <Loader2 size={11} className={styles.spin} /> : <Trash2 size={11} />}
                       </button>
                     </div>
                   </div>
@@ -583,12 +550,17 @@ export default function GamePanel({
         )}
       </div>
 
-      {/* ─── 右栏：预览区 ─── */}
-      <div className={styles.preview} ref={iframeContainerRef}>
-
-        {/* 正在生成：显示实时代码动画 */}
+      {/* ─── 右栏：预览 ─── */}
+      <div className={styles.preview}>
         {generating ? (
-          <CodeTypingAnimation stage={genStage} progress={genProgress} />
+          /* 实时流式代码窗口 */
+          <StreamingCodeWindow
+            stage={genStage}
+            progress={genProgress}
+            stageMessage={genStageMsg}
+            code={streamedCode}
+            isStreaming={isLiveStream}
+          />
         ) : !selectedId ? (
           <div className={styles.previewEmpty}>
             <Gamepad2 size={40} className={styles.emptyIcon} />
@@ -597,7 +569,7 @@ export default function GamePanel({
           </div>
         ) : (
           <>
-            {/* 预览头部 */}
+            {/* 预览工具栏 */}
             <div className={styles.previewHeader}>
               <div className={styles.previewTabs}>
                 <button
@@ -616,9 +588,7 @@ export default function GamePanel({
 
               <div className={styles.previewMeta}>
                 <span className={styles.previewTitle}>{selectedGame?.title}</span>
-                {selectedGame && (
-                  <span className={styles.previewVersion}>v{selectedGame.version}</span>
-                )}
+                {selectedGame && <span className={styles.previewVersion}>v{selectedGame.version}</span>}
               </div>
 
               <div className={styles.previewActions}>
@@ -627,7 +597,6 @@ export default function GamePanel({
                     {copied ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
-                {/* 侧边栏折叠快捷入口（右侧） */}
                 <button
                   className={styles.iconActionBtn}
                   onClick={() => setSidebarOpen(v => !v)}
@@ -635,10 +604,9 @@ export default function GamePanel({
                 >
                   {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
                 </button>
-                {/* 全屏 */}
                 <button
                   className={styles.iconActionBtn}
-                  onClick={toggleFullscreen}
+                  onClick={() => setIsFullscreen(v => !v)}
                   title={isFullscreen ? '退出全屏 (Esc)' : '全屏预览'}
                 >
                   {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -659,8 +627,7 @@ export default function GamePanel({
               <div className={styles.sourceWrap}>
                 {sourceLoading ? (
                   <div className={styles.sourceLoading}>
-                    <Loader2 size={22} className={styles.spin} />
-                    <span>加载源码...</span>
+                    <Loader2 size={22} className={styles.spin} /><span>加载源码...</span>
                   </div>
                 ) : (
                   <pre className={styles.sourcePre}><code>{sourceCode ?? ''}</code></pre>

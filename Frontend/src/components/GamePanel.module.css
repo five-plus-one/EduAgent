@@ -725,6 +725,56 @@
   color: rgba(255,255,255,0.35);
   font-family: 'JetBrains Mono', monospace;
   margin-left: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* LIVE / 轮询 徽章 */
+.streamingBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(239,68,68,0.25);
+  color: #f87171;
+  letter-spacing: 0.5px;
+  animation: badgePulse 1.8s ease-in-out infinite;
+}
+.pollingBadge {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(148,163,184,0.2);
+  color: #94a3b8;
+  letter-spacing: 0.5px;
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* 等待首个 chunk 时的占位 */
+.codeWaiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255,255,255,0.3);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 12px 16px;
+}
+
+/* 代码统计栏 */
+.codeStats {
+  padding: 5px 16px;
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.2);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
 }
 
 .codeBody {

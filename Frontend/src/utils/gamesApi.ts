@@ -2,7 +2,8 @@
  * 互动小游戏 API — 完整类型定义与工具函数
  * 后端路由前缀: /api/v1
  */
-import { apiClient } from './api';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { apiClient, API_BASE_URL } from './api';
 
 // ─────────────────────────────────────────────────────────────────
 // Types
@@ -205,3 +206,128 @@ export const GAME_TYPE_DEFAULTS: GameType[] = [
   { key: 'flashcard', label: '⚡ 快问快答',     hint: '单面问题→翻转→背面答案，循环15张' },
   { key: 'custom',    label: '🎨 自定义游戏',   hint: '完全按照教师要求实现' },
 ];
+
+// ─────────────────────────────────────────────────────────────────
+// 游戏代码流式生成
+// ─────────────────────────────────────────────────────────────────
+
+export interface GameStreamCallbacks {
+  /** 阶段变更（preparing / generating / writing / done）*/
+  onStage?: (stage: string, progress: number, message?: string) => void;
+  /** 实际 HTML 代码片段（来自 LLM token 流）*/
+  onChunk?: (chunk: string, progress: number, accumulated: string) => void;
+  /** 生成完成 */
+  onDone?: (gameId: string, version: number) => void;
+  /** 生成失败 */
+  onError?: (message: string) => void;
+}
+
+/**
+ * 连接游戏生成 SSE 流。
+ *
+ * 优先尝试 `GET /games/tasks/{task_id}/stream`（SSE 流式），
+ * 若后端尚未实现（返回 404/405），自动降级到 500ms 轮询模式，
+ * 保证向后兼容。
+ *
+ * @param taskId  generateGame 返回的 task_id
+ * @param callbacks  事件回调
+ * @param signal  AbortSignal（可在组件卸载时中断）
+ */
+export async function streamGameTask(
+  taskId: string,
+  callbacks: GameStreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  const token = localStorage.getItem('access_token') ?? '';
+  const url = `${API_BASE_URL}/games/tasks/${taskId}/stream`;
+  let streamFailed = false;
+  let accumulated = '';
+
+  try {
+    await fetchEventSource(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal,
+      // fetchEventSource 会在非 2xx 时 throw，我们捕获后降级
+      async onopen(response) {
+        if (!response.ok) {
+          // 404 = 后端未实现，降级到轮询
+          streamFailed = true;
+          throw new Error(`SSE_NOT_SUPPORTED:${response.status}`);
+        }
+      },
+      onmessage(ev) {
+        if (!ev.data || ev.data === '[DONE]') return;
+        try {
+          const data = JSON.parse(ev.data);
+          switch (data.event_type) {
+            case 'stage':
+              callbacks.onStage?.(data.stage, data.progress ?? 0, data.message);
+              break;
+            case 'code_chunk':
+              accumulated += data.chunk ?? '';
+              callbacks.onChunk?.(data.chunk ?? '', data.progress ?? 0, accumulated);
+              break;
+            case 'done':
+              callbacks.onDone?.(data.game_id, data.version ?? 1);
+              break;
+            case 'error':
+              callbacks.onError?.(data.message ?? '生成失败');
+              break;
+          }
+        } catch { /* malformed JSON — skip */ }
+      },
+      onerror(err) {
+        if (err instanceof DOMException && err.name === 'AbortError') throw err;
+        // 非 abort 错误：标记 SSE 失败，中断重试循环
+        streamFailed = true;
+        throw err;
+      },
+    });
+  } catch (e: any) {
+    // AbortError = 用户手动取消，直接返回
+    if (e instanceof DOMException && e.name === 'AbortError') return;
+    // SSE 不支持 → 降级轮询
+    if (streamFailed || String(e?.message ?? '').startsWith('SSE_NOT_SUPPORTED')) {
+      await _pollFallback(taskId, callbacks, signal);
+      return;
+    }
+    // 其他网络错误也降级轮询
+    console.warn('[GameStream] SSE error, falling back to polling:', e);
+    await _pollFallback(taskId, callbacks, signal);
+  }
+}
+
+/** 内部：轮询降级实现（500ms） */
+async function _pollFallback(
+  taskId: string,
+  callbacks: GameStreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  let lastStage = '';
+  while (true) {
+    if (signal?.aborted) return;
+    try {
+      const task = await getGameTask(taskId);
+      // 阶段变更时通知
+      if (task.stage && task.stage !== lastStage) {
+        lastStage = task.stage;
+        callbacks.onStage?.(task.stage, task.progress ?? 0);
+      } else if (task.progress != null) {
+        callbacks.onStage?.(task.stage ?? lastStage, task.progress);
+      }
+      if (task.status === 'completed') {
+        callbacks.onDone?.(task.result!.game_id, task.result!.version ?? 1);
+        return;
+      }
+      if (task.status === 'failed') {
+        callbacks.onError?.(task.result?.error ?? '生成失败，请重试');
+        return;
+      }
+    } catch { /* keep going */ }
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
