@@ -453,15 +453,20 @@ export const uploadKnowledgeDoc = async (file: File, metadata: Record<string, un
   return res.data?.data ?? res.data;
 };
 
-/** 6.2 List knowledge docs (paginated) */
-export const listKnowledgeDocs = async (page = 1, size = 20, status?: string, subject?: string) => {
-  const res = await apiClient.get('/knowledge-base/documents', { params: { page, size, status, subject } });
+/** 6.2 List knowledge docs (paginated)
+ * @deprecated Prefer `listKnowledgeDocuments` from videoKnowledgeApi.ts (supports v1.2 response shape)
+ */
+export const listKnowledgeDocs = async (page = 1, size = 20, status?: string) => {
+  const res = await apiClient.get('/knowledge-base/documents', { params: { page, size, ...(status ? { status } : {}) } });
   return res.data?.data ?? res.data;
 };
 
-/** 6.3 Update knowledge doc metadata */
+/** 6.3 Replace all metadata for a knowledge doc (PUT semantics: full overwrite)
+ * ⚠️ Sends metadata object directly — do NOT wrap in { metadata: {...} }.
+ * To update display_name/description, use `patchKnowledgeDocument` from videoKnowledgeApi.ts instead.
+ */
 export const updateKnowledgeDoc = async (docId: string, metadata: Record<string, unknown>) => {
-  await apiClient.put(`/knowledge-base/documents/${docId}`, { metadata });
+  await apiClient.put(`/knowledge-base/documents/${docId}`, metadata);
 };
 
 /** 6.4 Delete a knowledge doc from RAG */

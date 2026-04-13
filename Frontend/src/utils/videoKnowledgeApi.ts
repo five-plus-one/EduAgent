@@ -1,14 +1,14 @@
 /**
- * 视频知识库 API — v1.0
+ * 视频知识库 API — v1.2
  *
  * 路由前缀：/api/v1/knowledge-base/
  * 本文件仅新增，不修改任何已有文件（api.ts 的旧接口不受影响）。
  *
  * 快速导入：
  *   import {
- *     uploadKnowledgeFile, listKnowledgeDocs, getKnowledgeDocument,
+ *     uploadKnowledgeFile, listKnowledgeDocuments, patchKnowledgeDocument,
  *     deleteKnowledgeDocument, retryKnowledgeDocument,
- *     getKeyframeUrl, pollVideoProgress,
+ *     getKeyframeUrl, getDownloadUrl, getPreviewUrl, pollVideoProgress,
  *     validateUploadFile, formatDuration, VIDEO_STAGE_LABELS,
  *   } from '../utils/videoKnowledgeApi';
  */
@@ -87,12 +87,20 @@ export interface KeyframeInfo {
   description: string;
 }
 
-/** 所有文档共有字段 */
+/** 所有文档共有字段（API v1.2） */
 export interface KBDocumentBase {
   document_id: string;
+  /** 原始物理文件名（不可修改） */
   filename: string;
-  /** 文档状态 */
-  status: 'processing' | 'completed' | 'failed' | string;
+  /** 用户自定义显示名（可通过 PATCH 修改），展示时优先用此字段，为空则 fallback 到 filename */
+  display_name?: string | null;
+  /** 用户自定义描述 */
+  description?: string | null;
+  /**
+   * 文档状态：pending / processing / completed / failed
+   * ⚠️ 新增 'pending' 状态（排队中，尚未开始处理）
+   */
+  status: 'pending' | 'processing' | 'completed' | 'failed' | string;
   /** 处理进度 0-100 */
   progress: number;
   /**
@@ -101,8 +109,17 @@ export interface KBDocumentBase {
    *   const fileType = doc.file_type ?? 'document';
    */
   file_type: 'document' | 'video' | null;
+  /** 处理中的细粒度阶段码（completed/failed 后为 null） */
+  process_stage?: VideoProcessStage | string | null;
+  /**
+   * ⭐ 后端直接提供的阶段中文文案，直接用于 UI 展示。
+   * 优先使用此字段，本地 VIDEO_STAGE_LABELS 仅作 fallback。
+   */
+  stage_label?: string | null;
   /** 内容摘要 / 失败原因 */
-  summary?: string;
+  summary?: string | null;
+  /** 原始 metadata 对象 */
+  metadata?: Record<string, unknown>;
   created_at?: string;
 }
 
@@ -110,15 +127,13 @@ export interface KBDocumentBase {
 export interface KBVideoDocument extends KBDocumentBase {
   file_type: 'video';
   /** 视频时长（秒） */
-  duration_sec?: number;
-  /** 当前处理阶段 */
-  process_stage?: VideoProcessStage;
+  duration_sec?: number | null;
   /** 字幕片段列表（status=completed 后可用） */
-  transcript_json?: TranscriptSegment[];
+  transcript_json?: TranscriptSegment[] | null;
   /** 关键帧列表（status=completed 后可用） */
-  keyframes_json?: KeyframeInfo[];
+  keyframes_json?: KeyframeInfo[] | null;
   /** AI 生成的视频内容摘要（Markdown，status=completed 后可用） */
-  video_summary?: string;
+  video_summary?: string | null;
 }
 
 /** 列表响应体 */
@@ -135,6 +150,13 @@ export interface KBUploadResponse {
   document_id: string;
   status: string;
   file_type: 'document' | 'video' | null;
+}
+
+/** PATCH 接口响应 */
+export interface KBPatchResponse {
+  document_id: string;
+  display_name: string | null;
+  description: string | null;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -196,6 +218,16 @@ export function formatDuration(seconds?: number): string {
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+/** 提取 origin（去除 /api/v1 后缀） */
+function _getOrigin(): string {
+  return API_BASE_URL.replace(/\/api\/v\d+.*$/, '');
+}
+
+/** 获取当前 token */
+function _getToken(): string {
+  return localStorage.getItem('access_token') ?? '';
+}
+
 /**
  * 构建关键帧图片 URL（自动附加 ?token= JWT）。
  *
@@ -205,9 +237,42 @@ export function formatDuration(seconds?: number): string {
  * <img src={getKeyframeUrl(doc.document_id, kf.filename)} />
  */
 export function getKeyframeUrl(docId: string, filename: string): string {
-  const token  = localStorage.getItem('access_token') ?? '';
-  const origin = API_BASE_URL.replace(/\/api\/v\d+.*$/, '');
+  const token  = _getToken();
+  const origin = _getOrigin();
   const path   = `/api/v1/knowledge-base/documents/${docId}/keyframes/${encodeURIComponent(filename)}`;
+  const query  = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${origin}${path}${query}`;
+}
+
+/**
+ * 构建文档下载 URL（触发浏览器下载对话框）。
+ * 适合用于 <a href={url} download> ，支持大文件，无需 fetch。
+ *
+ * @example
+ * <a href={getDownloadUrl(doc.document_id)} download={doc.filename}>下载</a>
+ */
+export function getDownloadUrl(docId: string): string {
+  const token  = _getToken();
+  const origin = _getOrigin();
+  const path   = `/api/v1/knowledge-base/documents/${docId}/download`;
+  const query  = token ? `?token=${encodeURIComponent(token)}` : '';
+  return `${origin}${path}${query}`;
+}
+
+/**
+ * 构建文档在线预览 URL（在浏览器内联展示，不弹下载框）。
+ * - PDF  → 浏览器内嵌 PDF 渲染
+ * - MP4/WebM → 支持 Range 请求，进度条可拖
+ * - DOCX/PPTX → 302 重定向到 /download
+ *
+ * @example
+ * <iframe src={getPreviewUrl(docId)} />          // PDF
+ * <video src={getPreviewUrl(docId)} controls />  // 视频
+ */
+export function getPreviewUrl(docId: string): string {
+  const token  = _getToken();
+  const origin = _getOrigin();
+  const path   = `/api/v1/knowledge-base/documents/${docId}/preview`;
   const query  = token ? `?token=${encodeURIComponent(token)}` : '';
   return `${origin}${path}${query}`;
 }
@@ -257,12 +322,17 @@ export async function listKnowledgeDocuments(
 }
 
 /**
- * 🆕 获取单个文档详情（含完整 transcript_json / keyframes_json / video_summary）。
+ * 更新文档的显示名 / 描述（至少传一个字段）。
+ * 对应 PATCH /documents/{doc_id}（API v1.2 新增）。
+ *
+ * @example
+ * await patchKnowledgeDocument(docId, { display_name: '第六章配套视频' });
  */
-export async function getKnowledgeDocument(
+export async function patchKnowledgeDocument(
   docId: string,
-): Promise<KBDocumentBase | KBVideoDocument> {
-  const res = await apiClient.get(`/knowledge-base/documents/${docId}`);
+  data: { display_name?: string; description?: string },
+): Promise<KBPatchResponse> {
+  const res = await apiClient.patch(`/knowledge-base/documents/${docId}`, data);
   return (res.data as any)?.data ?? res.data;
 }
 
@@ -274,10 +344,14 @@ export async function deleteKnowledgeDocument(docId: string): Promise<void> {
 }
 
 /**
- * 重试失败的文档处理（无需重新上传文件）。
+ * 重试失败/pending 的文档处理（无需重新上传文件）。
+ * 返回最新 {document_id, status}。
  */
-export async function retryKnowledgeDocument(docId: string): Promise<void> {
-  await apiClient.post(`/knowledge-base/documents/${docId}/retry`);
+export async function retryKnowledgeDocument(
+  docId: string,
+): Promise<{ document_id: string; status: string }> {
+  const res = await apiClient.post(`/knowledge-base/documents/${docId}/retry`);
+  return (res.data as any)?.data ?? res.data;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -313,8 +387,11 @@ export function pollVideoProgress(
   const tick = async () => {
     if (!active) return;
     try {
-      const doc = await getKnowledgeDocument(docId);
+      // v1.2 无单文档详情接口，通过列表接口轮询并过滤
+      const listRes = await listKnowledgeDocuments(1, 100);
       if (!active) return;
+      const doc = listRes.items.find(d => d.document_id === docId);
+      if (!doc) return; // 文档可能已被删除
       onProgress(doc);
       // 终止状态时不再继续
       if (doc.status === 'completed' || doc.status === 'failed') {

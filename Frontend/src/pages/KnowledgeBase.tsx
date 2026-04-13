@@ -9,7 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, formatDuration, retryKnowledgeDocument,
+  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration, retryKnowledgeDocument,
   VIDEO_STAGE_LABELS, VIDEO_STAGE_PROGRESS,
   type KBDocumentBase, type KBVideoDocument, type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
@@ -18,14 +18,25 @@ import {
 export interface KBDocument {
   document_id: string;
   filename: string;
+  /** 用户自定义显示名（展示时优先，为空 fallback 到 filename）*/
+  display_name?: string | null;
+  /** 用户自定义描述 */
+  description?: string | null;
   status: string;
   progress?: number;
-  summary?: string;
+  summary?: string | null;
   created_at?: string;
   file_type?: 'document' | 'video' | null;
+  /** 处理中的细粒度阶段码 */
+  process_stage?: VideoProcessStage;
+  /**
+   * ⭐ 后端直接返回的阶段中文文案（API v1.2 新增）
+   * 优先用此字段，为空再查本地 VIDEO_STAGE_LABELS
+   */
+  stage_label?: string | null;
+  metadata?: Record<string, unknown>;
   // 视频专属
   duration_sec?: number;
-  process_stage?: VideoProcessStage;
   transcript_json?: { start: number; end: number; text: string }[];
   keyframes_json?: { filename: string; timestamp_est: number; description: string }[];
   video_summary?: string;
@@ -38,6 +49,20 @@ function getFileExt(filename: string) {
 
 function isVideo(doc: KBDocument) {
   return (doc.file_type ?? 'document') === 'video';
+}
+
+/** 优先显示 display_name，fallback 到 filename */
+function getDisplayTitle(doc: KBDocument): string {
+  return doc.display_name?.trim() || doc.filename;
+}
+
+/**
+ * 获取当前阶段标签文案：优先用后端 stage_label（API v1.2），再 fallback 到本地映射表
+ */
+function getStageLabelText(doc: KBDocument): string {
+  if (doc.stage_label) return doc.stage_label;
+  if (doc.process_stage) return VIDEO_STAGE_LABELS[doc.process_stage] ?? doc.process_stage;
+  return '';
 }
 
 function fileTypeIcon(doc: KBDocument) {
@@ -73,8 +98,16 @@ function KBDocPreviewPanel({
     { id: 'transcript' as const, label: '字幕',       show: isVid && (doc.transcript_json?.length ?? 0) > 0 },
   ].filter(t => t.show);
 
-  const stageLabel = doc.process_stage ? (VIDEO_STAGE_LABELS[doc.process_stage] ?? doc.process_stage) : '';
-  const stageProgress = doc.process_stage ? (VIDEO_STAGE_PROGRESS[doc.process_stage] ?? doc.progress ?? 0) : (doc.progress ?? 0);
+  // v1.2: 优先用后端 stage_label，fallback 到本地映射
+  const stageLabel = getStageLabelText(doc);
+  // v1.2: 优先用后端 progress，fallback 到本地阶段表
+  const stageProgress = doc.progress ?? (
+    doc.process_stage ? (VIDEO_STAGE_PROGRESS[doc.process_stage] ?? 0) : 0
+  );
+  // 下载/预览 URL（token 自动注入）
+  const downloadUrl = getDownloadUrl(doc.document_id);
+  const previewUrl  = getPreviewUrl(doc.document_id);
+  const canPreview  = doc.status === 'completed';
 
   return (
     <div className={styles.preview}>
@@ -85,7 +118,7 @@ function KBDocPreviewPanel({
             ? <span className={styles.previewTypeTag}><Film size={12} /> 视频</span>
             : <span className={styles.previewTypeTagDoc}><FileText size={12} /> 文档</span>
           }
-          <span className={styles.previewFilename} title={doc.filename}>{doc.filename}</span>
+          <span className={styles.previewFilename} title={doc.filename}>{getDisplayTitle(doc)}</span>
         </div>
         <button className={styles.previewClose} onClick={onClose} title="关闭预览">
           <X size={16} />
@@ -131,7 +164,17 @@ function KBDocPreviewPanel({
 
       {/* ── 操作栏 ── */}
       <div className={styles.previewActions}>
-        {doc.status === 'failed' && onRetry && (
+        {canPreview && (
+          <a
+            className={styles.actionBtnDownload}
+            href={downloadUrl}
+            download={doc.filename}
+            title="下载原始文件"
+          >
+            <Download size={13} /> 下载
+          </a>
+        )}
+        {(doc.status === 'failed' || doc.status === 'pending') && onRetry && (
           <button className={styles.actionBtnRetry} onClick={() => onRetry(doc.document_id)}>
             <RotateCcw size={13} /> 重新解析
           </button>
@@ -433,7 +476,9 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                         <td>
                           <div className={styles.cellFile}>
                             {fileTypeIcon(doc)}
-                            <span className={styles.filename}>{doc.filename}</span>
+                            <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
+                              {getDisplayTitle(doc)}
+                            </span>
                             {isSelected && <ChevronRight size={13} className={styles.rowSelectedArrow} />}
                           </div>
                         </td>
@@ -450,13 +495,14 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                             <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={13} /> 解析完成</div>
                           ) : doc.status === 'failed' ? (
                             <div className={clsx(styles.statusBadge, styles.statusFailed)}>✕ 解析失败</div>
+                          ) : doc.status === 'pending' ? (
+                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                              <Clock size={13} className={styles.rotating} /> 排队中
+                            </div>
                           ) : (
                             <div className={clsx(styles.statusBadge, styles.statusPending)}>
                               <Clock size={13} className={styles.rotating} />
-                              {doc.process_stage
-                                ? (VIDEO_STAGE_LABELS[doc.process_stage] ?? '处理中')
-                                : `向量化中${doc.progress != null ? ` ${doc.progress}%` : ''}`
-                              }
+                              {getStageLabelText(doc) || `处理中${doc.progress != null ? ` ${doc.progress}%` : ''}`}
                             </div>
                           )}
                         </td>
