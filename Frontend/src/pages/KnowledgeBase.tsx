@@ -450,7 +450,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
