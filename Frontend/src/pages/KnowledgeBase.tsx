@@ -297,7 +297,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       const isVideo = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv'].includes(ext);
       const limitMB = isVideo ? MAX_VIDEO_MB : MAX_DOC_MB;
       if (f.size > limitMB * 1024 * 1024) {
-        setUploadError(`文件「${f.name}」超过 ${limitMB} MB 限制。`);
+        alert(`文件「${f.name}」超过 ${limitMB} MB 限制。`);
         return;
       }
     }
@@ -307,6 +307,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       await Promise.all(files.map(f => uploadKnowledgeDoc(f, { filename: f.name })));
       await fetchDocs();
     } catch (err: any) {
+      alert(err?.message ?? '上传失败，请重试。');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
