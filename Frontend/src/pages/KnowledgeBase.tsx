@@ -2,14 +2,15 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
   X, Video, FileVideo, Download, Film, AlignLeft, RotateCcw,
-  ChevronRight, Image as ImageIcon,
+  ChevronRight, Image as ImageIcon, Edit2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration, retryKnowledgeDocument,
+  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration,
+  retryKnowledgeDocument, patchKnowledgeDocument,
   VIDEO_STAGE_LABELS, VIDEO_STAGE_PROGRESS,
   type KBDocumentBase, type KBVideoDocument, type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
@@ -76,21 +77,64 @@ function KBDocPreviewPanel({
   onClose,
   onDelete,
   onRetry,
+  onRename,
 }: {
   doc: KBDocument;
   onClose: () => void;
   onDelete: (id: string) => void;
   onRetry?: (id: string) => void;
+  onRename?: (id: string, displayName: string) => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<'summary' | 'keyframes' | 'transcript'>('summary');
   const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
+  // ── 重命名编辑状态 ──
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const isVid = isVideo(doc);
 
-  // 当切换 doc 时重置 tab
+  // 切换 doc 时重置 tab & 编辑状态
   useEffect(() => {
     setActiveTab('summary');
     setSelectedFrame(null);
+    setIsEditing(false);
   }, [doc.document_id]);
+
+  // 进入编辑模式时自动聚焦
+  useEffect(() => {
+    if (isEditing) {
+      editInputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const startEdit = () => {
+    setEditValue(doc.display_name?.trim() || doc.filename);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => { setIsEditing(false); };
+
+  const commitEdit = async () => {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === getDisplayTitle(doc)) {
+      setIsEditing(false);
+      return;
+    }
+    if (!onRename) { setIsEditing(false); return; }
+    setIsSavingName(true);
+    try {
+      await onRename(doc.document_id, trimmed);
+    } finally {
+      setIsSavingName(false);
+      setIsEditing(false);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    if (e.key === 'Escape') { cancelEdit(); }
+  };
 
   const tabs = [
     { id: 'summary' as const,    label: 'AI 摘要',    show: true },
@@ -118,7 +162,35 @@ function KBDocPreviewPanel({
             ? <span className={styles.previewTypeTag}><Film size={12} /> 视频</span>
             : <span className={styles.previewTypeTagDoc}><FileText size={12} /> 文档</span>
           }
-          <span className={styles.previewFilename} title={doc.filename}>{getDisplayTitle(doc)}</span>
+          {isEditing ? (
+            <input
+              ref={editInputRef}
+              className={styles.previewFilenameInput}
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={handleEditKeyDown}
+              disabled={isSavingName}
+              maxLength={100}
+              autoFocus
+            />
+          ) : (
+            <span
+              className={styles.previewFilename}
+              title={doc.display_name ? `原始文件名: ${doc.filename}` : doc.filename}
+            >
+              {getDisplayTitle(doc)}
+            </span>
+          )}
+          {onRename && !isEditing && (
+            <button
+              className={styles.renameBtn}
+              onClick={startEdit}
+              title="重命名"
+            >
+              <Edit2 size={12} />
+            </button>
+          )}
         </div>
         <button className={styles.previewClose} onClick={onClose} title="关闭预览">
           <X size={16} />
@@ -385,6 +457,22 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  /** 修改文档显示名（重命名） */
+  const handleRename = async (documentId: string, displayName: string): Promise<void> => {
+    // 乐观更新，让用户立即看到新名字
+    const applyName = (d: KBDocument): KBDocument =>
+      d.document_id === documentId ? { ...d, display_name: displayName } : d;
+    setDocuments(prev => prev.map(applyName));
+    setSelectedDoc(prev => prev?.document_id === documentId ? applyName(prev) : prev);
+    try {
+      await patchKnowledgeDocument(documentId, { display_name: displayName });
+    } catch {
+      console.error('[handleRename] failed, rolling back');
+      // 回滚：重新拉列表
+      fetchDocs(true);
+    }
+  };
+
   const handleRowClick = (doc: KBDocument) => {
     setSelectedDoc(prev => prev?.document_id === doc.document_id ? null : doc);
   };
@@ -528,6 +616,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
           onClose={() => setSelectedDoc(null)}
           onDelete={handleDelete}
           onRetry={handleRetry}
+          onRename={handleRename}
         />
       )}
     </div>
