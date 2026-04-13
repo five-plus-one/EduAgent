@@ -1,0 +1,574 @@
+/* ══════════════════════════════════════════════════════════
+   GamePanel.module.css — 互动小游戏管理面板
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 根布局：左栏 + 右栏 ── */
+.root {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── 左栏：列表 + 触发器 ── */
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 12px;
+  border-right: 1px solid var(--border-glass, rgba(0,0,0,0.08));
+  overflow-y: auto;
+  background: var(--bg-secondary, #f8fafc);
+}
+
+/* ── AI 建议横幅 ── */
+.suggestBanner {
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05));
+  border: 1px solid rgba(99,102,241,0.18);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.suggestHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6366f1;
+}
+
+.suggestIcon { color: #6366f1; }
+
+.suggestQuestion {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.suggestChips {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.suggestChip {
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.14);
+  border-radius: 7px;
+  padding: 5px 8px;
+}
+
+.suggestChipLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+}
+
+.suggestChipReason {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: block;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* ── AI 确认触发横幅 ── */
+.triggerBanner {
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(16,185,129,0.07), rgba(5,150,105,0.04));
+  border: 1px solid rgba(16,185,129,0.2);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.triggerHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #059669;
+}
+
+.triggerIcon { color: #059669; }
+
+.triggerTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.triggerTopics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.topicTag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 100px;
+  background: rgba(16,185,129,0.1);
+  color: #059669;
+  font-weight: 600;
+}
+
+.triggerInstr {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.6);
+  border-radius: 6px;
+  padding: 5px 7px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.bannerClose {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.bannerClose:hover { background: rgba(0,0,0,0.06); color: var(--text-primary); }
+
+/* ── 确认按钮 ── */
+.confirmBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+}
+.confirmBtn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+.confirmBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── 进度/错误条 ── */
+.generatingBar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  background: rgba(99,102,241,0.07);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6366f1;
+}
+
+.errorBar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.18);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #ef4444;
+}
+
+/* ── 操作栏 ── */
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.newGameBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
+  background: var(--bg-primary, #fff);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.newGameBtn:hover:not(:disabled) {
+  background: rgba(99,102,241,0.07);
+  border-color: rgba(99,102,241,0.25);
+  color: #6366f1;
+}
+.newGameBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.refreshBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
+  border-radius: 7px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.refreshBtn:hover { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* ── 手动创建面板 ── */
+.manualPanel {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.08));
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  animation: fadeIn 0.18s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+.manualLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.typeCard {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.08));
+  background: var(--bg-secondary, #f8fafc);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.13s;
+  font-family: inherit;
+}
+.typeCard:hover {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.04);
+}
+.typeCardActive {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.typeCardLabel { font-size: 11.5px; font-weight: 700; color: var(--text-primary); }
+.typeCardHint  { font-size: 10px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.manualInput {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
+  border-radius: 7px;
+  background: var(--bg-secondary, #f8fafc);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+.manualInput:focus { border-color: #6366f1; }
+.manualTextarea { resize: vertical; min-height: 52px; }
+
+/* ── 游戏列表 ── */
+.listLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 0;
+  color: var(--text-tertiary);
+}
+
+.emptyList {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  text-align: center;
+  gap: 6px;
+  color: var(--text-tertiary);
+}
+.emptyList p { font-size: 13px; font-weight: 500; margin: 0; color: var(--text-secondary); }
+.emptyList small { font-size: 11px; line-height: 1.5; }
+
+.emptyIcon { opacity: 0.3; }
+
+.gameList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.gameItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: var(--bg-primary, #fff);
+  cursor: pointer;
+  transition: all 0.14s;
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.06));
+}
+.gameItem:hover { background: rgba(99,102,241,0.04); border-color: rgba(99,102,241,0.18); }
+.gameItemActive {
+  background: rgba(99,102,241,0.07) !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.12);
+}
+
+.gameItemMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gameItemTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameItemMeta {
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gameItemRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.statusDone { color: #22c55e; }
+.statusGen  { color: #6366f1; }
+.statusFail { color: #ef4444; }
+.chevron    { color: #6366f1; }
+
+.deleteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+}
+.gameItem:hover .deleteBtn { opacity: 1; }
+.deleteBtn:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
+
+/* ── 右栏：预览 ── */
+.preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.previewEmpty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 40px;
+}
+.previewEmpty p { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin: 0; }
+.previewEmpty small { font-size: 12px; line-height: 1.55; max-width: 260px; }
+
+/* ── 预览头部 ── */
+.previewHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-glass, rgba(0,0,0,0.08));
+  flex-shrink: 0;
+  background: var(--bg-secondary, #f8fafc);
+}
+
+.previewTabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.08));
+  border-radius: 8px;
+  padding: 2px;
+}
+
+.previewTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.previewTab:hover { color: var(--text-primary); }
+.previewTabActive {
+  background: var(--bg-secondary, #f1f5f9);
+  color: #6366f1 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.previewMeta {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.previewTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.previewVersion {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 100px;
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.copyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
+  border-radius: 7px;
+  background: var(--bg-primary, #fff);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.13s;
+  flex-shrink: 0;
+}
+.copyBtn:hover:not(:disabled) { background: rgba(99,102,241,0.07); color: #6366f1; border-color: rgba(99,102,241,0.25); }
+.copyBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── iframe 预览 ── */
+.iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
+/* ── 源码区 ── */
+.sourceWrap {
+  flex: 1;
+  overflow: auto;
+  background: #0f172a;
+}
+
+.sourceLoading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: rgba(255,255,255,0.4);
+}
+
+.sourcePre {
+  margin: 0;
+  padding: 20px 24px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #e2e8f0;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.sourcePre code {
+  font-family: inherit;
+}
+
+/* ── 通用旋转 ── */
+.spin {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
