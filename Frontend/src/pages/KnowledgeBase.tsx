@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
-  X, Video, FileVideo, RotateCcw, ChevronRight, AlertCircle,
-  Film, ChevronUp, ChevronDown,
+  X, Video, FileVideo, RotateCcw, ChevronRight,
+  Film,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
