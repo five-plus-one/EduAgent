@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
-  X, Video, FileVideo, RotateCcw, ChevronRight,
-  Film,
+  X, Video, FileVideo, Download, Film, AlignLeft, RotateCcw,
+  ChevronRight, Image as ImageIcon,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, formatDuration, retryKnowledgeDocument,
+  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration,
+  retryKnowledgeDocument, patchKnowledgeDocument,
   VIDEO_STAGE_LABELS, VIDEO_STAGE_PROGRESS,
   type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
@@ -18,14 +19,25 @@ import {
 export interface KBDocument {
   document_id: string;
   filename: string;
+  /** 用户自定义显示名（展示时优先，为空 fallback 到 filename）*/
+  display_name?: string | null;
+  /** 用户自定义描述 */
+  description?: string | null;
   status: string;
   progress?: number;
-  summary?: string;
+  summary?: string | null;
   created_at?: string;
   file_type?: 'document' | 'video' | null;
+  /** 处理中的细粒度阶段码 */
+  process_stage?: VideoProcessStage;
+  /**
+   * ⭐ 后端直接返回的阶段中文文案（API v1.2 新增）
+   * 优先用此字段，为空再查本地 VIDEO_STAGE_LABELS
+   */
+  stage_label?: string | null;
+  metadata?: Record<string, unknown>;
   // 视频专属
   duration_sec?: number;
-  process_stage?: VideoProcessStage;
   transcript_json?: { start: number; end: number; text: string }[];
   keyframes_json?: { filename: string; timestamp_est: number; description: string }[];
   video_summary?: string;
@@ -34,6 +46,20 @@ export interface KBDocument {
 // ─── 工具函数 ────────────────────────────────────────────────────
 function isVideo(doc: KBDocument) {
   return (doc.file_type ?? 'document') === 'video';
+}
+
+/** 优先显示 display_name，fallback 到 filename */
+function getDisplayTitle(doc: KBDocument): string {
+  return doc.display_name?.trim() || doc.filename;
+}
+
+/**
+ * 获取当前阶段标签文案：优先用后端 stage_label（API v1.2），再 fallback 到本地映射表
+ */
+function getStageLabelText(doc: KBDocument): string {
+  if (doc.stage_label) return doc.stage_label;
+  if (doc.process_stage) return VIDEO_STAGE_LABELS[doc.process_stage] ?? doc.process_stage;
+  return '';
 }
 
 function fileTypeIcon(doc: KBDocument) {
@@ -47,30 +73,81 @@ function KBDocPreviewPanel({
   onClose,
   onDelete,
   onRetry,
+  onRename,
 }: {
   doc: KBDocument;
   onClose: () => void;
   onDelete: (id: string) => void;
   onRetry?: (id: string) => void;
+  onRename?: (id: string, displayName: string) => Promise<void>;
 }) {
   const [activeTab, setActiveTab] = useState<'summary' | 'keyframes' | 'transcript'>('summary');
   const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
+  // ── 重命名编辑状态 ──
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const isVid = isVideo(doc);
 
-  // 当切换 doc 时重置 tab
+  // 切换 doc 时重置 tab & 编辑状态
   useEffect(() => {
     setActiveTab('summary');
     setSelectedFrame(null);
+    setIsEditing(false);
   }, [doc.document_id]);
 
+  // 进入编辑模式时自动聚焦
+  useEffect(() => {
+    if (isEditing) {
+      editInputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const startEdit = () => {
+    setEditValue(doc.display_name?.trim() || doc.filename);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => { setIsEditing(false); };
+
+  const commitEdit = async () => {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === getDisplayTitle(doc)) {
+      setIsEditing(false);
+      return;
+    }
+    if (!onRename) { setIsEditing(false); return; }
+    setIsSavingName(true);
+    try {
+      await onRename(doc.document_id, trimmed);
+    } finally {
+      setIsSavingName(false);
+      setIsEditing(false);
+    }
+  };
+
+  const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+    if (e.key === 'Escape') { cancelEdit(); }
+  };
+
   const tabs = [
-    { id: 'summary' as const,    label: 'AI 摘要',    show: true },
-    { id: 'keyframes' as const,  label: '关键帧',     show: isVid && (doc.keyframes_json?.length ?? 0) > 0 },
-    { id: 'transcript' as const, label: '字幕',       show: isVid && (doc.transcript_json?.length ?? 0) > 0 },
+    { id: 'summary' as const, label: 'AI 摘要', show: true },
+    { id: 'keyframes' as const, label: '关键帧', show: isVid && (doc.keyframes_json?.length ?? 0) > 0 },
+    { id: 'transcript' as const, label: '字幕', show: isVid && (doc.transcript_json?.length ?? 0) > 0 },
   ].filter(t => t.show);
 
-  const stageLabel = doc.process_stage ? (VIDEO_STAGE_LABELS[doc.process_stage] ?? doc.process_stage) : '';
-  const stageProgress = doc.process_stage ? (VIDEO_STAGE_PROGRESS[doc.process_stage] ?? doc.progress ?? 0) : (doc.progress ?? 0);
+  // v1.2: 优先用后端 stage_label，fallback 到本地映射
+  const stageLabel = getStageLabelText(doc);
+  // v1.2: 优先用后端 progress，fallback 到本地阶段表
+  const stageProgress = doc.progress ?? (
+    doc.process_stage ? (VIDEO_STAGE_PROGRESS[doc.process_stage] ?? 0) : 0
+  );
+  // 下载/预览 URL（token 自动注入）
+  const downloadUrl = getDownloadUrl(doc.document_id);
+  const previewUrl = getPreviewUrl(doc.document_id);
+  const canPreview = doc.status === 'completed';
 
   return (
     <div className={styles.preview}>
@@ -81,7 +158,35 @@ function KBDocPreviewPanel({
             ? <span className={styles.previewTypeTag}><Film size={12} /> 视频</span>
             : <span className={styles.previewTypeTagDoc}><FileText size={12} /> 文档</span>
           }
-          <span className={styles.previewFilename} title={doc.filename}>{doc.filename}</span>
+          {isEditing ? (
+            <input
+              ref={editInputRef}
+              className={styles.previewFilenameInput}
+              value={editValue}
+              onChange={e => setEditValue(e.target.value)}
+              onBlur={commitEdit}
+              onKeyDown={handleEditKeyDown}
+              disabled={isSavingName}
+              maxLength={100}
+              autoFocus
+            />
+          ) : (
+            <span
+              className={styles.previewFilename}
+              title={doc.display_name ? `原始文件名: ${doc.filename}` : doc.filename}
+            >
+              {getDisplayTitle(doc)}
+            </span>
+          )}
+          {onRename && !isEditing && (
+            <button
+              className={styles.renameBtn}
+              onClick={startEdit}
+              title="重命名"
+            >
+              <Edit2 size={12} />
+            </button>
+          )}
         </div>
         <button className={styles.previewClose} onClick={onClose} title="关闭预览">
           <X size={16} />
@@ -92,7 +197,7 @@ function KBDocPreviewPanel({
       <div className={styles.previewMeta}>
         {doc.created_at && (
           <span className={styles.previewMetaItem}>
-            📅 {new Date(doc.created_at).toLocaleDateString('zh-CN', { year:'numeric', month:'long', day:'numeric' })}
+            📅 {new Date(doc.created_at).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
           </span>
         )}
         {isVid && doc.duration_sec != null && (
@@ -127,7 +232,17 @@ function KBDocPreviewPanel({
 
       {/* ── 操作栏 ── */}
       <div className={styles.previewActions}>
-        {doc.status === 'failed' && onRetry && (
+        {canPreview && (
+          <a
+            className={styles.actionBtnDownload}
+            href={downloadUrl}
+            download={doc.filename}
+            title="下载原始文件"
+          >
+            <Download size={13} /> 下载
+          </a>
+        )}
+        {(doc.status === 'failed' || doc.status === 'pending') && onRetry && (
           <button className={styles.actionBtnRetry} onClick={() => onRetry(doc.document_id)}>
             <RotateCcw size={13} /> 重新解析
           </button>
@@ -240,12 +355,11 @@ function KBDocPreviewPanel({
 
 export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
 
   const fetchDocs = useCallback(async (isSilent = false) => {
     try {
@@ -277,7 +391,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     return () => clearInterval(timer);
   }, [documents, fetchDocs]);
 
-  const handleDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
   const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault(); setIsDragging(false);
@@ -288,7 +402,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   };
 
   const MAX_VIDEO_MB = 500;
-  const MAX_DOC_MB   = 100;
+  const MAX_DOC_MB = 100;
 
   const handleFiles = async (files: File[]) => {
     // 前端大小校验
@@ -314,14 +428,29 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  const handleDelete = async (documentId: string) => {
-    if (!window.confirm('确认从知识库中删除该文件？此操作不可撤销。')) return;
+  const handleDelete = (documentId: string) => {
+    const doc = documents.find(d => d.document_id === documentId);
+    setConfirmDelete({ id: documentId, name: getDisplayTitle(doc ?? { document_id: documentId, filename: documentId, status: '', progress: 0, file_type: null }), phase: 'confirm' });
+  };
+
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    // 阶段 1: 切换到“删除中”
+    setConfirmDelete(prev => prev ? { ...prev, phase: 'deleting' } : null);
     try {
-      await deleteKnowledgeDoc(documentId);
-      setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
-      if (selectedDoc?.document_id === documentId) setSelectedDoc(null);
+      await deleteKnowledgeDoc(id);
+      // 阶段 2: 切换到“删除成功”
+      setConfirmDelete(prev => prev ? { ...prev, phase: 'success' } : null);
+      // 带动列表更新
+      setDocuments(prev => prev.filter(d => d.document_id !== id));
+      if (selectedDoc?.document_id === id) setSelectedDoc(null);
+      // 1.2 秒后自动关闭弹窗
+      setTimeout(() => setConfirmDelete(null), 1200);
     } catch {
       console.error('Delete failed');
+      // 失败时回到确认状态
+      setConfirmDelete(prev => prev ? { ...prev, phase: 'confirm' } : null);
     }
   };
 
@@ -351,9 +480,39 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  /** 修改文档显示名（重命名） */
+  const handleRename = async (documentId: string, displayName: string): Promise<void> => {
+    // 乐观更新，让用户立即看到新名字
+    const applyName = (d: KBDocument): KBDocument =>
+      d.document_id === documentId ? { ...d, display_name: displayName } : d;
+    setDocuments(prev => prev.map(applyName));
+    setSelectedDoc(prev => prev?.document_id === documentId ? applyName(prev) : prev);
+    try {
+      await patchKnowledgeDocument(documentId, { display_name: displayName });
+    } catch {
+      console.error('[handleRename] failed, rolling back');
+      // 回滚：重新拉列表
+      fetchDocs(true);
+    }
+  };
+
+  /** 表格行重命名提交 */
+  const commitRowRename = async () => {
+    if (!editingRow) return;
+    const { id, value } = editingRow;
+    setEditingRow(null);
+    const doc = documents.find(d => d.document_id === id);
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== getDisplayTitle(doc ?? { document_id: '', filename: id, status: '', progress: 0, file_type: null })) {
+      await handleRename(id, trimmed);
+    }
+  };
+
   const handleRowClick = (doc: KBDocument) => {
+    if (editingRow?.id === doc.document_id) return; // 重命名中不干扰选中状态
     setSelectedDoc(prev => prev?.document_id === doc.document_id ? null : doc);
   };
+
 
   return (
     <div className={clsx(styles.panelRoot, compact && styles.panelCompact, selectedDoc && styles.panelWithPreview)}>
@@ -425,7 +584,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={5} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{display:'inline', marginRight:6}} />加载中...</td></tr>
+                  <tr><td colSpan={5} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{ display: 'inline', marginRight: 6 }} />加载中...</td></tr>
                 ) : documents.length === 0 ? (
                   <tr><td colSpan={5} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
                 ) : (
@@ -435,14 +594,37 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                     return (
                       <tr
                         key={doc.document_id}
-                        className={clsx(styles.tableRow, isSelected && styles.tableRowSelected)}
+                        className={clsx(
+                          styles.tableRow,
+                          isSelected && styles.tableRowSelected,
+                          deletingRow?.id === doc.document_id && deletingRow.phase === 'exiting' && styles.tableRowExiting,
+                        )}
                         onClick={() => handleRowClick(doc)}
                         style={{ cursor: 'pointer' }}
                       >
                         <td>
                           <div className={styles.cellFile}>
                             {fileTypeIcon(doc)}
-                            <span className={styles.filename}>{doc.filename}</span>
+                            {editingRow?.id === doc.document_id ? (
+                              <input
+                                ref={rowEditInputRef}
+                                className={styles.rowRenameInput}
+                                value={editingRow.value}
+                                onChange={e => setEditingRow(r => r ? { ...r, value: e.target.value } : r)}
+                                onBlur={commitRowRename}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') { e.preventDefault(); commitRowRename(); }
+                                  if (e.key === 'Escape') setEditingRow(null);
+                                }}
+                                maxLength={100}
+                                autoFocus
+                                onClick={e => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
+                                {getDisplayTitle(doc)}
+                              </span>
+                            )}
                             {isSelected && <ChevronRight size={13} className={styles.rowSelectedArrow} />}
                           </div>
                         </td>
@@ -455,23 +637,43 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                           {doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}
                         </td>
                         <td>
-                          {doc.status === 'completed' ? (
+                          {/* 删除中：显示覆盖状态 */}
+                          {deletingRow?.id === doc.document_id ? (
+                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                              <Loader2 size={13} className={styles.rotating} />
+                              {deletingRow.phase === 'loading' ? '删除中…' : '清理中…'}
+                            </div>
+                          ) : doc.status === 'completed' ? (
                             <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={13} /> 解析完成</div>
                           ) : doc.status === 'failed' ? (
                             <div className={clsx(styles.statusBadge, styles.statusFailed)}>✕ 解析失败</div>
+                          ) : doc.status === 'pending' ? (
+                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                              <Clock size={13} className={styles.rotating} /> 排队中
+                            </div>
                           ) : (
                             <div className={clsx(styles.statusBadge, styles.statusPending)}>
                               <Clock size={13} className={styles.rotating} />
-                              {doc.process_stage
-                                ? (VIDEO_STAGE_LABELS[doc.process_stage] ?? '处理中')
-                                : `向量化中${doc.progress != null ? ` ${doc.progress}%` : ''}`
-                              }
+                              {getStageLabelText(doc) || `处理中${doc.progress != null ? ` ${doc.progress}%` : ''}`}
                             </div>
                           )}
                         </td>
-                        <td onClick={e => e.stopPropagation()}>
-                          <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
-                            <Trash2 size={14} />
+                        <td onClick={e => e.stopPropagation()} className={styles.cellActions}>
+                          <button
+                            className={styles.actionIconBtn}
+                            title="重命名"
+                            disabled={!!deletingRow && deletingRow.id === doc.document_id}
+                            onClick={() => setEditingRow({ id: doc.document_id, value: getDisplayTitle(doc) })}
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            className={clsx(styles.actionIconBtn, styles.actionIconBtnDanger)}
+                            title="删除"
+                            disabled={!!deletingRow && deletingRow.id === doc.document_id}
+                            onClick={() => handleDelete(doc.document_id)}
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </td>
                       </tr>
@@ -491,7 +693,34 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
           onClose={() => setSelectedDoc(null)}
           onDelete={handleDelete}
           onRetry={handleRetry}
+          onRename={handleRename}
         />
+      )}
+
+      {/* ── 删除确认弹窗 ── */}
+      {confirmDelete && (
+        <div
+          className={clsx(styles.dialogOverlay, dialogExiting && styles.dialogOverlayExiting)}
+          onClick={() => !dialogExiting && setConfirmDelete(null)}
+        >
+          <div
+            className={clsx(styles.dialogCard, dialogExiting && styles.dialogCardExiting)}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className={styles.dialogIcon}><Trash2 size={22} /></div>
+            <h3 className={styles.dialogTitle}>确认删除</h3>
+            <p className={styles.dialogBody}>
+              将从知识库中删除
+              <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
+              包括向量索引、原始文件及视频工作目录。
+              <br /><strong>此操作不可撤销。</strong>
+            </p>
+            <div className={styles.dialogActions}>
+              <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
+              <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
