@@ -1051,6 +1051,20 @@ export default function Workspace() {
         )}
       </section>
 
+      {/* ── PPT 主题选色器 Overlay ── */}
+      {showThemePicker && (
+        <ThemePicker
+          selectedKey={pendingThemeKey}
+          onSelect={setPendingThemeKey}
+          onConfirm={(themeKey) => {
+            setShowThemePicker(false);
+            exportCourseware(themeKey ?? undefined);
+          }}
+          onCancel={() => setShowThemePicker(false)}
+        />
+      )}
+
     </div>
   );
 }
+
