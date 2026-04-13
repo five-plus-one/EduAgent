@@ -1,4 +1,5 @@
 import json
+import os
 import logging
 import httpx
 from app.core.config import settings
@@ -325,6 +326,7 @@ async def stream_chat_response(
     base_url = settings.OPENAI_API_BASE.rstrip("/")
     tool_calls_buffer: dict[int, dict] = {}
     extracted_intent = ""
+    game_spec_buffer = None      # set when GenerateGame tool fires this turn
     propose_plan_called = False  # True when ProposePPTPlan runs this turn
 
     try:
@@ -440,6 +442,78 @@ async def stream_chat_response(
         elif t_name in ["generatefullppt", "generate_full_ppt"]:
             extracted_intent = "generate_courseware"
 
+        elif t_name in ["proposegametypes", "propose_game_types"]:
+            # ── ProposeGameTypes: 格式化建议列表推送给前端 ─────────────────────
+            _LABELS = {
+                "quiz":      "🎯 选择题闯关",
+                "memory":    "🃏 记忆配对翻牌",
+                "fillblank": "✍️ 填空挑战",
+                "sort":      "📊 拖拽排序",
+                "match":     "🔗 拖拽连线",
+                "flashcard": "⚡ 快问快答",
+                "custom":    "🎨 自定义游戏",
+            }
+            _ALL_TYPES = ["quiz", "memory", "fillblank", "sort", "match", "flashcard", "custom"]
+            suggestions  = t_args.get("suggestions", [])
+            pending_q    = t_args.get("pending_question", "")
+            top_keys     = {s.get("type") for s in suggestions}
+
+            text_lines = ["根据课件内容，为您推荐以下互动游戏类型：\n"]
+            if suggestions:
+                text_lines.append("**📌 首选推荐：**")
+                for s in suggestions:
+                    tk = s.get("type", "")
+                    text_lines.append(
+                        f"- **{_LABELS.get(tk, tk)}**（`{tk}`）"
+                        + (f"\n  ↳ {s['reason']}" if s.get("reason") else "")
+                    )
+            text_lines.append("\n**全部可选类型：**")
+            for t in _ALL_TYPES:
+                if t not in top_keys:
+                    text_lines.append(f"- {_LABELS.get(t, t)}（`{t}`）")
+            if pending_q:
+                text_lines.append(f"\n❓ **{pending_q}**")
+
+            gt_text_evt = json.dumps(
+                {"event_type": "text",
+                 "chunk": "\n".join(text_lines),
+                 "is_finished": False},
+                ensure_ascii=False
+            )
+            yield f"data: {gt_text_evt}\n\n"
+
+            # 结构化 game_suggest 事件供前端渲染选型 UI
+            gs_evt = json.dumps({
+                "event_type": "game_suggest",
+                "game_suggest": {
+                    "suggestions":    suggestions,
+                    "pending_question": pending_q,
+                    "all_types": [
+                        {"key": t, "label": _LABELS.get(t, t)}
+                        for t in _ALL_TYPES
+                    ],
+                },
+                "is_finished": False
+            }, ensure_ascii=False)
+            yield f"data: {gs_evt}\n\n"
+
+        elif t_name in ["generategame", "generate_game"]:
+            # ── GenerateGame: 缓存 spec，推送 game_trigger 供前端确认按钮 ────
+            game_spec_buffer = {
+                "game_type":              t_args.get("game_type", "quiz"),
+                "title":                  t_args.get("title", ""),
+                "key_topics":             t_args.get("key_topics", []),
+                "custom_requirements":    t_args.get("custom_requirements", ""),
+                "is_refinement":          t_args.get("is_refinement", False),
+                "refinement_instruction": t_args.get("refinement_instruction", ""),
+            }
+            gt_evt = json.dumps({
+                "event_type": "game_trigger",
+                "game_trigger": game_spec_buffer,
+                "is_finished": False
+            }, ensure_ascii=False)
+            yield f"data: {gt_evt}\n\n"
+
         elif t_name in ["updateslide", "update_slide", "addslide", "add_slide", "deleteslide", "delete_slide"]:
             should_refetch = True
             try:
@@ -549,7 +623,8 @@ async def stream_chat_response(
         "event_type": "text",
         "chunk": "",
         "is_finished": True,
-        "extracted_intent": extracted_intent
+        "extracted_intent": extracted_intent,
+        "game_spec": game_spec_buffer,  # non-null when GenerateGame was called this turn
     }, ensure_ascii=False)
     yield f"data: {final_data}\n\n"
 

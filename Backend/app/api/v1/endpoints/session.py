@@ -195,7 +195,7 @@ async def chat_with_session(
     async def sse_generator():
         ai_full_text = ""
         is_thinking = False
-        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id):
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, active_game_id=chat_msg.active_game_id):
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:
