@@ -16,6 +16,8 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 # .env.example 保留在版本控制中作为模板
 !.env.example
 
