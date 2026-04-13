@@ -491,9 +491,23 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
+  /** 表格行重命名提交 */
+  const commitRowRename = async () => {
+    if (!editingRow) return;
+    const { id, value } = editingRow;
+    setEditingRow(null);
+    const doc = documents.find(d => d.document_id === id);
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== getDisplayTitle(doc ?? { document_id: '', filename: id, status: '', progress: 0, file_type: null })) {
+      await handleRename(id, trimmed);
+    }
+  };
+
   const handleRowClick = (doc: KBDocument) => {
+    if (editingRow?.id === doc.document_id) return; // 重命名中不干扰选中状态
     setSelectedDoc(prev => prev?.document_id === doc.document_id ? null : doc);
   };
+
 
   return (
     <div className={clsx(styles.panelRoot, compact && styles.panelCompact, selectedDoc && styles.panelWithPreview)}>
@@ -582,9 +596,26 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                         <td>
                           <div className={styles.cellFile}>
                             {fileTypeIcon(doc)}
-                            <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
-                              {getDisplayTitle(doc)}
-                            </span>
+                            {editingRow?.id === doc.document_id ? (
+                              <input
+                                ref={rowEditInputRef}
+                                className={styles.rowRenameInput}
+                                value={editingRow.value}
+                                onChange={e => setEditingRow(r => r ? { ...r, value: e.target.value } : r)}
+                                onBlur={commitRowRename}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') { e.preventDefault(); commitRowRename(); }
+                                  if (e.key === 'Escape') setEditingRow(null);
+                                }}
+                                maxLength={100}
+                                autoFocus
+                                onClick={e => e.stopPropagation()}
+                              />
+                            ) : (
+                              <span className={styles.filename} title={doc.display_name ? doc.filename : undefined}>
+                                {getDisplayTitle(doc)}
+                              </span>
+                            )}
                             {isSelected && <ChevronRight size={13} className={styles.rowSelectedArrow} />}
                           </div>
                         </td>
@@ -612,9 +643,20 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                             </div>
                           )}
                         </td>
-                        <td onClick={e => e.stopPropagation()}>
-                          <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
-                            <Trash2 size={14} />
+                        <td onClick={e => e.stopPropagation()} className={styles.cellActions}>
+                          <button
+                            className={styles.actionIconBtn}
+                            title="重命名"
+                            onClick={() => setEditingRow({ id: doc.document_id, value: getDisplayTitle(doc) })}
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            className={clsx(styles.actionIconBtn, styles.actionIconBtnDanger)}
+                            title="删除"
+                            onClick={() => handleDelete(doc.document_id)}
+                          >
+                            <Trash2 size={13} />
                           </button>
                         </td>
                       </tr>
@@ -636,6 +678,28 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
           onRetry={handleRetry}
           onRename={handleRename}
         />
+      )}
+
+      {/* ── 自有删除确认弹窗 ── */}
+      {confirmDelete && (
+        <div className={styles.dialogOverlay} onClick={() => setConfirmDelete(null)}>
+          <div className={styles.dialogCard} onClick={e => e.stopPropagation()}>
+            <div className={styles.dialogIcon}>
+              <Trash2 size={22} />
+            </div>
+            <h3 className={styles.dialogTitle}>确认删除</h3>
+            <p className={styles.dialogBody}>
+              将从知识库中删除
+              <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
+              包括向量索引、原始文件及视频工作目录。
+              <br /><strong>此操作不可撤销。</strong>
+            </p>
+            <div className={styles.dialogActions}>
+              <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
+              <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
