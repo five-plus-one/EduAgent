@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
   X, Video, FileVideo, Download, Film, AlignLeft, RotateCcw,
-  ChevronRight, Image as ImageIcon, Edit2,
+  ChevronRight, Image as ImageIcon, Edit2, Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -367,7 +367,8 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 自有化删除确认弹窗状态
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  // phase: 'confirm' = 等待确认 | 'deleting' = API中 | 'success' = 已删除
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; phase: 'confirm' | 'deleting' | 'success' } | null>(null);
   // 表格行内重命名编辑状态
   const [editingRow, setEditingRow] = useState<{ id: string; value: string } | null>(null);
   const rowEditInputRef = useRef<HTMLInputElement>(null);
@@ -433,19 +434,27 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
 
   const handleDelete = (documentId: string) => {
     const doc = documents.find(d => d.document_id === documentId);
-    setConfirmDelete({ id: documentId, name: getDisplayTitle(doc ?? { document_id: documentId, filename: documentId, status: '', progress: 0, file_type: null }) });
+    setConfirmDelete({ id: documentId, name: getDisplayTitle(doc ?? { document_id: documentId, filename: documentId, status: '', progress: 0, file_type: null }), phase: 'confirm' });
   };
 
   const performDelete = async () => {
     if (!confirmDelete) return;
     const { id } = confirmDelete;
-    setConfirmDelete(null);
+    // 阶段 1: 切换到“删除中”
+    setConfirmDelete(prev => prev ? { ...prev, phase: 'deleting' } : null);
     try {
       await deleteKnowledgeDoc(id);
+      // 阶段 2: 切换到“删除成功”
+      setConfirmDelete(prev => prev ? { ...prev, phase: 'success' } : null);
+      // 带动列表更新
       setDocuments(prev => prev.filter(d => d.document_id !== id));
       if (selectedDoc?.document_id === id) setSelectedDoc(null);
+      // 1.2 秒后自动关闭弹窗
+      setTimeout(() => setConfirmDelete(null), 1200);
     } catch {
       console.error('Delete failed');
+      // 失败时回到确认状态
+      setConfirmDelete(prev => prev ? { ...prev, phase: 'confirm' } : null);
     }
   };
 
@@ -682,22 +691,54 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
 
       {/* ── 自有删除确认弹窗 ── */}
       {confirmDelete && (
-        <div className={styles.dialogOverlay} onClick={() => setConfirmDelete(null)}>
+        <div
+          className={styles.dialogOverlay}
+          onClick={() => confirmDelete.phase === 'confirm' && setConfirmDelete(null)}
+        >
           <div className={styles.dialogCard} onClick={e => e.stopPropagation()}>
-            <div className={styles.dialogIcon}>
-              <Trash2 size={22} />
-            </div>
-            <h3 className={styles.dialogTitle}>确认删除</h3>
-            <p className={styles.dialogBody}>
-              将从知识库中删除
-              <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
-              包括向量索引、原始文件及视频工作目录。
-              <br /><strong>此操作不可撤销。</strong>
-            </p>
-            <div className={styles.dialogActions}>
-              <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
-              <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
-            </div>
+
+            {/* 阶段：确认 */}
+            {confirmDelete.phase === 'confirm' && (
+              <>
+                <div className={styles.dialogIcon}><Trash2 size={22} /></div>
+                <h3 className={styles.dialogTitle}>确认删除</h3>
+                <p className={styles.dialogBody}>
+                  将从知识库中删除
+                  <span className={styles.dialogFileName}>「{confirmDelete.name}」</span>，
+                  包括向量索引、原始文件及视频工作目录。
+                  <br /><strong>此操作不可撤销。</strong>
+                </p>
+                <div className={styles.dialogActions}>
+                  <button className={styles.dialogBtnCancel} onClick={() => setConfirmDelete(null)}>取消</button>
+                  <button className={styles.dialogBtnConfirm} onClick={performDelete}>确认删除</button>
+                </div>
+              </>
+            )}
+
+            {/* 阶段：删除中 */}
+            {confirmDelete.phase === 'deleting' && (
+              <>
+                <div className={clsx(styles.dialogIcon, styles.dialogIconDeleting)}>
+                  <Loader2 size={24} className={styles.dialogSpinner} />
+                </div>
+                <h3 className={styles.dialogTitle}>删除中…</h3>
+                <p className={styles.dialogBody}>
+                  正在清理「{confirmDelete.name}」及关联资源，请稍候。
+                </p>
+              </>
+            )}
+
+            {/* 阶段：删除成功 */}
+            {confirmDelete.phase === 'success' && (
+              <>
+                <div className={clsx(styles.dialogIcon, styles.dialogIconSuccess)}>
+                  <CheckCircle size={24} />
+                </div>
+                <h3 className={clsx(styles.dialogTitle, styles.dialogTitleSuccess)}>删除成功</h3>
+                <p className={styles.dialogBody}>「{confirmDelete.name}」已从知识库中删除。</p>
+              </>
+            )}
+
           </div>
         </div>
       )}
