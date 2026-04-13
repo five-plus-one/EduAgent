@@ -375,15 +375,25 @@ export const getExportStatus = async (taskId: string) => {
   // 返回结构: { task_id, status, stage, progress, result: { download_urls: { ppt_url }, filename, error } }
 };
 
-/** 5.3 Download exported file directly as blob */
+/** 5.3 Download exported file directly as blob （携带 Authorization header）*/
 export const downloadExportedFile = async (urlOrFilename: string) => {
-  const path = urlOrFilename.startsWith('/')
-    ? urlOrFilename.replace('/api/v1', '')
-    : `/export/download/${urlOrFilename}`;
-  const res = await apiClient.get(path, {
-    responseType: 'blob'
-  });
-  return res.data;
+  let path: string;
+  if (urlOrFilename.startsWith('http://') || urlOrFilename.startsWith('https://')) {
+    // 绝对地址：直接使用（axios 会将完整 URL 作为 baseURL 覆盖）
+    path = urlOrFilename;
+  } else if (urlOrFilename.startsWith('/api/v1/')) {
+    // 相对路径如 /api/v1/export/download/xxx.pptx
+    // apiClient.baseURL = http://host/api/v1，所以需去掉 /api/v1 前缀
+    path = urlOrFilename.slice('/api/v1'.length); // 得到 /export/download/xxx.pptx
+  } else if (urlOrFilename.startsWith('/')) {
+    // 其他 / 开头的相对路径，直接使用
+    path = urlOrFilename;
+  } else {
+    // 纯文件名
+    path = `/export/download/${urlOrFilename}`;
+  }
+  const res = await apiClient.get(path, { responseType: 'blob' });
+  return res.data as Blob;
 };
 
 // ==========================================

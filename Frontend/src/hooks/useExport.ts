@@ -1,14 +1,14 @@
 import { useState, useCallback } from 'react';
-import { triggerExport, getExportStatus, downloadExportedFile } from '../utils/api';
+import { triggerExport, getExportStatus, downloadExportedFile, API_BASE_URL } from '../utils/api';
 
 /**
  * useExport — 封装 PPT 异步导出流程
  *
  * 1. 调用 triggerExport(sessionId, themeKey?) 触发后台任务
  * 2. 每 2s 轮询 getExportStatus(task_id)
- *    ✅ completed → 解析 result.download_urls.ppt_url 或 result.filename
- *    ❌ failed    → 抛出 result.error
- * 3. 拿到文件名后通过 downloadExportedFile 触发 Blob 下载
+ *    ✅ completed → 解析 download_urls.ppt_url 或 filename
+ *    ❌ failed    → 抛出 error
+ * 3. 通过 downloadExportedFile (Blob) 触发浏览器下载
  */
 export function useExport(sessionId: string) {
   const [isExporting, setIsExporting] = useState(false);
@@ -25,38 +25,68 @@ export function useExport(sessionId: string) {
 
       // 2. 轮询任务进度
       let downloadTarget = '';
+      let actualFilename = 'export.pptx';
+
       while (true) {
         await new Promise<void>(resolve => setTimeout(resolve, 2000));
         const statusData = await getExportStatus(taskId);
 
         if (statusData.status === 'completed') {
-          // 优先取 result.download_urls.ppt_url（完整相对路径），降级到 filename
-          const pptUrl: string | undefined = statusData.result?.download_urls?.ppt_url;
-          const filename: string | undefined = statusData.result?.filename;
+          // ── 兼容两种响应结构 ──────────────────────────────────────
+          // 结构 A（旧）: { status, result: { download_urls: { ppt_url }, filename } }
+          // 结构 B（新）: { status, download_urls: { ppt_url }, filename }
+          const pptUrl: string | undefined =
+            statusData.download_urls?.ppt_url            // 结构 B (顶层)
+            ?? statusData.result?.download_urls?.ppt_url;  // 结构 A (嵌套)
+
+          const filename: string | undefined =
+            statusData.filename ?? statusData.result?.filename;
+
           downloadTarget = pptUrl ?? filename ?? '';
+          if (filename) actualFilename = filename;
           break;
         }
 
         if (statusData.status === 'failed' || statusData.status === 'error') {
-          const errMsg: string = statusData.result?.error ?? statusData.error ?? 'Export task failed on server';
+          const errMsg: string =
+            statusData.error
+            ?? statusData.result?.error
+            ?? 'Export task failed on server';
           throw new Error(errMsg);
         }
         // status === 'generating' | 'pending' | 'processing' → 继续轮询
       }
 
-      // 3. 下载 Blob
-      if (downloadTarget) {
+      if (!downloadTarget) throw new Error('服务端未返回下载地址');
+
+      // 3. 下载
+      try {
+        // 优先通过 axios blob 下载（携带 Authorization header）
         const blob = await downloadExportedFile(downloadTarget);
-        const url = window.URL.createObjectURL(new Blob([blob]));
+        const objectUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
-        // 文件名：取路径最后一段，去掉 query string
-        const actualName = downloadTarget.split('/').pop()?.split('?')[0] || 'export.pptx';
-        link.setAttribute('download', actualName);
+        link.href = objectUrl;
+        link.setAttribute('download', actualFilename);
         document.body.appendChild(link);
         link.click();
         link.parentNode?.removeChild(link);
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(objectUrl);
+      } catch (downloadErr) {
+        // fallback: 直接在新标签打开携带 token 的 URL
+        console.warn('[useExport] Blob download failed, falling back to direct URL open:', downloadErr);
+        const token = localStorage.getItem('access_token') ?? '';
+        // 构建完整 URL
+        let fullUrl: string;
+        if (downloadTarget.startsWith('http')) {
+          fullUrl = downloadTarget;
+        } else if (downloadTarget.startsWith('/api/v1/')) {
+          const base = API_BASE_URL.replace(/\/api\/v\d+\/?$/, '');
+          fullUrl = `${base}${downloadTarget}`;
+        } else {
+          fullUrl = `${API_BASE_URL}${downloadTarget.startsWith('/') ? '' : '/'}${downloadTarget}`;
+        }
+        if (token) fullUrl += `${fullUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+        window.open(fullUrl, '_blank');
       }
     } catch (e) {
       console.error('[useExport] Export exception:', e);
