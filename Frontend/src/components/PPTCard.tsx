@@ -173,7 +173,6 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
     // 1. 乐观更新本地状态，预览立即生效
     setImageOverrides(prev => ({ ...prev, [elementId]: { url: newUrl, alt: newAlt } }));
     // 2. P2: 标记保存中，防止竞态导出
-    setIsSavingImage(true);
     onSavingImageChange?.(true);
     // 3. P1: PATCH 成功后同步更新 pages._raw.resolved，确保导出/下次编辑数据正确
     replaceSlideImage(sessionId, page.page_index, elementId, imageId)
@@ -185,7 +184,6 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
         console.error('[PPTCard] replaceSlideImage failed:', err);
       })
       .finally(() => {
-        setIsSavingImage(false);
         onSavingImageChange?.(false);
       });
   };
