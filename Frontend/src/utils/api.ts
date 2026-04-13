@@ -136,7 +136,10 @@ export const streamChatCompletion = async (
     onToolCall?: (tool: { tool_name: string; arguments: any }) => void;
     onToolResult?: (result: { tool_name: string; status: string; should_refetch_ppt?: boolean }) => void;
     onThinking?: (chunk: string) => void;
-  }
+    onGameEvent?: (eventType: 'game_suggest' | 'game_trigger', data: any) => void;
+  },
+  /** 传入当前正在预览的 game_id，AI 可识别并精炼 */
+  activeGameId?: string | null,
 ) => {
   const token = localStorage.getItem('access_token');
 
@@ -147,7 +150,10 @@ export const streamChatCompletion = async (
       Accept: 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({
+      content,
+      ...(activeGameId ? { active_game_id: activeGameId } : {}),
+    }),
     signal,
     onmessage(ev) {
       try {
@@ -159,9 +165,18 @@ export const streamChatCompletion = async (
           callbacks.onToolCall(data.tool_call);
         } else if (data.event_type === 'tool_result' && callbacks?.onToolResult && data.tool_result) {
           callbacks.onToolResult(data.tool_result);
+        } else if (data.event_type === 'game_suggest' && callbacks?.onGameEvent) {
+          callbacks.onGameEvent('game_suggest', data);
+        } else if (data.event_type === 'game_trigger' && callbacks?.onGameEvent) {
+          callbacks.onGameEvent('game_trigger', data);
         } else {
           // Default: text chunk (may contain <think> tags for DeepSeek-style streaming)
-          onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent);
+          // Also check for game_spec in finished messages
+          onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent, data.event_type, data);
+          // Finished message may carry game_spec (equivalent to game_trigger)
+          if (data.is_finished && data.game_spec && callbacks?.onGameEvent) {
+            callbacks.onGameEvent('game_trigger', { game_trigger: data.game_spec });
+          }
         }
       } catch {
         console.error('Failed to parse SSE chunk', ev.data);
