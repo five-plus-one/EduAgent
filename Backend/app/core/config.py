@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""  # 密钥已移除，通过本地 .env 文件提供
     LLM_MODEL: str = "doubao-seed-2-0-pro-260215"   # 文本生成/摄要用
     EMBEDDING_MODEL: str = "text-embedding-3-large"  # 向量嵌入用
-    WHISPER_MODEL: str = ""                          # 音频转写用；空字符串 = 跳过语音识别阶段
+    WHISPER_MODEL: str = "whisper-1"                 # 音频转写用；空字符串 = 跳过语音识别阶段
 
     # Image system
     VISION_MODEL: str = "mimo-v2-omni"              # 图像/视视频帧分析用

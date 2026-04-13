@@ -364,3 +364,50 @@ def preview_document(
             "Cache-Control": "private, max-age=3600",
         },
     )
+
+
+# ── 关键帧图片 ───────────────────────────────────────────────────────────────
+
+@router.get("/documents/{doc_id}/keyframes/{filename}")
+def get_keyframe_image(
+    doc_id:   str,
+    filename: str,
+    token:    Optional[str] = Query(default=None),
+    current_user: User = Depends(deps.get_current_user_or_token),
+    db:       Session = Depends(deps.get_db),
+):
+    """
+    返回视频关键帧图片（JPEG）。
+    支持 ?token= 降级鉴权，供 <img src="...?token=..."> 直接嵌入使用。
+    """
+    # 1. 鉴权：验证文档属于当前用户
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # 2. 文件名安全校验，只允许纯文件名字符，防止路径穿越
+    import re as _re
+    if not _re.match(r'^[\w\-]+\.(jpg|jpeg|png)$', filename, _re.IGNORECASE):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    # 3. 构造关键帧路径（与 process_video_task 中的 frames_dir 保持一致）
+    #    file_path = uploads/global/{doc_id}.mp4
+    #    frames    = uploads/global/vid_{doc_id}/frames/{filename}
+    frames_dir = os.path.join(os.path.dirname(doc.file_path), f"vid_{doc_id}", "frames")
+    frame_path = os.path.join(frames_dir, filename)
+
+    # 4. 路径穿越防护
+    upload_root = _safe_path(UPLOAD_DIR)
+    if not _safe_path(frame_path).startswith(upload_root):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if not os.path.exists(frame_path):
+        raise HTTPException(status_code=404, detail="Keyframe not found")
+
+    return FileResponse(
+        path=frame_path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=86400"},   # 关键帧不变，可缓存 1 天
+    )
