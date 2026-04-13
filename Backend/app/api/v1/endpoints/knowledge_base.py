@@ -24,7 +24,18 @@ _INLINE_EXTS = {
 }
 
 class PatchDocumentRequest(BaseModel):
-    description: str = Field(..., min_length=1, max_length=500)
+    """
+    至少传一个字段：display_name （自定义显示名） 和/或 description（描述）。
+    display_name 存入 metadata_json["display_name"]，不修改物理文件名 (filename)。
+    """
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=100,
+                                        description="用户自定义显示名，1-100 字")
+    description:  Optional[str] = Field(default=None, min_length=1, max_length=500,
+                                        description="自定义描述，1-500 字")
+
+    def model_post_init(self, __context):
+        if self.display_name is None and self.description is None:
+            raise ValueError("display_name 和 description 至少提供一个")
 
 def _safe_path(file_path: str) -> str:
     """返回规范化绝对路径，供路径穿越检查使用。"""
@@ -141,15 +152,17 @@ def list_global_documents(
     items = []
     for d in docs:
         item = {
-            "document_id":  d.id,
-            "filename":     d.filename,
-            "status":       d.status,
-            "progress":     d.progress,
-            "summary":      d.summary,
-            "metadata":     d.metadata_json,
-            "created_at":   d.created_at,
+            "document_id":   d.id,
+            "filename":      d.filename,
+            "display_name":  (d.metadata_json or {}).get("display_name"),  # 用户自定义显示名
+            "description":   (d.metadata_json or {}).get("description"),   # 用户自定义描述
+            "status":        d.status,
+            "progress":      d.progress,
+            "summary":       d.summary,
+            "metadata":      d.metadata_json,
+            "created_at":    d.created_at,
             # 通用新字段
-            "file_type":    getattr(d, "file_type", "document") or "document",
+            "file_type":     getattr(d, "file_type", "document") or "document",
         }
         # 视频专用字段
         if item["file_type"] == "video":
@@ -257,7 +270,7 @@ def retry_document_processing(
     return {"document_id": doc_id, "status": "processing"}
 
 
-# ── 新增：PATCH 更新文档描述 ──────────────────────────────────────────────────
+# ── PATCH 更新文档名称 / 描述 ───────────────────────────────────────────────
 
 @router.patch("/documents/{doc_id}")
 def patch_document(
@@ -266,7 +279,7 @@ def patch_document(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
 ):
-    """更新文档描述（仅写 description，不影响其他 metadata 字段）。"""
+    """更新文档自定义名称和/或描述，不影响物理文件名。"""
     doc = db.query(Document).filter(
         Document.id == doc_id, Document.user_id == current_user.id
     ).first()
@@ -274,10 +287,17 @@ def patch_document(
         raise HTTPException(status_code=404, detail="Document not found")
 
     meta = dict(doc.metadata_json or {})
-    meta["description"] = body.description
+    if body.display_name is not None:
+        meta["display_name"] = body.display_name
+    if body.description is not None:
+        meta["description"] = body.description
     doc.metadata_json = meta
     db.commit()
-    return {"document_id": doc_id, "description": body.description}
+    return {
+        "document_id":  doc_id,
+        "display_name": meta.get("display_name"),
+        "description":  meta.get("description"),
+    }
 
 
 # ── 新增：下载原始文件 ─────────────────────────────────────────────────────────
