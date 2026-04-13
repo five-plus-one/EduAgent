@@ -341,20 +341,38 @@ export const streamCoursewareGeneration = async (
 };
 
 // ==========================================
-// Module 5: Export
-// NOTE: These endpoints are NOT yet implemented on the backend.
+// Module 5: Export & Themes
 // ==========================================
 
-/** 5.1 Trigger file export (initiates async task) */
-export const triggerExport = async (sessionId: string) => {
-  const res = await apiClient.post(`/sessions/${sessionId}/export`);
-  return res.data?.data ?? res.data;
+export interface PptTheme {
+  key: string;
+  label: string;
+  category: 'light' | 'dark';
+  bg_color: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  text_color: string;
+}
+
+/** 5.0 获取所有 PPT 主题（颜色、标签） — 不需要 session_id */
+export const getThemes = async (): Promise<PptTheme[]> => {
+  const res = await apiClient.get('/export/themes');
+  return (res.data?.data ?? res.data)?.themes ?? [];
 };
 
-/** 5.2 Poll export task for download URLs */
+/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 哈希自动选择） */
+export const triggerExport = async (sessionId: string, themeKey?: string) => {
+  const body = themeKey ? { theme_key: themeKey } : undefined;
+  const res = await apiClient.post(`/sessions/${sessionId}/export`, body);
+  return res.data?.data ?? res.data; // { task_id, status, theme_key }
+};
+
+/** 5.2 查询导出任务进度 */
 export const getExportStatus = async (taskId: string) => {
   const res = await apiClient.get(`/export/tasks/${taskId}`);
   return res.data?.data ?? res.data;
+  // 返回结构: { task_id, status, stage, progress, result: { download_urls: { ppt_url }, filename, error } }
 };
 
 /** 5.3 Download exported file directly as blob */
