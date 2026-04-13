@@ -550,27 +550,65 @@ export default function PPTPageWorkbench({
                                     onClick={() => {
                                       setTypeMenuOpenIdx(-1);
                                       if (t.type === el.type) return;
+
+                                      // ── 任意类型互转适配 ────────────────────────────────
+                                      const srcIsTable = el.type === 'table';
+                                      const dstIsTable = !!t.isTable;
+                                      const dstIsImage = !!t.isImage;
+
+                                      // 1. 从表格提取文本行（用于表格 → 任何非表格）
+                                      let recoveredLines: string[] = [];
+                                      if (srcIsTable) {
+                                        if (el.rows && el.rows.length > 0) {
+                                          // 合并：表头行 + 每数据行的首列（非空）
+                                          const headerLine = (el.headers ?? []).join(' / ');
+                                          const dataLines = el.rows.map(r =>
+                                            r.filter(Boolean).join(' · ')
+                                          ).filter(Boolean);
+                                          recoveredLines = [
+                                            ...(headerLine ? [headerLine] : []),
+                                            ...dataLines,
+                                          ];
+                                        }
+                                      }
+
+                                      // 2. 确定目标 textLines
+                                      //    图片/表格不使用 textLines，其他类型优先复用已有内容
+                                      const srcLines = srcIsTable ? recoveredLines : el.textLines;
+                                      const dstTextLines = dstIsImage || dstIsTable
+                                        ? []
+                                        : (srcLines.length > 0 ? srcLines : (t.defaultContent ?? []));
+
+                                      // 3. 确定目标 headers / rows（仅切换到表格时产生）
+                                      let dstHeaders: string[] | undefined;
+                                      let dstRows: string[][] | undefined;
+                                      if (dstIsTable) {
+                                        dstHeaders = t.defaultHeaders ?? ['列标题1', '列标题2', '列标题3'];
+                                        const cols = dstHeaders.length;
+                                        if (srcLines.length > 0) {
+                                          // 有来源文本 → 每行映射为首列，其余列留空
+                                          dstRows = srcLines.map(line => {
+                                            const row = new Array<string>(cols).fill('');
+                                            row[0] = line;
+                                            return row;
+                                          });
+                                        } else {
+                                          dstRows = t.defaultRows ?? [new Array<string>(cols).fill('')];
+                                        }
+                                      }
+
                                       const patch: Partial<EditableEl> = {
-                                        type: t.type,
-                                        position: t.defaultPosition ?? el.position,
+                                        type:      t.type,
+                                        position:  t.defaultPosition ?? el.position,
+                                        textLines: dstTextLines,
                                         // 图片字段
-                                        alt:   t.isImage  ? (el.alt   ?? '') : undefined,
-                                        query: t.isImage  ? (el.query ?? '') : undefined,
-                                        // 时间轴时间字桵
+                                        alt:   dstIsImage ? (el.alt   ?? '') : undefined,
+                                        query: dstIsImage ? (el.query ?? '') : undefined,
+                                        // 时间节点字段
                                         time:  t.hasTime  ? (el.time  ?? '') : undefined,
-                                        // 文本内容
-                                        textLines: t.isImage || t.isTable ? []
-                                          : (el.textLines.length ? el.textLines : (t.defaultContent ?? [])),
-                                        // 表格字桵
-                                        headers: t.isTable
-                                          ? (t.defaultHeaders ?? ['列标题1', '列标题2', '列标题3'])
-                                          : undefined,
-                                        rows: t.isTable
-                                          ? (el.type === 'list' && el.textLines.length > 0
-                                              // 智能转换：list 每条变一行数据行
-                                              ? el.textLines.map(line => [line, '', ''])
-                                              : (t.defaultRows ?? [['', '', '']]))
-                                          : undefined,
+                                        // 表格字段
+                                        headers: dstHeaders,
+                                        rows:    dstRows,
                                       };
                                       updateElement(idx, patch);
                                     }}
