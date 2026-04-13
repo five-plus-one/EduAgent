@@ -584,7 +584,7 @@ export default function PPTPageWorkbench({
                                       let dstRows: string[][] | undefined;
                                       if (dstIsTable) {
                                         dstHeaders = t.defaultHeaders ?? ['列标题1', '列标题2', '列标题3'];
-                                        const cols = dstHeaders.length;
+                                        const cols = dstHeaders?.length ?? 3;
                                         if (srcLines.length > 0) {
                                           // 有来源文本 → 每行映射为首列，其余列留空
                                           dstRows = srcLines.map(line => {
