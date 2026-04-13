@@ -11,6 +11,7 @@ import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
+import ThemePicker from '../components/ThemePicker';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -107,8 +108,12 @@ export default function Workspace() {
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
-  // P2: 任意一张幻灯片正在保存图片，导出按鈕短暂禁用防竞态
+  // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
   const [anyImageSaving, setAnyImageSaving] = useState(false);
+  // ── PPT 主题选色器 ─────────────────────────────────────────
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  /** null 表示「自动」，string 表示选中的 theme_key */
+  const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -680,14 +685,14 @@ export default function Workspace() {
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
               {pages.length > 0 && (
                 <>
-                  <button 
+                  <button
                     className={clsx('button-base', styles.exportBtn)}
-                    onClick={exportCourseware}
+                    onClick={() => setShowThemePicker(true)}
                     disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '图片保存中，请稍候再导出' : undefined}
+                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '选择主题并导出 PPT'}
                   >
-                    <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
-                    {isExporting ? '导出 PPT中...' : '导出 PPT'}
+                    <Download size={16} className={clsx(isExporting && styles.rotating)} />
+                    {isExporting ? '导出 PPT 中...' : '导出 PPT'}
                   </button>
                   {wordDoc && (
                     <button 
