@@ -24,10 +24,17 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
   // thinkBody 的真实高度，用于 max-height 动画
   const thinkBodyRef = useRef<HTMLDivElement>(null);
   const [thinkBodyHeight, setThinkBodyHeight] = useState<number>(0);
+  // 滚动容器（流式输出期间限高 + 内部滚动）
+  const thinkScrollRef = useRef<HTMLDivElement>(null);
 
   const hasThinking = !!thinking;
   const hasToolLog = !!toolLog;
   const hasAnyData = !!content || !!thinking || !!toolLog || isThinking || isTyping;
+
+  // ── 【修复1】isThinking 变为 true 时主动展开（解决流式输出默认折叠问题）────
+  useEffect(() => {
+    if (isThinking) setThinkExpanded(true);
+  }, [isThinking]);
 
   // ── 关键逻辑：思考完成时自动折叠 ────────────────────────────
   const prevIsThinkingRef = useRef(isThinking);
@@ -55,6 +62,14 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
     setThinkBodyHeight(el.scrollHeight);
     return () => ro.disconnect();
   }, []);
+
+  // ── 【修复3】流式输出时自动滚动到最新内容 ──────────────────────
+  useEffect(() => {
+    if (isThinking && thinkScrollRef.current) {
+      const el = thinkScrollRef.current;
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [thinking, isThinking]);
 
   if (!hasAnyData) return null;
 
@@ -122,26 +137,50 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
                 </button>
 
                 {/* max-height 过渡，不使用条件渲染避免内容跳变 */}
-                <div
-                  className={styles.thinkBodyWrap}
-                  style={{
-                    maxHeight: thinkExpanded
-                      ? `${Math.max(thinkBodyHeight, 200)}px`
-                      : '0',
-                  }}
-                >
+                {/*
+                  【修复2】流式输出期间：固定 220px 限高 + 内部滚动（thinkScrollRef）;
+                  完成后：恢复 max-height accordion 动画。
+                */}
+                {isThinking ? (
+                  /* ── 流式输出中：固定高度容器 + 内部滚动 ── */
                   <div
-                    ref={thinkBodyRef}
-                    className={styles.thinkBody}
-                    style={{ color: '#64748b', fontStyle: 'italic' }}
+                    ref={thinkScrollRef}
+                    className={styles.thinkBodyWrapStreaming}
                   >
-                    {thinking
-                      ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div>
-                      : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>
-                    }
-                    {isThinking && <span className={styles.thinkCursor} />}
+                    <div
+                      ref={thinkBodyRef}
+                      className={styles.thinkBody}
+                      style={{ color: '#64748b', fontStyle: 'italic' }}
+                    >
+                      {thinking
+                        ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div>
+                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>
+                      }
+                      <span className={styles.thinkCursor} />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* ── 完成后：折叠/展开动画容器 ── */
+                  <div
+                    className={styles.thinkBodyWrap}
+                    style={{
+                      maxHeight: thinkExpanded
+                        ? `${Math.max(thinkBodyHeight, 200)}px`
+                        : '0',
+                    }}
+                  >
+                    <div
+                      ref={thinkBodyRef}
+                      className={styles.thinkBody}
+                      style={{ color: '#64748b', fontStyle: 'italic' }}
+                    >
+                      {thinking
+                        ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div>
+                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>
+                      }
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
