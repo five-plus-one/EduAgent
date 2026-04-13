@@ -131,17 +131,21 @@ def _ppt_summary(session_id: str) -> str:
 
 def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
     """
-    Background task: generate (or refine) a game HTML file.
+    Background task (polling fallback): generate a game HTML file non-streaming.
 
-    task_id   : GenerationTask.id, used for progress tracking
-    game_id   : Game.id
-    session_id: used to load courseware context
-    spec_json : full spec dict from the LLM GenerateGame tool call
+    只在 SSE 端点未接管时运行——通过原子 status 锁实现：
+    - SSE 端点连接后会将 Game.status 从 'pending' 改为 'streaming'（<1 秒内）
+    - 本任务等待 3 秒后检查状态，若非 'pending' 则退出，避免重复生成
     """
+    import time
     from app.db.session import SessionLocal
     from app.models.generation import GenerationTask
     from app.models.game import Game
     from app.core.config import settings
+    from sqlalchemy import update as sql_update
+
+    # 等待 SSE 端点优先认领（如果没有 SSE 连接，3 秒后接管）
+    time.sleep(3)
 
     db = SessionLocal()
     try:
@@ -150,7 +154,22 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
         if not task or not game:
             return
 
-        task.stage = "building_prompt"
+        # 原子认领：只有 status == 'pending' 时才接管
+        rows = db.execute(
+            sql_update(Game)
+            .where(Game.id == game_id, Game.status == "pending")
+            .values(status="generating")
+        ).rowcount
+        db.commit()
+        if rows == 0:
+            # SSE 已经认领（streaming/generating/completed），静默退出
+            logger.info(f"[game bg] task {task_id} skipped — SSE already claimed {game_id}")
+            task.status = "skipped"
+            db.commit()
+            return
+
+        task.stage    = "building_prompt"
+        task.status   = "generating"
         task.progress = 10
         db.commit()
 
