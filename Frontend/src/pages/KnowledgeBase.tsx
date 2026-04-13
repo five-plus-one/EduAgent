@@ -366,6 +366,17 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 自有化删除确认弹窗状态
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  // 表格行内重命名编辑状态
+  const [editingRow, setEditingRow] = useState<{ id: string; value: string } | null>(null);
+  const rowEditInputRef = useRef<HTMLInputElement>(null);
+
+  // 行内编辑 input 出现时自动聚焦
+  useEffect(() => {
+    if (editingRow) rowEditInputRef.current?.select();
+  }, [editingRow?.id]);
+
   const fetchDocs = useCallback(async (isSilent = false) => {
     try {
       if (!isSilent) setLoading(true);
@@ -420,12 +431,19 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  const handleDelete = async (documentId: string) => {
-    if (!window.confirm('确认从知识库中删除该文件？此操作不可撤销。')) return;
+  const handleDelete = (documentId: string) => {
+    const doc = documents.find(d => d.document_id === documentId);
+    setConfirmDelete({ id: documentId, name: getDisplayTitle(doc ?? { document_id: documentId, filename: documentId, status: '', progress: 0, file_type: null }) });
+  };
+
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    setConfirmDelete(null);
     try {
-      await deleteKnowledgeDoc(documentId);
-      setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
-      if (selectedDoc?.document_id === documentId) setSelectedDoc(null);
+      await deleteKnowledgeDoc(id);
+      setDocuments(prev => prev.filter(d => d.document_id !== id));
+      if (selectedDoc?.document_id === id) setSelectedDoc(null);
     } catch {
       console.error('Delete failed');
     }
