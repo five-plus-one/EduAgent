@@ -1701,8 +1701,10 @@ def draw_bg_decor(slide, page: dict, colors: dict) -> None:
     # Accent-tinted, creates a colour vignette in the top-left corner.
     _oval(-1.2, -1.2, 3.6, 3.6, acc, 0.24)
 
-    # ── Layer B: bottom-right primary glow (partially off-edge) ───────────────
-    _oval(SLIDE_W - 2.0, SLIDE_H - 2.0, 3.8, 3.8, pri, 0.20)
+    # ── Layer B: bottom-right primary glow (mostly off-edge) ──────────────────
+    # Pushed far off-edge so only a curved sliver is visible in the corner,
+    # preventing any overlap with the page-number watermark (bottom-right text).
+    _oval(SLIDE_W - 0.6, SLIDE_H - 0.6, 4.5, 4.5, pri, 0.15)
 
     # ── Layer C: diagonal mid-zone rectangle (very faint — simulates gradient) ─
     mid_mix   = pri if dark else RGBColor(0xFF, 0xFF, 0xFF)
@@ -1723,10 +1725,14 @@ def draw_bg_decor(slide, page: dict, colors: dict) -> None:
         _oval(SLIDE_W / 2 - 1.4, CONTENT_T + 0.95, 2.8, 2.8, acc, 0.09)
 
     elif layout == "two_column":
-        # Soft vertical divider glow exactly between columns
+        # Three small dot-circles form a tasteful dotted divider between columns.
+        # Replaces the old tall narrow oval (1.3" wide × 5.8" tall) which was ugly.
         mid_x = MARGIN_LEFT + (CONTENT_W - 0.28) / 2
-        _oval(mid_x - 0.65, CONTENT_T - 0.1, 1.3, SLIDE_H - CONTENT_T - 0.1,
-              acc, 0.10)
+        dot_y0 = CONTENT_T + (SLIDE_H - CONTENT_T - 0.36) * 0.18
+        dot_gap = (SLIDE_H - CONTENT_T - 0.36) * 0.32
+        for k in range(3):
+            _oval(mid_x - 0.15, dot_y0 + k * dot_gap, 0.30, 0.30,
+                  acc, 0.25 - k * 0.04)
 
     elif layout == "timeline":
         # Horizontal mid-band (the "river" for the timeline events to flow through)
@@ -2831,7 +2837,11 @@ LAYOUT_RENDERERS = {
 # Main export entry point
 # ──────────────────────────────────────────────
 
-def run_export_task(task_id: str, session_id: str):
+def run_export_task(task_id: str, session_id: str, theme_key: str | None = None):
+    """
+    theme_key: PREMIUM_THEMES 中的键名（如 'ocean_depths'）。
+    不传或传 None 则用 pick_premium_theme() 自动根据 session_id 决定。
+    """
     db: Session = SessionLocal()
     task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
     if not task:
@@ -2872,8 +2882,13 @@ def run_export_task(task_id: str, session_id: str):
             if not isinstance(slides_arr, list):
                 slides_arr = []
 
-            # Use premium theme (deterministic by session_id + LLM luminance intent)
-            sel = pick_premium_theme(session_id, theme)
+            # 主题选择：优先用户指定的 theme_key，否则自动选择
+            if theme_key and theme_key in PREMIUM_THEMES:
+                sel = PREMIUM_THEMES[theme_key]
+                logger.info(f"[export] using user-specified theme: {theme_key}")
+            else:
+                sel = pick_premium_theme(session_id, theme)
+                logger.info(f"[export] auto-selected theme: bg={sel['bg_color']}")
             colors = {
                 "bg":  hex2rgb(sel["bg_color"]),
                 "pri": hex2rgb(sel["primary"]),
