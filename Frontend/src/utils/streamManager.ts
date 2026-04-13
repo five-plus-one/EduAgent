@@ -8,6 +8,10 @@ export interface StreamState {
   isThinking: boolean;
   isSynthesizing: boolean;
   latestIntent: string | null;
+  /** 游戏类型建议（来自 game_suggest 事件）*/
+  gameSuggest: import('./gamesApi').GameSuggestData | null;
+  /** 游戏生成触发规格（来自 game_trigger 事件）*/
+  gameTrigger: import('./gamesApi').GameSpec | null;
 }
 
 export type StreamListener = (state: StreamState | null) => void;
@@ -177,6 +181,8 @@ class StreamManagerClass {
         isThinking: false,
         isSynthesizing: true,
         latestIntent: null,
+        gameSuggest: null,
+        gameTrigger: null,
       },
       buffer: '',
       mode: 'text' as 'text' | 'think' | 'tool',
@@ -265,7 +271,23 @@ class StreamManagerClass {
             const icon = result.status === 'success' ? '✅' : '❌';
             streamData.state.toolLog += `> ${icon} *操作已完成*\n\n`;
             this.notify(sessionId, streamData);
-          }
+          },
+          onGameEvent: (eventType, data) => {
+            if (eventType === 'game_suggest') {
+              streamData.state.gameSuggest = data.game_suggest ?? null;
+              this.notify(sessionId, streamData);
+              window.dispatchEvent(new CustomEvent('EduAgent_Game_Suggest', {
+                detail: { sessionId, data: data.game_suggest }
+              }));
+            } else if (eventType === 'game_trigger') {
+              const spec = data.game_trigger ?? data;
+              streamData.state.gameTrigger = spec;
+              this.notify(sessionId, streamData);
+              window.dispatchEvent(new CustomEvent('EduAgent_Game_Trigger', {
+                detail: { sessionId, spec }
+              }));
+            }
+          },
         }
       );
     } catch (e) {
