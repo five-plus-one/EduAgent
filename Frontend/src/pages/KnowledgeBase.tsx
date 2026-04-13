@@ -1,13 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
-<<<<<<< HEAD
-  X, Video, FileVideo, Download, Film, AlignLeft, RotateCcw,
-  ChevronRight, Image as ImageIcon,
-=======
-  Video, Mic, Image as ImageIcon, FileVideo, ChevronDown, ChevronUp,
+  X, Video, FileVideo, RotateCcw, ChevronRight, Image as ImageIcon,
   AlertCircle,
->>>>>>> origin/backend-dev
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -19,24 +14,7 @@ import {
   type KBDocumentBase, type KBVideoDocument, type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
 
-<<<<<<< HEAD
 // ─── 合并类型（兼容旧接口的 KBDocument 形状）─────────────────────
-=======
-// ── 类型定义 ──────────────────────────────────────────────────────────────────
-
-export interface TranscriptSegment {
-  start: number;
-  end: number;
-  text: string;
-}
-
-export interface KeyframeInfo {
-  filename: string;
-  timestamp_est: number;
-  description: string;
-}
-
->>>>>>> origin/backend-dev
 export interface KBDocument {
   document_id: string;
   filename: string;
@@ -44,7 +22,6 @@ export interface KBDocument {
   progress?: number;
   summary?: string;
   created_at?: string;
-<<<<<<< HEAD
   file_type?: 'document' | 'video' | null;
   // 视频专属
   duration_sec?: number;
@@ -261,15 +238,6 @@ function KBDocPreviewPanel({
       </div>
     </div>
   );
-=======
-  file_type?: 'document' | 'video';
-  // 视频专用
-  duration_sec?: number;
-  process_stage?: string;
-  transcript_json?: TranscriptSegment[];
-  keyframes_json?: KeyframeInfo[];
-  video_summary?: string;
->>>>>>> origin/backend-dev
 }
 
 /** 将秒数转为 mm:ss 或 hh:mm:ss */
@@ -441,13 +409,9 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [isDragging, setIsDragging] = useState(false);
-<<<<<<< HEAD
   const [uploading, setUploading] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
-=======
-  const [uploading,  setUploading]  = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
->>>>>>> origin/backend-dev
+  const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const apiBase = (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
@@ -472,11 +436,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
-<<<<<<< HEAD
   // Poll every 3s while any doc is processing / video still pending
-=======
-  // 每 3s 轮询处理中的文档
->>>>>>> origin/backend-dev
   useEffect(() => {
     const hasProcessing = documents.some(
       d => d.status === 'processing' || d.status === 'pending'
@@ -528,18 +488,13 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     if (!window.confirm('确认从知识库中删除该文件？此操作不可撤销。')) return;
     try {
       await deleteKnowledgeDoc(documentId);
-<<<<<<< HEAD
       setDocuments((prev) => prev.filter((d) => d.document_id !== documentId));
       if (selectedDoc?.document_id === documentId) setSelectedDoc(null);
-=======
-      setDocuments(prev => prev.filter(d => d.document_id !== documentId));
->>>>>>> origin/backend-dev
     } catch {
       console.error('Delete failed');
     }
   };
 
-<<<<<<< HEAD
   /** 重试解析失败的文档 */
   const handleRetry = async (documentId: string) => {
     try {
@@ -586,97 +541,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
             </div>
             <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新列表">
               <RefreshCw size={16} />
-=======
-  // 将文档按类型分组
-  const videoDocs = documents.filter(d => d.file_type === 'video');
-  const fileDocs  = documents.filter(d => d.file_type !== 'video');
-
-  return (
-    <div className={clsx(styles.panelRoot, compact && styles.panelCompact)}>
-      {/* Header */}
-      {!compact && (
-        <header className={styles.pageHeader}>
-          <div>
-            <h1 className={styles.title}>知识库管理 (RAG Admin)</h1>
-            <p className={styles.subtitle}>
-              上传专业课件、教案或视频。文档自动解析向量化；视频将提取字幕、关键帧并生成 AI 摘要，用于强化智能体领域理解能力。
-            </p>
-          </div>
-          <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新列表">
-            <RefreshCw size={16} />
-          </button>
-        </header>
-      )}
-
-      {/* Upload Zone */}
-      <div
-        className={clsx(styles.uploadZone, 'glass-panel', isDragging && styles.dragging, uploading && styles.uploading)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-          multiple
-          accept=".pdf,.docx,.doc,.pptx,.txt,.md,.json,.csv,.mp4,.mov,.avi,.webm,.mkv,.flv"
-        />
-        <div className={styles.uploadContent}>
-          <div className={styles.uploadIconWrapper}>
-            <UploadCloud size={compact ? 32 : 48} className={clsx(uploading && styles.rotating)} />
-          </div>
-          <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件到这里上传'}</h3>
-          <p>文档：PDF / Word / PPT（≤ 100 MB）&nbsp;&nbsp;|&nbsp;&nbsp;视频：MP4 / MOV / AVI / WebM（≤ 500 MB）</p>
-        </div>
-      </div>
-
-      {/* 上传错误提示 */}
-      {uploadError && (
-        <div className={styles.uploadError}>
-          <AlertCircle size={15} /> {uploadError}
-        </div>
-      )}
-
-      {/* ── 视频文档区 ── */}
-      {videoDocs.length > 0 && (
-        <div className={clsx(styles.tableContainer, 'glass-panel')}>
-          <div className={styles.tableHeader}>
-            <h3 className={styles.tableTitle}>
-              <Video size={16} style={{ marginRight: 6 }} />
-              视频资料 ({videoDocs.length})
-            </h3>
-          </div>
-          <div className={styles.videoList}>
-            {videoDocs.map(doc => (
-              <div key={doc.document_id} className={styles.videoCardWrapper}>
-                <VideoDocCard doc={doc} apiBase={apiBase} />
-                <button
-                  className={styles.deleteBtn}
-                  style={{ alignSelf: 'flex-start', marginTop: 8 }}
-                  onClick={() => handleDelete(doc.document_id)}
-                  title="删除"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── 普通文档表格 ── */}
-      <div className={clsx(styles.tableContainer, 'glass-panel')}>
-        <div className={styles.tableHeader}>
-          <h3 className={styles.tableTitle}>
-            已入库文档 ({loading ? '…' : fileDocs.length})
-          </h3>
-          {compact && (
-            <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新">
-              <RefreshCw size={14} />
->>>>>>> origin/backend-dev
             </button>
           </header>
         )}
@@ -705,7 +569,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
             <p>文档（PDF / Word / PPT）或视频（MP4 / MOV / AVI 等）· 视频最大 500 MB</p>
           </div>
         </div>
-<<<<<<< HEAD
 
         {/* Document Table */}
         <div className={clsx(styles.tableContainer, 'glass-panel')}>
@@ -788,55 +651,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
               </tbody>
             </table>
           </div>
-=======
-        <div className={styles.tableWrapper}>
-          <table className={styles.dataTable}>
-            <thead>
-              <tr>
-                <th>文件名</th>
-                <th>上传日期</th>
-                <th>解析状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{ display: 'inline', marginRight: 6 }} />加载中...</td></tr>
-              ) : fileDocs.length === 0 ? (
-                <tr><td colSpan={4} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
-              ) : (
-                fileDocs.map(doc => (
-                  <tr key={doc.document_id} className={styles.tableRow}>
-                    <td>
-                      <div className={styles.cellFile}>
-                        <FileText size={16} className={styles.fileIcon} />
-                        <span className={styles.filename}>{doc.filename}</span>
-                      </div>
-                    </td>
-                    <td className={styles.cellDate}>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}</td>
-                    <td>
-                      {doc.status === 'completed' ? (
-                        <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={14} /> 解析完成</div>
-                      ) : doc.status === 'failed' ? (
-                        <div className={clsx(styles.statusBadge, styles.statusFailed)}><AlertCircle size={14} /> 解析失败</div>
-                      ) : (
-                        <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                          <Clock size={14} className={styles.rotating} />
-                          向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
->>>>>>> origin/backend-dev
         </div>
       </div>
 
@@ -853,14 +667,9 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   );
 }
 
-<<<<<<< HEAD
 // ─────────────────────────────────────────────────────────────────────────────
 // KnowledgeBase — route-level page wrapper
 // ─────────────────────────────────────────────────────────────────────────────
-=======
-// ── KnowledgeBase 路由页 ──────────────────────────────────────────────────────
-
->>>>>>> origin/backend-dev
 export default function KnowledgeBase() {
   return (
     <div className={styles.kbContainer}>
