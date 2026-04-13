@@ -55,26 +55,27 @@ function App() {
   if (!authChecked) {
     return (
       <div style={{
-        height: '100vh',
+        width: '100%',           // ← 关键：修复 #root flex-row 导致宽度缩窄
+        minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '16px',
-        background: 'var(--bg-primary, #0f0f13)',
+        gap: '20px',
+        background: 'var(--bg-primary, #f8fafc)',
       }}>
-        {/* 旋转 Loader — 和 Workspace isLoadingHistory 一致 */}
+        {/* 旋转 Loader */}
         <div style={{
-          width: 64, height: 64,
+          width: 80, height: 80,
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.08))',
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(99,102,241,0.06))',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 0 0 1px rgba(99,102,241,0.18)',
+          boxShadow: '0 0 0 1px rgba(37,99,235,0.15)',
           animation: 'appSpinnerPulse 2s ease-in-out infinite',
         }}>
           <svg
-            width="28" height="28" viewBox="0 0 24 24" fill="none"
-            stroke="rgba(99,102,241,0.9)" strokeWidth="2"
+            width="34" height="34" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(37,99,235,0.85)" strokeWidth="2"
             strokeLinecap="round" strokeLinejoin="round"
             style={{ animation: 'appSpinnerRotate 1.4s linear infinite' }}
           >
@@ -82,21 +83,25 @@ function App() {
           </svg>
         </div>
 
-        <p style={{ color: 'var(--text-primary, #e2e8f0)', fontWeight: 600, fontSize: '1rem', margin: 0 }}>
+        <p style={{ color: 'var(--text-primary, #0f172a)', fontWeight: 700, fontSize: '1.1rem', margin: 0 }}>
           正在恢复会话
         </p>
-        <p style={{ color: 'var(--text-tertiary, #64748b)', fontSize: '0.85rem', margin: 0 }}>
+        <p style={{ color: 'var(--text-tertiary, #64748b)', fontSize: '0.9rem', margin: '-8px 0 0' }}>
           正在从服务器加载历史对话记录
         </p>
 
         {/* 骨架条 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8, width: 320 }}>
-          {[{ w: '80%', align: 'flex-end' }, { w: '65%', align: 'flex-start' }, { w: '90%', align: 'flex-end' }].map((s, i) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4, width: 380 }}>
+          {[
+            { w: '78%', align: 'flex-end' },
+            { w: '62%', align: 'flex-start' },
+            { w: '88%', align: 'flex-end' },
+          ].map((s, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: s.align as any }}>
               <div style={{
-                width: s.w, height: 14, borderRadius: 8,
-                background: 'rgba(99,102,241,0.08)',
-                animation: `appSkeletonPulse 1.6s ease-in-out ${i * 0.2}s infinite`,
+                width: s.w, height: 16, borderRadius: 10,
+                background: 'rgba(37,99,235,0.07)',
+                animation: `appSkeletonPulse 1.6s ease-in-out ${i * 0.22}s infinite`,
               }} />
             </div>
           ))}
@@ -105,11 +110,11 @@ function App() {
         <style>{`
           @keyframes appSpinnerRotate { to { transform: rotate(360deg); } }
           @keyframes appSpinnerPulse  {
-            0%, 100% { box-shadow: 0 0 0 1px rgba(99,102,241,0.18); }
-            50%       { box-shadow: 0 0 0 4px rgba(99,102,241,0.12); }
+            0%, 100% { box-shadow: 0 0 0 1px rgba(37,99,235,0.15); }
+            50%       { box-shadow: 0 0 0 6px rgba(37,99,235,0.06); }
           }
           @keyframes appSkeletonPulse {
-            0%, 100% { opacity: 0.5; }
+            0%, 100% { opacity: 0.45; }
             50%       { opacity: 1; }
           }
         `}</style>
