@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { getThemes, PptTheme } from '../utils/api';
+import { getThemes, type PptTheme } from '../utils/api';
 import styles from './ThemePicker.module.css';
 import { Loader2, Palette, Check } from 'lucide-react';
 
