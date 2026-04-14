@@ -1,3 +1,4 @@
+// @refresh reset
 /**
  * PPTPageWorkbench — 合并后的页面工作台
  *
@@ -7,6 +8,7 @@
  *   🖼️  替换图片   — 搜索 / 浏览图库             (原 PPTImageEditDrawer 换图子面板)
  *   🪄  切换布局   — 6 种版式模板                (原 PPTImageEditDrawer 布局子面板)
  *   ✨  AI 指令   — 针对当前页的自由指令
+ *   🎮  游戏占位符 — 生成短链接可嵌入 PPT
  *
  * 触发入口：
  *   - 点击卡片上的🖊 铅笔按钮 → defaultTab = 'edit'
@@ -426,16 +428,6 @@ export default function PPTPageWorkbench({
     { key: 'game',   label: '游戏占位符', icon: <Gamepad2 size={13} /> },
     { key: 'ai',     label: 'AI 指令',  icon: <Wand2 size={13} /> },
   ];
-
-  // 切到 game tab 时加载游戏列表
-  useEffect(() => {
-    if (activeTab !== 'game' || !open) return;
-    setGameListLoading(true);
-    listSessionGames(sessionId)
-      .then(list => setGameList(list))
-      .catch(() => setGameList([]))
-      .finally(() => setGameListLoading(false));
-  }, [activeTab, open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGameShare = async () => {
     if (!selectedGameId || gameSharingLoading) return;
