@@ -377,9 +377,18 @@ export const getThemes = async (): Promise<PptTheme[]> => {
 };
 
 /** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 哈希自动选择） */
-export const triggerExport = async (sessionId: string, themeKey?: string) => {
-  const body = themeKey ? { theme_key: themeKey } : undefined;
-  const res = await apiClient.post(`/sessions/${sessionId}/export`, body);
+export const triggerExport = async (
+  sessionId: string,
+  themeKey?: string,
+  customColors?: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  },
+) => {
+  const body: Record<string, unknown> = {};
+  if (themeKey) body.theme_key = themeKey;
+  if (customColors) body.custom_colors = customColors;
+  const res = await apiClient.post(`/sessions/${sessionId}/export`, Object.keys(body).length ? body : undefined);
   return res.data?.data ?? res.data; // { task_id, status, theme_key }
 };
 

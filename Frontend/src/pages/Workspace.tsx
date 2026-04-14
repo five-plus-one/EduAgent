@@ -11,7 +11,7 @@ import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
-import ThemePicker from '../components/ThemePicker';
+import ThemePicker, { CUSTOM_KEY, type ThemeCustomColors } from '../components/ThemePicker';
 import GamePanel from '../components/GamePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -112,10 +112,11 @@ export default function Workspace() {
   const [isExportingWord, setIsExportingWord] = useState(false);
   // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
   const [anyImageSaving, setAnyImageSaving] = useState(false);
-  // ── PPT 主题选色器 ─────────────────────────────────────────
+  // ── PPT 主题选色器 ────────────────────────────────────
   const [showThemePicker, setShowThemePicker] = useState(false);
-  /** null 表示「自动」，string 表示选中的 theme_key */
+  /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
+  const [pendingCustomColors, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -1121,9 +1122,12 @@ export default function Workspace() {
         <ThemePicker
           selectedKey={pendingThemeKey}
           onSelect={setPendingThemeKey}
-          onConfirm={(themeKey) => {
+          onConfirm={(themeKey, customColors) => {
             setShowThemePicker(false);
-            exportCourseware(themeKey ?? undefined);
+            setPendingCustomColors(customColors);
+            // 自定义主题传 custom_key，后端需自定义颜色时通过 customColors 单独透传
+            const keyToSend = themeKey === CUSTOM_KEY ? undefined : (themeKey ?? undefined);
+            exportCourseware(keyToSend, customColors);
           }}
           onCancel={() => setShowThemePicker(false)}
         />
