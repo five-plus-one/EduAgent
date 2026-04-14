@@ -240,18 +240,30 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
                         chunk_data.get("choices", [{}])[0]
                         .get("delta", {})
                     )
+                    # ── 深度思考内容（reasoning_content / thinking） ──────────
+                    reasoning = (
+                        delta.get("reasoning_content")
+                        or delta.get("thinking")
+                        or ""
+                    )
+                    if reasoning:
+                        with _task_chunks_lock:
+                            # 思考内容以 dict 形式存储，区别于代码字符串
+                            _task_chunks[task_id]["chunks"].append(
+                                {"t": "thinking", "v": reasoning}
+                            )
+
+                    # ── 实际代码内容 ─────────────────────────────────────────
                     content = delta.get("content") or ""
-                    if not content:
-                        continue
-                    full_text += content
-                    # 写入缓冲区（SSE 监视器轮询读取）
-                    with _task_chunks_lock:
-                        _task_chunks[task_id]["chunks"].append(content)
-                    # 更新进度（约每 500 char 更新一次，减少 DB 写次数）
-                    if len(full_text) % 500 < len(content):
-                        progress = min(15 + int(len(full_text) / ESTIMATED_CHARS * 70), 85)
-                        task.progress = progress
-                        db.commit()
+                    if content:
+                        full_text += content
+                        with _task_chunks_lock:
+                            _task_chunks[task_id]["chunks"].append(content)
+                        # 更新进度（约每 500 char 更新一次，减少 DB 写次数）
+                        if len(full_text) % 500 < len(content):
+                            progress = min(15 + int(len(full_text) / ESTIMATED_CHARS * 70), 85)
+                            task.progress = progress
+                            db.commit()
                 except Exception:
                     continue
 

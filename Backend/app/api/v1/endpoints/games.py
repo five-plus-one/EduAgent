@@ -53,6 +53,9 @@ class GenerateGameRequest(BaseModel):
     spec:           GameSpec
     refine_game_id: Optional[str] = None   # 若为精炼已有游戏，传入 game_id
 
+class RenameGameRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=100, description="新游戏标题")
+
 
 # ── SSE 辅助 ──────────────────────────────────────────────────────────────────
 def _sse(data: dict) -> str:
@@ -260,6 +263,7 @@ async def stream_game_task_sse(
         last_stage     = ""
         hb_tick        = 0
         MAX_TICKS      = 720   # 最长等待 6 分钟（0.5s × 720）
+        ESTIMATED      = 9000  # 预估 HTML 总字符数，用于进度插值
 
         for tick in range(MAX_TICKS):
             await asyncio.sleep(0.5)
@@ -275,14 +279,23 @@ async def stream_game_task_sse(
             if new_chunks is not None:
                 # 已有 chunk 缓冲区
                 if new_chunks:
-                    ESTIMATED = 9000
+                    code_seen = 0
                     for i, chunk in enumerate(new_chunks):
-                        prog = min(10 + int((last_chunk_idx + i + 1) / ESTIMATED * 85), 96)
-                        yield _sse({
-                            "event_type": "code_chunk",
-                            "chunk":      chunk,
-                            "progress":   prog,
-                        })
+                        if isinstance(chunk, dict) and chunk.get("t") == "thinking":
+                            # 深度思考内容
+                            yield _sse({
+                                "event_type": "thinking",
+                                "chunk":      chunk["v"],
+                            })
+                        else:
+                            # 实际 HTML 代码
+                            code_seen += len(chunk)
+                            prog = min(10 + int((last_chunk_idx + i + 1) / ESTIMATED * 85), 96)
+                            yield _sse({
+                                "event_type": "code_chunk",
+                                "chunk":      chunk,
+                                "progress":   prog,
+                            })
                     last_chunk_idx += len(new_chunks)
                 else:
                     # 缓冲区存在但为空（LLM 在思考）→ 发送心跳
@@ -478,8 +491,36 @@ def list_session_games(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. 游戏 HTML 预览（供 <iframe src="...?token="> 直接加载）
+# 5b. 重命名游戏
 # ─────────────────────────────────────────────────────────────────────────────
+
+@router.patch("/games/{game_id}")
+def rename_game(
+    game_id: str,
+    body: RenameGameRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """修改游戏标题。只有游戏所有者才能重命名。"""
+    game = db.query(Game).filter(
+        Game.id == game_id,
+        Game.user_id == current_user.id,
+    ).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    new_title = body.title.strip()
+    if not new_title:
+        raise HTTPException(status_code=400, detail="标题不能为空")
+
+    game.title      = new_title
+    game.updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    logger.info(f"[game] renamed {game_id} → {new_title!r}")
+    return {"game_id": game_id, "title": new_title}
+
+
 
 @router.get("/games/{game_id}/preview")
 def preview_game(
