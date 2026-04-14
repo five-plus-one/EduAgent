@@ -188,6 +188,80 @@ export async function deleteGame(gameId: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// 分享短链接 API
+// ─────────────────────────────────────────────────────────────────
+
+export interface ShareLink {
+  code: string;
+  short_url: string;           // e.g. /s/a3f8kz
+  full_short_url: string;      // 带域名的完整短链接
+  game_id: string;
+  game_title: string;
+  created_at: string;
+  expires_at: string | null;
+  view_count?: number;
+  is_active?: boolean;
+}
+
+/** 公开游戏信息（无需登录） */
+export interface PublicGameInfo {
+  code: string;
+  game_id: string;
+  title: string;
+  game_type: string;
+  html_content: string;
+  created_at: string;
+}
+
+/**
+ * 8. 为指定游戏创建分享短链接（需登录）
+ * POST /api/v1/games/{game_id}/share
+ */
+export async function createShareLink(
+  gameId: string,
+  expiresInDays?: number,
+): Promise<ShareLink> {
+  const body = expiresInDays ? { expires_in_days: expiresInDays } : undefined;
+  const res = await apiClient.post(`/games/${gameId}/share`, body);
+  return res.data?.data ?? res.data;
+}
+
+/**
+ * 9. 获取游戏的分享链接列表（需登录）
+ * GET /api/v1/games/{game_id}/shares
+ */
+export async function getShareLinks(gameId: string): Promise<ShareLink[]> {
+  const res = await apiClient.get(`/games/${gameId}/shares`);
+  const data = res.data?.data ?? res.data;
+  return data.shares ?? data ?? [];
+}
+
+/**
+ * 10. 停用分享链接（需登录）
+ * DELETE /api/v1/games/shares/{code}
+ */
+export async function deleteShareLink(code: string): Promise<void> {
+  await apiClient.delete(`/games/shares/${code}`);
+}
+
+/**
+ * 11. 获取公开游戏内容（无需登录）
+ * GET /api/v1/public/games/share/{code}
+ * 用于落地页 /play/:code
+ */
+export async function getPublicGame(code: string): Promise<PublicGameInfo> {
+  // 注意：此接口无需 Authorization，直接用 fetch 不带 header
+  const base = (import.meta as any).env?.VITE_API_BASE_URL ?? '/api/v1';
+  const url = `${base}/public/games/share/${code}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (res.status === 404) throw new Error('SHARE_NOT_FOUND');
+  if (res.status === 410) throw new Error('SHARE_EXPIRED');
+  if (!res.ok) throw new Error(`SHARE_ERROR_${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // SSE Event Helpers
 // ─────────────────────────────────────────────────────────────────
 
