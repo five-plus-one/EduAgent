@@ -738,6 +738,60 @@ export default function PPTPageWorkbench({
                               </div>
                             </div>
                           );
+                        })() : el.type === 'interactive_game' ? (() => {
+                          return (
+                            <div className={styles.gameElementEditor}>
+                              {el.game_id ? (
+                                <div className={styles.gameSelectedPreview}>
+                                  <Gamepad2 size={14} className={styles.gameSelectedIcon} />
+                                  <div className={styles.gameSelectedInfo}>
+                                    <span className={styles.gameSelectedTitle}>{el.game_title || '互动游戏'}</span>
+                                    {el.share_url
+                                      ? <span className={styles.gameSelectedUrl}>{el.share_url}</span>
+                                      : <span className={styles.gameSelectedUrl} style={{opacity:0.4}}>生成链接中...</span>
+                                    }
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className={styles.gameNoSelection}>
+                                  <Gamepad2 size={16} style={{opacity:0.3}} />
+                                  <span>请在下方选择要链接的游戏</span>
+                                </div>
+                              )}
+                              {gameListLoading ? (
+                                <div className={styles.gamePickerLoading}>
+                                  <Loader2 size={13} className={styles.spinIcon} /> 加载游戏列表...
+                                </div>
+                              ) : gameList.length === 0 ? (
+                                <div className={styles.gamePickerEmpty}>本节课暂无互动游戏</div>
+                              ) : (
+                                <div className={styles.gamePickerList}>
+                                  {gameList.map(g => {
+                                    const isSelected = el.game_id === g.game_id;
+                                    return (
+                                      <button
+                                        key={g.game_id}
+                                        className={`${styles.gamePickerItem} ${isSelected ? styles.gamePickerItemActive : ''}`}
+                                        onClick={async () => {
+                                          updateElement(idx, { game_id: g.game_id, game_title: g.title, share_url: undefined });
+                                          try {
+                                            const link = await createShareLink(g.game_id);
+                                            const url = link.full_short_url || `${window.location.origin}${link.short_url}`;
+                                            updateElement(idx, { share_url: url });
+                                          } catch { /* 不阻塞选择 */ }
+                                        }}
+                                      >
+                                        <Gamepad2 size={12} />
+                                        <span className={styles.gamePickerName}>{g.title}</span>
+                                        {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
+                                        {isSelected && <Check size={12} className={styles.gamePickerCheck} />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
                         })() : el.type === 'table' ? (
                           /* ── 表格编辑器 ── */
                           <div className={styles.tableEditor}>
