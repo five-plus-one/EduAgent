@@ -315,6 +315,8 @@ export interface GameStreamCallbacks {
   onStage?: (stage: string, progress: number, message?: string) => void;
   /** 实际 HTML 代码片段（来自 LLM token 流）*/
   onChunk?: (chunk: string, progress: number, accumulated: string) => void;
+  /** 深度思考片段 */
+  onThinking?: (chunk: string, accumulated: string) => void;
   /** 生成完成 */
   onDone?: (gameId: string, version: number) => void;
   /** 生成失败 */
@@ -341,6 +343,7 @@ export async function streamGameTask(
   const url = `${API_BASE_URL}/games/tasks/${taskId}/stream`;
   let streamFailed = false;
   let accumulated = '';
+  let accumulatedThinking = '';
 
   try {
     await fetchEventSource(url, {
@@ -374,6 +377,10 @@ export async function streamGameTask(
             case 'code_chunk':
               accumulated += data.chunk ?? '';
               callbacks.onChunk?.(data.chunk ?? '', data.progress ?? 0, accumulated);
+              break;
+            case 'thinking':
+              accumulatedThinking += data.chunk ?? '';
+              callbacks.onThinking?.(data.chunk ?? '', accumulatedThinking);
               break;
             case 'done':
               callbacks.onDone?.(data.game_id, data.version ?? 1);
