@@ -1155,3 +1155,93 @@
   margin: 0;
   line-height: 1.55;
 }
+
+/* ══════════════════════════════════════════════════════════
+   游戏元素行（与图片占位符平行）
+   ══════════════════════════════════════════════════════════ */
+.gameElementEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gameSelectedPreview {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 8px;
+}
+.gameSelectedIcon { color: #6366f1; flex-shrink: 0; margin-top: 1px; }
+.gameSelectedInfo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gameSelectedTitle { font-size: 12px; font-weight: 700; color: #6366f1; }
+.gameSelectedUrl {
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-tertiary);
+  word-break: break-all;
+}
+
+.gameNoSelection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  color: var(--text-tertiary);
+  font-size: 11.5px;
+  background: var(--bg-secondary, #f8fafc);
+  border-radius: 7px;
+  border: 1px dashed rgba(0,0,0,0.1);
+}
+
+.gamePickerLoading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  padding: 4px 0;
+}
+.gamePickerEmpty {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 8px 0;
+}
+.gamePickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.gamePickerItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.07));
+  background: var(--bg-primary, #fff);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.12s;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+.gamePickerItem:hover {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.04);
+  color: var(--text-primary);
+}
+.gamePickerItemActive {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.08) !important;
+  color: #6366f1 !important;
+}
+.gamePickerName { flex: 1; font-weight: 600; }
+.gamePickerType { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
+.gamePickerCheck { color: #22c55e; flex-shrink: 0; }
