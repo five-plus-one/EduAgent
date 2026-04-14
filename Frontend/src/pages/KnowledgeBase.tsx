@@ -319,136 +319,138 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={clsx(styles.panelRoot, compact && styles.panelCompact)}>
-      {/* Header */}
-      {!compact && (
-        <header className={styles.pageHeader}>
-          <div>
-            <h1 className={styles.title}>知识库管理 (RAG Admin)</h1>
-            <p className={styles.subtitle}>
-              上传专业课件、教案或视频。文档自动解析向量化；视频将提取字幕、关键帧并生成 AI 摘要，用于强化智能体领域理解能力。
-            </p>
+      <div className={styles.panelMain}>
+        {/* Header */}
+        {!compact && (
+          <header className={styles.pageHeader}>
+            <div>
+              <h1 className={styles.title}>知识库管理 (RAG Admin)</h1>
+              <p className={styles.subtitle}>
+                上传专业课件、教案或视频。文档自动解析向量化；视频将提取字幕、关键帧并生成 AI 摘要，用于强化智能体领域理解能力。
+              </p>
+            </div>
+          </header>
+        )}
+
+        {/* Upload Zone */}
+        <div
+          className={clsx(styles.uploadZone, 'glass-panel', isDragging && styles.dragging, uploading && styles.uploading)}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => !uploading && fileInputRef.current?.click()}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            onChange={handleFileSelect}
+            multiple
+            accept=".pdf,.docx,.doc,.pptx,.txt,.md,.json,.csv,.mp4,.mov,.avi,.webm,.mkv,.flv"
+          />
+          <div className={styles.uploadContent}>
+            <div className={styles.uploadIconWrapper}>
+              <UploadCloud size={compact ? 32 : 48} className={clsx(uploading && styles.rotating)} />
+            </div>
+            <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件到这里上传'}</h3>
+            <p>文档：PDF / Word / PPT（≤ 100 MB）&nbsp;&nbsp;|&nbsp;&nbsp;视频：MP4 / MOV / AVI / WebM（≤ 500 MB）</p>
           </div>
-        </header>
-      )}
+        </div>
 
-      {/* Upload Zone */}
-      <div
-        className={clsx(styles.uploadZone, 'glass-panel', isDragging && styles.dragging, uploading && styles.uploading)}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-          multiple
-          accept=".pdf,.docx,.doc,.pptx,.txt,.md,.json,.csv,.mp4,.mov,.avi,.webm,.mkv,.flv"
-        />
-        <div className={styles.uploadContent}>
-          <div className={styles.uploadIconWrapper}>
-            <UploadCloud size={compact ? 32 : 48} className={clsx(uploading && styles.rotating)} />
+        {/* 上传错误提示 */}
+        {uploadError && (
+          <div className={styles.uploadError}>
+            <AlertCircle size={15} /> {uploadError}
           </div>
-          <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件到这里上传'}</h3>
-          <p>文档：PDF / Word / PPT（≤ 100 MB）&nbsp;&nbsp;|&nbsp;&nbsp;视频：MP4 / MOV / AVI / WebM（≤ 500 MB）</p>
-        </div>
-      </div>
+        )}
 
-      {/* 上传错误提示 */}
-      {uploadError && (
-        <div className={styles.uploadError}>
-          <AlertCircle size={15} /> {uploadError}
-        </div>
-      )}
+        {/* ── 视频文档区 ── */}
+        {videoDocs.length > 0 && (
+          <div className={clsx(styles.tableContainer, 'glass-panel')}>
+            <div className={styles.tableHeader}>
+              <h3 className={styles.tableTitle}>
+                <Video size={16} style={{ marginRight: 6 }} />
+                视频资料 ({videoDocs.length})
+              </h3>
+            </div>
+            <div className={styles.videoList}>
+              {videoDocs.map(doc => (
+                <div key={doc.document_id} className={styles.videoCardWrapper}>
+                  <VideoDocCard doc={doc} apiBase={apiBase} />
+                  <button
+                    className={styles.deleteBtn}
+                    style={{ alignSelf: 'flex-start', marginTop: 8 }}
+                    onClick={() => handleDelete(doc.document_id)}
+                    title="删除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-      {/* ── 视频文档区 ── */}
-      {videoDocs.length > 0 && (
+        {/* ── 普通文档表格 ── */}
         <div className={clsx(styles.tableContainer, 'glass-panel')}>
           <div className={styles.tableHeader}>
             <h3 className={styles.tableTitle}>
-              <Video size={16} style={{ marginRight: 6 }} />
-              视频资料 ({videoDocs.length})
+              已入库文档 ({loading ? '…' : fileDocs.length})
             </h3>
+            {compact && (
+              <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新">
+                <RefreshCw size={14} />
+              </button>
+            )}
           </div>
-          <div className={styles.videoList}>
-            {videoDocs.map(doc => (
-              <div key={doc.document_id} className={styles.videoCardWrapper}>
-                <VideoDocCard doc={doc} apiBase={apiBase} />
-                <button
-                  className={styles.deleteBtn}
-                  style={{ alignSelf: 'flex-start', marginTop: 8 }}
-                  onClick={() => handleDelete(doc.document_id)}
-                  title="删除"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── 普通文档表格 ── */}
-      <div className={clsx(styles.tableContainer, 'glass-panel')}>
-        <div className={styles.tableHeader}>
-          <h3 className={styles.tableTitle}>
-            已入库文档 ({loading ? '…' : fileDocs.length})
-          </h3>
-          {compact && (
-            <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新">
-              <RefreshCw size={14} />
-            </button>
-          )}
-        </div>
-        <div className={styles.tableWrapper}>
-          <table className={styles.dataTable}>
-            <thead>
-              <tr>
-                <th>文件名</th>
-                <th>上传日期</th>
-                <th>解析状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={4} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{ display: 'inline', marginRight: 6 }} />加载中...</td></tr>
-              ) : fileDocs.length === 0 ? (
-                <tr><td colSpan={4} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
-              ) : (
-                fileDocs.map(doc => (
-                  <tr key={doc.document_id} className={styles.tableRow}>
-                    <td>
-                      <div className={styles.cellFile}>
-                        <FileText size={16} className={styles.fileIcon} />
-                        <span className={styles.filename}>{doc.filename}</span>
-                      </div>
-                    </td>
-                    <td className={styles.cellDate}>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}</td>
-                    <td>
-                      {doc.status === 'completed' ? (
-                        <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={14} /> 解析完成</div>
-                      ) : doc.status === 'failed' ? (
-                        <div className={clsx(styles.statusBadge, styles.statusFailed)}><AlertCircle size={14} /> 解析失败</div>
-                      ) : (
-                        <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                          <Clock size={14} className={styles.rotating} />
-                          向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}
+          <div className={styles.tableWrapper}>
+            <table className={styles.dataTable}>
+              <thead>
+                <tr>
+                  <th>文件名</th>
+                  <th>上传日期</th>
+                  <th>解析状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={4} className={styles.emptyTable}><Clock size={14} className={styles.rotating} style={{ display: 'inline', marginRight: 6 }} />加载中...</td></tr>
+                ) : fileDocs.length === 0 ? (
+                  <tr><td colSpan={4} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
+                ) : (
+                  fileDocs.map(doc => (
+                    <tr key={doc.document_id} className={styles.tableRow}>
+                      <td>
+                        <div className={styles.cellFile}>
+                          <FileText size={16} className={styles.fileIcon} />
+                          <span className={styles.filename}>{doc.filename}</span>
                         </div>
-                      )}
-                    </td>
-                    <td>
-                      <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                      </td>
+                      <td className={styles.cellDate}>{doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'}</td>
+                      <td>
+                        {doc.status === 'completed' ? (
+                          <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={14} /> 解析完成</div>
+                        ) : doc.status === 'failed' ? (
+                          <div className={clsx(styles.statusBadge, styles.statusFailed)}><AlertCircle size={14} /> 解析失败</div>
+                        ) : (
+                          <div className={clsx(styles.statusBadge, styles.statusPending)}>
+                            <Clock size={14} className={styles.rotating} />
+                            向量化中{doc.progress != null ? ` ${doc.progress}%` : ''}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <button className={styles.deleteBtn} onClick={() => handleDelete(doc.document_id)} title="删除">
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
