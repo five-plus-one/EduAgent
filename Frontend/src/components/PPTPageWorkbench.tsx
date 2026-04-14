@@ -161,7 +161,7 @@ function normalizeImages(items: any[]): ImageResult[] {
    主组件
    ══════════════════════════════════════════════════════════════ */
 export default function PPTPageWorkbench({
-  open, page, defaultTab = 'edit', activeImageElement = null,
+  open, page, sessionId, defaultTab = 'edit', activeImageElement = null,
   onClose, onSave, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: PPTPageWorkbenchProps) {
 
