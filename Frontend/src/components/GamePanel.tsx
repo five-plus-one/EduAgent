@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import {
   listSessionGames, getGameSource,
-  deleteGame, fetchGameHtml, createShareLink,
+  deleteGame, fetchGameHtml, createShareLink, gameShareUrl,
   streamGameTask, GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
