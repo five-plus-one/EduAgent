@@ -128,6 +128,7 @@ function App() {
       <Routes>
         {/* 公开路由（无需登录） */}
         <Route path="/play/:code" element={<GamePublicPage />} />
+        <Route path="/s/:code"    element={<GamePublicPage />} />
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
