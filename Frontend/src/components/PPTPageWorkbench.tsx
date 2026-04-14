@@ -211,6 +211,15 @@ export default function PPTPageWorkbench({
    */
   const [pickerFit, setPickerFit] = useState<ObjectFitMode>('cover');
 
+  /* ── 游戏占位符状态 ──────────────────────────────────────── */
+  const [gameList, setGameList]               = useState<GameMeta[]>([]);
+  const [gameListLoading, setGameListLoading] = useState(false);
+  const [selectedGameId, setSelectedGameId]   = useState<string | null>(null);
+  const [gameShareUrl, setGameShareUrl]       = useState<string | null>(null);
+  const [gameCopied, setGameCopied]           = useState(false);
+  const [gameSharingLoading, setGameSharingLoading] = useState(false);
+  const [gameShareError, setGameShareError]   = useState<string | null>(null);
+
   /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return;
