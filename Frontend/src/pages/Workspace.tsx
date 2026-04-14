@@ -12,6 +12,7 @@ import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
 import ThemePicker from '../components/ThemePicker';
+import GamePanel from '../components/GamePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -21,7 +22,8 @@ import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
+import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -118,6 +120,11 @@ export default function Workspace() {
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
   const wordEditRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── 互动小游戏 ────────────────────────────────────────────
+  const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
+  const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
 
   // ── Session 标题（读取 + 内联编辑）────────────────────
   const [sessionTitle, setSessionTitle] = useState('');
@@ -393,6 +400,30 @@ export default function Workspace() {
        window.removeEventListener('EduAgent_Start_Streaming', handleStartStreaming);
     };
   }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
+
+  // ── 游戏 SSE 事件监听 ─────────────────────────────────────
+  useEffect(() => {
+    const handleGameSuggest = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) {
+        setPendingSuggest(ev.detail.data);
+        setActiveTab('games');
+      }
+    };
+    const handleGameTrigger = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) {
+        setPendingTrigger(ev.detail.spec);
+        setActiveTab('games');
+      }
+    };
+    window.addEventListener('EduAgent_Game_Suggest', handleGameSuggest);
+    window.addEventListener('EduAgent_Game_Trigger', handleGameTrigger);
+    return () => {
+      window.removeEventListener('EduAgent_Game_Suggest', handleGameSuggest);
+      window.removeEventListener('EduAgent_Game_Trigger', handleGameTrigger);
+    };
+  }, [sessionId]);
 
   // Bug Fix: Sync Database Changes (like addslide tool execution) to PPT Preview 
   // Triggered when AI finishes talking / executing tools.
@@ -681,6 +712,13 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
+              <Tabs.Trigger className={clsx(styles.tabsTrigger, styles.gameTrigger)} value="games">
+                <Gamepad2 size={13} />
+                互动游戏
+                {(pendingSuggest || pendingTrigger) && (
+                  <span className={styles.gameTabDot} />
+                )}
+              </Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
               {pages.length > 0 && (
@@ -1045,6 +1083,33 @@ export default function Workspace() {
               >
                 ✨ 针对此划词发起修改
               </button>
+            )}
+          </Tabs.Content>
+
+          {/* ── 互动小游戏 Tab ── */}
+          <Tabs.Content className={styles.tabsContent} value="games">
+            {sessionId !== 'new' && (
+              <GamePanel
+                sessionId={sessionId}
+                pendingSuggest={pendingSuggest}
+                pendingTrigger={pendingTrigger}
+                onClearSuggest={() => setPendingSuggest(null)}
+                onClearTrigger={() => setPendingTrigger(null)}
+                onActiveGameChange={setActiveGameId}
+              />
+            )}
+            {sessionId === 'new' && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', height: '100%', gap: 12,
+                color: 'var(--text-tertiary)',
+              }}>
+                <Gamepad2 size={36} style={{ opacity: 0.3 }} />
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                  请先创建会话
+                </p>
+                <small style={{ fontSize: 12 }}>互动游戏功能需要在活跃会话中使用</small>
+              </div>
             )}
           </Tabs.Content>
         </Tabs.Root>

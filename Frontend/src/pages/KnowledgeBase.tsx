@@ -328,7 +328,8 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
               上传专业课件、教案或视频。文档自动解析向量化；视频将提取字幕、关键帧并生成 AI 摘要，用于强化智能体领域理解能力。
             </p>
           </div>
-        </div>
+        </header>
+      )}
 
       {/* Upload Zone */}
       <div
@@ -449,7 +450,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
     </div>
   );
 }
