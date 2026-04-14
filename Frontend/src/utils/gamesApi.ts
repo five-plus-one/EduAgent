@@ -187,6 +187,15 @@ export async function deleteGame(gameId: string): Promise<void> {
   await apiClient.delete(`/games/${gameId}`);
 }
 
+/** 7b. 重命名游戏（PATCH /games/{game_id}） */
+export async function renameGame(
+  gameId: string,
+  title: string,
+): Promise<{ game_id: string; title: string }> {
+  const res = await apiClient.patch(`/games/${gameId}`, { title });
+  return res.data?.data ?? res.data;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 分享短链接 API
 // ─────────────────────────────────────────────────────────────────

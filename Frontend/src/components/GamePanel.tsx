@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import {
   listSessionGames, getGameSource,
-  deleteGame, fetchGameHtml, createShareLink, gameShareUrl,
+  deleteGame, renameGame, fetchGameHtml, createShareLink, gameShareUrl,
   streamGameTask, GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
@@ -200,7 +200,8 @@ export default function GamePanel({
   const {
     gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
     streamedCode, genThinking, isLiveStream, genError, refreshingList, completedGameId,
-    triggerGenerate: storeTrigger, resumeGenerate, setGameList, refreshGames, clearCompletedGameId, clearGenError
+    triggerGenerate: storeTrigger, resumeGenerate, setGameList, refreshGames, clearCompletedGameId, clearGenError,
+    renameGameInStore,
   } = useGameStore();
 
   const isCurrentGenerating = generating && generatingSessionId === sessionId;
@@ -228,6 +229,12 @@ export default function GamePanel({
   const [manualTitle, setManualTitle]         = useState('');
   const [manualTopics, setManualTopics]       = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
+
+  // 重命名状态
+  const [renamingId,  setRenamingId]  = useState<string | null>(null);
+  const [renameVal,   setRenameVal]   = useState('');
+  const [renameSaving, setRenameSaving] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   // ── 通知父组件 ───────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
@@ -322,6 +329,35 @@ export default function GamePanel({
     };
     triggerGenerate(spec, null);
     setShowManualPanel(false);
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // 重命名
+  // ─────────────────────────────────────────────────────────────
+  const startRename = (gameId: string, currentTitle: string) => {
+    setRenamingId(gameId);
+    setRenameVal(currentTitle);
+    setTimeout(() => renameInputRef.current?.select(), 30);
+  };
+
+  const commitRename = async () => {
+    if (!renamingId) return;
+    const trimmed = renameVal.trim();
+    if (!trimmed) { setRenamingId(null); return; }
+    const originalTitle = games.find(g => g.game_id === renamingId)?.title ?? trimmed;
+    if (trimmed === originalTitle) { setRenamingId(null); return; }
+    setRenameSaving(true);
+    // 居观先更新，失败再回滚
+    renameGameInStore(sessionId, renamingId, trimmed);
+    setRenamingId(null);
+    try {
+      await renameGame(renamingId, trimmed);
+    } catch {
+      // 回滚
+      renameGameInStore(sessionId, renamingId ?? '', originalTitle);
+    } finally {
+      setRenameSaving(false);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -588,7 +624,28 @@ export default function GamePanel({
                     ) : (
                       <>
                         <div className={styles.gameItemMain}>
-                          <span className={styles.gameItemTitle}>{g.title}</span>
+                          {renamingId === g.game_id ? (
+                            <input
+                              ref={renameInputRef}
+                              className={styles.renameInput}
+                              value={renameVal}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => setRenameVal(e.target.value)}
+                              onBlur={commitRename}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') commitRename();
+                                if (e.key === 'Escape') setRenamingId(null);
+                                e.stopPropagation();
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              className={styles.gameItemTitle}
+                              onDoubleClick={e => { e.stopPropagation(); startRename(g.game_id, g.title); }}
+                              title="双击重命名"
+                            >{g.title}</span>
+                          )}
                           <span className={styles.gameItemMeta}>
                             {g.type_label} · v{g.version} · {fmtDate(g.updated_at)}
                           </span>
@@ -668,7 +725,26 @@ export default function GamePanel({
               </div>
 
               <div className={styles.previewMeta}>
-                <span className={styles.previewTitle}>{selectedGame?.title}</span>
+                {selectedGame && renamingId === selectedGame.game_id ? (
+                  <input
+                    ref={renameInputRef}
+                    className={styles.previewTitleInput}
+                    value={renameVal}
+                    onChange={e => setRenameVal(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={styles.previewTitle}
+                    title="点击重命名"
+                    onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
+                  >{selectedGame?.title}</span>
+                )}
                 {selectedGame && <span className={styles.previewVersion}>v{selectedGame.version}</span>}
               </div>
 

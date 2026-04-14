@@ -56,6 +56,8 @@ export interface GameGenActions {
   clearGenError: () => void;
   /** 恢复并监听后台正在生成的任务 */
   resumeGenerate: (sessionId: string, gameId: string, taskId?: string) => Promise<void>;
+  /** 乐观更新游戏标题（PATCH 成功后调用） */
+  renameGameInStore: (sessionId: string, gameId: string, newTitle: string) => void;
 }
 
 type GameStore = GameGenState & GameGenActions;
@@ -88,6 +90,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setGameList: (sessionId, list) =>
     set(s => ({ gameLists: { ...s.gameLists, [sessionId]: list } })),
+
+  renameGameInStore: (sessionId, gameId, newTitle) =>
+    set(s => ({
+      gameLists: {
+        ...s.gameLists,
+        [sessionId]: (s.gameLists[sessionId] ?? []).map(g =>
+          g.game_id === gameId ? { ...g, title: newTitle } : g
+        ),
+      },
+    })),
 
   refreshGames: async (sessionId) => {
     try {
