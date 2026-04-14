@@ -186,10 +186,15 @@ export default function GamePanel({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewTab, setPreviewTab] = useState<'preview' | 'source'>('preview');
 
+  // ── 预览 HTML（srcdoc 注入，规避跨域/X-Frame-Options）────────
+  const [previewHtml, setPreviewHtml]       = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError]     = useState<string | null>(null);
+
   // ── 源码 ─────────────────────────────────────────────────────
   const [sourceLoading, setSourceLoading] = useState(false);
-  const [sourceCode, setSourceCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [sourceCode, setSourceCode]       = useState<string | null>(null);
+  const [copied, setCopied]               = useState(false);
 
   // ── 流式生成状态 ─────────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
