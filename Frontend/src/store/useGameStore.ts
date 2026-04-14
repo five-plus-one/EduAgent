@@ -54,6 +54,8 @@ export interface GameGenActions {
   clearCompletedGameId: () => void;
   /** 重置错误 */
   clearGenError: () => void;
+  /** 恢复并监听后台正在生成的任务 */
+  resumeGenerate: (sessionId: string, gameId: string, taskId?: string) => Promise<void>;
 }
 
 type GameStore = GameGenState & GameGenActions;
@@ -169,6 +171,82 @@ export const useGameStore = create<GameStore>((set, get) => ({
         set({ generating: false, genError: e?.message ?? '发起生成失败，请重试', _abortController: null });
       }
       // AbortError = 用户主动取消，不显示错误
+    }
+  },
+
+  resumeGenerate: async (sessionId: string, gameId: string, taskId?: string) => {
+    const { generating, generatingRefineId, _abortController } = get();
+    // 如果已经在为当前 gameId 恢复或生成，则跳过
+    if (generating && generatingRefineId === gameId) return;
+
+    _abortController?.abort();
+    const controller = new AbortController();
+
+    set({
+      generating: true,
+      generatingSessionId: sessionId,
+      generatingRefineId: gameId,
+      genError: null,
+      genStage: 'pending',
+      genProgress: 0,
+      genStageMsg: '正在恢复会话进度...',
+      streamedCode: '',
+      genThinking: '',
+      isLiveStream: false,
+      _abortController: controller,
+    });
+
+    let sseConnected = false;
+    // 使用给定的 taskId，如果没有提供，通常 task_id 对于恢复逻辑会使用 game_id 尝试（降级轮询兼容）
+    const useTaskId = taskId || gameId;
+
+    try {
+      await streamGameTask(
+        useTaskId,
+        {
+          onStage(stage, progress, message) {
+            set({ genStage: stage, genProgress: progress, genStageMsg: message });
+          },
+          onChunk(_chunk, progress, accumulated) {
+            if (!sseConnected) { sseConnected = true; set({ isLiveStream: true }); }
+            set({ streamedCode: accumulated, genProgress: progress, genStage: 'generating' });
+          },
+          onThinking(_chunk, accumulated) {
+            set({ genThinking: accumulated });
+          },
+          async onDone(completedGameId) {
+            set({ genProgress: 100, genStageMsg: '生成完成！' });
+            await new Promise(r => setTimeout(r, 300));
+            try {
+              set({ refreshingList: true });
+              const list = await listSessionGames(sessionId);
+              const target = list.find(g => g.game_id === gameId) ? gameId : list[0]?.game_id ?? null;
+              set(s => ({
+                gameLists: { ...s.gameLists, [sessionId]: list },
+                completedGameId: target,
+                generating: false,
+                streamedCode: '',
+                genThinking: '',
+                isLiveStream: false,
+                generatingSessionId: null,
+                generatingRefineId: null,
+              }));
+            } catch {
+              set({ generating: false, streamedCode: '', genThinking: '', generatingSessionId: null, generatingRefineId: null });
+            } finally {
+              set({ refreshingList: false, _abortController: null });
+            }
+          },
+          onError(message) {
+            set({ generating: false, genError: message, streamedCode: '', genThinking: '', isLiveStream: false, generatingSessionId: null, generatingRefineId: null, _abortController: null });
+          },
+        },
+        controller.signal,
+      );
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') {
+        set({ generating: false, genError: e?.message ?? '无法恢复连接，将在完全就绪后更新', _abortController: null });
+      }
     }
   },
 }));

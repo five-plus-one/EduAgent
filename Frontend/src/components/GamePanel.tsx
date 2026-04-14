@@ -200,7 +200,7 @@ export default function GamePanel({
   const {
     gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
     streamedCode, genThinking, isLiveStream, genError, refreshingList, completedGameId,
-    triggerGenerate: storeTrigger, setGameList, refreshGames, clearCompletedGameId, clearGenError
+    triggerGenerate: storeTrigger, resumeGenerate, setGameList, refreshGames, clearCompletedGameId, clearGenError
   } = useGameStore();
 
   const isCurrentGenerating = generating && generatingSessionId === sessionId;
@@ -248,6 +248,17 @@ export default function GamePanel({
       setSelectedId('generating');
     }
   }, [isCurrentGenerating, selectedId]);
+
+  // 自动重连后台生成流：如果点击了正在生成但未在当前流中运行的卡片，自动发出恢复流请求
+  useEffect(() => {
+    if (!selectedId || selectedId === 'generating') return;
+    const g = games.find(x => x.game_id === selectedId);
+    if (g?.status === 'generating') {
+      if (!isCurrentGenerating || generatingRefineId !== selectedId) {
+        resumeGenerate(sessionId, selectedId);
+      }
+    }
+  }, [selectedId, games, isCurrentGenerating, generatingRefineId, sessionId, resumeGenerate]);
 
   // ── 拉取游戏列表 ─────────────────────────────────────────
   const fetchGames = useCallback(async (silent = false) => {
