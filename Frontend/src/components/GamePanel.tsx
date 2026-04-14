@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import {
   listSessionGames, generateGame, getGameSource,
-  deleteGame, gamePreviewUrl, streamGameTask,
-  GAME_TYPE_DEFAULTS,
+  deleteGame, fetchGameHtml, gameShareUrl,
+  streamGameTask, GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
 import styles from './GamePanel.module.css';
@@ -377,9 +377,17 @@ export default function GamePanel({
     finally { setSourceLoading(false); }
   }, []);
 
+  // ── 切换选中游戏时加载预览 HTML ─────────────────────────────────────────
   useEffect(() => {
-    if (previewTab === 'source' && selectedId && !sourceCode) loadSource(selectedId);
-  }, [previewTab, selectedId, sourceCode, loadSource]);
+    if (!selectedId || previewTab !== 'preview') return;
+    setPreviewHtml(null);
+    setPreviewError(null);
+    setPreviewLoading(true);
+    fetchGameHtml(selectedId)
+      .then(html => setPreviewHtml(html))
+      .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
+      .finally(() => setPreviewLoading(false));
+  }, [selectedId, previewTab]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
