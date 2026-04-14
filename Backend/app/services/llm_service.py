@@ -522,56 +522,80 @@ async def stream_chat_response(
                     from app.models.generation import GenerationTask as _GTModel
                     from app.services.game_generator import run_game_task as _run_game_task
 
-                    _auto_game_id = "game_" + _uuid_mod.uuid4().hex[:8]
+                    # ── 精炼：复用已有游戏（active_game_id）──────────────────────────
+                    # ── 新建：创建全新 Game 记录     ──────────────────────────────────
                     _auto_task_id = "gtask_" + _uuid_mod.uuid4().hex[:8]
 
                     _db_local = _SL()
                     try:
-                        _game_obj = _GameModel(
-                            id         = _auto_game_id,
-                            session_id = session_id,
-                            user_id    = user_id,
-                            title      = game_spec_buffer["title"],
-                            game_type  = game_spec_buffer["game_type"],
-                            status     = "pending",
-                            spec_json  = game_spec_buffer,
-                        )
-                        _task_obj = _GTModel(
-                            id          = _auto_task_id,
-                            session_id  = session_id,
-                            task_type   = "game",
-                            status      = "pending",
-                            stage       = "init",
-                            result_data = {"game_id": _auto_game_id},
-                        )
-                        _db_local.add(_game_obj)
-                        _db_local.add(_task_obj)
+                        _is_ref = game_spec_buffer["is_refinement"]
+
+                        if _is_ref and active_game_id:
+                            _existing = _db_local.query(_GameModel).filter(
+                                _GameModel.id      == active_game_id,
+                                _GameModel.user_id == user_id,
+                            ).first()
+                            if _existing and _existing.status == "completed":
+                                # 精炼：重置 status，run_game_task 会读 html_file 做定向修改
+                                _existing.status    = "pending"
+                                _existing.spec_json = game_spec_buffer
+                                _auto_game_id       = active_game_id
+                                logger.info(f"[GenerateGame] refine game={active_game_id}")
+                            else:
+                                _is_ref = False
+                                game_spec_buffer["is_refinement"] = False
+                                logger.warning(
+                                    f"[GenerateGame] active_game_id={active_game_id} "
+                                    "not ready, falling back to new game creation"
+                                )
+
+                        if not _is_ref:
+                            _auto_game_id = "game_" + _uuid_mod.uuid4().hex[:8]
+                            _db_local.add(_GameModel(
+                                id         = _auto_game_id,
+                                session_id = session_id,
+                                user_id    = user_id,
+                                title      = game_spec_buffer["title"],
+                                game_type  = game_spec_buffer["game_type"],
+                                status     = "pending",
+                                spec_json  = game_spec_buffer,
+                            ))
+
+                        if _auto_game_id:
+                            _db_local.add(_GTModel(
+                                id          = _auto_task_id,
+                                session_id  = session_id,
+                                task_type   = "game",
+                                status      = "pending",
+                                stage       = "init",
+                                result_data = {"game_id": _auto_game_id},
+                            ))
+
                         _db_local.commit()
                     finally:
                         _db_local.close()
 
-                    # 启动后台生成线程（daemon=True 不阻塞进程退出）
-                    # 用 threading.Thread 而非 asyncio.to_thread，兼容 Python 3.8
-                    # 并且避免 asyncio Task 被 GC 回收的问题
-                    import threading as _threading
-                    _t = _threading.Thread(
-                        target  = _run_game_task,
-                        args    = (_auto_task_id, _auto_game_id, session_id, game_spec_buffer),
-                        daemon  = True,
-                        name    = f"game-gen-{_auto_game_id}",
-                    )
-                    _t.start()
-                    logger.info(
-                        f"[GenerateGame] task={_auto_task_id} game={_auto_game_id} "
-                        f"type={game_spec_buffer['game_type']} user={user_id}"
-                    )
-
-                    # 将 id 附加到事件，前端可据此直接连接 SSE 进度流
-                    game_spec_buffer["task_id"] = _auto_task_id
-                    game_spec_buffer["game_id"] = _auto_game_id
+                    if _auto_game_id:
+                        import threading as _threading
+                        _is_ref_log = game_spec_buffer.get("is_refinement", False)
+                        _threading.Thread(
+                            target = _run_game_task,
+                            args   = (_auto_task_id, _auto_game_id, session_id, game_spec_buffer),
+                            daemon = True,
+                            name   = "game-{}-{}".format(
+                                "refine" if _is_ref_log else "new", _auto_game_id
+                            ),
+                        ).start()
+                        logger.info(
+                            "[GenerateGame] %s task=%s game=%s type=%s",
+                            "refine" if _is_ref_log else "new",
+                            _auto_task_id, _auto_game_id, game_spec_buffer.get("game_type"),
+                        )
+                        game_spec_buffer["task_id"] = _auto_task_id
+                        game_spec_buffer["game_id"] = _auto_game_id
 
                 except Exception as _ge:
-                    logger.error(f"[GenerateGame] failed to auto-create task: {_ge}")
+                    logger.error("[GenerateGame] failed: %s", _ge, exc_info=True)
 
             gt_evt = json.dumps({
                 "event_type": "game_trigger",
