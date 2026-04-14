@@ -550,10 +550,17 @@ async def stream_chat_response(
                     finally:
                         _db_local.close()
 
-                    # 异步启动后台生成（SSE 若连接则优先接管；无 SSE 则 3s 后自动接管）
-                    asyncio.create_task(
-                        asyncio.to_thread(_run_game_task, _auto_task_id, _auto_game_id, session_id, game_spec_buffer)
+                    # 启动后台生成线程（daemon=True 不阻塞进程退出）
+                    # 用 threading.Thread 而非 asyncio.to_thread，兼容 Python 3.8
+                    # 并且避免 asyncio Task 被 GC 回收的问题
+                    import threading as _threading
+                    _t = _threading.Thread(
+                        target  = _run_game_task,
+                        args    = (_auto_task_id, _auto_game_id, session_id, game_spec_buffer),
+                        daemon  = True,
+                        name    = f"game-gen-{_auto_game_id}",
                     )
+                    _t.start()
                     logger.info(
                         f"[GenerateGame] task={_auto_task_id} game={_auto_game_id} "
                         f"type={game_spec_buffer['game_type']} user={user_id}"
