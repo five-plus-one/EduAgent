@@ -13,7 +13,7 @@ import { clsx } from 'clsx';
 import {
   Gamepad2, Loader2, Trash2, Code2, Eye, RefreshCw,
   ChevronRight, Sparkles, CheckCircle, AlertCircle, Copy, Check,
-  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink,
+  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink, Brain,
 } from 'lucide-react';
 import {
   listSessionGames, getGameSource,
@@ -78,11 +78,13 @@ interface StreamingCodeWindowProps {
   progress: number;
   stageMessage?: string;
   code: string;         // 实时累积的 HTML 代码
+  thinking?: string;    // 深度思考记录
   isStreaming: boolean; // true = SSE 中，false = 轮询降级
 }
 
-function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming }: StreamingCodeWindowProps) {
+function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, isStreaming }: StreamingCodeWindowProps) {
   const codeBodyRef = useRef<HTMLDivElement>(null);
+  const thinkingBodyRef = useRef<HTMLDivElement>(null);
   const stageIdx = STAGES.indexOf(stage);
   const pct = Math.max(0, Math.min(100, progress));
 
@@ -91,6 +93,12 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming 
     const el = codeBodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [code]);
+
+  // 自动滚动深度思考的底部
+  useEffect(() => {
+    const el = thinkingBodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thinking]);
 
   const lines = code ? code.split('\n') : [];
 
@@ -111,6 +119,16 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming 
         <div className={styles.progressBar} style={{ width: `${pct}%` }} />
         <span className={styles.progressPct}>{pct}%</span>
       </div>
+
+      {/* 深度思考框 */}
+      {thinking && (
+        <div className={styles.thinkingBox} ref={thinkingBodyRef}>
+          <div className={styles.thinkingHeader}>
+            <Brain size={12} /> 第 {STAGE_LABELS[stage] ?? '处理'} 阶段思考中...
+          </div>
+          <div className={styles.thinkingText}>{thinking}</div>
+        </div>
+      )}
 
       {/* 代码窗口 */}
       <div className={styles.codeWindow}>
@@ -181,7 +199,7 @@ export default function GamePanel({
   // ── 全局游戏生成状态（从 store 读） ───────────────────────
   const {
     gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
-    streamedCode, isLiveStream, genError, refreshingList, completedGameId,
+    streamedCode, genThinking, isLiveStream, genError, refreshingList, completedGameId,
     triggerGenerate: storeTrigger, setGameList, refreshGames, clearCompletedGameId, clearGenError
   } = useGameStore();
 
@@ -596,6 +614,7 @@ export default function GamePanel({
             progress={genProgress}
             stageMessage={genStageMsg}
             code={streamedCode}
+            thinking={genThinking}
             isStreaming={isLiveStream}
           />
         ) : refreshingList && selectedId === 'generating' ? (
