@@ -377,22 +377,30 @@ export default function GamePanel({
   // ─────────────────────────────────────────────────────────────
   const loadSource = useCallback(async (gameId: string) => {
     setSourceLoading(true); setSourceCode(null);
-    try { const d = await getGameSource(gameId); setSourceCode(d.html_code); }
+    try {
+      const d = await getGameSource(gameId);
+      // API 返回结构: { html_content } 或 { content } 或 { html_code }
+      setSourceCode(d.html_content ?? d.content ?? d.html_code ?? '// 源码为空');
+    }
     catch { setSourceCode('// 源码加载失败'); }
     finally { setSourceLoading(false); }
   }, []);
 
-  // ── 切换选中游戏时加载预览 HTML ─────────────────────────────────────────
+  // ── 选中游戏 / Tab 切换时加载内容 ────────────────────────────────────
   useEffect(() => {
-    if (!selectedId || previewTab !== 'preview') return;
-    setPreviewHtml(null);
-    setPreviewError(null);
-    setPreviewLoading(true);
-    fetchGameHtml(selectedId)
-      .then(html => setPreviewHtml(html))
-      .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
-      .finally(() => setPreviewLoading(false));
-  }, [selectedId, previewTab]);
+    if (!selectedId) return;
+    if (previewTab === 'preview') {
+      setPreviewHtml(null);
+      setPreviewError(null);
+      setPreviewLoading(true);
+      fetchGameHtml(selectedId)
+        .then(html => setPreviewHtml(html))
+        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
+        .finally(() => setPreviewLoading(false));
+    } else if (previewTab === 'source' && !sourceCode) {
+      loadSource(selectedId);
+    }
+  }, [selectedId, previewTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCopy = () => {
     if (!sourceCode) return;
