@@ -1012,3 +1012,146 @@
   border-color: rgba(99, 102, 241, 0.5);
   color: #6366f1;
 }
+
+/* ══════════════════════════════════════════════════════════
+   游戏占位符 Tab 样式
+   ══════════════════════════════════════════════════════════ */
+
+.gameLoadingRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text-tertiary);
+  font-size: 12.5px;
+}
+
+.spinIcon { animation: spinIcon 1s linear infinite; }
+@keyframes spinIcon { to { transform: rotate(360deg); } }
+
+.gameEmptyHint {
+  padding: 20px 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+
+.gamePickList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.gamePickItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.08));
+  background: var(--bg-primary, #fff);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.13s;
+  font-family: inherit;
+  color: var(--text-secondary);
+}
+.gamePickItem:hover {
+  border-color: rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.04);
+  color: var(--text-primary);
+}
+.gamePickItemActive {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.07) !important;
+  color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+}
+.gamePickName { flex: 1; font-size: 12px; font-weight: 600; }
+.gamePickType { font-size: 10.5px; color: var(--text-tertiary); white-space: nowrap; }
+
+.gameGenShareBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  justify-content: center;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 10px rgba(99,102,241,0.28);
+}
+.gameGenShareBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 4px 16px rgba(99,102,241,0.38);
+}
+.gameGenShareBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.gameShareError {
+  color: #ef4444;
+  font-size: 11.5px;
+  margin: 6px 0 0;
+}
+
+.gameShareResult {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(99,102,241,0.04);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: 10px;
+}
+.gameShareUrlBox {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.08));
+  border-radius: 7px;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+.gameShareUrlText {
+  font-size: 11.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #6366f1;
+  word-break: break-all;
+  display: block;
+}
+
+.gameCopyBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(99,102,241,0.3);
+  background: rgba(99,102,241,0.07);
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.gameCopyBtn:hover { background: rgba(99,102,241,0.13); }
+.gameCopyBtnDone {
+  background: rgba(34,197,94,0.1) !important;
+  border-color: rgba(34,197,94,0.35) !important;
+  color: #22c55e !important;
+}
+
+.gameShareTip {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
+  line-height: 1.55;
+}

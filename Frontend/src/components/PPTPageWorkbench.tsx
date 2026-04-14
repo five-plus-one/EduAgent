@@ -427,6 +427,38 @@ export default function PPTPageWorkbench({
     { key: 'ai',     label: 'AI 指令',  icon: <Wand2 size={13} /> },
   ];
 
+  // 切到 game tab 时加载游戏列表
+  useEffect(() => {
+    if (activeTab !== 'game' || !open) return;
+    setGameListLoading(true);
+    listSessionGames(sessionId)
+      .then(list => setGameList(list))
+      .catch(() => setGameList([]))
+      .finally(() => setGameListLoading(false));
+  }, [activeTab, open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGameShare = async () => {
+    if (!selectedGameId || gameSharingLoading) return;
+    setGameSharingLoading(true);
+    setGameShareError(null);
+    try {
+      const link = await createShareLink(selectedGameId);
+      const url = link.full_short_url || `${window.location.origin}${link.short_url}`;
+      setGameShareUrl(url);
+    } catch {
+      setGameShareError('生成分享链接失败，请重试');
+    } finally {
+      setGameSharingLoading(false);
+    }
+  };
+
+  const handleCopyGameShare = async () => {
+    if (!gameShareUrl) return;
+    await navigator.clipboard.writeText(gameShareUrl);
+    setGameCopied(true);
+    setTimeout(() => setGameCopied(false), 2500);
+  };
+
   return (
     <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className={styles.panel}>
