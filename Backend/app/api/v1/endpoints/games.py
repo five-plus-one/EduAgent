@@ -176,12 +176,44 @@ async def stream_game_task_sse(
 
     事件类型：stage | code_chunk | done | error
     """
-    # ── 初始验证（用 FastAPI 注入的 db session） ──────────────────────────────
+    # ── 初始验证：支持 task_id（gtask_xxx）或 game_id（game_xxx）两种格式 ─────
     task = db.query(GenerationTask).filter(
         GenerationTask.id == task_id,
         GenerationTask.task_type == "game",
     ).first()
+
+    # 前端可能直接传 game_id，按 result_data->game_id 反查对应任务
+    if not task and task_id.startswith("game_"):
+        from sqlalchemy import cast, String
+        tasks = db.query(GenerationTask).filter(
+            GenerationTask.task_type == "game",
+        ).all()
+        for t in tasks:
+            if (t.result_data or {}).get("game_id") == task_id:
+                task = t
+                break
+
     if not task:
+        # 最后兜底：用 game_id 直接查是否存在游戏，若已 completed 直接返回 done
+        if task_id.startswith("game_"):
+            direct_game = db.query(Game).filter(
+                Game.id == task_id,
+                Game.user_id == current_user.id,
+            ).first()
+            if direct_game and direct_game.status == "completed" and direct_game.html_file:
+                async def _direct_done():
+                    yield _sse({
+                        "event_type": "done",
+                        "game_id":    direct_game.id,
+                        "html_file":  direct_game.html_file,
+                        "version":    direct_game.version,
+                        "progress":   100,
+                    })
+                return StreamingResponse(
+                    _direct_done(),
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
         raise HTTPException(status_code=404, detail="Task not found")
 
     game_id = (task.result_data or {}).get("game_id")
@@ -220,7 +252,6 @@ async def stream_game_task_sse(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         from app.services.game_generator import _task_chunks, _task_chunks_lock
-        import threading
 
         yield _sse({"event_type": "stage", "stage": "preparing",
                     "progress": 5, "message": "后台生成任务运行中..."})
@@ -234,13 +265,15 @@ async def stream_game_task_sse(
             await asyncio.sleep(0.5)
 
             # ── 读取新的代码块（来自后台线程的 chunk 缓冲区） ────────────────
-            with threading.Lock():  # 使用导入的锁
-                pass
-            # 直接读（GIL 保护 list append/read，锁只用于 dict 操作）
-            buf = _task_chunks.get(task_id_cap)
-            if buf is not None:
-                chunks = buf["chunks"]
-                new_chunks = chunks[last_chunk_idx:]
+            with _task_chunks_lock:
+                buf = _task_chunks.get(task_id_cap)
+                # 在锁内复制一份 list，避免后台线程同时 append 时的 race
+                new_chunks = list(buf["chunks"][last_chunk_idx:]) if buf else None
+                buf_done   = buf["done"]   if buf else False
+                buf_failed = buf.get("failed", False) if buf else False
+
+            if new_chunks is not None:
+                # 已有 chunk 缓冲区
                 if new_chunks:
                     ESTIMATED = 9000
                     for i, chunk in enumerate(new_chunks):
@@ -251,8 +284,8 @@ async def stream_game_task_sse(
                             "progress":   prog,
                         })
                     last_chunk_idx += len(new_chunks)
-                elif not last_chunk_idx:
-                    # 还没有代码块 → 发送思考心跳
+                else:
+                    # 缓冲区存在但为空（LLM 在思考）→ 发送心跳
                     hb_tick += 1
                     yield _sse({
                         "event_type": "thinking_heartbeat",
@@ -260,10 +293,11 @@ async def stream_game_task_sse(
                         "message":    "AI 深度思考中...",
                     })
             else:
-                # chunk 缓冲区不存在 → 后台任务还未初始化或已清理
+                # chunk 缓冲区不存在 → 后台任务还未初始化
                 if tick < 10:
                     yield _sse({"event_type": "stage", "stage": "preparing",
                                 "progress": 5, "message": "等待后台任务启动..."})
+
 
             # ── 轮询 DB 状态 ──────────────────────────────────────────────────
             def _poll_db():
@@ -349,11 +383,54 @@ def get_game_task_status(
     current_user: User = Depends(deps.get_current_user),
     db: Session = Depends(deps.get_db),
 ):
-    """轮询游戏生成任务状态（SSE 降级用）。completed 时 result.game_id 可用。"""
+    """轮询游戏生成任务状态（SSE 降级用）。completed 时 result.game_id 可用。
+
+    task_id 支持传 gtask_xxx（任务ID）或 game_xxx（游戏ID）两种格式，兼容旧版前端。
+    """
+    # 优先按任务ID查
     task = db.query(GenerationTask).filter(
         GenerationTask.id == task_id,
         GenerationTask.task_type == "game",
     ).first()
+
+    # 前端传了 game_id → 按 result_data->game_id 反查对应任务
+    if not task and task_id.startswith("game_"):
+        tasks = db.query(GenerationTask).filter(
+            GenerationTask.task_type == "game",
+        ).all()
+        for t in tasks:
+            if (t.result_data or {}).get("game_id") == task_id:
+                task = t
+                break
+
+    # 最后兜底：直接查 Game 表，合成一个虚拟任务响应
+    if not task and task_id.startswith("game_"):
+        game = db.query(Game).filter(
+            Game.id == task_id,
+            Game.user_id == current_user.id,
+        ).first()
+        if game:
+            # 用 Game 的状态合成轮询响应
+            status_map = {
+                "completed": "completed",
+                "pending":   "generating",
+                "generating":"generating",
+                "streaming": "generating",
+                "failed":    "failed",
+            }
+            return {
+                "task_id":  task_id,
+                "status":   status_map.get(game.status, "generating"),
+                "stage":    "done" if game.status == "completed" else "generating_html",
+                "progress": 100 if game.status == "completed" else 50,
+                "result":   {
+                    "game_id":   game.id,
+                    "html_file": game.html_file or "",
+                    "version":   game.version,
+                } if game.status == "completed" else {},
+            }
+        raise HTTPException(status_code=404, detail="Task not found")
+
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
