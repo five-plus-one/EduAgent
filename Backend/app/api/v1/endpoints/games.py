@@ -275,6 +275,8 @@ async def stream_game_task_sse(
                 ],
                 "stream":     True,
                 "max_tokens": 8192,
+                # 开启深度思考：thinking 阶段流式推送给前端，消除代码开始前的空白等待
+                "thinking": {"type": "enabled", "budget_tokens": 2048},
             }
             base_url = settings.OPENAI_API_BASE.rstrip("/")
 
@@ -297,11 +299,24 @@ async def stream_game_task_sse(
                             break
                         try:
                             chunk_data = json.loads(data_str)
-                            content = (
+                            delta = (
                                 chunk_data.get("choices", [{}])[0]
                                 .get("delta", {})
-                                .get("content") or ""
                             )
+                            # ── 思考内容：实时流给前端，消除代码开始前的空白 ──
+                            reasoning = (
+                                delta.get("reasoning_content")
+                                or delta.get("thinking")
+                                or ""
+                            )
+                            if reasoning:
+                                yield _sse({
+                                    "event_type": "thinking",
+                                    "chunk":      reasoning,
+                                })
+
+                            # ── 代码内容 ──────────────────────────────────────
+                            content = delta.get("content") or ""
                             if content:
                                 full_text += content
                                 progress = min(
@@ -315,6 +330,7 @@ async def stream_game_task_sse(
                                 })
                         except Exception:
                             continue
+
 
             # ── 提取 HTML ────────────────────────────────────────────────────
             html_content = _extract_html(full_text)
