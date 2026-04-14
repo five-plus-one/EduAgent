@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import {
   X, Plus, Upload, Loader2, Sparkles, ChevronLeft, ChevronRight,
   Image as ImageIcon, Tag, Edit3, CheckCircle,

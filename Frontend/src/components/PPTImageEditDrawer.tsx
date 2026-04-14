@@ -74,7 +74,7 @@ interface ImageResult {
 const PAGE_SIZE = 18; // 每次加载的图片数
 
 export default function PPTImageEditDrawer({
-  open, pageIndex, pageTitle, element, currentFit,
+  open, pageIndex, element, currentFit,
   onClose, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'image' | 'layout'>('image');

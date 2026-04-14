@@ -28,6 +28,7 @@ const POLL_INTERVAL = 3000;
 
 export default function ImageUploadPanel() {
   const [images, setImages] = useState<UserImage[]>([]);
+  const [loadingImages, setLoadingImages] = useState(true);  // 首次加载骨架屏
   const [isDragging, setIsDragging] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [reannotatingIds, setReannotatingIds] = useState<Set<string>>(new Set());
@@ -44,12 +45,15 @@ export default function ImageUploadPanel() {
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── 拉取图片列表 ─────────────────────────────────────────
-  const fetchImages = useCallback(async () => {
+  const fetchImages = useCallback(async (silent = false) => {
+    if (!silent) setLoadingImages(true);
     try {
       const res = await listUserImages(1, 50);
       setImages(res?.items ?? []);
     } catch {
       // 非关键失败，静默
+    } finally {
+      setLoadingImages(false);
     }
   }, []);
 
@@ -62,7 +66,7 @@ export default function ImageUploadPanel() {
     );
     if (hasPending) {
       if (!pollTimerRef.current) {
-        pollTimerRef.current = setInterval(fetchImages, POLL_INTERVAL);
+        pollTimerRef.current = setInterval(() => fetchImages(true), POLL_INTERVAL);
       }
     } else {
       if (pollTimerRef.current) {
@@ -205,8 +209,19 @@ export default function ImageUploadPanel() {
           </div>
         )}
 
-        {/* ── 图片网格 ─────────────────────────────────────── */}
-        {images.length === 0 ? (
+        {/* ── 图片网格 / 骨架屏 / 空状态 ─────────────────── */}
+        {loadingImages ? (
+          // 骨架屏：4 张占位卡，闪烁动画
+          <div className={styles.grid}>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={styles.skeletonCard} style={{ animationDelay: `${i * 0.12}s` }}>
+                <div className={styles.skeletonThumb} />
+                <div className={styles.skeletonLine} style={{ width: '70%' }} />
+                <div className={styles.skeletonLine} style={{ width: '45%' }} />
+              </div>
+            ))}
+          </div>
+        ) : images.length === 0 ? (
           <div className={styles.emptyState}>
             <ImageIcon size={36} className={styles.emptyIcon} />
             <p>暂无图片素材</p>

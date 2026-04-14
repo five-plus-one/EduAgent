@@ -5,13 +5,18 @@ import { safeApplyTheme, GlobalPPTStreamManager } from '../utils/pptStreamManage
 
 export interface PPTElement {
   element_id: string;
-  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | string;
-  position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | string;
+  type: "text_block" | "image" | "timeline_item" | "huge_number" | "stat" | "table" | string;
+  position: "center" | "top" | "bottom" | "left" | "right" | "right_top" | "right_bottom" | "full" | string;
   content?: string[];
   url?: string;
   alt?: string;
+  query?: string;
   is_accent?: boolean;
   time?: string;
+  resolved?: { image_id?: string; preview_url?: string; source?: string };
+  /** 表格元素专属字段 */
+  headers?: string[];
+  rows?: string[][];
 }
 
 export interface PPTPage {
@@ -92,10 +97,37 @@ export function useCourseware(sessionId: string) {
           // Robustness: Deduplicate pages by page_index keeping the last one (in case backend aggregates)
           const uniquePagesMap = new Map();
           pptData.forEach(p => uniquePagesMap.set(p.page_index, p));
-          const uniquePages = Array.from(uniquePagesMap.values());
+          let uniquePages = Array.from(uniquePagesMap.values());
+
+          // ⚠️ 保险合并：防止后端 Pydantic schema 将表格的 headers/rows 静默丢弃
+          // 如果新数据里某 table element 的 headers/rows 为空，且当前 state 里有值，则保留
           // ⚠ Skip update if a manual iteratePage is in-flight (avoid stale-overwrite race)
           if (!isIteratingRef.current) {
-            setPages(uniquePages);
+            setPages(prevPages => {
+              const prevPageMap = new Map(prevPages.map(p => [p.page_index, p]));
+              return uniquePages.map(newPage => {
+                const prevPage = prevPageMap.get(newPage.page_index);
+                if (!prevPage || !Array.isArray(newPage.elements)) return newPage;
+                return {
+                  ...newPage,
+                  elements: newPage.elements.map((newEl: any) => {
+                    if (newEl.type !== 'table') return newEl;
+                    const prevEl = prevPage.elements?.find((e: any) => e.element_id === newEl.element_id);
+                    if (!prevEl) return newEl;
+                    // 若后端返回 headers/rows 为空但本地有值，则保留本地数据
+                    return {
+                      ...newEl,
+                      headers: (Array.isArray(newEl.headers) && newEl.headers.length > 0)
+                        ? newEl.headers
+                        : (Array.isArray((prevEl as any).headers) ? (prevEl as any).headers : newEl.headers),
+                      rows: (Array.isArray(newEl.rows) && newEl.rows.length > 0)
+                        ? newEl.rows
+                        : (Array.isArray((prevEl as any).rows) ? (prevEl as any).rows : newEl.rows),
+                    };
+                  }),
+                };
+              });
+            });
           }
         }
         if (resp.word_markdown) setWordDoc(resp.word_markdown);
@@ -372,5 +404,36 @@ export function useCourseware(sessionId: string) {
     }
   }, [sessionId]);
 
-  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc };
+  /**
+   * P1：PATCH /elements/{id}/image 成功后同步更新 pages 里的 resolved 字段
+   * 确保下次打开 workbench 时 toEditable(el) 拿到的 _raw.resolved 是最新值
+   * 从而避免 save_manual_slide_edit 发送陈旧 image_id 覆盖新图片
+   */
+  const resolveImageInPage = useCallback(
+    (pageIndex: number, elementId: string, imageId: string, previewUrl: string) => {
+      setPages(prev =>
+        prev.map(p => {
+          if (p.page_index !== pageIndex) return p;
+          return {
+            ...p,
+            elements: p.elements?.map(el =>
+              el.element_id === elementId
+                ? {
+                    ...el,
+                    resolved: {
+                      image_id: imageId,
+                      preview_url: previewUrl,
+                      source: 'user' as const,
+                    },
+                  }
+                : el
+            ),
+          };
+        })
+      );
+    },
+    []
+  );
+
+  return { pages, wordDoc, updatingPages, iteratePage, fetchPreview, isGenerating, handleGenerate, previewStatus, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc, resolveImageInPage };
 }

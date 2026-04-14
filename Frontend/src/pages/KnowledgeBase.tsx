@@ -5,8 +5,15 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
+import {
+  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration,
+  retryKnowledgeDocument, patchKnowledgeDocument,
+  VIDEO_STAGE_LABELS, VIDEO_STAGE_PROGRESS,
+  type VideoProcessStage,
+} from '../utils/videoKnowledgeApi';
 
 // ── 类型定义 ──────────────────────────────────────────────────────────────────
 
@@ -25,9 +32,13 @@ export interface KeyframeInfo {
 export interface KBDocument {
   document_id: string;
   filename: string;
+  /** 用户自定义显示名（展示时优先，为空 fallback 到 filename）*/
+  display_name?: string | null;
+  /** 用户自定义描述 */
+  description?: string | null;
   status: string;
   progress?: number;
-  summary?: string;
+  summary?: string | null;
   created_at?: string;
   file_type?: 'document' | 'video';
   // 视频专用
@@ -219,6 +230,11 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       const data = await listKnowledgeDocs(1, 50);
       const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
       setDocuments(items);
+      // 如果当前选中的 doc 有更新，同步刷新预览
+      setSelectedDoc(prev => {
+        if (!prev) return null;
+        return items.find(d => d.document_id === prev.document_id) ?? null;
+      });
     } catch {
       console.error('Failed to fetch knowledge base documents');
     } finally {
@@ -228,6 +244,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => { fetchDocs(); }, [fetchDocs]);
 
+  // Poll every 3s while any doc is processing / video still pending
   // 每 3s 轮询处理中的文档
   useEffect(() => {
     const hasProcessing = documents.some(
@@ -276,13 +293,23 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  const handleDelete = async (documentId: string) => {
-    if (!window.confirm('确认从知识库中删除该文件？此操作不可撤销。')) return;
+  const handleDelete = (documentId: string) => {
+    const doc = documents.find(d => d.document_id === documentId);
+    setConfirmDelete({ id: documentId, name: getDisplayTitle(doc ?? { document_id: documentId, filename: documentId, status: '', progress: 0, file_type: null }), phase: 'confirm' });
+  };
+
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    const { id } = confirmDelete;
+    // 阶段 1: 切换到“删除中”
+    setConfirmDelete(prev => prev ? { ...prev, phase: 'deleting' } : null);
     try {
       await deleteKnowledgeDoc(documentId);
       setDocuments(prev => prev.filter(d => d.document_id !== documentId));
     } catch {
       console.error('Delete failed');
+      // 失败时回到确认状态
+      setConfirmDelete(prev => prev ? { ...prev, phase: 'confirm' } : null);
     }
   };
 
@@ -301,9 +328,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
               上传专业课件、教案或视频。文档自动解析向量化；视频将提取字幕、关键帧并生成 AI 摘要，用于强化智能体领域理解能力。
             </p>
           </div>
-          <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新列表">
-            <RefreshCw size={16} />
-          </button>
         </header>
       )}
 

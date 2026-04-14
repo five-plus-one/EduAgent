@@ -11,6 +11,8 @@ import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
+import ThemePicker from '../components/ThemePicker';
+import GamePanel from '../components/GamePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -20,7 +22,8 @@ import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
-import { FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
+import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -75,7 +78,7 @@ export default function Workspace() {
     });
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
-  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, setWordDocLocally, saveWordDoc } = useCourseware(sessionId);
+  const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, saveWordDoc, resolveImageInPage } = useCourseware(sessionId);
   const { isExporting, exportCourseware } = useExport(sessionId);
 
   const { 
@@ -107,10 +110,21 @@ export default function Workspace() {
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
+  // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
+  const [anyImageSaving, setAnyImageSaving] = useState(false);
+  // ── PPT 主题选色器 ─────────────────────────────────────────
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  /** null 表示「自动」，string 表示选中的 theme_key */
+  const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
   const wordEditRef = useRef<HTMLTextAreaElement>(null);
+
+  // ── 互动小游戏 ────────────────────────────────────────────
+  const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
+  const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
 
   // ── Session 标题（读取 + 内联编辑）────────────────────
   const [sessionTitle, setSessionTitle] = useState('');
@@ -224,7 +238,7 @@ export default function Workspace() {
       await uploadKnowledgeDoc(file, { subject: '通用类目' });
       await fetchKbDocs();
     } catch {
-      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / TXT / MD）');
+      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / PPTX / TXT / MD）');
     } finally {
       setIsUploadingKb(false);
     }
@@ -232,9 +246,9 @@ export default function Workspace() {
 
   const handleKbFilesDrop = async (files: FileList) => {
     const valid = Array.from(files).filter(f =>
-      ['.pdf', '.docx', '.doc', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
+      ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (!valid.length) { alert('仅支持 PDF / DOCX / TXT / MD 格式文件'); return; }
+    if (!valid.length) { alert('仅支持 PDF / DOCX / PPTX / TXT / MD 格式文件'); return; }
     setIsUploadingKb(true);
     try {
       await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '通用类目' })));
@@ -386,6 +400,30 @@ export default function Workspace() {
        window.removeEventListener('EduAgent_Start_Streaming', handleStartStreaming);
     };
   }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
+
+  // ── 游戏 SSE 事件监听 ─────────────────────────────────────
+  useEffect(() => {
+    const handleGameSuggest = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) {
+        setPendingSuggest(ev.detail.data);
+        setActiveTab('games');
+      }
+    };
+    const handleGameTrigger = (e: Event) => {
+      const ev = e as CustomEvent;
+      if (ev.detail?.sessionId === sessionId) {
+        setPendingTrigger(ev.detail.spec);
+        setActiveTab('games');
+      }
+    };
+    window.addEventListener('EduAgent_Game_Suggest', handleGameSuggest);
+    window.addEventListener('EduAgent_Game_Trigger', handleGameTrigger);
+    return () => {
+      window.removeEventListener('EduAgent_Game_Suggest', handleGameSuggest);
+      window.removeEventListener('EduAgent_Game_Trigger', handleGameTrigger);
+    };
+  }, [sessionId]);
 
   // Bug Fix: Sync Database Changes (like addslide tool execution) to PPT Preview 
   // Triggered when AI finishes talking / executing tools.
@@ -674,17 +712,25 @@ export default function Workspace() {
               <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
+              <Tabs.Trigger className={clsx(styles.tabsTrigger, styles.gameTrigger)} value="games">
+                <Gamepad2 size={13} />
+                互动游戏
+                {(pendingSuggest || pendingTrigger) && (
+                  <span className={styles.gameTabDot} />
+                )}
+              </Tabs.Trigger>
             </Tabs.List>
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
               {pages.length > 0 && (
                 <>
-                  <button 
+                  <button
                     className={clsx('button-base', styles.exportBtn)}
-                    onClick={exportCourseware}
-                    disabled={isExporting || sessionId === 'new'}
+                    onClick={() => setShowThemePicker(true)}
+                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '选择主题并导出 PPT'}
                   >
-                    <Download size={16} className={clsx(isExporting && styles.rotating)} /> 
-                    {isExporting ? '导出 PPT中...' : '导出 PPT'}
+                    <Download size={16} className={clsx(isExporting && styles.rotating)} />
+                    {isExporting ? '导出 PPT 中...' : '导出 PPT'}
                   </button>
                   {wordDoc && (
                     <button 
@@ -736,7 +782,7 @@ export default function Workspace() {
                     <input
                       ref={kbFileInputRef}
                       type="file"
-                      accept=".pdf,.docx,.doc,.txt,.md"
+                      accept=".pdf,.docx,.doc,.pptx,.ppt,.txt,.md"
                       style={{ display: 'none' }}
                       onChange={handleKbUpload}
                     />
@@ -745,7 +791,7 @@ export default function Workspace() {
                     ) : isDraggingKb ? (
                       <><UploadCloud size={20} /> <span>松开即可上传</span></>
                     ) : (
-                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · TXT · MD</small></>
+                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · PPTX · TXT · MD</small></>
                     )}
                   </div>
 
@@ -889,6 +935,10 @@ export default function Workspace() {
                       onIterate={(instruction) => iteratePage(page.page_index, instruction)}
                       onManualSave={(pageIndex, updated) => updatePageLocally(pageIndex, updated)}
                       onApplyLayout={(layoutType) => applyLayoutAndRefresh(page.page_index, layoutType)}
+                      onImageResolved={(elementId, imageId, previewUrl) =>
+                        resolveImageInPage(page.page_index, elementId, imageId, previewUrl)
+                      }
+                      onSavingImageChange={(saving) => setAnyImageSaving(saving)}
                     />
                   ))}
                   
@@ -1035,10 +1085,51 @@ export default function Workspace() {
               </button>
             )}
           </Tabs.Content>
+
+          {/* ── 互动小游戏 Tab ── */}
+          <Tabs.Content className={styles.tabsContent} value="games">
+            {sessionId !== 'new' && (
+              <GamePanel
+                sessionId={sessionId}
+                pendingSuggest={pendingSuggest}
+                pendingTrigger={pendingTrigger}
+                onClearSuggest={() => setPendingSuggest(null)}
+                onClearTrigger={() => setPendingTrigger(null)}
+                onActiveGameChange={setActiveGameId}
+              />
+            )}
+            {sessionId === 'new' && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', height: '100%', gap: 12,
+                color: 'var(--text-tertiary)',
+              }}>
+                <Gamepad2 size={36} style={{ opacity: 0.3 }} />
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>
+                  请先创建会话
+                </p>
+                <small style={{ fontSize: 12 }}>互动游戏功能需要在活跃会话中使用</small>
+              </div>
+            )}
+          </Tabs.Content>
         </Tabs.Root>
         )}
       </section>
 
+      {/* ── PPT 主题选色器 Overlay ── */}
+      {showThemePicker && (
+        <ThemePicker
+          selectedKey={pendingThemeKey}
+          onSelect={setPendingThemeKey}
+          onConfirm={(themeKey) => {
+            setShowThemePicker(false);
+            exportCourseware(themeKey ?? undefined);
+          }}
+          onCancel={() => setShowThemePicker(false)}
+        />
+      )}
+
     </div>
   );
 }
+

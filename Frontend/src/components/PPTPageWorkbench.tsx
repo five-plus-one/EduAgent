@@ -84,9 +84,13 @@ const ELEMENT_TYPES = [
   { type: 'huge_number',  label: '数据强调', icon: <Hash size={14} />,       defaultContent: ['98%'], defaultPosition: 'center', description: '凸显大数字', hasAccent: true },
   { type: 'timeline_item',label: '时间节点', icon: <Clock size={14} />,      defaultContent: ['事件说明'], defaultPosition: 'left', description: '时间轴条目', hasTime: true, useItemEditor: true },
   { type: 'image',        label: '图片占位', icon: <ImageIcon size={14} />,  defaultContent: [], defaultPosition: 'right', description: '图片区域', isImage: true },
+  { type: 'table',        label: '表格',     icon: <Grid size={14} />,       defaultContent: [], defaultPosition: 'full', description: '支持 LaTeX 公式的数据表格', isTable: true,
+    defaultHeaders: ['列标题1', '列标题2', '列标题3'],
+    defaultRows: [['', '', '']],
+  },
 ] as const;
 
-type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean };
+type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
 const TYPE_MAP = Object.fromEntries((ELEMENT_TYPES as readonly any[]).map(t => [t.type, t])) as Record<string, ElementTypeDef>;
 const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
 
@@ -95,25 +99,48 @@ interface EditableEl {
   element_id: string; type: string; position: string;
   textLines: string[]; time?: string; is_accent?: boolean;
   alt?: string; query?: string; _raw: PPTElement;
+  /** 表格专属字段 */
+  headers?: string[];
+  rows?: string[][];
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-const toArr = (content: unknown): string[] => {
-  if (Array.isArray(content)) return content.map(String).filter(Boolean);
-  if (content == null) return [];
-  return [String(content)];
-};
 function toEditable(el: PPTElement): EditableEl {
-  return { element_id: el.element_id, type: el.type, position: el.position,
-    textLines: toArr((el as any).content), time: (el as any).time,
-    is_accent: (el as any).is_accent, alt: (el as any).alt,
-    query: (el as any).query, _raw: el };
+  const base: EditableEl = {
+    element_id: el.element_id, type: el.type, position: el.position,
+    textLines: Array.isArray(el.content) ? el.content.map(String).filter(Boolean) : [],
+    time: (el as any).time,
+    is_accent: el.is_accent,
+    alt: el.alt,
+    query: el.query,
+    _raw: el,
+  };
+  if (el.type === 'table') {
+    // 优先用接口字段，降级到 _raw 增强兼容（防止 Pydantic strip 后前端导致数据丢失）
+    base.headers = Array.isArray(el.headers) ? el.headers
+      : Array.isArray((el as any)._raw?.headers) ? (el as any)._raw.headers
+      : [];
+    base.rows = Array.isArray(el.rows) ? el.rows
+      : Array.isArray((el as any)._raw?.rows) ? (el as any)._raw.rows
+      : [];
+  }
+  return base;
 }
 function fromEditable(e: EditableEl): PPTElement {
   const base: any = { ...(e._raw), element_id: e.element_id, type: e.type,
     position: e.position, time: e.time, is_accent: e.is_accent };
-  if (e.type === 'image') { base.alt = e.alt; base.query = e.query || e.alt; delete base.content; }
-  else { base.content = e.textLines.length > 0 ? e.textLines : undefined; delete base.alt; delete base.query; }
+  if (e.type === 'image') {
+    base.alt = e.alt; base.query = e.query || e.alt; delete base.content;
+  } else if (e.type === 'table') {
+    // 表格：直接写 headers/rows，content 保持为空数组
+    base.headers = e.headers ?? [];
+    base.rows    = e.rows    ?? [];
+    base.content = [];
+    delete base.alt; delete base.query;
+  } else {
+    base.content = e.textLines.length > 0 ? e.textLines : undefined;
+    delete base.alt; delete base.query;
+  }
   return base as PPTElement;
 }
 
@@ -133,7 +160,7 @@ function normalizeImages(items: any[]): ImageResult[] {
    主组件
    ══════════════════════════════════════════════════════════════ */
 export default function PPTPageWorkbench({
-  open, page, defaultTab = 'edit', activeImageElement = null, currentFit = 'cover',
+  open, page, defaultTab = 'edit', activeImageElement = null,
   onClose, onSave, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: PPTPageWorkbenchProps) {
 
@@ -149,6 +176,10 @@ export default function PPTPageWorkbench({
   const dragSrcIdx = useRef<number | null>(null);
   /** 当前 hover 的放置目标索引（触发 re-render 以显示动画） */
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  /** 当前打开自定义类型下拉的元素索引，-1 表示全部关闭 */
+  const [typeMenuOpenIdx, setTypeMenuOpenIdx] = useState<number>(-1);
+  /** 当前打开的菜单 DOM 引用，用于判断点击是否在菜单内部 */
+  const typeMenuRef = useRef<HTMLDivElement | null>(null);
 
   /* ── AI 指令状态 ────────────────────────────────────────── */
   const [aiInstruction, setAiInstruction] = useState('');
@@ -196,7 +227,21 @@ export default function PPTPageWorkbench({
     setAllPage(1);
     setAllTotal(0);
     allLoadedOnce.current = false;
+    setTypeMenuOpenIdx(-1); // 换页时关闭菜单
   }, [page.page_index, open, defaultTab]);
+
+  /* ── 点击外部关闭类型下拉菜单 ──────────────────────────────── */
+  useEffect(() => {
+    if (typeMenuOpenIdx === -1) return;
+    const close = (e: MouseEvent) => {
+      // 点击在菜单内部时不关闭，让 onClick 正常触发
+      if (typeMenuRef.current?.contains(e.target as Node)) return;
+      setTypeMenuOpenIdx(-1);
+    };
+    // 泡氯阶段（不用捕获阶段），防止在 onClick 前卸载菜单
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [typeMenuOpenIdx]);
 
   /* ── 全部图片首次加载（picker 打开时触发） */
   useEffect(() => {
@@ -215,18 +260,24 @@ export default function PPTPageWorkbench({
   const addElement = (type: string) => {
     const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
     const id = uid();
-    const isImg = (def as any).isImage;
-    setElements(prev => [...prev, {
+    const isImg   = (def as any).isImage;
+    const isTable = (def as any).isTable;
+    const newEl: EditableEl = {
       element_id: id, type: def.type, position: def.defaultPosition,
       textLines: isImg ? [] : [...(def.defaultContent as any)],
-      // 图片元素用空字符串作为默认，避免展示过时提示
-      alt: isImg ? '' : undefined,
-      query: isImg ? '' : undefined,
-      time: (def as any).hasTime ? '' : undefined,
+      alt:   isImg   ? '' : undefined,
+      query: isImg   ? '' : undefined,
+      time:  (def as any).hasTime ? '' : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
         content: isImg ? undefined : def.defaultContent,
         alt: isImg ? '' : undefined } as any,
-    }]);
+    };
+    // 表格元素预填默认结构
+    if (isTable) {
+      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
+      newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
+    }
+    setElements(prev => [...prev, newEl]);
     markDirty();
   };
   const removeElement = (idx: number) => { setElements(prev => prev.filter((_, i) => i !== idx)); markDirty(); };
@@ -474,20 +525,98 @@ export default function PPTPageWorkbench({
                       <div className={styles.elementMain}>
                         {/* 类型 / 位置 / 强调 选择器 */}
                         <div className={styles.elementMeta}>
-                          <select className={styles.typeSelect} value={el.type}
-                            onChange={e => {
-                              const newDef = TYPE_MAP[e.target.value];
-                              updateElement(idx, {
-                                type: e.target.value,
-                                textLines: (newDef as any)?.isImage ? [] : (el.textLines.length ? el.textLines : ((newDef as any)?.defaultContent ?? [])),
-                                alt: (newDef as any)?.isImage ? (el.alt || '') : undefined,
-                                query: (newDef as any)?.isImage ? (el.query || '') : undefined,
-                                time: (newDef as any)?.hasTime ? (el.time ?? '') : undefined,
-                                position: newDef?.defaultPosition ?? el.position,
-                              });
-                            }}>
-                            {ELEMENT_TYPES.map(t => <option key={t.type} value={t.type}>{t.label}</option>)}
-                          </select>
+                        {/* 自定义类型 Pill 下拉 */}
+                          <div className={styles.typePillWrap}>
+                            <button
+                              className={styles.typePill}
+                              onClick={() => setTypeMenuOpenIdx(typeMenuOpenIdx === idx ? -1 : idx)}
+                              type="button"
+                            >
+                              {def?.icon ?? <AlignLeft size={12} />}
+                              <span>{def?.label ?? el.type}</span>
+                              <ChevronDown size={11} className={clsx(styles.typePillChevron, typeMenuOpenIdx === idx && styles.typePillChevronOpen)} />
+                            </button>
+                            {typeMenuOpenIdx === idx && (
+                              <div className={styles.typeMenu} ref={typeMenuRef}>
+                                {(ELEMENT_TYPES as readonly any[]).map(t => (
+                                  <button
+                                    key={t.type}
+                                    className={clsx(styles.typeMenuItem, el.type === t.type && styles.typeMenuItemActive)}
+                                    onClick={() => {
+                                      setTypeMenuOpenIdx(-1);
+                                      if (t.type === el.type) return;
+
+                                      // ── 任意类型互转适配 ────────────────────────────────
+                                      const srcIsTable = el.type === 'table';
+                                      const dstIsTable = !!t.isTable;
+                                      const dstIsImage = !!t.isImage;
+
+                                      // 1. 从表格提取文本行（用于表格 → 任何非表格）
+                                      let recoveredLines: string[] = [];
+                                      if (srcIsTable) {
+                                        if (el.rows && el.rows.length > 0) {
+                                          // 合并：表头行 + 每数据行的首列（非空）
+                                          const headerLine = (el.headers ?? []).join(' / ');
+                                          const dataLines = el.rows.map(r =>
+                                            r.filter(Boolean).join(' · ')
+                                          ).filter(Boolean);
+                                          recoveredLines = [
+                                            ...(headerLine ? [headerLine] : []),
+                                            ...dataLines,
+                                          ];
+                                        }
+                                      }
+
+                                      // 2. 确定目标 textLines
+                                      //    图片/表格不使用 textLines，其他类型优先复用已有内容
+                                      const srcLines = srcIsTable ? recoveredLines : el.textLines;
+                                      const dstTextLines = dstIsImage || dstIsTable
+                                        ? []
+                                        : (srcLines.length > 0 ? srcLines : (t.defaultContent ?? []));
+
+                                      // 3. 确定目标 headers / rows（仅切换到表格时产生）
+                                      let dstHeaders: string[] | undefined;
+                                      let dstRows: string[][] | undefined;
+                                      if (dstIsTable) {
+                                        dstHeaders = t.defaultHeaders ?? ['列标题1', '列标题2', '列标题3'];
+                                        const cols = dstHeaders?.length ?? 3;
+                                        if (srcLines.length > 0) {
+                                          // 有来源文本 → 每行映射为首列，其余列留空
+                                          dstRows = srcLines.map(line => {
+                                            const row = new Array<string>(cols).fill('');
+                                            row[0] = line;
+                                            return row;
+                                          });
+                                        } else {
+                                          dstRows = t.defaultRows ?? [new Array<string>(cols).fill('')];
+                                        }
+                                      }
+
+                                      const patch: Partial<EditableEl> = {
+                                        type:      t.type,
+                                        position:  t.defaultPosition ?? el.position,
+                                        textLines: dstTextLines,
+                                        // 图片字段
+                                        alt:   dstIsImage ? (el.alt   ?? '') : undefined,
+                                        query: dstIsImage ? (el.query ?? '') : undefined,
+                                        // 时间节点字段
+                                        time:  t.hasTime  ? (el.time  ?? '') : undefined,
+                                        // 表格字段
+                                        headers: dstHeaders,
+                                        rows:    dstRows,
+                                      };
+                                      updateElement(idx, patch);
+                                    }}
+                                    type="button"
+                                  >
+                                    <span className={styles.typeMenuItemIcon}>{t.icon}</span>
+                                    <span className={styles.typeMenuItemLabel}>{t.label}</span>
+                                    <span className={styles.typeMenuItemDesc}>{t.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                           <select className={styles.positionSelect} value={el.position}
                             onChange={e => updateElement(idx, { position: e.target.value })}>
                             {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -545,7 +674,95 @@ export default function PPTPageWorkbench({
                               </div>
                             </div>
                           );
-                        })() : useItemEditor ? (
+                        })() : el.type === 'table' ? (
+                          /* ── 表格编辑器 ── */
+                          <div className={styles.tableEditor}>
+                            {/* Header 行 */}
+                            <div className={styles.tableEditorHeaderRow}>
+                              {(el.headers ?? []).map((h, ci) => (
+                                <input
+                                  key={ci}
+                                  className={styles.tableEditorCell}
+                                  value={h}
+                                  placeholder={`列1${ci + 1}`}
+                                  onChange={ev => {
+                                    const newH = [...(el.headers ?? [])];
+                                    newH[ci] = ev.target.value;
+                                    updateElement(idx, { headers: newH });
+                                  }}
+                                />
+                              ))}
+                              {/* 增列按鈕，最多 6 列 */}
+                              {(el.headers?.length ?? 0) < 6 && (
+                                <button
+                                  className={styles.tableAddColBtn}
+                                  onClick={() => updateElement(idx, {
+                                    headers: [...(el.headers ?? []), `列1${(el.headers?.length ?? 0) + 1}`],
+                                    rows: (el.rows ?? []).map(row => [...row, '']),
+                                  })}
+                                  title="添加列"
+                                >
+                                  <Plus size={11} />
+                                </button>
+                              )}
+                              {/* 删列按鈕 */}
+                              {(el.headers?.length ?? 0) > 1 && (
+                                <button
+                                  className={styles.tableDelColBtn}
+                                  onClick={() => {
+                                    const len = (el.headers?.length ?? 1) - 1;
+                                    updateElement(idx, {
+                                      headers: (el.headers ?? []).slice(0, len),
+                                      rows: (el.rows ?? []).map(row => row.slice(0, len)),
+                                    });
+                                  }}
+                                  title="删除最后一列"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* 数据行 */}
+                            {(el.rows ?? []).map((row, ri) => (
+                              <div key={ri} className={styles.tableEditorRow}>
+                                {row.map((cell, ci) => (
+                                  <input
+                                    key={ci}
+                                    className={styles.tableEditorCell}
+                                    value={cell}
+                                    placeholder={`单元格(支持 $LaTeX$)`}
+                                    onChange={ev => {
+                                      const newRows = (el.rows ?? []).map((r, i) =>
+                                        i === ri ? r.map((c, j) => j === ci ? ev.target.value : c) : r
+                                      );
+                                      updateElement(idx, { rows: newRows });
+                                    }}
+                                  />
+                                ))}
+                                <button
+                                  className={styles.tableDelRowBtn}
+                                  onClick={() => updateElement(idx, {
+                                    rows: (el.rows ?? []).filter((_, i) => i !== ri),
+                                  })}
+                                  title="删除此行"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            ))}
+
+                            {/* 增行按鈕 */}
+                            <button
+                              className={styles.tableAddRowBtn}
+                              onClick={() => updateElement(idx, {
+                                rows: [...(el.rows ?? []), new Array(el.headers?.length ?? 3).fill('')],
+                              })}
+                            >
+                              <Plus size={11} /> 添加行
+                            </button>
+                          </div>
+                        ) : useItemEditor ? (
                           <InlineListEditor
                             items={el.textLines.length ? el.textLines : ['']}
                             onChange={lines => updateElement(idx, { textLines: lines })}
