@@ -16,11 +16,12 @@ import {
   X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink,
 } from 'lucide-react';
 import {
-  listSessionGames, generateGame, getGameSource,
-  deleteGame, fetchGameHtml, gameShareUrl, createShareLink,
+  listSessionGames, getGameSource,
+  deleteGame, fetchGameHtml, createShareLink,
   streamGameTask, GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
+import { useGameStore } from '../store/useGameStore';
 import styles from './GamePanel.module.css';
 
 // ─────────────────────────────────────────────────────────────────
@@ -177,60 +178,56 @@ export default function GamePanel({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ── 游戏列表 ─────────────────────────────────────────────────
-  const [games, setGames] = useState<GameMeta[]>([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  // ── 全局游戏生成状态（从 store 读，不受组件生命周期影响）────
+  const {
+    gameLists, generating, genStage, genProgress, genStageMsg,
+    streamedCode, isLiveStream, genError, refreshingList, completedGameId,
+    triggerGenerate: storeTrigger, refreshGames, setGameList, clearCompletedGameId,
+  } = useGameStore();
 
-  // ── 选中 / 视图模式 ──────────────────────────────────────────
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [previewTab, setPreviewTab] = useState<'preview' | 'source'>('preview');
+  const games: GameMeta[] = gameLists[sessionId] ?? [];
 
-  // ── 预览 HTML（srcdoc 注入，规避跨域/X-Frame-Options）────────
-  const [previewHtml, setPreviewHtml]       = useState<string | null>(null);
+  // ── 本地 UI 状态（与生成无关）────────────────────────────────
+  const [loadingList, setLoadingList]     = useState(false);
+  const [deletingIds, setDeletingIds]     = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId]       = useState<string | null>(null);
+  const [previewTab, setPreviewTab]       = useState<'preview' | 'source'>('preview');
+  const [previewHtml, setPreviewHtml]     = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError]     = useState<string | null>(null);
-
-  // ── 源码 ─────────────────────────────────────────────────────
+  const [previewError, setPreviewError]   = useState<string | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceCode, setSourceCode]       = useState<string | null>(null);
   const [copied, setCopied]               = useState(false);
-
-  // ── 分享链接 ─────────────────────────────────────────────────
-  const [shareCopied, setShareCopied]       = useState(false);
+  const [shareCopied, setShareCopied]     = useState(false);
   const [sharingLoading, setSharingLoading] = useState(false);
-  const [shareError, setShareError]         = useState<string | null>(null);
-
-  // ── 流式生成状态 ─────────────────────────────────────────────
-  const [generating, setGenerating] = useState(false);
-  const [genStage, setGenStage] = useState('pending');
-  const [genProgress, setGenProgress] = useState(0);
-  const [genStageMsg, setGenStageMsg] = useState<string | undefined>();
-  const [streamedCode, setStreamedCode] = useState('');   // 实时累积 HTML
-  const [isLiveStream, setIsLiveStream] = useState(false); // SSE vs 轮询
-  const [genError, setGenError] = useState<string | null>(null);
-  const [refreshingList, setRefreshingList] = useState(false); // 生成完成后刷新列表过渡态
-  const abortRef = useRef<AbortController | null>(null);
-
-  // ── 手动创建面板 ─────────────────────────────────────────────
+  const [shareError, setShareError]       = useState<string | null>(null);
   const [showManualPanel, setShowManualPanel] = useState(false);
-  const [manualType, setManualType] = useState(GAME_TYPE_DEFAULTS[0].key);
-  const [manualTitle, setManualTitle] = useState('');
-  const [manualTopics, setManualTopics] = useState('');
+  const [manualType, setManualType]       = useState(GAME_TYPE_DEFAULTS[0].key);
+  const [manualTitle, setManualTitle]     = useState('');
+  const [manualTopics, setManualTopics]   = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
 
   // ── 通知父组件 ───────────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 拉取游戏列表 ─────────────────────────────────────────────
+  // ── 生成完成后自动选中新游戏（store 回写 completedGameId）────
+  useEffect(() => {
+    if (!completedGameId) return;
+    setSelectedId(completedGameId);
+    setPreviewTab('preview');
+    setSourceCode(null);
+    clearCompletedGameId();
+  }, [completedGameId, clearCompletedGameId]);
+
+  // ── 拉取游戏列表（写入 store）────────────────────────────────
   const fetchGames = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true);
     try {
       const list = await listSessionGames(sessionId);
-      setGames(list);
+      setGameList(sessionId, list);
     } catch { /* non-critical */ }
     finally { setLoadingList(false); }
-  }, [sessionId]);
+  }, [sessionId, setGameList]);
 
   useEffect(() => {
     if (sessionId && sessionId !== 'new') fetchGames();
@@ -241,15 +238,14 @@ export default function GamePanel({
     const handler = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        setTimeout(() => fetchGames(true), 800);
+        setTimeout(() => refreshGames(sessionId), 800);
       }
     };
     window.addEventListener('EduAgent_Generate_End', handler);
     return () => window.removeEventListener('EduAgent_Generate_End', handler);
-  }, [sessionId, fetchGames]);
+  }, [sessionId, refreshGames]);
 
-  // ── 组件卸载时中断流 ─────────────────────────────────────────
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+  // 注意：组件卸载时不再 abort，流在 store 里继续运行
 
   // ── ESC 退出全屏 ─────────────────────────────────────────────
   useEffect(() => {
@@ -261,86 +257,12 @@ export default function GamePanel({
   }, [isFullscreen]);
 
   // ─────────────────────────────────────────────────────────────
-  // 触发生成（接入 streamGameTask）
+  // 触发生成：委托给 store（流在后台持续，不受组件 unmount 影响）
   // ─────────────────────────────────────────────────────────────
-  const triggerGenerate = useCallback(async (spec: GameSpec, refineId?: string | null) => {
-    if (sessionId === 'new') return;
-
-    // 中断上次流
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    // 重置状态
-    setGenerating(true);
-    setGenError(null);
-    setGenStage('pending');
-    setGenProgress(0);
-    setGenStageMsg(undefined);
-    setStreamedCode('');
+  const triggerGenerate = useCallback((spec: GameSpec, refineId?: string | null) => {
     setSelectedId(null); // 清空选中，右侧展示流式窗口
-
-    let sseConnected = false;
-
-    try {
-      const result = await generateGame(sessionId, spec, refineId);
-
-      // 接入流（SSE 优先，自动降级轮询）
-      await streamGameTask(
-        result.task_id,
-        {
-          onStage(stage, progress, message) {
-            setGenStage(stage);
-            setGenProgress(progress);
-            setGenStageMsg(message);
-          },
-          onChunk(_chunk, progress, accumulated) {
-            if (!sseConnected) { sseConnected = true; setIsLiveStream(true); }
-            setStreamedCode(accumulated);
-            setGenProgress(progress);
-            setGenStage('generating');
-          },
-          onDone(gameId, _version) {
-            // 先展示 100% 进度，延迟 300ms 后刷新列表再切到预览
-            setGenProgress(100);
-            setGenStageMsg('生成完成！');
-            setTimeout(async () => {
-              try {
-                setRefreshingList(true);
-                const list = await listSessionGames(sessionId);
-                setGames(list);
-                // 如果返回的 gameId 在列表中存在，选中它；否则选第一个
-                const target = list.find(g => g.game_id === gameId) ? gameId : list[0]?.game_id ?? null;
-                setSelectedId(target);
-                setPreviewTab('preview');
-                setSourceCode(null);
-              } catch (err) {
-                console.error('[GamePanel] Failed to refresh list after generation:', err);
-                // 即使刷新失败，也要清空 generating
-              } finally {
-                setGenerating(false);
-                setStreamedCode('');
-                setIsLiveStream(false);
-                setRefreshingList(false);
-              }
-            }, 300); // 让用户先看到 100% 进度
-          },
-          onError(message) {
-            setGenerating(false);
-            setGenError(message);
-            setStreamedCode('');
-            setIsLiveStream(false);
-          },
-        },
-        controller.signal,
-      );
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') {
-        setGenerating(false);
-        setGenError(e?.message ?? '发起生成失败，请重试');
-      }
-    }
-  }, [sessionId]);
+    storeTrigger(sessionId, spec, refineId);
+  }, [sessionId, storeTrigger]);
 
   const handleConfirmTrigger = useCallback(() => {
     if (!pendingTrigger) return;
@@ -369,7 +291,7 @@ export default function GamePanel({
     setDeletingIds(prev => new Set(prev).add(gameId));
     try {
       await deleteGame(gameId);
-      setGames(prev => prev.filter(g => g.game_id !== gameId));
+      setGameList(sessionId, games.filter(g => g.game_id !== gameId));
       if (selectedId === gameId) { setSelectedId(null); setSourceCode(null); }
     } catch { alert('删除失败，请重试'); }
     finally {
