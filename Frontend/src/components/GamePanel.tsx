@@ -174,52 +174,64 @@ export default function GamePanel({
   onClearSuggest, onClearTrigger, onActiveGameChange,
 }: GamePanelProps) {
 
-  // ── 布局 ────────────────────────────────────────────────────
+  // ── 布局 ────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ── 全局游戏生成状态（从 store 读，不受组件生命周期影响）────
+  // ── 全局游戏生成状态（从 store 读） ───────────────────────
   const {
-    gameLists, generating, genStage, genProgress, genStageMsg,
+    gameLists, generating, generatingSessionId, genStage, genProgress, genStageMsg,
     streamedCode, isLiveStream, genError, refreshingList, completedGameId,
-    triggerGenerate: storeTrigger, refreshGames, setGameList, clearCompletedGameId,
+    triggerGenerate: storeTrigger, setGameList, refreshGames, clearCompletedGameId, clearGenError
   } = useGameStore();
 
+  const isCurrentGenerating = generating && generatingSessionId === sessionId;
   const games: GameMeta[] = gameLists[sessionId] ?? [];
 
-  // ── 本地 UI 状态（与生成无关）────────────────────────────────
+  // ── 本地 UI 状态 ────────────────────────────────────────
   const [loadingList, setLoadingList]     = useState(false);
   const [deletingIds, setDeletingIds]     = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId]       = useState<string | null>(null);
   const [previewTab, setPreviewTab]       = useState<'preview' | 'source'>('preview');
-  const [previewHtml, setPreviewHtml]     = useState<string | null>(null);
+  
+  const [previewHtml, setPreviewHtml]       = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError]   = useState<string | null>(null);
-  const [sourceLoading, setSourceLoading] = useState(false);
-  const [sourceCode, setSourceCode]       = useState<string | null>(null);
-  const [copied, setCopied]               = useState(false);
-  const [shareCopied, setShareCopied]     = useState(false);
+  const [previewError, setPreviewError]     = useState<string | null>(null);
+  const [sourceLoading, setSourceLoading]   = useState(false);
+  const [sourceCode, setSourceCode]         = useState<string | null>(null);
+  
+  const [copied, setCopied]                 = useState(false);
+  const [shareCopied, setShareCopied]       = useState(false);
   const [sharingLoading, setSharingLoading] = useState(false);
-  const [shareError, setShareError]       = useState<string | null>(null);
+  const [shareError, setShareError]         = useState<string | null>(null);
+  
   const [showManualPanel, setShowManualPanel] = useState(false);
-  const [manualType, setManualType]       = useState(GAME_TYPE_DEFAULTS[0].key);
-  const [manualTitle, setManualTitle]     = useState('');
-  const [manualTopics, setManualTopics]   = useState('');
+  const [manualType, setManualType]           = useState(GAME_TYPE_DEFAULTS[0].key);
+  const [manualTitle, setManualTitle]         = useState('');
+  const [manualTopics, setManualTopics]       = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
 
-  // ── 通知父组件 ───────────────────────────────────────────────
-  useEffect(() => { onActiveGameChange(selectedId); }, [selectedId, onActiveGameChange]);
+  // ── 通知父组件 ───────────────────────────────────────────
+  useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 生成完成后自动选中新游戏（store 回写 completedGameId）────
+  // ── 生成完成后自动选中新游戏 ───────────────────────────
   useEffect(() => {
-    if (!completedGameId) return;
-    setSelectedId(completedGameId);
-    setPreviewTab('preview');
-    setSourceCode(null);
-    clearCompletedGameId();
-  }, [completedGameId, clearCompletedGameId]);
+    if (completedGameId && generatingSessionId === sessionId) {
+      setSelectedId(completedGameId);
+      setPreviewTab('preview');
+      setSourceCode(null);
+      clearCompletedGameId();
+    }
+  }, [completedGameId, generatingSessionId, sessionId, clearCompletedGameId]);
 
-  // ── 拉取游戏列表（写入 store）────────────────────────────────
+  // 当回到组件时，如果正在生成且没有选中项，自动选中 generating
+  useEffect(() => {
+    if (isCurrentGenerating && !selectedId) {
+      setSelectedId('generating');
+    }
+  }, [isCurrentGenerating, selectedId]);
+
+  // ── 拉取游戏列表 ─────────────────────────────────────────
   const fetchGames = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true);
     try {
@@ -230,10 +242,12 @@ export default function GamePanel({
   }, [sessionId, setGameList]);
 
   useEffect(() => {
-    if (sessionId && sessionId !== 'new') fetchGames();
-  }, [sessionId, fetchGames]);
+    if (sessionId && sessionId !== 'new' && !gameLists[sessionId]) {
+      fetchGames();
+    }
+  }, [sessionId, fetchGames, gameLists]);
 
-  // ── Agent 工具调用后自动刷新 ──────────────────────────────────
+  // ── Agent 工具调用后自动刷新 ──────────────────────────
   useEffect(() => {
     const handler = (e: Event) => {
       const ev = e as CustomEvent;
@@ -245,9 +259,7 @@ export default function GamePanel({
     return () => window.removeEventListener('EduAgent_Generate_End', handler);
   }, [sessionId, refreshGames]);
 
-  // 注意：组件卸载时不再 abort，流在 store 里继续运行
-
-  // ── ESC 退出全屏 ─────────────────────────────────────────────
+  // ── ESC 退出全屏 ───────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
@@ -256,12 +268,12 @@ export default function GamePanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 触发生成：委托给 store（流在后台持续，不受组件 unmount 影响）
-  // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────
+  // 触发生成
+  // ─────────────────────────────────────────────────────
   const triggerGenerate = useCallback((spec: GameSpec, refineId?: string | null) => {
-    setSelectedId(null); // 清空选中，右侧展示流式窗口
     storeTrigger(sessionId, spec, refineId);
+    setSelectedId('generating');
   }, [sessionId, storeTrigger]);
 
   const handleConfirmTrigger = useCallback(() => {
@@ -291,6 +303,7 @@ export default function GamePanel({
     setDeletingIds(prev => new Set(prev).add(gameId));
     try {
       await deleteGame(gameId);
+      // 从 store 同步删除
       setGameList(sessionId, games.filter(g => g.game_id !== gameId));
       if (selectedId === gameId) { setSelectedId(null); setSourceCode(null); }
     } catch { alert('删除失败，请重试'); }
@@ -315,7 +328,7 @@ export default function GamePanel({
 
   // ── 选中游戏 / Tab 切换时加载内容 ────────────────────────────────────
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
       setPreviewHtml(null);
       setPreviewError(null);
@@ -327,7 +340,7 @@ export default function GamePanel({
     } else if (previewTab === 'source' && !sourceCode) {
       loadSource(selectedId);
     }
-  }, [selectedId, previewTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedId, previewTab, loadSource]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
@@ -428,11 +441,11 @@ export default function GamePanel({
             )}
 
             {/* 错误提示 */}
-            {genError && (
+            {isCurrentGenerating && genError && (
               <div className={styles.errorBar}>
                 <AlertCircle size={13} />
                 <span>{genError}</span>
-                <button className={styles.bannerClose} onClick={() => setGenError(null)}><X size={12} /></button>
+                <button className={styles.bannerClose} onClick={clearGenError}><X size={12} /></button>
               </div>
             )}
 
@@ -467,7 +480,7 @@ export default function GamePanel({
                 <textarea className={clsx(styles.manualInput, styles.manualTextarea)}
                   placeholder="自定义要求（可选）" rows={2}
                   value={manualRequirements} onChange={e => setManualRequirements(e.target.value)} />
-                <button className={styles.confirmBtn} onClick={handleManualGenerate} disabled={generating}>
+                <button className={styles.confirmBtn} onClick={handleManualGenerate} disabled={isCurrentGenerating}>
                   <Gamepad2 size={13} /> 开始生成
                 </button>
               </div>
@@ -476,7 +489,7 @@ export default function GamePanel({
             {/* 游戏列表 */}
             {loadingList && games.length === 0 ? (
               <div className={styles.listLoading}><Loader2 size={18} className={styles.spin} /></div>
-            ) : games.length === 0 && !generating ? (
+            ) : games.length === 0 && !isCurrentGenerating ? (
               <div className={styles.emptyList}>
                 <Gamepad2 size={26} className={styles.emptyIcon} />
                 <p>暂无游戏</p>
@@ -485,8 +498,11 @@ export default function GamePanel({
             ) : (
               <div className={styles.gameList}>
                 {/* 生成中骨架卡 */}
-                {generating && (
-                  <div className={clsx(styles.gameItem, styles.gameItemGenerating)}>
+                {isCurrentGenerating && (
+                  <div
+                    className={clsx(styles.gameItem, styles.gameItemGenerating, selectedId === 'generating' && styles.gameItemActive)}
+                    onClick={() => setSelectedId('generating')}
+                  >
                     <div className={styles.generatingPulse} />
                     <div className={styles.gameItemMain}>
                       <span className={styles.gameItemTitle}>
@@ -497,7 +513,11 @@ export default function GamePanel({
                         {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
                       </span>
                     </div>
-                    <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
+                    {/* 右侧小箭头 */}
+                    <div className={styles.gameItemRight}>
+                      {selectedId === 'generating' && <ChevronRight size={13} className={styles.chevron} />}
+                      <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
+                    </div>
                   </div>
                 )}
                 {games.map(g => (
@@ -535,7 +555,7 @@ export default function GamePanel({
 
       {/* ─── 右栏：预览 ─── */}
       <div className={styles.preview}>
-        {generating ? (
+        {selectedId === 'generating' && isCurrentGenerating ? (
           /* 实时流式代码窗口 */
           <StreamingCodeWindow
             stage={genStage}
@@ -544,14 +564,14 @@ export default function GamePanel({
             code={streamedCode}
             isStreaming={isLiveStream}
           />
-        ) : refreshingList ? (
+        ) : refreshingList && selectedId === 'generating' ? (
           /* 生成完成，正在拉取列表的过渡态 */
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>正在加载游戏...</p>
             <small>马上就好，游戏即将可以运行</small>
           </div>
-        ) : !selectedId ? (
+        ) : (!selectedId || selectedId === 'generating') ? (
           <div className={styles.previewEmpty}>
             <Gamepad2 size={40} className={styles.emptyIcon} />
             <p>选择左侧游戏进行预览</p>
