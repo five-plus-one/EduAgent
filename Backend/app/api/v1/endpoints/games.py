@@ -250,7 +250,7 @@ async def stream_game_task_sse(
     # 后台线程已经立即开始（run_game_task 无睡眠），SSE 只需等待 + 转发进度。
     # 断开重连均安全：后台任务不依赖 SSE 连接。
     game_id_cap    = game_id
-    task_id_cap    = task_id
+    task_id_cap    = task.id    # ← 必须用 task.id（gtask_xxx），不能用 URL 传入的 task_id（可能是 game_xxx）
     user_id_cap    = current_user.id
 
     async def event_generator() -> AsyncGenerator[str, None]:
