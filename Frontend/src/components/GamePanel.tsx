@@ -607,7 +607,7 @@ export default function GamePanel({
 
       {/* ─── 右栏：预览 ─── */}
       <div className={styles.preview}>
-        {selectedId === 'generating' && isCurrentGenerating ? (
+        {(selectedId === 'generating' || selectedId === generatingRefineId) && isCurrentGenerating ? (
           /* 实时流式代码窗口 */
           <StreamingCodeWindow
             stage={genStage}
@@ -623,6 +623,13 @@ export default function GamePanel({
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>正在加载游戏...</p>
             <small>马上就好，游戏即将可以运行</small>
+          </div>
+        ) : selectedGame?.status === 'generating' ? (
+          /* 未完成或后台生成中的挂起状态 */
+          <div className={styles.previewEmpty}>
+            <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
+            <p>后台正在生成中...</p>
+            <small>由于页面刷新等原因未连接实时进度，生成完毕后方可预览</small>
           </div>
         ) : (!selectedId || selectedId === 'generating') ? (
           <div className={styles.previewEmpty}>
