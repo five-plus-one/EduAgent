@@ -253,12 +253,27 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
     }
 
     if (el.type === 'interactive_game' || el.type === 'animation' || el.type === 'html5') {
+      const gameTitle = (el as any).game_title || el.alt || '互动游戏';
+      const shareUrl  = (el as any).share_url || (Array.isArray(el.content) ? el.content[0] : null) || el.url;
       return (
-        <div key={el.element_id} className={clsx(styles.interactiveWrapper, positionClass)} style={{ width: '100%', minHeight: '300px', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', overflow: 'hidden', background: '#fff' }}>
-          {el.url ? (
-            <iframe src={el.url} title={el.alt || "Interactive Content"} width="100%" height="100%" style={{ minHeight: '300px', border: 'none' }} />
-          ) : (
-            <iframe srcDoc={el.content?.join('\n') || `<h1>Interactive Block Pending</h1>`} title={el.alt || "Interactive Content"} width="100%" height="100%" style={{ minHeight: '300px', border: 'none' }} />
+        <div key={el.element_id} className={clsx(styles.gameCard, positionClass)}>
+          <div className={styles.gameCardIcon}>🎮</div>
+          <div className={styles.gameCardBody}>
+            <span className={styles.gameCardTitle}>{gameTitle}</span>
+            {shareUrl && (
+              <a
+                href={shareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.gameCardLink}
+                onClick={e => e.stopPropagation()}
+              >
+                {shareUrl}
+              </a>
+            )}
+          </div>
+          {shareUrl && (
+            <div className={styles.gameCardBadge}>点击互动</div>
           )}
         </div>
       );
@@ -389,25 +404,30 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
 
   return (
     <>
-      <div 
-        className={clsx(styles.pptCard, isUpdating && styles.updating)}
-      >
-        {page.layout_type !== 'cover' && (
-          <div className={styles.cardHeader}>
-            <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
-            <h4>{page.title}</h4>
-            {/* 手动编辑按钮 → 统一工作台 */}
-            {!isUpdating && !isStreaming && onManualSave && (
-              <button
-                className={styles.editPageBtn}
-                onClick={handleEditPageClick}
-                title="编辑此页（内容 / 图片 / 布局 / AI 指令）"
-              >
-                <Pencil size={13} />
-              </button>
-            )}
-          </div>
+      {/* ── 外层包裹：用于将编辑按钮绝对定位到幻灯片右上角外侧 ── */}
+      <div className={styles.cardWrap}>
+        {/* 悬浮编辑按钮 - 始终显示（在幻灯片外部右上角） */}
+        {!isUpdating && !isStreaming && onManualSave && (
+          <button
+            className={styles.floatEditBtn}
+            onClick={handleEditPageClick}
+            title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+          >
+            <Pencil size={14} />
+            <span>编辑</span>
+          </button>
         )}
+
+        <div
+          className={clsx(styles.pptCard, isUpdating && styles.updating)}
+        >
+          {/* cover 以外的页面保留原有 cardHeader（页码+标题） */}
+          {page.layout_type !== 'cover' && (
+            <div className={styles.cardHeader}>
+              <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
+              <h4>{page.title}</h4>
+            </div>
+          )}
 
         {/* ---------------- CANVAS DESIGN DECORATIONS ---------------- */}
         <div className={styles.giantWatermark}>
@@ -546,6 +566,9 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           </div>
         )}
       </div>
+      {/* ← pptCard */}
+      </div>
+      {/* ← cardWrap */}
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (

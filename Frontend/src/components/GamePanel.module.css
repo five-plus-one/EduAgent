@@ -559,10 +559,117 @@
 }
 .iconActionBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+/* ── 分享链接按钮 ── */
+.shareBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  height: 28px;
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 7px;
+  background: rgba(99,102,241,0.06);
+  color: #6366f1;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.14s;
+  white-space: nowrap;
+}
+.shareBtn:hover:not(:disabled) {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(99,102,241,0.18);
+}
+.shareBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.shareBtnCopied {
+  background: rgba(34,197,94,0.1) !important;
+  border-color: rgba(34,197,94,0.4) !important;
+  color: #22c55e !important;
+}
+
+/* 分享错误行内提示 */
+.shareErrorTip {
+  font-size: 11px;
+  color: #ef4444;
+  padding: 2px 8px;
+  background: rgba(239,68,68,0.08);
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+/* ── iframe 容器（srcdoc 模式）── */
+.iframeWrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* 预览加载中遮罩 */
+.previewLoadingOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(248, 250, 252, 0.92);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* 预览错误状态 */
+.previewErrorOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  background: rgba(248, 250, 252, 0.96);
+  z-index: 10;
+  color: #ef4444;
+  text-align: center;
+}
+.previewErrorOverlay p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  max-width: 320px;
+}
+
+.retryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 7px;
+  background: transparent;
+  color: #ef4444;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.retryBtn:hover { background: rgba(239,68,68,0.08); }
+
 /* ── iframe ── */
 .iframe {
   flex: 1;
   width: 100%;
+  height: 100%;
   border: none;
   background: #fff;
   display: block;
