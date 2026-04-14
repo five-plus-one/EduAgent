@@ -27,6 +27,7 @@ export interface GameGenState {
   genProgress: number;
   genStageMsg: string | undefined;
   streamedCode: string;
+  genThinking: string;
   isLiveStream: boolean;
   genError: string | null;
   refreshingList: boolean;
@@ -66,6 +67,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   genProgress: 0,
   genStageMsg: undefined,
   streamedCode: '',
+  genThinking: '',
   isLiveStream: false,
   genError: null,
   refreshingList: false,
@@ -109,6 +111,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       genProgress: 0,
       genStageMsg: undefined,
       streamedCode: '',
+      genThinking: '',
       isLiveStream: false,
       completedGameId: null,
       _abortController: controller,
@@ -129,6 +132,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
             if (!sseConnected) { sseConnected = true; set({ isLiveStream: true }); }
             set({ streamedCode: accumulated, genProgress: progress, genStage: 'generating' });
           },
+          onThinking(_chunk, accumulated) {
+            set({ genThinking: accumulated });
+          },
           async onDone(gameId) {
             set({ genProgress: 100, genStageMsg: '生成完成！' });
             await new Promise(r => setTimeout(r, 300));
@@ -141,18 +147,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 completedGameId: target,
                 generating: false,
                 streamedCode: '',
+                genThinking: '',
                 isLiveStream: false,
                 generatingSessionId: null,
                 generatingRefineId: null,
               }));
             } catch {
-              set({ generating: false, streamedCode: '', generatingSessionId: null, generatingRefineId: null });
+              set({ generating: false, streamedCode: '', genThinking: '', generatingSessionId: null, generatingRefineId: null });
             } finally {
               set({ refreshingList: false, _abortController: null });
             }
           },
           onError(message) {
-            set({ generating: false, genError: message, streamedCode: '', isLiveStream: false, generatingSessionId: null, generatingRefineId: null, _abortController: null });
+            set({ generating: false, genError: message, streamedCode: '', genThinking: '', isLiveStream: false, generatingSessionId: null, generatingRefineId: null, _abortController: null });
           },
         },
         controller.signal,
