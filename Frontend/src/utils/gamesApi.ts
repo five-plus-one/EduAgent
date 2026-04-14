@@ -141,15 +141,40 @@ export async function listSessionGames(sessionId: string): Promise<GameMeta[]> {
 }
 
 /**
- * 5. 游戏 HTML 预览 URL（用于 <iframe src="...">）
- * 必须附加 ?token= 因为 iframe 无法设置 Authorization header
+ * 5a. 获取游戏 HTML 内容（用于 srcdoc 注入 iframe，规避跨域/X-Frame-Options）
+ * 通过 axios 代理请求，携带 Authorization header，不暴露 token 到 URL
  */
-export function gamePreviewUrl(gameId: string): string {
+export async function fetchGameHtml(gameId: string): Promise<string> {
+  // 优先用 /preview 接口（返回完整 HTML 页面），降级用 /source
+  try {
+    const res = await apiClient.get(`/games/${gameId}/preview`, {
+      responseType: 'text',
+      headers: { Accept: 'text/html,application/xhtml+xml,*/*' },
+    });
+    // 如果返回的是 JSON（说明 preview 接口返回结构体），降级取 source
+    const raw = typeof res.data === 'string' ? res.data : null;
+    if (raw && raw.trim().startsWith('<')) return raw;
+  } catch (previewErr) {
+    console.warn('[fetchGameHtml] /preview failed, falling back to /source:', previewErr);
+  }
+  // 降级：/source 接口返回 { html_content: string }
+  const src = await getGameSource(gameId);
+  return src.html_content ?? src.content ?? '';
+}
+
+/**
+ * 5b. 游戏外链分享 URL（在新标签页打开用，不用于 iframe src）
+ * 直接带 token，供「在新标签页打开」按钮使用
+ */
+export function gameShareUrl(gameId: string): string {
   const token = getToken();
   const origin = getBaseOrigin();
   const base = origin ? `${origin}/api/v1` : '/api/v1';
   return `${base}/games/${gameId}/preview${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 }
+
+// 向后兼容别名（以防其他地方有引用）
+export { gameShareUrl as gamePreviewUrl };
 
 /** 6. 获取游戏 HTML 源码 */
 export async function getGameSource(gameId: string): Promise<GameSource> {
