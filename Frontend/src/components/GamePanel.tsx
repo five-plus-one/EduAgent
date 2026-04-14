@@ -180,7 +180,7 @@ export default function GamePanel({
 
   // ── 全局游戏生成状态（从 store 读） ───────────────────────
   const {
-    gameLists, generating, generatingSessionId, genStage, genProgress, genStageMsg,
+    gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
     streamedCode, isLiveStream, genError, refreshingList, completedGameId,
     triggerGenerate: storeTrigger, setGameList, refreshGames, clearCompletedGameId, clearGenError
   } = useGameStore();
@@ -497,8 +497,8 @@ export default function GamePanel({
               </div>
             ) : (
               <div className={styles.gameList}>
-                {/* 生成中骨架卡 */}
-                {isCurrentGenerating && (
+                {/* 独立生成中骨架卡（仅当全新生成时显示） */}
+                {isCurrentGenerating && !generatingRefineId && (
                   <div
                     className={clsx(styles.gameItem, styles.gameItemGenerating, selectedId === 'generating' && styles.gameItemActive)}
                     onClick={() => setSelectedId('generating')}
@@ -520,33 +520,67 @@ export default function GamePanel({
                     </div>
                   </div>
                 )}
-                {games.map(g => (
+                {games.map(g => {
+                  const isRefiningThis = isCurrentGenerating && generatingRefineId === g.game_id;
+                  const isActive = isRefiningThis ? selectedId === 'generating' : selectedId === g.game_id;
+
+                  return (
                   <div
                     key={g.game_id}
-                    className={clsx(styles.gameItem, selectedId === g.game_id && styles.gameItemActive)}
-                    onClick={() => { setSelectedId(g.game_id); setSourceCode(null); setPreviewTab('preview'); }}
+                    className={clsx(styles.gameItem, isActive && styles.gameItemActive, isRefiningThis && styles.gameItemGenerating)}
+                    onClick={() => { 
+                      if (isRefiningThis) {
+                        setSelectedId('generating');
+                      } else {
+                        setSelectedId(g.game_id); 
+                        setSourceCode(null); 
+                        setPreviewTab('preview'); 
+                      }
+                    }}
                   >
-                    <div className={styles.gameItemMain}>
-                      <span className={styles.gameItemTitle}>{g.title}</span>
-                      <span className={styles.gameItemMeta}>
-                        {g.type_label} · v{g.version} · {fmtDate(g.updated_at)}
-                      </span>
-                    </div>
-                    <div className={styles.gameItemRight}>
-                      {g.status === 'completed' && <CheckCircle size={13} className={styles.statusDone} />}
-                      {g.status === 'generating' && <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />}
-                      {g.status === 'failed' && <AlertCircle size={13} className={styles.statusFail} />}
-                      {selectedId === g.game_id && <ChevronRight size={13} className={styles.chevron} />}
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={e => { e.stopPropagation(); handleDelete(g.game_id); }}
-                        disabled={deletingIds.has(g.game_id)} title="删除"
-                      >
-                        {deletingIds.has(g.game_id) ? <Loader2 size={11} className={styles.spin} /> : <Trash2 size={11} />}
-                      </button>
-                    </div>
+                    {isRefiningThis ? (
+                      <>
+                        <div className={styles.generatingPulse} />
+                        <div className={styles.gameItemMain}>
+                          <span className={styles.gameItemTitle}>
+                            {isLiveStream ? '⚡ 实时修改中...' : '⏳ 修改中...'}
+                          </span>
+                          <span className={styles.gameItemMeta}>
+                            {STAGE_LABELS[genStage] ?? '处理中'} · {genProgress}%
+                            {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
+                          </span>
+                        </div>
+                        {/* 右侧小箭头 */}
+                        <div className={styles.gameItemRight}>
+                          {selectedId === 'generating' && <ChevronRight size={13} className={styles.chevron} />}
+                          <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={styles.gameItemMain}>
+                          <span className={styles.gameItemTitle}>{g.title}</span>
+                          <span className={styles.gameItemMeta}>
+                            {g.type_label} · v{g.version} · {fmtDate(g.updated_at)}
+                          </span>
+                        </div>
+                        <div className={styles.gameItemRight}>
+                          {g.status === 'completed' && <CheckCircle size={13} className={styles.statusDone} />}
+                          {g.status === 'generating' && <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />}
+                          {g.status === 'failed' && <AlertCircle size={13} className={styles.statusFail} />}
+                          {selectedId === g.game_id && <ChevronRight size={13} className={styles.chevron} />}
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={e => { e.stopPropagation(); handleDelete(g.game_id); }}
+                            disabled={deletingIds.has(g.game_id)} title="删除"
+                          >
+                            {deletingIds.has(g.game_id) ? <Loader2 size={11} className={styles.spin} /> : <Trash2 size={11} />}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </>

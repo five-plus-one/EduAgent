@@ -20,6 +20,8 @@ import {
 export interface GameGenState {
   /** 当前正在生成的 sessionId（null = 无任务） */
   generatingSessionId: string | null;
+  /** 当前正在修改的游戏ID（如果是全新生成则为null） */
+  generatingRefineId: string | null;
   generating: boolean;
   genStage: string;
   genProgress: number;
@@ -58,6 +60,7 @@ type GameStore = GameGenState & GameGenActions;
 export const useGameStore = create<GameStore>((set, get) => ({
   // ── 初始状态 ────────────────────────────────────────────────
   generatingSessionId: null,
+  generatingRefineId: null,
   generating: false,
   genStage: 'pending',
   genProgress: 0,
@@ -100,6 +103,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       generating: true,
       generatingSessionId: sessionId,
+      generatingRefineId: refineId ?? null,
       genError: null,
       genStage: 'pending',
       genProgress: 0,
@@ -139,15 +143,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
                 streamedCode: '',
                 isLiveStream: false,
                 generatingSessionId: null,
+                generatingRefineId: null,
               }));
             } catch {
-              set({ generating: false, streamedCode: '', generatingSessionId: null });
+              set({ generating: false, streamedCode: '', generatingSessionId: null, generatingRefineId: null });
             } finally {
               set({ refreshingList: false, _abortController: null });
             }
           },
           onError(message) {
-            set({ generating: false, genError: message, streamedCode: '', isLiveStream: false, _abortController: null });
+            set({ generating: false, genError: message, streamedCode: '', isLiveStream: false, generatingSessionId: null, generatingRefineId: null, _abortController: null });
           },
         },
         controller.signal,
