@@ -488,7 +488,11 @@ def preview_game(
 
     return HTMLResponse(
         content=html_content,
-        headers={"Cache-Control": "private, max-age=300", "X-Frame-Options": "SAMEORIGIN"},
+        headers={
+            "Cache-Control": "private, max-age=300",
+            # 不设 X-Frame-Options，允许跨域 <iframe> 嵌入游戏预览
+            # 安全性由前端 sandbox="allow-scripts" 保证
+        },
     )
 
 
