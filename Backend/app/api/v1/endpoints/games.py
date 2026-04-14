@@ -211,275 +211,121 @@ async def stream_game_task_sse(
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # ── 原子认领：将 pending → streaming ────────────────────────────────────
-    rows = db.execute(
-        sql_update(Game)
-        .where(Game.id == game_id, Game.status == "pending")
-        .values(status="streaming")
-    ).rowcount
-    db.commit()
-    if rows == 0:
-        # 后台任务已先认领（generating），降级为轮询提示
-        raise HTTPException(
-            status_code=202,
-            detail="后台任务已接管生成，请使用轮询接口 GET /games/tasks/{task_id}",
-        )
+    # ── 纯监视模式：不再做 LLM 生成，只跟踪后台任务进度 ──────────────────────
+    # 后台线程已经立即开始（run_game_task 无睡眠），SSE 只需等待 + 转发进度。
+    # 断开重连均安全：后台任务不依赖 SSE 连接。
+    game_id_cap    = game_id
+    task_id_cap    = task_id
+    user_id_cap    = current_user.id
 
-    # 捕获闭包变量（db session 随 FastAPI 生命周期关闭，不在 generator 里使用）
-    spec       = game.spec_json or {}
-    session_id = game.session_id
-
-    # ── 生成器 ────────────────────────────────────────────────────────────────
     async def event_generator() -> AsyncGenerator[str, None]:
-        full_text = ""
-        try:
-            # Stage 1: preparing
-            yield _sse({"event_type": "stage", "stage": "preparing",
-                        "progress": 5, "message": "分析知识点，构建 prompt..."})
+        from app.services.game_generator import _task_chunks, _task_chunks_lock
+        import threading
 
-            # 加载课件摘要（线程）
-            ppt_summary = await asyncio.to_thread(_ppt_summary, session_id)
+        yield _sse({"event_type": "stage", "stage": "preparing",
+                    "progress": 5, "message": "后台生成任务运行中..."})
 
-            # 精炼模式：加载已有 HTML
-            existing_html: Optional[str] = None
-            if spec.get("is_refinement"):
-                def _load_html():
-                    db2 = SessionLocal()
-                    try:
-                        g = db2.query(Game).filter(Game.id == game_id).first()
-                        if g and g.html_file:
-                            fp = os.path.join(GAMES_DIR, g.html_file)
-                            if os.path.exists(fp):
-                                return open(fp, encoding="utf-8").read()
-                    finally:
-                        db2.close()
-                    return None
-                existing_html = await asyncio.to_thread(_load_html)
+        last_chunk_idx = 0
+        last_stage     = ""
+        hb_tick        = 0
+        MAX_TICKS      = 720   # 最长等待 6 分钟（0.5s × 720）
 
-            user_prompt = _build_prompt(spec, ppt_summary, existing_html)
+        for tick in range(MAX_TICKS):
+            await asyncio.sleep(0.5)
 
-            # Stage 2: generating
-            yield _sse({"event_type": "stage", "stage": "generating",
-                        "progress": 8, "message": "AI 正在生成游戏代码..."})
+            # ── 读取新的代码块（来自后台线程的 chunk 缓冲区） ────────────────
+            with threading.Lock():  # 使用导入的锁
+                pass
+            # 直接读（GIL 保护 list append/read，锁只用于 dict 操作）
+            buf = _task_chunks.get(task_id_cap)
+            if buf is not None:
+                chunks = buf["chunks"]
+                new_chunks = chunks[last_chunk_idx:]
+                if new_chunks:
+                    ESTIMATED = 9000
+                    for i, chunk in enumerate(new_chunks):
+                        prog = min(10 + int((last_chunk_idx + i + 1) / ESTIMATED * 85), 96)
+                        yield _sse({
+                            "event_type": "code_chunk",
+                            "chunk":      chunk,
+                            "progress":   prog,
+                        })
+                    last_chunk_idx += len(new_chunks)
+                elif not last_chunk_idx:
+                    # 还没有代码块 → 发送思考心跳
+                    hb_tick += 1
+                    yield _sse({
+                        "event_type": "thinking_heartbeat",
+                        "tick":       hb_tick,
+                        "message":    "AI 深度思考中...",
+                    })
+            else:
+                # chunk 缓冲区不存在 → 后台任务还未初始化或已清理
+                if tick < 10:
+                    yield _sse({"event_type": "stage", "stage": "preparing",
+                                "progress": 5, "message": "等待后台任务启动..."})
 
-            # Stage 3: thinking（在 LLM 实际调用前立刻通知前端，消除空白等待）
-            yield _sse({"event_type": "stage", "stage": "thinking",
-                        "progress": 9, "message": "AI 深度思考中，请稍候..."})
-
-            # ── LLM 流式调用 ─────────────────────────────────────────────────
-            headers_llm = {
-                "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                "Content-Type":  "application/json",
-            }
-            payload = {
-                "model":      settings.LLM_MODEL,
-                "messages":   [
-                    {"role": "system", "content": _GAME_SYSTEM_PROMPT},
-                    {"role": "user",   "content": user_prompt},
-                ],
-                "stream":     True,
-                "max_tokens": 8192,
-                # 开启深度思考（部分模型 reasoning_content 会在流中逐 token 返回）
-                "thinking": {"type": "enabled", "budget_tokens": 2048},
-            }
-            base_url = settings.OPENAI_API_BASE.rstrip("/")
-
-            ESTIMATED_CHARS = 9000   # 预估 HTML 总长度，用于进度插值
-            _code_started = False    # 是否已开始收到有效内容
-            _hb_tick      = 0        # 心跳计数
-
-            async with httpx.AsyncClient(
-                timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
-            ) as client:
-                async with client.stream(
-                    "POST", f"{base_url}/chat/completions",
-                    headers=headers_llm, json=payload,
-                ) as resp:
-                    resp.raise_for_status()
-
-                    # ── 关键：用 asyncio.wait 而非 wait_for ─────────────────
-                    # wait_for 超时后会「取消」__anext__()，下次调用迭代器时底层
-                    # httpx 缓冲区已损坏，会立即返回空字节造成无限空循环。
-                    # asyncio.wait 超时时「不取消」任务，继续等同一个任务，
-                    # 迭代器状态始终完整。
-                    _line_iter = resp.aiter_lines().__aiter__()
-                    _next_line = asyncio.ensure_future(_line_iter.__anext__())
-
-                    try:
-                        while True:
-                            done, _ = await asyncio.wait({_next_line}, timeout=3.0)
-
-                            if not done:
-                                # 超时：LLM 还在思考，发送心跳，继续等同一个 task
-                                if not _code_started:
-                                    _hb_tick += 1
-                                    yield _sse({
-                                        "event_type": "thinking_heartbeat",
-                                        "tick":        _hb_tick,
-                                        "message":     "AI 深度思考中...",
-                                    })
-                                continue  # 继续 await 同一个 _next_line task
-
-                            # task 完成，取结果
-                            try:
-                                raw_line = _next_line.result()
-                            except StopAsyncIteration:
-                                break   # 流正常结束
-                            except Exception:
-                                break   # 流异常结束
-
-                            # 准备读取下一行
-                            _next_line = asyncio.ensure_future(_line_iter.__anext__())
-
-                            line = raw_line.strip()
-                            if not line or not line.startswith("data: "):
-                                continue
-                            data_str = line[6:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                chunk_data = json.loads(data_str)
-                                delta = (
-                                    chunk_data.get("choices", [{}])[0]
-                                    .get("delta", {})
-                                )
-                                # ── 思考内容 ──────────────────────────────────
-                                reasoning = (
-                                    delta.get("reasoning_content")
-                                    or delta.get("thinking")
-                                    or ""
-                                )
-                                if reasoning:
-                                    _code_started = True
-                                    yield _sse({
-                                        "event_type": "thinking",
-                                        "chunk":      reasoning,
-                                    })
-
-                                # ── 代码内容 ──────────────────────────────────
-                                content = delta.get("content") or ""
-                                if content:
-                                    _code_started = True
-                                    full_text += content
-                                    progress = min(
-                                        10 + int(len(full_text) / ESTIMATED_CHARS * 85),
-                                        96,
-                                    )
-                                    yield _sse({
-                                        "event_type": "code_chunk",
-                                        "chunk":      content,
-                                        "progress":   progress,
-                                    })
-                            except Exception:
-                                continue
-                    finally:
-                        # 客户端断连时确保孤立 task 被取消，不泄漏资源
-                        if not _next_line.done():
-                            _next_line.cancel()
-
-
-            # ── 提取 HTML ────────────────────────────────────────────────────
-            html_content = _extract_html(full_text)
-            if len(html_content) < 200:
-                raise ValueError("生成的 HTML 内容过短，可能生成失败，请重试")
-
-            # Stage 3: writing
-            yield _sse({"event_type": "stage", "stage": "writing",
-                        "progress": 97, "message": "写入文件..."})
-
-            # 写入文件（线程）
-            filename = f"{game_id}.html"
-            filepath = os.path.join(GAMES_DIR, filename)
-            await asyncio.to_thread(
-                lambda: open(filepath, "w", encoding="utf-8").write(html_content)
-            )
-
-            # 更新数据库
-            def _update_db():
-                db3 = SessionLocal()
+            # ── 轮询 DB 状态 ──────────────────────────────────────────────────
+            def _poll_db():
+                _db = SessionLocal()
                 try:
-                    g3 = db3.query(Game).filter(Game.id == game_id).first()
-                    t3 = db3.query(GenerationTask).filter(GenerationTask.id == task_id).first()
-                    if g3:
-                        g3.html_file = filename
-                        g3.status    = "completed"
-                        if spec.get("is_refinement"):
-                            g3.version += 1
-                    if t3:
-                        t3.status      = "completed"
-                        t3.progress    = 100
-                        t3.stage       = "done"
-                        t3.result_data = {
-                            "game_id":   game_id,
-                            "html_file": filename,
-                            "version":   g3.version if g3 else 1,
-                        }
-                    db3.commit()
-                    return g3.version if g3 else 1
+                    g = _db.query(Game).filter(Game.id == game_id_cap).first()
+                    t = _db.query(GenerationTask).filter(
+                        GenerationTask.id == task_id_cap).first()
+                    return (
+                        g.status    if g else None,
+                        g.html_file if g else None,
+                        g.version   if g else 1,
+                        g.error     if g else None,
+                        t.stage     if t else None,
+                        t.progress  if t else 0,
+                    )
                 finally:
-                    db3.close()
+                    _db.close()
 
-            version = await asyncio.to_thread(_update_db)
-            logger.info(f"[game stream] ✅ {game_id} v{version} ({len(html_content)} chars)")
+            g_status, g_html, g_ver, g_err, t_stage, t_prog = \
+                await asyncio.to_thread(_poll_db)
 
-            # Stage 4: done
-            yield _sse({
-                "event_type": "done",
-                "game_id":    game_id,
-                "html_file":  filename,
-                "version":    version,
-                "progress":   100,
-            })
+            if g_status == "completed":
+                # 最后刷一次 chunk 缓冲区（后台线程可能刚好同时完成）
+                buf2 = _task_chunks.get(task_id_cap)
+                if buf2:
+                    for chunk in buf2["chunks"][last_chunk_idx:]:
+                        yield _sse({"event_type": "code_chunk", "chunk": chunk, "progress": 96})
+                yield _sse({
+                    "event_type": "done",
+                    "game_id":    game_id_cap,
+                    "html_file":  g_html,
+                    "version":    g_ver,
+                    "progress":   100,
+                })
+                return
 
-        except Exception as exc:
-            import traceback
-            logger.error(f"[game stream] ❌ {game_id}: {exc}\n{traceback.format_exc()}")
+            if g_status == "failed":
+                yield _sse({
+                    "event_type": "error",
+                    "message":    g_err or "游戏生成失败，请重试",
+                    "progress":   0,
+                })
+                return
 
-            # ── 尝试保存已接收的内容（中途断连 / 生成不完整也别浪费） ──────────
-            saved_partial = False
-            if len(full_text) > 500:
-                try:
-                    partial_html = _extract_html(full_text)
-                    if len(partial_html) > 200:
-                        filename_p = f"{game_id}.html"
-                        filepath_p = os.path.join(GAMES_DIR, filename_p)
-                        with open(filepath_p, "w", encoding="utf-8") as _f:
-                            _f.write(partial_html)
-                        saved_partial = True
-                        logger.info(f"[game stream] partial save {game_id} ({len(partial_html)} chars)")
-                except Exception:
-                    pass
+            # 发送阶段进度（避免重复发送同一 stage）
+            if t_stage and t_stage != last_stage and t_stage != "done":
+                last_stage = t_stage
+                label = {
+                    "building_prompt":  "构建 prompt...",
+                    "generating_html":  "AI 正在生成游戏代码...",
+                    "extracting_html":  "提取 HTML...",
+                }.get(t_stage, t_stage)
+                yield _sse({
+                    "event_type": "stage",
+                    "stage":      t_stage,
+                    "progress":   t_prog,
+                    "message":    label,
+                })
 
-            orig_html = spec.get("_orig_html_file")  # 精炼前备份的旧文件名
-
-            def _mark_failed():
-                db_e = SessionLocal()
-                try:
-                    g_e = db_e.query(Game).filter(Game.id == game_id).first()
-                    t_e = db_e.query(GenerationTask).filter(GenerationTask.id == task_id).first()
-                    if g_e:
-                        if spec.get("is_refinement") and orig_html and not saved_partial:
-                            # 精炼失败且未能保存新内容 → 回滚到旧版本，不让用户丢数据
-                            g_e.status   = "completed"
-                            g_e.html_file = orig_html
-                            g_e.error    = str(exc)
-                            logger.info(f"[game stream] rolled back {game_id} → {orig_html}")
-                        elif saved_partial:
-                            g_e.html_file = f"{game_id}.html"
-                            g_e.status    = "completed"
-                            g_e.error     = str(exc)
-                        else:
-                            g_e.status = "failed"
-                            g_e.error  = str(exc)
-                    if t_e:
-                        t_e.status      = "failed"
-                        t_e.result_data = {"error": str(exc)}
-                    db_e.commit()
-                finally:
-                    db_e.close()
-            asyncio.create_task(asyncio.to_thread(_mark_failed))
-            yield _sse({"event_type": "error", "message": str(exc), "progress": 0})
-
+        # 超时
+        yield _sse({"event_type": "error", "message": "生成超时，请稍后刷新查看结果", "progress": 0})
 
     return StreamingResponse(
         event_generator(),
@@ -488,9 +334,14 @@ async def stream_game_task_sse(
     )
 
 
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. 查询生成任务进度（轮询降级）
-# ─────────────────────────────────────────────────────────────────────────────
+
+
+
+
 
 @router.get("/games/tasks/{task_id}")
 def get_game_task_status(

@@ -6,15 +6,21 @@ Supports both first-time generation and subsequent refinements (version bumps).
 """
 import os
 import re
-import logging
-import httpx
 import json
+import logging
+import threading
+import httpx
 from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 GAMES_DIR = os.path.join(os.getcwd(), "uploads", "games")
 os.makedirs(GAMES_DIR, exist_ok=True)
+
+# ── 实时代码块缓冲区（后台线程写，SSE监视器读）────────────────────────────────
+# key: task_id → {"chunks": List[str], "done": bool, "failed": bool}
+_task_chunks: dict = {}
+_task_chunks_lock = threading.Lock()
 
 # ── Game type → Chinese label + design hints ────────────────────────────────
 GAME_TYPE_META = {
@@ -144,8 +150,7 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
     from app.core.config import settings
     from sqlalchemy import update as sql_update
 
-    # 等待 SSE 端点优先认领（如果没有 SSE 连接，3 秒后接管）
-    time.sleep(3)
+    # 不再等待 SSE——后台线程立即抢先认领，SSE 变为纯监视器
 
     db = SessionLocal()
     try:
@@ -188,7 +193,7 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
         task.progress = 30
         db.commit()
 
-        headers = {
+        headers_llm = {
             "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
             "Content-Type": "application/json",
         }
@@ -198,35 +203,73 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
                 {"role": "system", "content": _GAME_SYSTEM_PROMPT},
                 {"role": "user",   "content": user_prompt},
             ],
-            "stream": False,
+            "stream":     True,   # 流式：实时产出 chunk，SSE 可边生边推
             "max_tokens": 8192,
+            "thinking":   {"type": "enabled", "budget_tokens": 2048},
         }
         base_url = settings.OPENAI_API_BASE.rstrip("/")
+        ESTIMATED_CHARS = 9000
 
-        resp = httpx.post(
-            f"{base_url}/chat/completions",
-            headers=headers,
-            json=payload,
-            timeout=180.0,
-        )
-        resp.raise_for_status()
-        raw_text = resp.json()["choices"][0]["message"]["content"]
+        # 初始化 chunk 缓冲区，SSE 监视器会从这里读
+        with _task_chunks_lock:
+            _task_chunks[task_id] = {"chunks": [], "done": False, "failed": False}
 
-        task.stage = "extracting_html"
-        task.progress = 80
+        full_text = ""
+        task.stage    = "generating_html"
+        task.progress = 15
         db.commit()
 
-        html_content = _extract_html(raw_text)
+        with httpx.stream(
+            "POST",
+            f"{base_url}/chat/completions",
+            headers=headers_llm,
+            json=payload,
+            timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0),
+        ) as stream_resp:
+            stream_resp.raise_for_status()
+            for raw_line in stream_resp.iter_lines():
+                line = raw_line.strip()
+                if not line or not line.startswith("data: "):
+                    continue
+                data_str = line[6:].strip()
+                if data_str == "[DONE]":
+                    break
+                try:
+                    chunk_data = json.loads(data_str)
+                    delta = (
+                        chunk_data.get("choices", [{}])[0]
+                        .get("delta", {})
+                    )
+                    content = delta.get("content") or ""
+                    if not content:
+                        continue
+                    full_text += content
+                    # 写入缓冲区（SSE 监视器轮询读取）
+                    with _task_chunks_lock:
+                        _task_chunks[task_id]["chunks"].append(content)
+                    # 更新进度（约每 500 char 更新一次，减少 DB 写次数）
+                    if len(full_text) % 500 < len(content):
+                        progress = min(15 + int(len(full_text) / ESTIMATED_CHARS * 70), 85)
+                        task.progress = progress
+                        db.commit()
+                except Exception:
+                    continue
+
+        task.stage = "extracting_html"
+        task.progress = 88
+        db.commit()
+
+        html_content = _extract_html(full_text)
         if len(html_content) < 200:
             raise ValueError("生成的 HTML 内容过短，可能生成失败")
 
-        # Save HTML file (or overwrite for refinement)
+        # 保存 HTML 文件
         filename = f"{game_id}.html"
         filepath = os.path.join(GAMES_DIR, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(html_content)
 
-        # Update Game record
+        # 更新 Game 记录
         game.html_file = filename
         game.status    = "completed"
         if spec_json.get("is_refinement"):
@@ -243,6 +286,19 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
         }
         db.commit()
         logger.info(f"[game] ✅ {game_id} v{game.version} generated ({len(html_content)} chars)")
+
+        # 标记 chunk 流结束
+        with _task_chunks_lock:
+            if task_id in _task_chunks:
+                _task_chunks[task_id]["done"] = True
+
+        # 60 秒后清理缓冲区（给延迟重连的 SSE 客户端留时间）
+        def _cleanup():
+            import time as _t
+            _t.sleep(60)
+            with _task_chunks_lock:
+                _task_chunks.pop(task_id, None)
+        threading.Thread(target=_cleanup, daemon=True).start()
 
     except Exception as e:
         import traceback
