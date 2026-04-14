@@ -20,12 +20,13 @@ import {
   Hash, Clock, AlignLeft, ChevronRight,
   Search, Loader2, LayoutGrid, Maximize2, AlignCenter, Crop,
   Rows, Columns, BarChart2, Star, Grid,
-  Wand2,
+  Wand2, Gamepad2, Share2, Copy,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTPageWorkbench.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 import { apiClient, resolveImagePreviewUrl } from '../utils/api';
+import { listSessionGames, createShareLink, type GameMeta } from '../utils/gamesApi';
 
 /* ─── 公共类型 ──────────────────────────────────────────────── */
 
@@ -41,7 +42,7 @@ export interface ImageElement {
   resolved?: { preview_url?: string; image_id?: string; source?: string };
 }
 
-export type WorkbenchTab = 'edit' | 'layout' | 'ai';
+export type WorkbenchTab = 'edit' | 'layout' | 'ai' | 'game';
 
 export interface PPTPageWorkbenchProps {
   open: boolean;
@@ -413,6 +414,7 @@ export default function PPTPageWorkbench({
   const TAB_DEFS: { key: WorkbenchTab; label: string; icon: React.ReactNode }[] = [
     { key: 'edit',   label: '编辑内容', icon: <Pencil size={13} /> },
     { key: 'layout', label: '切换布局', icon: <LayoutGrid size={13} /> },
+    { key: 'game',   label: '游戏占位符', icon: <Gamepad2 size={13} /> },
     { key: 'ai',     label: 'AI 指令',  icon: <Wand2 size={13} /> },
   ];
 
@@ -901,6 +903,77 @@ export default function PPTPageWorkbench({
               >
                 <Sparkles size={14} /> 发送 AI 指令
               </button>
+            </section>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            Tab: 游戏占位符
+            ══════════════════════════════════════════════════════ */}
+        {activeTab === 'game' && (
+          <div className={styles.body}>
+            <section className={styles.section}>
+              <label className={styles.sectionLabel}><Gamepad2 size={13} /> 选择要插入的游戏</label>
+              <p className={styles.aiHint}>
+                生成短链接后，可以在 PPT 幻灯片中插入超链接，学生点击即可在浏览器中玩游戏。
+              </p>
+
+              {gameListLoading ? (
+                <div className={styles.gameLoadingRow}>
+                  <Loader2 size={16} className={styles.spinIcon} />
+                  <span>加载游戏列表...</span>
+                </div>
+              ) : gameList.length === 0 ? (
+                <div className={styles.gameEmptyHint}>本节课还没有生成任何游戏</div>
+              ) : (
+                <div className={styles.gamePickList}>
+                  {gameList.map(g => (
+                    <button
+                      key={g.game_id}
+                      className={`${styles.gamePickItem} ${selectedGameId === g.game_id ? styles.gamePickItemActive : ''}`}
+                      onClick={() => { setSelectedGameId(g.game_id); setGameShareUrl(null); setGameCopied(false); }}
+                    >
+                      <Gamepad2 size={13} />
+                      <div className={styles.gamePickName}>{g.title}</div>
+                      <div className={styles.gamePickType}>{g.type_label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedGameId && !gameShareUrl && (
+                <button
+                  className={styles.gameGenShareBtn}
+                  disabled={gameSharingLoading}
+                  onClick={handleGameShare}
+                >
+                  {gameSharingLoading
+                    ? <><Loader2 size={13} className={styles.spinIcon} /> 生成中...</>
+                    : <><Share2 size={13} /> 生成分享短链接</>
+                  }
+                </button>
+              )}
+
+              {gameShareError && (
+                <p className={styles.gameShareError}>{gameShareError}</p>
+              )}
+
+              {gameShareUrl && (
+                <div className={styles.gameShareResult}>
+                  <div className={styles.gameShareUrlBox}>
+                    <code className={styles.gameShareUrlText}>{gameShareUrl}</code>
+                  </div>
+                  <button
+                    className={`${styles.gameCopyBtn} ${gameCopied ? styles.gameCopyBtnDone : ''}`}
+                    onClick={handleCopyGameShare}
+                  >
+                    {gameCopied ? <><Check size={13} /> 已复制!</> : <><Copy size={13} /> 复制短链接</>}
+                  </button>
+                  <p className={styles.gameShareTip}>
+                    将上方链接添加为 PPT 内超链接，学生单击就能直接在浏览器中玩游戏
+                  </p>
+                </div>
+              )}
             </section>
           </div>
         )}
