@@ -91,9 +91,10 @@ const ELEMENT_TYPES = [
     defaultHeaders: ['列标题1', '列标题2', '列标题3'],
     defaultRows: [['', '', '']],
   },
+  { type: 'interactive_game', label: '游戏占位符', icon: <Gamepad2 size={14} />, defaultContent: [], defaultPosition: 'full', description: '链接一个互动游戏，展示为游戏卡片并嵌入短链接', isGame: true },
 ] as const;
 
-type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
+type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; isGame?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
 const TYPE_MAP = Object.fromEntries((ELEMENT_TYPES as readonly any[]).map(t => [t.type, t])) as Record<string, ElementTypeDef>;
 const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
 
@@ -105,6 +106,10 @@ interface EditableEl {
   /** 表格专属字段 */
   headers?: string[];
   rows?: string[][];
+  /** 游戏占位符专属字段 */
+  game_id?: string;
+  game_title?: string;
+  share_url?: string;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -117,6 +122,10 @@ function toEditable(el: PPTElement): EditableEl {
     alt: el.alt,
     query: el.query,
     _raw: el,
+    // 游戏占位符字段
+    game_id:    (el as any).game_id    ?? undefined,
+    game_title: (el as any).game_title ?? undefined,
+    share_url:  (el as any).share_url  ?? undefined,
   };
   if (el.type === 'table') {
     // 优先用接口字段，降级到 _raw 增强兼容（防止 Pydantic strip 后前端导致数据丢失）
@@ -135,11 +144,17 @@ function fromEditable(e: EditableEl): PPTElement {
   if (e.type === 'image') {
     base.alt = e.alt; base.query = e.query || e.alt; delete base.content;
   } else if (e.type === 'table') {
-    // 表格：直接写 headers/rows，content 保持为空数组
     base.headers = e.headers ?? [];
     base.rows    = e.rows    ?? [];
     base.content = [];
     delete base.alt; delete base.query;
+  } else if (e.type === 'interactive_game') {
+    base.game_id    = e.game_id;
+    base.game_title = e.game_title;
+    base.share_url  = e.share_url;
+    base.alt        = e.game_title ?? '互动游戏';
+    base.content    = e.share_url ? [e.share_url] : [];
+    delete base.query;
   } else {
     base.content = e.textLines.length > 0 ? e.textLines : undefined;
     delete base.alt; delete base.query;
@@ -284,19 +299,23 @@ export default function PPTPageWorkbench({
     const id = uid();
     const isImg   = (def as any).isImage;
     const isTable = (def as any).isTable;
+    const isGame  = (def as any).isGame;
     const newEl: EditableEl = {
       element_id: id, type: def.type, position: def.defaultPosition,
-      textLines: isImg ? [] : [...(def.defaultContent as any)],
+      textLines: (isImg || isGame) ? [] : [...(def.defaultContent as any)],
       alt:   isImg   ? '' : undefined,
       query: isImg   ? '' : undefined,
       time:  (def as any).hasTime ? '' : undefined,
+      // 游戏占位符专属
+      game_id:    isGame ? undefined : undefined,
+      game_title: isGame ? undefined : undefined,
+      share_url:  isGame ? undefined : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
-        content: isImg ? undefined : def.defaultContent,
-        alt: isImg ? '' : undefined } as any,
+        content: (isImg || isGame) ? undefined : def.defaultContent,
+        alt: (isImg || isGame) ? '' : undefined } as any,
     };
-    // 表格元素预填默认结构
     if (isTable) {
-      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
+      newEl.headers = (def as any).defaultHeaders ?? ['列1', '列2', '列3'];
       newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
     }
     setElements(prev => [...prev, newEl]);
