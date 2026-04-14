@@ -6,6 +6,9 @@
 /* ── 页面容器：严格 100dvh，flex 列布局 ── */
 .page {
   height: 100dvh;
+  width: 100%;        /* 撑满 #root 的 flex-row 行 */
+  flex: 1 1 0;        /* 防止 flex 收缩 */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: #0a0e1a;
