@@ -649,13 +649,52 @@ export default function GamePanel({
 
             {/* 内容区 */}
             {previewTab === 'preview' ? (
-              <iframe
-                key={selectedId}
-                src={gamePreviewUrl(selectedId)}
-                sandbox="allow-scripts"
-                className={styles.iframe}
-                title={selectedGame?.title ?? '游戏预览'}
-              />
+              <div className={styles.iframeWrap}>
+                {previewLoading && (
+                  <div className={styles.previewLoadingOverlay}>
+                    <Loader2 size={24} className={styles.spin} />
+                    <span>加载预览中...</span>
+                  </div>
+                )}
+                {previewError && !previewLoading && (
+                  <div className={styles.previewErrorOverlay}>
+                    <AlertCircle size={20} />
+                    <p>{previewError}</p>
+                    <button
+                      className={styles.retryBtn}
+                      onClick={() => {
+                        if (!selectedId) return;
+                        setPreviewError(null);
+                        setPreviewLoading(true);
+                        fetchGameHtml(selectedId)
+                          .then(setPreviewHtml)
+                          .catch(e => setPreviewError(e?.message ?? '加载失败'))
+                          .finally(() => setPreviewLoading(false));
+                      }}
+                    >
+                      <RefreshCw size={12} /> 重试
+                    </button>
+                    <a
+                      href={gameShareUrl(selectedId!)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={styles.retryBtn}
+                      style={{ marginLeft: 6 }}
+                    >
+                      在新标签页打开
+                    </a>
+                  </div>
+                )}
+                {previewHtml && !previewLoading && !previewError && (
+                  <iframe
+                    key={selectedId}
+                    srcDoc={previewHtml}
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    className={styles.iframe}
+                    title={selectedGame?.title ?? '游戏预览'}
+                  />
+                )}
+              </div>
             ) : (
               <div className={styles.sourceWrap}>
                 {sourceLoading ? (
