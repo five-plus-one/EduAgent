@@ -141,15 +141,40 @@ export async function listSessionGames(sessionId: string): Promise<GameMeta[]> {
 }
 
 /**
- * 5. 游戏 HTML 预览 URL（用于 <iframe src="...">）
- * 必须附加 ?token= 因为 iframe 无法设置 Authorization header
+ * 5a. 获取游戏 HTML 内容（用于 srcdoc 注入 iframe，规避跨域/X-Frame-Options）
+ * 通过 axios 代理请求，携带 Authorization header，不暴露 token 到 URL
  */
-export function gamePreviewUrl(gameId: string): string {
+export async function fetchGameHtml(gameId: string): Promise<string> {
+  // 优先用 /preview 接口（返回完整 HTML 页面），降级用 /source
+  try {
+    const res = await apiClient.get(`/games/${gameId}/preview`, {
+      responseType: 'text',
+      headers: { Accept: 'text/html,application/xhtml+xml,*/*' },
+    });
+    // 如果返回的是 JSON（说明 preview 接口返回结构体），降级取 source
+    const raw = typeof res.data === 'string' ? res.data : null;
+    if (raw && raw.trim().startsWith('<')) return raw;
+  } catch (previewErr) {
+    console.warn('[fetchGameHtml] /preview failed, falling back to /source:', previewErr);
+  }
+  // 降级：/source 接口返回 { html_content: string }
+  const src = await getGameSource(gameId);
+  return src.html_content ?? src.content ?? '';
+}
+
+/**
+ * 5b. 游戏外链分享 URL（在新标签页打开用，不用于 iframe src）
+ * 直接带 token，供「在新标签页打开」按钮使用
+ */
+export function gameShareUrl(gameId: string): string {
   const token = getToken();
   const origin = getBaseOrigin();
   const base = origin ? `${origin}/api/v1` : '/api/v1';
   return `${base}/games/${gameId}/preview${token ? `?token=${encodeURIComponent(token)}` : ''}`;
 }
+
+// 向后兼容别名（以防其他地方有引用）
+export { gameShareUrl as gamePreviewUrl };
 
 /** 6. 获取游戏 HTML 源码 */
 export async function getGameSource(gameId: string): Promise<GameSource> {
@@ -160,6 +185,80 @@ export async function getGameSource(gameId: string): Promise<GameSource> {
 /** 7. 删除游戏 */
 export async function deleteGame(gameId: string): Promise<void> {
   await apiClient.delete(`/games/${gameId}`);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 分享短链接 API
+// ─────────────────────────────────────────────────────────────────
+
+export interface ShareLink {
+  code: string;
+  short_url: string;           // e.g. /s/a3f8kz
+  full_short_url: string;      // 带域名的完整短链接
+  game_id: string;
+  game_title: string;
+  created_at: string;
+  expires_at: string | null;
+  view_count?: number;
+  is_active?: boolean;
+}
+
+/** 公开游戏信息（无需登录） */
+export interface PublicGameInfo {
+  code: string;
+  game_id: string;
+  title: string;
+  game_type: string;
+  html_content: string;
+  created_at: string;
+}
+
+/**
+ * 8. 为指定游戏创建分享短链接（需登录）
+ * POST /api/v1/games/{game_id}/share
+ */
+export async function createShareLink(
+  gameId: string,
+  expiresInDays?: number,
+): Promise<ShareLink> {
+  const body = expiresInDays ? { expires_in_days: expiresInDays } : undefined;
+  const res = await apiClient.post(`/games/${gameId}/share`, body);
+  return res.data?.data ?? res.data;
+}
+
+/**
+ * 9. 获取游戏的分享链接列表（需登录）
+ * GET /api/v1/games/{game_id}/shares
+ */
+export async function getShareLinks(gameId: string): Promise<ShareLink[]> {
+  const res = await apiClient.get(`/games/${gameId}/shares`);
+  const data = res.data?.data ?? res.data;
+  return data.shares ?? data ?? [];
+}
+
+/**
+ * 10. 停用分享链接（需登录）
+ * DELETE /api/v1/games/shares/{code}
+ */
+export async function deleteShareLink(code: string): Promise<void> {
+  await apiClient.delete(`/games/shares/${code}`);
+}
+
+/**
+ * 11. 获取公开游戏内容（无需登录）
+ * GET /api/v1/public/games/share/{code}
+ * 用于落地页 /play/:code
+ */
+export async function getPublicGame(code: string): Promise<PublicGameInfo> {
+  // 注意：此接口无需 Authorization，直接用 fetch 不带 header
+  const base = (import.meta as any).env?.VITE_API_BASE_URL ?? '/api/v1';
+  const url = `${base}/public/games/share/${code}`;
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (res.status === 404) throw new Error('SHARE_NOT_FOUND');
+  if (res.status === 410) throw new Error('SHARE_EXPIRED');
+  if (!res.ok) throw new Error(`SHARE_ERROR_${res.status}`);
+  const json = await res.json();
+  return json.data ?? json;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -216,6 +315,8 @@ export interface GameStreamCallbacks {
   onStage?: (stage: string, progress: number, message?: string) => void;
   /** 实际 HTML 代码片段（来自 LLM token 流）*/
   onChunk?: (chunk: string, progress: number, accumulated: string) => void;
+  /** 深度思考片段 */
+  onThinking?: (chunk: string, accumulated: string) => void;
   /** 生成完成 */
   onDone?: (gameId: string, version: number) => void;
   /** 生成失败 */
@@ -242,6 +343,7 @@ export async function streamGameTask(
   const url = `${API_BASE_URL}/games/tasks/${taskId}/stream`;
   let streamFailed = false;
   let accumulated = '';
+  let accumulatedThinking = '';
 
   try {
     await fetchEventSource(url, {
@@ -254,9 +356,14 @@ export async function streamGameTask(
       // fetchEventSource 会在非 2xx 时 throw，我们捕获后降级
       async onopen(response) {
         if (!response.ok) {
-          // 404 = 后端未实现，降级到轮询
           streamFailed = true;
           throw new Error(`SSE_NOT_SUPPORTED:${response.status}`);
+        }
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('text/event-stream')) {
+          // 后端返回了 200 OK，但不是 SSE（例如返回了提示 JSON），强制进入降级轮询
+          streamFailed = true;
+          throw new Error('NOT_EVENT_STREAM');
         }
       },
       onmessage(ev) {
@@ -270,6 +377,10 @@ export async function streamGameTask(
             case 'code_chunk':
               accumulated += data.chunk ?? '';
               callbacks.onChunk?.(data.chunk ?? '', data.progress ?? 0, accumulated);
+              break;
+            case 'thinking':
+              accumulatedThinking += data.chunk ?? '';
+              callbacks.onThinking?.(data.chunk ?? '', accumulatedThinking);
               break;
             case 'done':
               callbacks.onDone?.(data.game_id, data.version ?? 1);
