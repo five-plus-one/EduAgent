@@ -599,8 +599,8 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* ── 右侧预览抽屉 ── */}
-      {selectedDoc && (
+      {/* ── 右侧预览抽屉（非 compact 模式才显示） ── */}
+      {selectedDoc && !compact && (
         <PreviewPanel
           doc={selectedDoc}
           apiBase={apiBase}
