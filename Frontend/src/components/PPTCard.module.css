@@ -116,6 +116,51 @@
   color: #6366f1;
 }
 
+/* ══════════════════════════════════════════════════════════
+   外层包裹 + 悬浮编辑按钮（幻灯片外部右上角）
+   ══════════════════════════════════════════════════════════ */
+
+/* 包裹层：为绝对定位编辑按钮提供相对定位上下文 */
+.cardWrap {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+}
+
+/* 悬浮编辑按钮：定位在幻灯片卡片右上方，完全在卡片外侧 */
+.floatEditBtn {
+  position: absolute;
+  top: -14px;
+  right: 0;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid rgba(99,102,241,0.25);
+  border-bottom: none;
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05));
+  color: #6366f1;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+}
+
+.floatEditBtn:hover {
+  background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(139,92,246,0.12));
+  color: #4f46e5;
+  box-shadow: 0 -2px 8px rgba(99,102,241,0.15);
+}
+
+.floatEditBtn span {
+  letter-spacing: 0.01em;
+}
+
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
 .stage {
