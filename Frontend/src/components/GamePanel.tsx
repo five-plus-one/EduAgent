@@ -199,6 +199,7 @@ export default function GamePanel({
   const [streamedCode, setStreamedCode] = useState('');   // 实时累积 HTML
   const [isLiveStream, setIsLiveStream] = useState(false); // SSE vs 轮询
   const [genError, setGenError] = useState<string | null>(null);
+  const [refreshingList, setRefreshingList] = useState(false); // 生成完成后刷新列表过渡态
   const abortRef = useRef<AbortController | null>(null);
 
   // ── 手动创建面板 ─────────────────────────────────────────────
@@ -283,24 +284,36 @@ export default function GamePanel({
             setGenProgress(progress);
             setGenStageMsg(message);
           },
-          onChunk(chunk, progress, accumulated) {
-            // 第一个 chunk 到达说明 SSE 生效
+          onChunk(_chunk, progress, accumulated) {
             if (!sseConnected) { sseConnected = true; setIsLiveStream(true); }
             setStreamedCode(accumulated);
             setGenProgress(progress);
             setGenStage('generating');
           },
-          async onDone(gameId, _version) {
+          onDone(gameId, _version) {
+            // 先展示 100% 进度，延迟 300ms 后刷新列表再切到预览
             setGenProgress(100);
-            setGenerating(false);
-            setStreamedCode('');
-            setIsLiveStream(false);
-            // 刷新列表并自动选中
-            const list = await listSessionGames(sessionId);
-            setGames(list);
-            setSelectedId(gameId);
-            setPreviewTab('preview');
-            setSourceCode(null);
+            setGenStageMsg('生成完成！');
+            setTimeout(async () => {
+              try {
+                setRefreshingList(true);
+                const list = await listSessionGames(sessionId);
+                setGames(list);
+                // 如果返回的 gameId 在列表中存在，选中它；否则选第一个
+                const target = list.find(g => g.game_id === gameId) ? gameId : list[0]?.game_id ?? null;
+                setSelectedId(target);
+                setPreviewTab('preview');
+                setSourceCode(null);
+              } catch (err) {
+                console.error('[GamePanel] Failed to refresh list after generation:', err);
+                // 即使刷新失败，也要清空 generating
+              } finally {
+                setGenerating(false);
+                setStreamedCode('');
+                setIsLiveStream(false);
+                setRefreshingList(false);
+              }
+            }, 300); // 让用户先看到 100% 进度
           },
           onError(message) {
             setGenerating(false);
@@ -561,6 +574,13 @@ export default function GamePanel({
             code={streamedCode}
             isStreaming={isLiveStream}
           />
+        ) : refreshingList ? (
+          /* 生成完成，正在拉取列表的过渡态 */
+          <div className={styles.previewEmpty}>
+            <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
+            <p>正在加载游戏...</p>
+            <small>马上就好，游戏即将可以运行</small>
+          </div>
         ) : !selectedId ? (
           <div className={styles.previewEmpty}>
             <Gamepad2 size={40} className={styles.emptyIcon} />
