@@ -1,34 +1,32 @@
 /* ══════════════════════════════════════════════════════════
-   GamePublicPage — 互动游戏公开落地页样式
-   极简设计：无任何多余导航，游戏内容占满视口
+   GamePublicPage — 互动游戏公开落地页
+   设计原则：游戏 iframe 占满剩余视口，header/footer 极简固定
    ══════════════════════════════════════════════════════════ */
 
-/* ── 页面容器 ── */
+/* ── 页面容器：严格 100dvh，flex 列布局 ── */
 .page {
-  min-height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: #0a0e1a;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: #f1f5f9;
+  overflow: hidden;
 }
 
-/* ── Header ── */
+/* ── Header：固定高度，绝不伸长 ── */
 .header {
-  flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(10, 14, 26, 0.95);
+  flex: 0 0 52px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(10, 14, 26, 0.96);
   backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0;
+  -webkit-backdrop-filter: blur(12px);
   z-index: 100;
 }
 
 .headerInner {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 24px;
   height: 52px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,9 +41,7 @@
   flex-shrink: 0;
 }
 
-.brandIcon {
-  color: #6366f1;
-}
+.brandIcon { color: #6366f1; }
 
 .brandName {
   font-size: 15px;
@@ -65,7 +61,7 @@
   border-radius: 100px;
 }
 
-/* 游戏元信息 */
+/* 游戏标题（居中） */
 .gameMeta {
   flex: 1;
   display: flex;
@@ -82,40 +78,41 @@
   white-space: nowrap;
 }
 
-/* ── Main 内容区 ── */
+/* ── Main：flex:1 吃掉所有剩余空间 ── */
 .main {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;      /* 关键：允许 flex 子项收缩到 0 */
   display: flex;
   flex-direction: column;
   position: relative;
 }
 
-/* ── 游戏 iframe ── */
+/* ── 游戏 iframe 容器 ── */
 .gameWrap {
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
 }
 
+/* iframe 本体：必须同时设 height:100% 和 flex:1 */
 .gameFrame {
-  flex: 1;
+  flex: 1 1 0;
   width: 100%;
+  height: 100%;
   border: none;
-  min-height: calc(100vh - 52px - 40px); /* viewport - header - footer */
   background: #fff;
   display: block;
 }
 
 /* ── 加载状态 ── */
 .loadingWrap {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  min-height: calc(100vh - 92px);
 }
 
 .spinner {
@@ -127,9 +124,7 @@
   animation: spinAnim 0.8s linear infinite;
 }
 
-@keyframes spinAnim {
-  to { transform: rotate(360deg); }
-}
+@keyframes spinAnim { to { transform: rotate(360deg); } }
 
 .loadingText {
   font-size: 14px;
@@ -140,14 +135,13 @@
 
 /* ── 错误状态 ── */
 .errorWrap {
-  flex: 1;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 12px;
   padding: 48px 24px;
-  min-height: calc(100vh - 92px);
 }
 
 .errorEmoji {
@@ -173,10 +167,9 @@
   line-height: 1.6;
 }
 
-/* ── Footer ── */
+/* ── Footer：固定高度，绝不伸长 ── */
 .footer {
-  flex-shrink: 0;
-  height: 40px;
+  flex: 0 0 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,18 +180,12 @@
   background: rgba(10, 14, 26, 0.8);
 }
 
-.footer strong {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.footerDot {
-  opacity: 0.3;
-}
+.footer strong { color: rgba(255, 255, 255, 0.4); }
+.footerDot { opacity: 0.3; }
 
 /* ── 响应式 ── */
 @media (max-width: 640px) {
   .headerInner { padding: 0 16px; }
   .gameMeta { display: none; }
   .brandTag { display: none; }
-  .gameFrame { min-height: calc(100vh - 52px - 36px); }
 }

@@ -42,6 +42,13 @@ export default function GamePublicPage() {
   const { code } = useParams<{ code: string }>();
   const [state, setState] = useState<PageState>({ status: 'loading' });
 
+  // 锁定 body 滚动，防止游戏 iframe 高度计算被干扰
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   useEffect(() => {
     if (!code) { setState({ status: 'not_found' }); return; }
     setState({ status: 'loading' });
