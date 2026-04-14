@@ -226,6 +226,7 @@ async def stream_chat_response(
     new_user_input: str,
     rag_context: str = "",
     session_id: str = None,
+    user_id: str = None,        # 用于在后端直接创建 Game 记录时关联用户
     active_game_id: str = None,   # 如有已生成游戏，注入其 HTML 以支持精炼
 ):
     # 构造消息列表
@@ -498,7 +499,9 @@ async def stream_chat_response(
             yield f"data: {gs_evt}\n\n"
 
         elif t_name in ["generategame", "generate_game"]:
-            # ── GenerateGame: 缓存 spec，推送 game_trigger 供前端确认按钮 ────
+            # ── GenerateGame: 后端直接创建任务并启动生成，不再依赖前端回调 ────────
+            # 前端收到 game_trigger 事件后可选择连接 SSE 进度流；
+            # 即使前端不处理此事件，后台任务也会在 3 秒后自动完成生成。
             game_spec_buffer = {
                 "game_type":              t_args.get("game_type", "quiz"),
                 "title":                  t_args.get("title", ""),
@@ -507,12 +510,69 @@ async def stream_chat_response(
                 "is_refinement":          t_args.get("is_refinement", False),
                 "refinement_instruction": t_args.get("refinement_instruction", ""),
             }
+
+            _auto_task_id = None
+            _auto_game_id = None
+
+            if session_id and user_id:
+                try:
+                    import uuid as _uuid_mod
+                    from app.db.session import SessionLocal as _SL
+                    from app.models.game import Game as _GameModel
+                    from app.models.generation import GenerationTask as _GTModel
+                    from app.services.game_generator import run_game_task as _run_game_task
+
+                    _auto_game_id = "game_" + _uuid_mod.uuid4().hex[:8]
+                    _auto_task_id = "gtask_" + _uuid_mod.uuid4().hex[:8]
+
+                    _db_local = _SL()
+                    try:
+                        _game_obj = _GameModel(
+                            id         = _auto_game_id,
+                            session_id = session_id,
+                            user_id    = user_id,
+                            title      = game_spec_buffer["title"],
+                            game_type  = game_spec_buffer["game_type"],
+                            status     = "pending",
+                            spec_json  = game_spec_buffer,
+                        )
+                        _task_obj = _GTModel(
+                            id          = _auto_task_id,
+                            session_id  = session_id,
+                            task_type   = "game",
+                            status      = "pending",
+                            stage       = "init",
+                            result_data = {"game_id": _auto_game_id},
+                        )
+                        _db_local.add(_game_obj)
+                        _db_local.add(_task_obj)
+                        _db_local.commit()
+                    finally:
+                        _db_local.close()
+
+                    # 异步启动后台生成（SSE 若连接则优先接管；无 SSE 则 3s 后自动接管）
+                    asyncio.create_task(
+                        asyncio.to_thread(_run_game_task, _auto_task_id, _auto_game_id, session_id, game_spec_buffer)
+                    )
+                    logger.info(
+                        f"[GenerateGame] task={_auto_task_id} game={_auto_game_id} "
+                        f"type={game_spec_buffer['game_type']} user={user_id}"
+                    )
+
+                    # 将 id 附加到事件，前端可据此直接连接 SSE 进度流
+                    game_spec_buffer["task_id"] = _auto_task_id
+                    game_spec_buffer["game_id"] = _auto_game_id
+
+                except Exception as _ge:
+                    logger.error(f"[GenerateGame] failed to auto-create task: {_ge}")
+
             gt_evt = json.dumps({
                 "event_type": "game_trigger",
                 "game_trigger": game_spec_buffer,
                 "is_finished": False
             }, ensure_ascii=False)
             yield f"data: {gt_evt}\n\n"
+
 
         elif t_name in ["updateslide", "update_slide", "addslide", "add_slide", "deleteslide", "delete_slide"]:
             should_refetch = True
