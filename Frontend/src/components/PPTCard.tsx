@@ -389,25 +389,30 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
 
   return (
     <>
-      <div 
-        className={clsx(styles.pptCard, isUpdating && styles.updating)}
-      >
-        {page.layout_type !== 'cover' && (
-          <div className={styles.cardHeader}>
-            <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
-            <h4>{page.title}</h4>
-            {/* 手动编辑按钮 → 统一工作台 */}
-            {!isUpdating && !isStreaming && onManualSave && (
-              <button
-                className={styles.editPageBtn}
-                onClick={handleEditPageClick}
-                title="编辑此页（内容 / 图片 / 布局 / AI 指令）"
-              >
-                <Pencil size={13} />
-              </button>
-            )}
-          </div>
+      {/* ── 外层包裹：用于将编辑按钮绝对定位到幻灯片右上角外侧 ── */}
+      <div className={styles.cardWrap}>
+        {/* 悬浮编辑按钮 - 始终显示（在幻灯片外部右上角） */}
+        {!isUpdating && !isStreaming && onManualSave && (
+          <button
+            className={styles.floatEditBtn}
+            onClick={handleEditPageClick}
+            title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+          >
+            <Pencil size={14} />
+            <span>编辑</span>
+          </button>
         )}
+
+        <div
+          className={clsx(styles.pptCard, isUpdating && styles.updating)}
+        >
+          {/* cover 以外的页面保留原有 cardHeader（页码+标题） */}
+          {page.layout_type !== 'cover' && (
+            <div className={styles.cardHeader}>
+              <span className={styles.pageNumber}>{String(page.page_index).padStart(2, '0')}</span>
+              <h4>{page.title}</h4>
+            </div>
+          )}
 
         {/* ---------------- CANVAS DESIGN DECORATIONS ---------------- */}
         <div className={styles.giantWatermark}>
@@ -546,6 +551,9 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           </div>
         )}
       </div>
+      {/* ← pptCard */}
+      </div>
+      {/* ← cardWrap */}
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (
