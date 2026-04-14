@@ -247,19 +247,27 @@ def run_game_task(task_id: str, game_id: str, session_id: str, spec_json: dict):
     except Exception as e:
         import traceback
         logger.error(f"[game] ❌ generation failed: {e}\n{traceback.format_exc()}")
-        # Write failure via fresh session
         db2 = SessionLocal()
         try:
             task2 = db2.query(GenerationTask).filter(GenerationTask.id == task_id).first()
             game2 = db2.query(Game).filter(Game.id == game_id).first()
             if task2:
-                task2.status = "failed"
+                task2.status      = "failed"
                 task2.result_data = {"error": str(e)}
             if game2:
-                game2.status = "failed"
-                game2.error  = str(e)
+                orig_html = (spec_json or {}).get("_orig_html_file")
+                if spec_json.get("is_refinement") and orig_html:
+                    # 精炼失败 → 回滚旧版本，保住用户的数据
+                    game2.status    = "completed"
+                    game2.html_file = orig_html
+                    game2.error     = str(e)
+                    logger.info(f"[game] rolled back {game_id} → {orig_html}")
+                else:
+                    game2.status = "failed"
+                    game2.error  = str(e)
             db2.commit()
         finally:
             db2.close()
+
     finally:
         db.close()

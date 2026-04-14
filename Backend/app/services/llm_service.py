@@ -156,9 +156,9 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "GenerateGame",
             "description": (
-                "《游戏生成》当游戏类型和知识点已明确时调用，触发 HTML 游戏生成。"
-                "若教师要改进已生成的游戏，将 is_refinement 设为 true 并填写 refinement_instruction。"
-                "该工具不直接生成 HTML，而是发送信号让前端调用生成接口。"
+                "《游戏生成》当游戏类型和知识点已明确后，必须立即调用此工具触发后端 HTML 游戏生成。"
+                "此工具会直接在后台启动游戏生成任务，调用后游戏即开始生成，无需前端确认。"
+                "若教师要改进已有游戏（如修改规则/时间/样式），将 is_refinement 设为 true 并在 refinement_instruction 中详细描述需求。"
             ),
             "parameters": {
                 "type": "object",
@@ -210,14 +210,16 @@ SYSTEM_PROMPT = (
     "   任何局部调整（修改某页、新增页、删除页）均只能使用 UpdateSlide / AddSlide / DeleteSlide。\n"
     "   违反此规则将导致用户已有的整套课件丢失，是严重错误。\n"
     "\n"
-    "GAME RULES (游戏部分):\n"
-    "7. 当教师表达游戏意图（涉及「游戏」「互动」「小游戏」「激活」「小测测」等），调用 ProposeGameTypes 进行询问。\n"
-    "   就算师生已在游戏讨论过程中提出要生成PPT，也要立即切换回 PPT 模式。\n"
-    "8. 当游戏类型和知识点已明确（教师已表示确认），调用 GenerateGame 展示生成方案。\n"
-    "   该工具不直接生成 HTML，而是为前端提供生成信号以供确认。\n"
-    "9. 如教师要求改进已有游戏（如：‘把计时改到60秒’‘背景改深色’），调用 GenerateGame 并将 is_refinement 设为 true，\n"
-    "   refinement_instruction 详细写明教师的要求，系统会在已有 HTML 基础上修改。\n"
-)
+    "GAME RULES (游戏部分):\n"
+    "7. 当教师表达游戏意图（涉及「游戏」「互动」「小游戏」「激活」「小测测」等词），必须调用 ProposeGameTypes 展示游戏类型供选择。\n"
+    "   对话中同时涉及PPT和游戏时，优先完成当前意图，不要中途切换。\n"
+    "8. ★ 当游戏类型和知识点已明确（教师已选择类型或明确表示'生成'/'开始'/'就这个'等），必须立即调用 GenerateGame 工具。★\n"
+    "   不得用文字描述代替工具调用，不得说'我将为你生成…'而不调用工具，必须直接调用 GenerateGame。\n"
+    "   调用后后台立即开始生成，在对话中简短告知教师游戏生成已启动即可。\n"
+    "9. 如教师要求改进已有游戏（如：'把计时改到60秒''背景改深色''增加难度'），必须立即调用 GenerateGame 并将 is_refinement 设为 true，\n"
+    "   refinement_instruction 详细写明教师的具体要求（越详细越好），系统会在已有 HTML 基础上精确修改。\n"
+    "   ★ 改进游戏时绝对不能创建新游戏，必须使用 is_refinement=true。★\n"
+)
 
 
 
@@ -536,11 +538,13 @@ async def stream_chat_response(
                                 _GameModel.user_id == user_id,
                             ).first()
                             if _existing and _existing.status == "completed":
-                                # 精炼：重置 status，run_game_task 会读 html_file 做定向修改
+                                # 精炼前保存旧 html_file，用于失败时回滚
+                                game_spec_buffer["_orig_html_file"] = _existing.html_file
                                 _existing.status    = "pending"
                                 _existing.spec_json = game_spec_buffer
                                 _auto_game_id       = active_game_id
-                                logger.info(f"[GenerateGame] refine game={active_game_id}")
+                                logger.info(f"[GenerateGame] refine game={active_game_id} (backup={_existing.html_file})")
+
                             else:
                                 _is_ref = False
                                 game_spec_buffer["is_refinement"] = False

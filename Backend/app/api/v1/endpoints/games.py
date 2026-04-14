@@ -262,6 +262,10 @@ async def stream_game_task_sse(
             yield _sse({"event_type": "stage", "stage": "generating",
                         "progress": 8, "message": "AI 正在生成游戏代码..."})
 
+            # Stage 3: thinking（在 LLM 实际调用前立刻通知前端，消除空白等待）
+            yield _sse({"event_type": "stage", "stage": "thinking",
+                        "progress": 9, "message": "AI 深度思考中，请稍候..."})
+
             # ── LLM 流式调用 ─────────────────────────────────────────────────
             headers_llm = {
                 "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
@@ -275,12 +279,14 @@ async def stream_game_task_sse(
                 ],
                 "stream":     True,
                 "max_tokens": 8192,
-                # 开启深度思考：thinking 阶段流式推送给前端，消除代码开始前的空白等待
+                # 开启深度思考（部分模型 reasoning_content 会在流中逐 token 返回）
                 "thinking": {"type": "enabled", "budget_tokens": 2048},
             }
             base_url = settings.OPENAI_API_BASE.rstrip("/")
 
             ESTIMATED_CHARS = 9000   # 预估 HTML 总长度，用于进度插值
+            _code_started = False    # 是否已开始收到有效内容（thinking/code）
+            _hb_tick      = 0        # 心跳计数
 
             async with httpx.AsyncClient(
                 timeout=httpx.Timeout(connect=10.0, read=300.0, write=10.0, pool=10.0)
@@ -290,7 +296,29 @@ async def stream_game_task_sse(
                     headers=headers_llm, json=payload,
                 ) as resp:
                     resp.raise_for_status()
-                    async for raw_line in resp.aiter_lines():
+
+                    # 把异步行迭代器转为显式 __anext__ 调用，配合 wait_for 实现超时心跳
+                    _line_iter = resp.aiter_lines().__aiter__()
+
+                    while True:
+                        try:
+                            # 等待下一行，最多 3 秒；超时则发送心跳然后继续等
+                            raw_line = await asyncio.wait_for(
+                                _line_iter.__anext__(), timeout=3.0
+                            )
+                        except asyncio.TimeoutError:
+                            # LLM 思考中，暂无数据 → 发送心跳让前端知道我们还活着
+                            if not _code_started:
+                                _hb_tick += 1
+                                yield _sse({
+                                    "event_type": "thinking_heartbeat",
+                                    "tick":        _hb_tick,
+                                    "message":     "AI 深度思考中...",
+                                })
+                            continue
+                        except StopAsyncIteration:
+                            break  # 流结束
+
                         line = raw_line.strip()
                         if not line or not line.startswith("data: "):
                             continue
@@ -303,13 +331,14 @@ async def stream_game_task_sse(
                                 chunk_data.get("choices", [{}])[0]
                                 .get("delta", {})
                             )
-                            # ── 思考内容：实时流给前端，消除代码开始前的空白 ──
+                            # ── 思考内容（若模型支持流式 reasoning_content）──
                             reasoning = (
                                 delta.get("reasoning_content")
                                 or delta.get("thinking")
                                 or ""
                             )
                             if reasoning:
+                                _code_started = True
                                 yield _sse({
                                     "event_type": "thinking",
                                     "chunk":      reasoning,
@@ -318,6 +347,7 @@ async def stream_game_task_sse(
                             # ── 代码内容 ──────────────────────────────────────
                             content = delta.get("content") or ""
                             if content:
+                                _code_started = True
                                 full_text += content
                                 progress = min(
                                     10 + int(len(full_text) / ESTIMATED_CHARS * 85),
@@ -330,6 +360,7 @@ async def stream_game_task_sse(
                                 })
                         except Exception:
                             continue
+
 
 
             # ── 提取 HTML ────────────────────────────────────────────────────
@@ -388,15 +419,43 @@ async def stream_game_task_sse(
         except Exception as exc:
             import traceback
             logger.error(f"[game stream] ❌ {game_id}: {exc}\n{traceback.format_exc()}")
-            # 写入失败状态
+
+            # ── 尝试保存已接收的内容（中途断连 / 生成不完整也别浪费） ──────────
+            saved_partial = False
+            if len(full_text) > 500:
+                try:
+                    partial_html = _extract_html(full_text)
+                    if len(partial_html) > 200:
+                        filename_p = f"{game_id}.html"
+                        filepath_p = os.path.join(GAMES_DIR, filename_p)
+                        with open(filepath_p, "w", encoding="utf-8") as _f:
+                            _f.write(partial_html)
+                        saved_partial = True
+                        logger.info(f"[game stream] partial save {game_id} ({len(partial_html)} chars)")
+                except Exception:
+                    pass
+
+            orig_html = spec.get("_orig_html_file")  # 精炼前备份的旧文件名
+
             def _mark_failed():
                 db_e = SessionLocal()
                 try:
                     g_e = db_e.query(Game).filter(Game.id == game_id).first()
                     t_e = db_e.query(GenerationTask).filter(GenerationTask.id == task_id).first()
                     if g_e:
-                        g_e.status = "failed"
-                        g_e.error  = str(exc)
+                        if spec.get("is_refinement") and orig_html and not saved_partial:
+                            # 精炼失败且未能保存新内容 → 回滚到旧版本，不让用户丢数据
+                            g_e.status   = "completed"
+                            g_e.html_file = orig_html
+                            g_e.error    = str(exc)
+                            logger.info(f"[game stream] rolled back {game_id} → {orig_html}")
+                        elif saved_partial:
+                            g_e.html_file = f"{game_id}.html"
+                            g_e.status    = "completed"
+                            g_e.error     = str(exc)
+                        else:
+                            g_e.status = "failed"
+                            g_e.error  = str(exc)
                     if t_e:
                         t_e.status      = "failed"
                         t_e.result_data = {"error": str(exc)}
@@ -405,6 +464,7 @@ async def stream_game_task_sse(
                     db_e.close()
             asyncio.create_task(asyncio.to_thread(_mark_failed))
             yield _sse({"event_type": "error", "message": str(exc), "progress": 0})
+
 
     return StreamingResponse(
         event_generator(),
