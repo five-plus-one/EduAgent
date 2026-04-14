@@ -7,9 +7,12 @@ import json
 import uuid
 import asyncio
 import logging
+import secrets
+import string
+from datetime import datetime, timezone, timedelta
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, AsyncGenerator
@@ -19,6 +22,7 @@ from sqlalchemy import update as sql_update
 from app.api import deps
 from app.models.user import User
 from app.models.game import Game
+from app.models.game_share import GameShare
 from app.models.generation import GenerationTask
 from app.models.session import SessionContext
 from app.services.game_generator import (
@@ -559,3 +563,227 @@ def delete_game(
     db.delete(game)
     db.commit()
     return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 游戏公开分享 & 短链接系统
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_SHARE_ALPHABET = string.ascii_letters + string.digits  # Base62
+
+def _generate_code(length: int = 6) -> str:
+    """生成 URL-safe Base62 随机短码。"""
+    return "".join(secrets.choice(_SHARE_ALPHABET) for _ in range(length))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Schemas（分享）
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CreateShareRequest(BaseModel):
+    expires_in_days: Optional[int] = Field(None, ge=1, le=3650, description="有效天数；不传表示永不过期")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. 创建分享短链接（需登录）
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/games/{game_id}/share")
+def create_share_link(
+    game_id: str,
+    body: CreateShareRequest = CreateShareRequest(),
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+    request: Request = None,
+):
+    """
+    为指定游戏生成一个公开短链接（无需登录即可访问）。
+
+    - 同一 game_id 最多允许 10 个有效分享链接
+    - 若用户已有永久有效链接且未传 expires_in_days，直接复用
+    - 短码 6 位 Base62，碰撞时自动重试
+    """
+    game = db.query(Game).filter(
+        Game.id == game_id,
+        Game.user_id == current_user.id,
+    ).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if game.status != "completed":
+        raise HTTPException(status_code=400, detail="游戏尚未生成完成，无法分享")
+
+    # 若调用方没有传过期天数，尝试复用已有的永久链接
+    if body.expires_in_days is None:
+        existing = db.query(GameShare).filter(
+            GameShare.game_id == game_id,
+            GameShare.created_by == current_user.id,
+            GameShare.is_active == True,
+            GameShare.expires_at == None,
+        ).first()
+        if existing:
+            short_url = f"/s/{existing.code}"
+            return {
+                "code":           existing.code,
+                "short_url":      short_url,
+                "full_short_url": f"{settings.SERVER_URL}{short_url}",
+                "game_id":        game_id,
+                "game_title":     game.title,
+                "created_at":     existing.created_at,
+                "expires_at":     existing.expires_at,
+            }
+
+    # 检查有效分享数量上限（10 条）
+    active_count = db.query(GameShare).filter(
+        GameShare.game_id == game_id,
+        GameShare.created_by == current_user.id,
+        GameShare.is_active == True,
+    ).count()
+    if active_count >= 10:
+        raise HTTPException(status_code=429, detail="同一游戏最多创建 10 个有效分享链接")
+
+    # 生成唯一短码（碰撞重试）
+    for _ in range(10):
+        code = _generate_code()
+        if not db.query(GameShare).filter(GameShare.code == code).first():
+            break
+    else:
+        raise HTTPException(status_code=500, detail="短码生成失败，请重试")
+
+    expires_at = None
+    if body.expires_in_days:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=body.expires_in_days)
+
+    share = GameShare(
+        code       = code,
+        game_id    = game_id,
+        created_by = current_user.id,
+        expires_at = expires_at,
+    )
+    db.add(share)
+    db.commit()
+
+    short_url = f"/s/{code}"
+    return {
+        "code":           code,
+        "short_url":      short_url,
+        "full_short_url": f"{settings.SERVER_URL}{short_url}",
+        "game_id":        game_id,
+        "game_title":     game.title,
+        "created_at":     share.created_at,
+        "expires_at":     expires_at,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. 获取游戏的分享链接列表（需登录）
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/games/{game_id}/shares")
+def list_share_links(
+    game_id: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """返回该游戏所有分享链接（仅创建者可见），包括已停用的。"""
+    game = db.query(Game).filter(
+        Game.id == game_id,
+        Game.user_id == current_user.id,
+    ).first()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    shares = (
+        db.query(GameShare)
+        .filter(GameShare.game_id == game_id, GameShare.created_by == current_user.id)
+        .order_by(GameShare.created_at.desc())
+        .all()
+    )
+    return {
+        "shares": [
+            {
+                "code":       s.code,
+                "short_url":  f"/s/{s.code}",
+                "created_at": s.created_at,
+                "expires_at": s.expires_at,
+                "view_count": s.view_count,
+                "is_active":  s.is_active,
+            }
+            for s in shares
+        ]
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 11. 停用分享链接（需登录）
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.delete("/games/shares/{code}", status_code=200)
+def deactivate_share_link(
+    code: str,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """停用（软删除）指定短码。停用后 /s/{code} 返回 410。"""
+    share = db.query(GameShare).filter(
+        GameShare.code == code,
+        GameShare.created_by == current_user.id,
+    ).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="Share link not found")
+
+    share.is_active = False
+    db.commit()
+    return {"ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 12. 公开接口：通过短码获取游戏内容（无需登录，落地页用）
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/public/games/share/{code}")
+def get_public_game_by_code(
+    code: str,
+    db: Session = Depends(deps.get_db),
+):
+    """
+    公开接口，无需鉴权。
+    前端 `/play/:code` 落地页调用此接口获取游戏标题 + 完整 HTML。
+    返回的 html_content 直接用 srcdoc 注入 <iframe>。
+    """
+    share = db.query(GameShare).filter(GameShare.code == code).first()
+    if not share:
+        raise HTTPException(status_code=404, detail="链接不存在或已被删除")
+    if not share.is_active:
+        raise HTTPException(status_code=410, detail="该分享链接已被创建者停用")
+    if share.expires_at:
+        exp = share.expires_at
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=410, detail="该分享链接已超过有效期")
+
+    game = db.query(Game).filter(Game.id == share.game_id).first()
+    if not game or game.status != "completed" or not game.html_file:
+        raise HTTPException(status_code=404, detail="游戏内容尚未就绪")
+
+    html_path = os.path.join(GAMES_DIR, game.html_file)
+    if not os.path.exists(html_path):
+        raise HTTPException(status_code=404, detail="游戏文件不存在，可能需要重新生成")
+
+    # 路径穿越防护
+    safe_dir  = os.path.realpath(GAMES_DIR)
+    safe_file = os.path.realpath(html_path)
+    if not safe_file.startswith(safe_dir):
+        raise HTTPException(status_code=403, detail="非法文件路径")
+
+    with open(html_path, encoding="utf-8") as f:
+        html_content = f.read()
+
+    return {
+        "code":         code,
+        "game_id":      game.id,
+        "title":        game.title,
+        "game_type":    game.game_type,
+        "html_content": html_content,
+        "created_at":   share.created_at,
+    }
