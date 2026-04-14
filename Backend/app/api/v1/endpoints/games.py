@@ -285,7 +285,7 @@ async def stream_game_task_sse(
             base_url = settings.OPENAI_API_BASE.rstrip("/")
 
             ESTIMATED_CHARS = 9000   # 预估 HTML 总长度，用于进度插值
-            _code_started = False    # 是否已开始收到有效内容（thinking/code）
+            _code_started = False    # 是否已开始收到有效内容
             _hb_tick      = 0        # 心跳计数
 
             async with httpx.AsyncClient(
@@ -297,70 +297,85 @@ async def stream_game_task_sse(
                 ) as resp:
                     resp.raise_for_status()
 
-                    # 把异步行迭代器转为显式 __anext__ 调用，配合 wait_for 实现超时心跳
+                    # ── 关键：用 asyncio.wait 而非 wait_for ─────────────────
+                    # wait_for 超时后会「取消」__anext__()，下次调用迭代器时底层
+                    # httpx 缓冲区已损坏，会立即返回空字节造成无限空循环。
+                    # asyncio.wait 超时时「不取消」任务，继续等同一个任务，
+                    # 迭代器状态始终完整。
                     _line_iter = resp.aiter_lines().__aiter__()
+                    _next_line = asyncio.ensure_future(_line_iter.__anext__())
 
-                    while True:
-                        try:
-                            # 等待下一行，最多 3 秒；超时则发送心跳然后继续等
-                            raw_line = await asyncio.wait_for(
-                                _line_iter.__anext__(), timeout=3.0
-                            )
-                        except asyncio.TimeoutError:
-                            # LLM 思考中，暂无数据 → 发送心跳让前端知道我们还活着
-                            if not _code_started:
-                                _hb_tick += 1
-                                yield _sse({
-                                    "event_type": "thinking_heartbeat",
-                                    "tick":        _hb_tick,
-                                    "message":     "AI 深度思考中...",
-                                })
-                            continue
-                        except StopAsyncIteration:
-                            break  # 流结束
+                    try:
+                        while True:
+                            done, _ = await asyncio.wait({_next_line}, timeout=3.0)
 
-                        line = raw_line.strip()
-                        if not line or not line.startswith("data: "):
-                            continue
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk_data = json.loads(data_str)
-                            delta = (
-                                chunk_data.get("choices", [{}])[0]
-                                .get("delta", {})
-                            )
-                            # ── 思考内容（若模型支持流式 reasoning_content）──
-                            reasoning = (
-                                delta.get("reasoning_content")
-                                or delta.get("thinking")
-                                or ""
-                            )
-                            if reasoning:
-                                _code_started = True
-                                yield _sse({
-                                    "event_type": "thinking",
-                                    "chunk":      reasoning,
-                                })
+                            if not done:
+                                # 超时：LLM 还在思考，发送心跳，继续等同一个 task
+                                if not _code_started:
+                                    _hb_tick += 1
+                                    yield _sse({
+                                        "event_type": "thinking_heartbeat",
+                                        "tick":        _hb_tick,
+                                        "message":     "AI 深度思考中...",
+                                    })
+                                continue  # 继续 await 同一个 _next_line task
 
-                            # ── 代码内容 ──────────────────────────────────────
-                            content = delta.get("content") or ""
-                            if content:
-                                _code_started = True
-                                full_text += content
-                                progress = min(
-                                    10 + int(len(full_text) / ESTIMATED_CHARS * 85),
-                                    96,
+                            # task 完成，取结果
+                            try:
+                                raw_line = _next_line.result()
+                            except StopAsyncIteration:
+                                break   # 流正常结束
+                            except Exception:
+                                break   # 流异常结束
+
+                            # 准备读取下一行
+                            _next_line = asyncio.ensure_future(_line_iter.__anext__())
+
+                            line = raw_line.strip()
+                            if not line or not line.startswith("data: "):
+                                continue
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk_data = json.loads(data_str)
+                                delta = (
+                                    chunk_data.get("choices", [{}])[0]
+                                    .get("delta", {})
                                 )
-                                yield _sse({
-                                    "event_type": "code_chunk",
-                                    "chunk":      content,
-                                    "progress":   progress,
-                                })
-                        except Exception:
-                            continue
+                                # ── 思考内容 ──────────────────────────────────
+                                reasoning = (
+                                    delta.get("reasoning_content")
+                                    or delta.get("thinking")
+                                    or ""
+                                )
+                                if reasoning:
+                                    _code_started = True
+                                    yield _sse({
+                                        "event_type": "thinking",
+                                        "chunk":      reasoning,
+                                    })
 
+                                # ── 代码内容 ──────────────────────────────────
+                                content = delta.get("content") or ""
+                                if content:
+                                    _code_started = True
+                                    full_text += content
+                                    progress = min(
+                                        10 + int(len(full_text) / ESTIMATED_CHARS * 85),
+                                        96,
+                                    )
+                                    yield _sse({
+                                        "event_type": "code_chunk",
+                                        "chunk":      content,
+                                        "progress":   progress,
+                                    })
+                            except Exception:
+                                continue
+                    finally:
+                        # 客户端断连时确保孤立 task 被取消，不泄漏资源
+                        if not _next_line.done():
+                            _next_line.cancel()
 
 
             # ── 提取 HTML ────────────────────────────────────────────────────
