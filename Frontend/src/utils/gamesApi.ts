@@ -353,9 +353,14 @@ export async function streamGameTask(
       // fetchEventSource 会在非 2xx 时 throw，我们捕获后降级
       async onopen(response) {
         if (!response.ok) {
-          // 404 = 后端未实现，降级到轮询
           streamFailed = true;
           throw new Error(`SSE_NOT_SUPPORTED:${response.status}`);
+        }
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('text/event-stream')) {
+          // 后端返回了 200 OK，但不是 SSE（例如返回了提示 JSON），强制进入降级轮询
+          streamFailed = true;
+          throw new Error('NOT_EVENT_STREAM');
         }
       },
       onmessage(ev) {
