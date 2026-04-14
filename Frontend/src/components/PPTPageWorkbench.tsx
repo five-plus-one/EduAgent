@@ -262,6 +262,16 @@ export default function PPTPageWorkbench({
     }
   }, [pickerOpen, imageMode]);
 
+  /* ── 游戏列表加载（切到 game tab 时触发）─────────────────── */
+  useEffect(() => {
+    if (activeTab !== 'game' || !open) return;
+    setGameListLoading(true);
+    listSessionGames(sessionId)
+      .then(list => setGameList(list))
+      .catch(() => setGameList([]))
+      .finally(() => setGameListLoading(false));
+  }, [activeTab, open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const markDirty = () => setIsDirty(true);
 
   /* ── 内容编辑操作 ─────────────────────────────────────────── */
