@@ -13,11 +13,11 @@ import { clsx } from 'clsx';
 import {
   Gamepad2, Loader2, Trash2, Code2, Eye, RefreshCw,
   ChevronRight, Sparkles, CheckCircle, AlertCircle, Copy, Check,
-  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2,
+  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink,
 } from 'lucide-react';
 import {
   listSessionGames, generateGame, getGameSource,
-  deleteGame, fetchGameHtml, gameShareUrl,
+  deleteGame, fetchGameHtml, gameShareUrl, createShareLink,
   streamGameTask, GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
@@ -195,6 +195,11 @@ export default function GamePanel({
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceCode, setSourceCode]       = useState<string | null>(null);
   const [copied, setCopied]               = useState(false);
+
+  // ── 分享链接 ─────────────────────────────────────────────────
+  const [shareCopied, setShareCopied]       = useState(false);
+  const [sharingLoading, setSharingLoading] = useState(false);
+  const [shareError, setShareError]         = useState<string | null>(null);
 
   // ── 流式生成状态 ─────────────────────────────────────────────
   const [generating, setGenerating] = useState(false);
@@ -407,6 +412,28 @@ export default function GamePanel({
     navigator.clipboard.writeText(sourceCode).then(() => {
       setCopied(true); setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  // ── 分享晋接复制──────────────────────────────────────────────────
+  const handleCopyShareLink = async () => {
+    if (!selectedId || sharingLoading) return;
+    setSharingLoading(true);
+    setShareError(null);
+    try {
+      const link = await createShareLink(selectedId);
+      // full_short_url 如果带域名用域名；都不带则拼当前页面 origin
+      const url = link.full_short_url
+        || `${window.location.origin}${link.short_url}`
+        || `${window.location.origin}/play/${link.code}`;
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } catch (e: any) {
+      setShareError('生成分享链接失败');
+      setTimeout(() => setShareError(null), 3000);
+    } finally {
+      setSharingLoading(false);
+    }
   };
 
   const selectedGame = games.find(g => g.game_id === selectedId);
@@ -633,11 +660,39 @@ export default function GamePanel({
               </div>
 
               <div className={styles.previewActions}>
+                {/* 分享错误提示 */}
+                {shareError && (
+                  <span className={styles.shareErrorTip}>{shareError}</span>
+                )}
                 {previewTab === 'source' && (
                   <button className={styles.iconActionBtn} onClick={handleCopy} disabled={!sourceCode} title="复制代码">
                     {copied ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 )}
+                {/* 复制分享链接 */}
+                <button
+                  className={clsx(styles.shareBtn, shareCopied && styles.shareBtnCopied)}
+                  onClick={handleCopyShareLink}
+                  disabled={sharingLoading || !selectedId}
+                  title="生成短链接并复制到剪贴板，可嵌入PPT"
+                >
+                  {sharingLoading
+                    ? <Loader2 size={13} className={styles.spin} />
+                    : shareCopied
+                      ? <><Check size={13} /> 已复制</>
+                      : <><Share2 size={13} /> 分享链接</>
+                  }
+                </button>
+                {/* 新标签页打开 */}
+                <a
+                  href={selectedId ? gameShareUrl(selectedId) : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.iconActionBtn}
+                  title="在新标签页用原始链接打开"
+                >
+                  <ExternalLink size={14} />
+                </a>
                 <button
                   className={styles.iconActionBtn}
                   onClick={() => setSidebarOpen(v => !v)}
