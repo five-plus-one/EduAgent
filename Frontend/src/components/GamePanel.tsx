@@ -414,26 +414,57 @@ export default function GamePanel({
     });
   };
 
-  // ── 分享晋接复制──────────────────────────────────────────────────
+  // ── 分享链接复制 ─────────────────────────────────────────────────
   const handleCopyShareLink = async () => {
     if (!selectedId || sharingLoading) return;
     setSharingLoading(true);
     setShareError(null);
+
+    let url: string;
     try {
       const link = await createShareLink(selectedId);
       // full_short_url 如果带域名用域名；都不带则拼当前页面 origin
-      const url = link.full_short_url
+      url = link.full_short_url
         || `${window.location.origin}${link.short_url}`
         || `${window.location.origin}/play/${link.code}`;
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2500);
-    } catch (e: any) {
+    } catch {
+      // 只有 API 真正失败才报错
       setShareError('生成分享链接失败');
       setTimeout(() => setShareError(null), 3000);
-    } finally {
       setSharingLoading(false);
+      return;
     }
+
+    // API 成功，尝试写入剪贴板
+    // iframe 占有焦点时 clipboard API 会抛 "Document is not focused"，用 execCommand 降级
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch {
+      // 降级：创建临时 textarea，模拟 Ctrl+C
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignored */ }
+    }
+
+    if (copied) {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } else {
+      // 两种方法都失败：提示用户手动复制（URL 已获取，不报"失败"）
+      setShareError(`链接已生成，请手动复制：${url}`);
+      setTimeout(() => setShareError(null), 8000);
+    }
+
+    setSharingLoading(false);
   };
 
   const selectedGame = games.find(g => g.game_id === selectedId);
