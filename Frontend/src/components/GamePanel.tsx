@@ -213,9 +213,10 @@ export default function GamePanel({
   const [selectedId, setSelectedId]       = useState<string | null>(null);
   const [previewTab, setPreviewTab]       = useState<'preview' | 'source'>('preview');
   
-  const [previewHtml, setPreviewHtml]       = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError]     = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml]           = useState<string | null>(null);
+  const [previewHtmlGameId, setPreviewHtmlGameId] = useState<string | null>(null); // 当前 previewHtml 对应的 game_id
+  const [previewLoading, setPreviewLoading]       = useState(false);
+  const [previewError, setPreviewError]           = useState<string | null>(null);
   const [sourceLoading, setSourceLoading]   = useState(false);
   const [sourceCode, setSourceCode]         = useState<string | null>(null);
   
@@ -239,9 +240,20 @@ export default function GamePanel({
   // ── 通知父组件 ───────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 生成完成后自动选中新游戏 ───────────────────────────
+  // ── 生成完成后自动选中新游戏，并提前开始加载 HTML ────────────────
   useEffect(() => {
     if (completedGameId && generatingSessionId === sessionId) {
+      // 立即开始拉取 HTML，避免 selectedId 切换后的白屏等待
+      setPreviewLoading(true);
+      setPreviewError(null);
+      fetchGameHtml(completedGameId)
+        .then(html => {
+          setPreviewHtml(html);
+          setPreviewHtmlGameId(completedGameId);
+        })
+        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
+        .finally(() => setPreviewLoading(false));
+
       setSelectedId(completedGameId);
       setPreviewTab('preview');
       setSourceCode(null);
@@ -395,17 +407,20 @@ export default function GamePanel({
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
+      // 已经有对应 game 的 HTML（生成完成时提前拉取），跳过重复请求
+      if (previewHtmlGameId === selectedId && previewHtml) return;
       setPreviewHtml(null);
+      setPreviewHtmlGameId(null);
       setPreviewError(null);
       setPreviewLoading(true);
       fetchGameHtml(selectedId)
-        .then(html => setPreviewHtml(html))
+        .then(html => { setPreviewHtml(html); setPreviewHtmlGameId(selectedId); })
         .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
         .finally(() => setPreviewLoading(false));
     } else if (previewTab === 'source' && !sourceCode) {
       loadSource(selectedId);
     }
-  }, [selectedId, previewTab, loadSource]);
+  }, [selectedId, previewTab, previewHtmlGameId, previewHtml, loadSource]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
