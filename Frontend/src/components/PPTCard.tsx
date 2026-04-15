@@ -431,23 +431,11 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
 
   return (
     <>
-      {/* ── 外层包裹：用于将编辑按钮绝对定位到幻灯片右上角外侧 ── */}
-      <div className={styles.cardWrap}>
-        {/* 悬浮编辑按钮 - 始终显示（在幻灯片外部右上角） */}
-        {!isUpdating && !isStreaming && onManualSave && (
-          <button
-            className={styles.floatEditBtn}
-            onClick={handleEditPageClick}
-            title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+      <div className={styles.cardShell}>
+        <div className={styles.cardWrap}>
+          <div
+            className={clsx(styles.pptCard, isUpdating && styles.updating)}
           >
-            <Pencil size={14} />
-            <span>编辑</span>
-          </button>
-        )}
-
-        <div
-          className={clsx(styles.pptCard, isUpdating && styles.updating)}
-        >
           {/* cover 以外的页面保留原有 cardHeader（页码+标题） */}
           {page.layout_type !== 'cover' && (
             <div className={styles.cardHeader}>
@@ -592,10 +580,22 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
             </div>
           </div>
         )}
+          </div>
+        </div>
+
+        {!isUpdating && !isStreaming && onManualSave && (
+          <div className={styles.cardActionRail}>
+            <button
+              className={styles.floatEditBtn}
+              onClick={handleEditPageClick}
+              title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+            >
+              <Pencil size={14} />
+              <span>编辑</span>
+            </button>
+          </div>
+        )}
       </div>
-      {/* ← pptCard */}
-      </div>
-      {/* ← cardWrap */}
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (
