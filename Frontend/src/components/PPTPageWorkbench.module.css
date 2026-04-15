@@ -1477,3 +1477,12 @@
 }
 .gameGoTabBtn:hover { opacity: 0.75; }
 
+/* ── Missing utility classes ──────────────────────────── */
+.spin { animation: spinIcon 1s linear infinite; }
+.gameShareError {
+  font-size: 11px;
+  color: #ef4444;
+  margin: 4px 0 0;
+  padding: 0 2px;
+}
+

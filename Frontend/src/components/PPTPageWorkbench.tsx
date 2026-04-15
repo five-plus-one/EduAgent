@@ -459,22 +459,23 @@ export default function PPTPageWorkbench({
 
 
   return (
-    <div className={styles.drawer}>
-      {/* ──────────────── 头部 + Tab 条 ──────────────── */}
+    <div className={styles.panel}>
+      {/* ──────────────── 头部 ──────────────── */}
       <div className={styles.header}>
-        <span className={styles.pageIndex}>第 {page.page_index + 1} 页</span>
-        <div className={styles.tabs}>
-          {TAB_DEFS.map(tab => (
-            <button
-              key={tab.key}
-              className={clsx(styles.tab, activeTab === tab.key && styles.tabActive)}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.icon}<span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        <span className={styles.headerPageNum}>第 {page.page_index + 1} 页</span>
         <button className={styles.closeBtn} onClick={onClose} title="关闭"><X size={17} /></button>
+      </div>
+      {/* ──────────────── Tab 条 ──────────────── */}
+      <div className={styles.tabBar}>
+        {TAB_DEFS.map(tab => (
+          <button
+            key={tab.key}
+            className={clsx(styles.tab, activeTab === tab.key && styles.tabActive)}
+            onClick={() => setActiveTab(tab.key)}
+          >
+            {tab.icon}<span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       <div>
@@ -496,7 +497,7 @@ export default function PPTPageWorkbench({
 
             {/* 元素列表 */}
             <section className={styles.section}>
-              <div className={styles.sectionHeader}>
+              <div className={styles.sectionLabelRow}>
                 <label className={styles.sectionLabel}><AlignLeft size={13} /> 页面元素</label>
                 <AddElementDropdown onAdd={addElement} />
               </div>
@@ -609,218 +610,6 @@ export default function PPTPageWorkbench({
                   }
 
                   // ── 普通可编辑元素 ──
-                    const gameTitle = (el._raw as any)?.game_title || '互动游戏';
-                    const gameUrl   = (el._raw as any)?.game_url   || '';
-                    const typeLabel = (el._raw as any)?.type_label  || '';
-                    return (
-                      <div
-                        key={el.element_id}
-                        data-element-row
-                        className={clsx(styles.elementRow, dragOverIdx === idx && styles.elementRowDropTarget)}
-                        onDragOver={e => handleDragOver(e, idx)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={() => handleDrop(idx)}
-                      >
-                        <div className={styles.elementDragHandle} draggable
-                          onDragStart={e => handleDragStart(idx, e)} onDragEnd={handleDragEnd} title="拖拽排序">
-                          <GripVertical size={14} />
-                        </div>
-                        <div className={styles.elementMain}>
-                          <div className={styles.gameInsertedCard}>
-                            <div className={styles.gameInsertedCardLeft}>
-                              <Gamepad2 size={14} className={styles.gameInsertedIcon} />
-                              <div className={styles.gameInsertedInfo}>
-                                <span className={styles.gameInsertedTitle}>{gameTitle}</span>
-                                {typeLabel && <span className={styles.gameInsertedBadge}>{typeLabel}</span>}
-                                {gameUrl && <a className={styles.gameInsertedUrl} href={gameUrl} target="_blank" rel="noreferrer">{gameUrl}</a>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  // ── interactive_game: 内联游戏选择器 ──
-                  if (el.type === 'interactive_game') {
-                    const currentGameId    = (el as any).game_id;
-                    const currentGameTitle = (el as any).game_title;
-                    return (
-                      <div
-                        key={el.element_id}
-                        data-element-row
-                        className={clsx(styles.elementRow, dragOverIdx === idx && styles.elementRowDropTarget)}
-                        onDragOver={e => handleDragOver(e, idx)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={() => handleDrop(idx)}
-                      >
-                        <div className={styles.elementDragHandle} draggable
-                          onDragStart={e => handleDragStart(idx, e)} onDragEnd={handleDragEnd} title="拖拽排序">
-                          <GripVertical size={14} />
-                        </div>
-                        <div className={styles.elementMain}>
-                          <div className={styles.gameElementEditor}>
-                            {/* 当前已选游戏预览 */}
-                            {currentGameId ? (
-                              <div className={styles.gameSelectedPreview}>
-                                <Gamepad2 size={14} className={styles.gameSelectedIcon} />
-                                <div className={styles.gameSelectedInfo}>
-                                  <span className={styles.gameSelectedTitle}>{currentGameTitle || '互动游戏'}</span>
-                                  <span className={styles.gameSelectedUrl} style={{ opacity: 0.5 }}>点击下方重新选择</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className={styles.gameNoSelection}>
-                                <Gamepad2 size={15} style={{ opacity: 0.3 }} />
-                                <span>请在下方选择要链接的游戏</span>
-                              </div>
-                            )}
-                            {/* 游戏列表 */}
-                            {gameListLoading ? (
-                              <div className={styles.gamePickerLoading}>
-                                <Loader2 size={13} className={styles.spinIcon} /> 加载游戏列表...
-                              </div>
-                            ) : gameList.filter(g => g.status === 'completed').length === 0 ? (
-                              <div className={styles.gamePickerEmpty}>
-                                {gameList.length === 0 ? '本节课暂无游戏' : '暂无已完成的游戏'}
-                              </div>
-                            ) : (
-                              <div className={styles.gamePickerList}>
-                                {gameList.filter(g => g.status === 'completed').map(g => {
-                                  const isSel = currentGameId === g.game_id;
-                                  return (
-                                    <button
-                                      key={g.game_id}
-                                      className={`${styles.gamePickerItem} ${isSel ? styles.gamePickerItemActive : ''}`}
-                                      disabled={gameInsertLoading}
-                                      onClick={async () => {
-                                        // 先更新元素状态（选中预览）
-                                        updateElement(idx, { game_id: g.game_id, game_title: g.title });
-                                        setGameInsertLoading(true);
-                                        setGameInsertError(null);
-                                        try {
-                                          const res = await insertGameElement(
-                                            sessionId, page.page_index, { game_id: g.game_id }
-                                          );
-                                          // 后端返回完整 slide ，将本地临时元素一并覆盖
-                                          onSave(res.slide as any);
-                                        } catch (e: any) {
-                                          setGameInsertError(e?.response?.data?.message || e?.message || '插入失败，请重试');
-                                          // 回滚预览
-                                          updateElement(idx, { game_id: currentGameId, game_title: currentGameTitle });
-                                        } finally {
-                                          setGameInsertLoading(false);
-                                        }
-                                      }}
-                                    >
-                                      <Gamepad2 size={12} />
-                                      <span className={styles.gamePickerName}>{g.title}</span>
-                                      {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
-                                      {isSel && gameInsertLoading
-                                        ? <Loader2 size={12} className={styles.spinIcon} />
-                                        : isSel && <Check size={12} className={styles.gamePickerCheck} />
-                                      }
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {gameInsertError && (
-                              <p className={styles.gameShareError}>{gameInsertError}</p>
-                            )}
-                          </div>
-                        </div>
-                        <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    }
-
-                  if (isInteractive) {
-                    return (
-                      <div key={el.element_id} className={clsx(styles.elementRow, styles.elementReadonly)}>
-                        <span className={styles.elementTypeBadge}>{el.type}</span>
-                        <span className={styles.elementReadonlyHint}>交互/动画元素，暂不支持文本编辑</span>
-                      </div>
-                    );
-                  }
-
-                  // ── 游戏占位符元素：独立渲染为已插入卡片 + 可删除 ──
-                  if (isGameEl) {
-                    const gameTitle = (el as any).game_title || (el._raw as any)?.game_title || '互动游戏';
-                    const gameUrl   = (el as any).game_url  || (el._raw as any)?.game_url
-                                   || (el as any).share_url || (el._raw as any)?.game_url || '';
-                    const typeLabel = (el as any).type_label || (el._raw as any)?.type_label || '';
-                    const hasGame   = !!(gameTitle && gameTitle !== '互动游戏' || gameUrl);
-                    return (
-                      <div
-                        key={el.element_id}
-                        data-element-row
-                        className={clsx(
-                          styles.elementRow,
-                          dragOverIdx === idx && styles.elementRowDropTarget,
-                        )}
-                        onDragOver={e => handleDragOver(e, idx)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={() => handleDrop(idx)}
-                      >
-                        <div
-                          className={styles.elementDragHandle}
-                          draggable
-                          onDragStart={e => handleDragStart(idx, e)}
-                          onDragEnd={handleDragEnd}
-                          title="拖拽排序"
-                        >
-                          <GripVertical size={14} />
-                        </div>
-                        <div className={styles.elementMain}>
-                          {hasGame ? (
-                            <div className={styles.gameInsertedCard}>
-                              <div className={styles.gameInsertedCardLeft}>
-                                <Gamepad2 size={14} className={styles.gameInsertedIcon} />
-                                <div className={styles.gameInsertedInfo}>
-                                  <span className={styles.gameInsertedTitle}>{gameTitle}</span>
-                                  {typeLabel && <span className={styles.gameInsertedBadge}>{typeLabel}</span>}
-                                  {gameUrl && (
-                                    <a
-                                      className={styles.gameInsertedUrl}
-                                      href={gameUrl}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                    >{gameUrl}</a>
-                                  )}
-                                </div>
-                              </div>
-                              <button
-                                className={styles.gameReSelectBtn}
-                                onClick={() => setActiveTab('game')}
-                                title="切换到游戏 Tab 重新选择"
-                              >
-                                <Gamepad2 size={11} /> 再次插入
-                              </button>
-                            </div>
-                          ) : (
-                            <div className={styles.gameUnlinkedHint}>
-                              <Gamepad2 size={15} style={{ opacity: 0.35 }} />
-                              <span>尚未关联游戏 — </span>
-                              <button
-                                className={styles.gameGoTabBtn}
-                                onClick={() => setActiveTab('game')}
-                              >
-                                前往游戏 Tab 插入
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除游戏占位符">
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    );
-                  }
                   return (
                     <div
                       key={el.element_id}
@@ -995,60 +784,6 @@ export default function PPTPageWorkbench({
                                   <ImageIcon size={12} /> 选择图片
                                 </button>
                               </div>
-                            </div>
-                          );
-                        })() : el.type === 'table' ? (
-                          return (
-                            <div className={styles.gameElementEditor}>
-                              {el.game_id ? (
-                                <div className={styles.gameSelectedPreview}>
-                                  <Gamepad2 size={14} className={styles.gameSelectedIcon} />
-                                  <div className={styles.gameSelectedInfo}>
-                                    <span className={styles.gameSelectedTitle}>{el.game_title || '互动游戏'}</span>
-                                    {el.share_url
-                                      ? <span className={styles.gameSelectedUrl}>{el.share_url}</span>
-                                      : <span className={styles.gameSelectedUrl} style={{opacity:0.4}}>生成链接中...</span>
-                                    }
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className={styles.gameNoSelection}>
-                                  <Gamepad2 size={16} style={{opacity:0.3}} />
-                                  <span>请在下方选择要链接的游戏</span>
-                                </div>
-                              )}
-                              {gameListLoading ? (
-                                <div className={styles.gamePickerLoading}>
-                                  <Loader2 size={13} className={styles.spinIcon} /> 加载游戏列表...
-                                </div>
-                              ) : gameList.length === 0 ? (
-                                <div className={styles.gamePickerEmpty}>本节课暂无互动游戏</div>
-                              ) : (
-                                <div className={styles.gamePickerList}>
-                                  {gameList.map(g => {
-                                    const isSelected = el.game_id === g.game_id;
-                                    return (
-                                      <button
-                                        key={g.game_id}
-                                        className={`${styles.gamePickerItem} ${isSelected ? styles.gamePickerItemActive : ''}`}
-                                        onClick={async () => {
-                                          updateElement(idx, { game_id: g.game_id, game_title: g.title, share_url: undefined });
-                                          try {
-                                            const link = await createShareLink(g.game_id);
-                                            const url = link.full_short_url || `${window.location.origin}${link.short_url}`;
-                                            updateElement(idx, { share_url: url });
-                                          } catch { /* 不阻塞选择 */ }
-                                        }}
-                                      >
-                                        <Gamepad2 size={12} />
-                                        <span className={styles.gamePickerName}>{g.title}</span>
-                                        {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
-                                        {isSelected && <Check size={12} className={styles.gamePickerCheck} />}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
                             </div>
                           );
                         })() : el.type === 'table' ? (
