@@ -21,7 +21,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, type ThemeCustomColors as ApiThemeCustomColors } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
 import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette } from 'lucide-react';
 
