@@ -241,6 +241,10 @@ export default function PPTPageWorkbench({
   /** 最近一次插入成功的 element 信息（用于成功状态展示）*/
   const [lastInsertedGame, setLastInsertedGame] = useState<{ title: string; url: string } | null>(null);
 
+  /* ── 游戏选择弹窗状态 ───────────────────────────────── */
+  /** 当前打开游戏选择弹窗的元素索引，-1 表示关闭 */
+  const [gamePickerIdx, setGamePickerIdx] = useState<number>(-1);
+
   /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return;
@@ -281,15 +285,16 @@ export default function PPTPageWorkbench({
     }
   }, [pickerOpen, imageMode]);
 
-  /* ── 游戏列表加载（工作台打开时触发）────────────────────────── */
+  /* ── 游戏列表加载（弹窗打开时按需加载）─────────────────── */
   useEffect(() => {
-    if (!open) return;
+    if (gamePickerIdx < 0 || !open) return;
+    if (gameListLoading) return;
     setGameListLoading(true);
     listSessionGames(sessionId)
       .then(list => setGameList(list))
       .catch(() => setGameList([]))
       .finally(() => setGameListLoading(false));
-  }, [open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gamePickerIdx, open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const markDirty = () => setIsDirty(true);
 
@@ -509,10 +514,9 @@ export default function PPTPageWorkbench({
                   const isInteractive = !['text_block', 'list', 'subtitle', 'huge_number',
                     'timeline_item', 'image', 'table', 'interactive_game'].includes(el.type);
 
-                  // ── interactive_game: 内联游戏选择器（早返回，跳过普通行渲染）──
+                  // ── interactive_game 元素行：显示已关联游戏 + 点击选择弹窗 ──
                   if (el.type === 'interactive_game') {
-                    const currentGameId    = el.game_id;
-                    const currentGameTitle = el.game_title;
+                    const hasGame = !!el.game_id;
                     return (
                       <div
                         key={el.element_id}
@@ -527,58 +531,31 @@ export default function PPTPageWorkbench({
                           <GripVertical size={14} />
                         </div>
                         <div className={styles.elementMain}>
-                          <div className={styles.gameElementEditor}>
-                            {currentGameId ? (
-                              <div className={styles.gameSelectedPreview}>
-                                <Gamepad2 size={14} className={styles.gameSelectedIcon} />
-                                <div className={styles.gameSelectedInfo}>
-                                  <span className={styles.gameSelectedTitle}>{currentGameTitle || '互动游戏'}</span>
-                                  <span className={styles.gameSelectedUrl} style={{ opacity: 0.5 }}>点击下方重新选择</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className={styles.gameNoSelection}>
-                                <Gamepad2 size={15} style={{ opacity: 0.3 }} />
-                                <span>请在下方选择要链接的游戏</span>
-                              </div>
-                            )}
-                            {gameListLoading ? (
-                              <div className={styles.gamePickerLoading}>
-                                <Loader2 size={13} className={styles.spinIcon} /> 加载游戏列表...
-                              </div>
-                            ) : gameList.filter(g => g.status === 'completed').length === 0 ? (
-                              <div className={styles.gamePickerEmpty}>
-                                {gameList.length === 0 ? '本节课暂无游戏' : '暂无已完成的游戏'}
-                              </div>
-                            ) : (
-                              <div className={styles.gamePickerList}>
-                                {gameList.filter(g => g.status === 'completed').map(g => {
-                                  const isSel = currentGameId === g.game_id;
-                                  return (
-                                    <button
-                                      key={g.game_id}
-                                      className={`${styles.gamePickerItem} ${isSel ? styles.gamePickerItemActive : ''}`}
-                                      onClick={() => {
-                                        // 仅本地关联：更新元素的 game_id/game_title，随 Save 一起提交
-                                        updateElement(idx, {
-                                          game_id: g.game_id,
-                                          game_title: g.title,
-                                        });
-                                      }}
-                                    >
-                                      <Gamepad2 size={12} />
-                                      <span className={styles.gamePickerName}>{g.title}</span>
-                                      {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
-                                      {isSel && <Check size={12} className={styles.gamePickerCheck} />}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            {gameInsertError && (
-                              <p className={styles.gameShareError}>{gameInsertError}</p>
-                            )}
-                          </div>
+                          {hasGame ? (
+                            /* 已关联游戏：显示游戏名 + 重新选择按鈕 */
+                            <div className={styles.gameLinkedRow}>
+                              <Gamepad2 size={13} className={styles.gameLinkedIcon} />
+                              <span className={styles.gameLinkedTitle}>{el.game_title || '互动游戏'}</span>
+                              <button
+                                className={styles.gameChangeBtn}
+                                onClick={() => { setGamePickerIdx(idx); setGameList([]); }}
+                              >
+                                更换
+                              </button>
+                            </div>
+                          ) : (
+                            /* 未关联：说明 + 选择按鈕 */
+                            <div className={styles.gameUnlinkedRow}>
+                              <Gamepad2 size={13} style={{ opacity: 0.3, flexShrink: 0 }} />
+                              <span className={styles.gameUnlinkedHint}>未关联游戏</span>
+                              <button
+                                className={styles.gameSelectBtn}
+                                onClick={() => { setGamePickerIdx(idx); setGameList([]); }}
+                              >
+                                选择游戏
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除">
                           <Trash2 size={13} />
@@ -909,22 +886,9 @@ export default function PPTPageWorkbench({
               )}
             </section>
 
-            {/* 底部保存栏 */}
-            <div className={styles.footer}>
-              <button
-                className={styles.saveBtn}
-                disabled={!isDirty}
-                onClick={handleSave}
-              >
-                <Check size={14} /> 保存更改
-              </button>
-              <button className={styles.cancelBtn} onClick={onClose}>
-                取消
-              </button>
-            </div>
-
           </div>
         )}
+
 
         {/* ─── 图片选择器弹窗（二级） ───────────────────────────────────── */}
         {pickerOpen && pickerEl && (
@@ -1019,7 +983,39 @@ export default function PPTPageWorkbench({
           </div>
         )}
 
+        {/* ─── 游戏选择弹窗 ─────────────────────────────────────── */}
+        {gamePickerIdx >= 0 && (
+          <GamePickerModal
+            games={gameList}
+            loading={gameListLoading}
+            selectedGameId={elements[gamePickerIdx]?.game_id ?? null}
+            onSelect={(g) => {
+              updateElement(gamePickerIdx, { game_id: g.game_id, game_title: g.title });
+              setGamePickerIdx(-1);
+            }}
+            onClose={() => setGamePickerIdx(-1)}
+            styles={styles}
+          />
+        )}
+
       </div>
+
+      {/* ─── 全局 sticky 底部保存栏（在 panel flex 子级，永远黏底） ─── */}
+      {activeTab === 'edit' && (
+        <div className={styles.footer}>
+          <button
+            className={styles.saveBtn}
+            disabled={!isDirty}
+            onClick={handleSave}
+          >
+            <Check size={14} /> 保存更改
+          </button>
+          <button className={styles.cancelBtn} onClick={onClose}>
+            取消
+          </button>
+        </div>
+      )}
+
     </div>
     </div>
   );
@@ -1288,3 +1284,46 @@ function ImagePickerModal({
 }
 
 
+
+/* --- 游戏选择弹窗 ------------------------------------------------- */
+function GamePickerModal({ games, loading, selectedGameId, onSelect, onClose, styles, }) {
+  const completed = games.filter(g => g.status === 'completed');
+  return (
+    <div className={styles.gameModalOverlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={styles.gameModalPanel}>
+        <div className={styles.gameModalHeader}>
+          <span className={styles.gameModalTitle}><Gamepad2 size={15} /> 选择互动游戏</span>
+          <button className={styles.closeBtn} onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className={styles.gameModalBody}>
+          {loading ? (
+            <div className={styles.gameModalLoading}><Loader2 size={22} className={styles.spin} /><span>加载游戏列表…</span></div>
+          ) : completed.length === 0 ? (
+            <div className={styles.gameModalEmpty}><Gamepad2 size={32} style={{ opacity: 0.2 }} /><span>{games.length === 0 ? '本节课还没有生成任何游戏' : '暂无已完成的游戏'}</span></div>
+          ) : (
+            <div className={styles.gameModalList}>
+              {completed.map(g => {
+                const isSel = selectedGameId === g.game_id;
+                return (
+                  <button key={g.game_id} className={`${styles.gameModalItem} ${isSel ? styles.gameModalItemActive : ''}`} onClick={() => onSelect(g)}>
+                    <div className={styles.gameModalItemLeft}>
+                      <Gamepad2 size={16} className={styles.gameModalItemIcon} />
+                      <div className={styles.gameModalItemInfo}>
+                        <span className={styles.gameModalItemTitle}>{g.title}</span>
+                        {g.type_label && <span className={styles.gameModalItemBadge}>{g.type_label}</span>}
+                      </div>
+                    </div>
+                    {isSel && <Check size={15} className={styles.gameModalItemCheck} />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className={styles.gameModalFooter}>
+          <button className={styles.cancelBtn} onClick={onClose}>取消</button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1539,3 +1539,195 @@
   padding: 0 2px;
 }
 
+
+/* ── interactive_game 元素行 ────────────────────────────────── */
+.gameLinkedRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.18);
+  flex: 1;
+  min-width: 0;
+}
+.gameLinkedIcon { color: #6366f1; flex-shrink: 0; }
+.gameLinkedTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameChangeBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,0.35);
+  background: none;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.gameChangeBtn:hover { background: rgba(99,102,241,0.08); }
+
+.gameUnlinkedRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15,23,42,0.03);
+  border: 1px dashed rgba(15,23,42,0.15);
+  flex: 1;
+  min-width: 0;
+}
+.gameUnlinkedHint {
+  font-size: 12px;
+  color: #94a3b8;
+  flex: 1;
+}
+.gameSelectBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: all 0.15s;
+  box-shadow: 0 2px 6px rgba(99,102,241,0.28);
+}
+.gameSelectBtn:hover { filter: brightness(1.08); }
+
+/* ── 游戏选择弹窗 ───────────────────────────────────────────── */
+.gameModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.14s ease;
+}
+.gameModalPanel {
+  width: min(420px, 92vw);
+  max-height: 70vh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalSlideIn 0.2s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes modalSlideIn {
+  from { transform: scale(0.94) translateY(12px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.gameModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 13px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+  flex-shrink: 0;
+}
+.gameModalTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.gameModalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15,23,42,0.08) transparent;
+}
+.gameModalList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.gameModalItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(15,23,42,0.07);
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.gameModalItem:hover { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.04); }
+.gameModalItemActive {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.07) !important;
+}
+.gameModalItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+}
+.gameModalItemIcon { color: #6366f1; flex-shrink: 0; }
+.gameModalItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.gameModalItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameModalItemBadge {
+  font-size: 10px;
+  color: #6366f1;
+  background: rgba(99,102,241,0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 600;
+  width: fit-content;
+}
+.gameModalItemCheck { color: #6366f1; flex-shrink: 0; }
+.gameModalLoading, .gameModalEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+.gameModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  flex-shrink: 0;
+}
