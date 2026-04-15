@@ -429,6 +429,19 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
   return (
     <>
       <div className={styles.cardShell}>
+        {!isUpdating && !isStreaming && onManualSave && (
+          <div className={styles.cardToolbar}>
+            <button
+              className={styles.floatEditBtn}
+              onClick={handleEditPageClick}
+              title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+            >
+              <Pencil size={12} />
+              <span>编辑</span>
+            </button>
+          </div>
+        )}
+
         <div className={styles.cardWrap}>
           <div
             className={clsx(styles.pptCard, isUpdating && styles.updating)}
@@ -580,18 +593,6 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           </div>
         </div>
 
-        {!isUpdating && !isStreaming && onManualSave && (
-          <div className={styles.cardActionRail}>
-            <button
-              className={styles.floatEditBtn}
-              onClick={handleEditPageClick}
-              title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
-            >
-              <Pencil size={14} />
-              <span>编辑</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
