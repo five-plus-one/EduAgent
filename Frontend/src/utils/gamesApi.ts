@@ -22,6 +22,10 @@ export interface GameSpec {
   custom_requirements?: string;
   is_refinement: boolean;
   refinement_instruction?: string;
+  /** 后端已创建的任务 ID（game_trigger SSE 携带，前端直接接管流用） */
+  task_id?: string;
+  /** 后端已创建的游戏 ID */
+  game_id?: string;
 }
 
 export interface GameTask {
