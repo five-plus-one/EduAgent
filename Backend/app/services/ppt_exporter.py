@@ -2241,7 +2241,7 @@ def render_game_placeholders(slide, page: dict, colors: dict) -> None:
     from pptx.util import Inches, Pt
     from pptx.enum.text import PP_ALIGN
 
-    game_elems = [e for e in page.get("elements", []) if e.get("type") == "game_placeholder"]
+    game_elems = [e for e in page.get("elements", []) if e.get("type") in _GAME_ELEM_TYPES]
     if not game_elems:
         return
 
@@ -2726,12 +2726,16 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     table_elems = [e for e in elements if e.get("type") == "table"]
     game_elems  = [e for e in elements if e.get("type") in _GAME_ELEM_TYPES]
     excl = set(id(e) for e in table_elems + game_elems)
-    # is_accent 仅限于真正的数字/统计类元素（type in huge_number/stat）
-    # 不应包含 is_accent=True 的普通文本块，避免布局混乱
+    # big：is_accent=True 的元素 或 type in (huge_number/stat) 且内容较短
+    # 注意：is_accent=True 的元素无论 type 如何，都走大圆圈视觉区域,
+    #       type="huge_number"/"stat" 的元素额外要求内容短（避免把长段落放圆圈）
     big   = [e for e in elements
              if id(e) not in excl
-             and e.get("type") in ("huge_number", "stat")
-             and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"]))]
+             and (
+                 e.get("is_accent")                                    # 明确标记强调
+                 or (e.get("type") in ("huge_number", "stat")          # 统计类短值
+                     and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
+             )]
     other = [e for e in elements if id(e) not in excl and e not in big]
 
     n_big   = max(len(big), 1)
@@ -2767,9 +2771,11 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
             sub = "  ".join(items[1:])
             add_rich_box(slide, sub, cell_x, big_top + sz + 0.08, cell_w, 0.42, 12, txt, acc)
 
-    # ── 非 big 元素排布在圆圈行下方 ──────────────────────────────
-    big_row_h = sz + 0.62
-    sup_y     = big_top + big_row_h
+    # ── 非 big 元素排布在圆圈行下方（big 为空时从内容顶部开始）─────────
+    if big:
+        sup_y = big_top + sz + 0.62
+    else:
+        sup_y = CONTENT_T          # big 为空时 other 从内容顶部开始
     if other:
         each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
         for elem in other:
@@ -3046,6 +3052,44 @@ def run_export_task(task_id: str, session_id: str,
                 "acc": hex2rgb(sel["accent"]),
                 "txt": hex2rgb(sel["text_color"]),
             }
+
+            # ── 导出前富化游戏元素 game_url ────────────────────────────────────
+            # interactive_game 元素（AI 生成）只有 game_id，没有 game_url；
+            # 此步统一为所有缺 game_url 的游戏元素查找/创建 share 短链接。
+            try:
+                from app.models.game_share import GameShare as _GS
+                from app.core.config import settings as _settings
+                _SERVER_URL = _settings.SERVER_URL   # 与 games.py 保持一致，使用前端域名
+                _GAME_TYPES_EX = {"game_placeholder", "interactive_game"}
+                for _page in slides_arr:
+                    for _elem in _page.get("elements", []):
+                        if _elem.get("type") not in _GAME_TYPES_EX:
+                            continue
+                        if _elem.get("game_url"):      # 已有链接，跳过
+                            continue
+                        _gid = _elem.get("game_id", "")
+                        if not _gid:
+                            continue
+                        # 查找已有 active share
+                        _share = db.query(_GS).filter(
+                            _GS.game_id == _gid, _GS.is_active == True
+                        ).first()
+                        if not _share:
+                            # 创建新 share（GameShare 主键是 code，无 id 字段；created_by NOT NULL）
+                            _code = uuid.uuid4().hex[:8].upper()
+                            _share = _GS(
+                                code=_code,
+                                game_id=_gid,
+                                is_active=True,
+                                view_count=0,
+                                created_by="export_system",   # NOT NULL，用系统标记
+                            )
+                            db.add(_share)
+                            db.commit()
+                        _elem["game_url"] = f"{_SERVER_URL}/s/{_share.code}"
+                        logger.info(f"[export] enriched game_url for {_gid}: {_elem['game_url']}")
+            except Exception as _enrich_err:
+                logger.error(f"[export] game URL enrichment failed: {_enrich_err}", exc_info=True)
 
             for page in slides_arr:
                 slide = prs.slides.add_slide(blank_layout)

@@ -933,14 +933,15 @@ def save_manual_slide_edit(
             for e in slide.get("elements", [])
             if e.get("type") == "image"
         }
-        # ── 索引 DB 中的 game_placeholder（以 element_id 为 key）──────────────
-        # game_placeholder 的 game_url / game_id / game_title 等字段
-        # 仅由 add_game_placeholder 端点写入，前端不负责维护这些字段；
-        # PUT 时只允许前端更新 position，其余游戏字段始终以 DB 版本为准。
+        # ── 索引 DB 中的游戏元素（以 element_id 为 key）──────────────────────
+        # game_placeholder（后端写入）和 interactive_game（前端/AI 生成）均视为游戏元素。
+        # game_url / game_id / game_title 等字段仅由 add_game_placeholder 写入，
+        # PUT 时只允许前端覆盖 position，其余游戏字段始终以 DB 版本为准。
+        _GAME_TYPES = ("game_placeholder", "interactive_game")
         db_game_index: dict = {
             e["element_id"]: e
             for e in slide.get("elements", [])
-            if e.get("type") == "game_placeholder"
+            if e.get("type") in _GAME_TYPES
         }
 
         new_elements = []
@@ -960,7 +961,7 @@ def save_manual_slide_edit(
                 elif "resolved" in elem:
                     del elem["resolved"]
 
-            elif elem.get("type") == "game_placeholder":
+            elif elem.get("type") in _GAME_TYPES:
                 # 游戏占位符：DB 版本为基准，只允许前端覆盖 position
                 db_gp = db_game_index.get(elem["element_id"])
                 if db_gp:
@@ -970,11 +971,9 @@ def save_manual_slide_edit(
 
             new_elements.append(elem)
 
-        # 前端未提交的 game_placeholder（老编辑器不感知）→ 原样保留
-        for eid, gp in db_game_index.items():
-            if eid not in sent_elem_ids:
-                new_elements.append(gp)
-
+        # 注意：不强行保留前端未发来的游戏元素。
+        # 前端现在将游戏元素与普通元素一样传入 body.elements；
+        # 若前端未发来某个游戏元素，说明用户主动删除了它，应当生效。
         slide["elements"] = new_elements
 
 
@@ -1041,9 +1040,10 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
     if layout_type == "two_column":
         img_elems   = [e for e in elements if e.get("type") == "image"]
         tbl_elems   = [e for e in elements if e.get("type") == "table"]
-        game_elems  = [e for e in elements if e.get("type") == "game_placeholder"]
+        _GAME_TYPES_R = ("game_placeholder", "interactive_game")
+        game_elems  = [e for e in elements if e.get("type") in _GAME_TYPES_R]
         text_elems  = [e for e in elements
-                       if e.get("type") not in ("image", "table", "game_placeholder")]
+                       if e.get("type") not in ("image", "table") + _GAME_TYPES_R]
 
         # position slot names: top/mid/bottom 连续分配
         def _position_slots(prefix: str, n: int) -> list:
