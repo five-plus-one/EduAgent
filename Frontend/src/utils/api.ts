@@ -376,7 +376,50 @@ export const getThemes = async (): Promise<PptTheme[]> => {
   return (res.data?.data ?? res.data)?.themes ?? [];
 };
 
-/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 哈希自动选择） */
+/** 会话 PPT 主题偏好（GET /sessions/{id} 响应中的 ppt_theme 字段） */
+export interface PptThemePreference {
+  /** 预设主题 key；null 表示使用自定义颜色或自动选择 */
+  theme_key: string | null;
+  /** 自定义颜色；theme_key=null 时才有值 */
+  custom_colors: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  } | null;
+  /** 后端预解析好的完整颜色（任何模式均携带），前端直接注入 CSS 变量 */
+  resolved_colors: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  } | null;
+  updated_at: string;
+}
+
+/**
+ * 5.0b 保存/更新会话的 PPT 主题偏好
+ * PATCH /sessions/{session_id}/theme
+ *
+ * - 选择预设主题：传 { theme_key: "ocean_depths" }
+ * - 自定义颜色：传 { theme_key: null, custom_colors: {...} }
+ * - 重置为「自动」：传 { theme_key: null }
+ *
+ * Fire-and-forget 可接受（失败不影响预览），但调用失败时会 reject Promise。
+ */
+export const saveSessionTheme = async (
+  sessionId: string,
+  themeKey: string | null,
+  customColors?: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  }
+): Promise<PptThemePreference> => {
+  const body: Record<string, unknown> = { theme_key: themeKey };
+  if (themeKey === null && customColors) {
+    body.custom_colors = customColors;
+  }
+  const res = await apiClient.patch(`/sessions/${sessionId}/theme`, body);
+  return res.data?.data ?? res.data;
+};
+
+/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 保存的主题或哈希自动选择） */
 export const triggerExport = async (
   sessionId: string,
   themeKey?: string,
