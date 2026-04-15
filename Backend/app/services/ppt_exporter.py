@@ -29,6 +29,9 @@ LIGHT_THEME_KEYS = ["modern_minimalist", "sunset_boulevard", "golden_hour",
                      "forest_canopy", "desert_rose", "arctic_frost"]
 DARK_THEME_KEYS  = ["ocean_depths", "cyber_neon", "midnight_galaxy", "botanical_garden"]
 
+# 所有被视为「游戏占位符」的 element type 值（后端用 game_placeholder，前端/AI 会生成 interactive_game）
+_GAME_ELEM_TYPES = {"game_placeholder", "interactive_game"}
+
 
 def simple_hash(s: str) -> int:
     """Deterministic hash of a string, matches frontend implementation."""
@@ -1883,13 +1886,15 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     table_elems = [e for e in elements if e.get("type") == "table"]
     # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
     img_elems  = [e for e in elements if e.get("type") == "image"]
-    # game_placeholder 由 render_game_placeholders 在各布局 renderer 后统一处理，
+    # game_placeholder / interactive_game 由 render_game_placeholders 在各布局 renderer 后统一处理，
     # 排除在 body_elems 之外，避免产生空卡片干扰排版
     body_elems = [e for e in elements
                   if not _is_stat(e)
-                  and e.get("type") not in ("image", "table", "game_placeholder")] or [
+                  and e.get("type") not in ("image", "table")
+                  and e.get("type") not in _GAME_ELEM_TYPES] or [
         e for e in elements
-        if e.get("type") not in ("image", "table", "game_placeholder")
+        if e.get("type") not in ("image", "table")
+        and e.get("type") not in _GAME_ELEM_TYPES
     ]
 
     # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
@@ -2528,10 +2533,10 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     right_table_elems = [e for e in elements if e.get("type") == "table"
                          and "right" in _tbl_pos(e)]
     all_table_elems   = full_table_elems + left_table_elems + right_table_elems
-    # game_placeholder 元素由 render_game_placeholders 处理，从 col_elements 排除
+    # game_placeholder / interactive_game 元素由 render_game_placeholders 处理，从 col_elements 排除
     col_elements = [
         e for e in elements
-        if e not in all_table_elems and e.get("type") != "game_placeholder"
+        if e not in all_table_elems and e.get("type") not in _GAME_ELEM_TYPES
     ]
 
     # 按 position 字段精确分两列：
@@ -2717,11 +2722,17 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    # 表格单独处理，not 放进 big/other，避免 get_content_list 读到空 content
+    # 表格和游戏元素单独处理
     table_elems = [e for e in elements if e.get("type") == "table"]
-    big   = [e for e in elements if (e.get("is_accent") or e.get("type") in ("huge_number", "stat"))
-             and e not in table_elems]
-    other = [e for e in elements if e not in big and e not in table_elems]
+    game_elems  = [e for e in elements if e.get("type") in _GAME_ELEM_TYPES]
+    excl = set(id(e) for e in table_elems + game_elems)
+    # is_accent 仅限于真正的数字/统计类元素（type in huge_number/stat）
+    # 不应包含 is_accent=True 的普通文本块，避免布局混乱
+    big   = [e for e in elements
+             if id(e) not in excl
+             and e.get("type") in ("huge_number", "stat")
+             and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"]))]
+    other = [e for e in elements if id(e) not in excl and e not in big]
 
     n_big   = max(len(big), 1)
     # ── 横排全部 big elements ──────────────────────────────────────────
@@ -2892,8 +2903,10 @@ def render_default(slide, page: dict, colors: dict) -> None:
     # ── 图片和表格分别单独渲染，不进入文字卡循环 ────────────────────────────────────
     img_elems   = [e for e in elements if e.get("type") == "image"]
     table_elems = [e for e in elements if e.get("type") == "table"]
-    # game_placeholder 由 render_game_placeholders 统一处理
-    text_elems  = [e for e in elements if e.get("type") not in ("image", "table", "game_placeholder")]
+    # game_placeholder / interactive_game 由 render_game_placeholders 统一处理
+    text_elems  = [e for e in elements
+                   if e.get("type") not in ("image", "table")
+                   and e.get("type") not in _GAME_ELEM_TYPES]
     has_img     = bool(img_elems)
 
     # 图片放右列（40% 宽），文字占左 58%（有图时）
