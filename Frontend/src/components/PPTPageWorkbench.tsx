@@ -299,27 +299,27 @@ export default function PPTPageWorkbench({
     markDirty();
   };
   const addElement = (type: string) => {
+    // 游戏占位符：直接切换到 game tab，不创建空壳本地元素
+    if (type === 'interactive_game') {
+      setActiveTab('game');
+      return;
+    }
     const def = TYPE_MAP[type] ?? ELEMENT_TYPES[0];
     const id = uid();
     const isImg   = (def as any).isImage;
     const isTable = (def as any).isTable;
-    const isGame  = (def as any).isGame;
     const newEl: EditableEl = {
       element_id: id, type: def.type, position: def.defaultPosition,
-      textLines: (isImg || isGame) ? [] : [...(def.defaultContent as any)],
+      textLines: isImg ? [] : [...(def.defaultContent as any)],
       alt:   isImg   ? '' : undefined,
       query: isImg   ? '' : undefined,
       time:  (def as any).hasTime ? '' : undefined,
-      // 游戏占位符专属
-      game_id:    isGame ? undefined : undefined,
-      game_title: isGame ? undefined : undefined,
-      share_url:  isGame ? undefined : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
-        content: (isImg || isGame) ? undefined : def.defaultContent,
-        alt: (isImg || isGame) ? '' : undefined } as any,
+        content: isImg ? undefined : def.defaultContent,
+        alt: isImg ? '' : undefined } as any,
     };
     if (isTable) {
-      newEl.headers = (def as any).defaultHeaders ?? ['列1', '列2', '列3'];
+      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
       newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
     }
     setElements(prev => [...prev, newEl]);
@@ -555,14 +555,91 @@ export default function PPTPageWorkbench({
               <div className={styles.elementList}>
                 {elements.map((el, idx) => {
                   const def = TYPE_MAP[el.type];
-                  const isInteractive = ['interactive_game', 'animation', 'html5'].includes(el.type);
+                  // 只有真正无法编辑的动画/html5 才简单只读展示
+                  const isInteractive = ['animation', 'html5'].includes(el.type);
                   const useItemEditor = (def as any)?.useItemEditor ?? false;
+                  // game_placeholder 和 interactive_game 一并单独处理
+                  const isGameEl = el.type === 'game_placeholder' || el.type === 'interactive_game';
 
                   if (isInteractive) {
                     return (
                       <div key={el.element_id} className={clsx(styles.elementRow, styles.elementReadonly)}>
                         <span className={styles.elementTypeBadge}>{el.type}</span>
                         <span className={styles.elementReadonlyHint}>交互/动画元素，暂不支持文本编辑</span>
+                      </div>
+                    );
+                  }
+
+                  // ── 游戏占位符元素：独立渲染为已插入卡片 + 可删除 ──
+                  if (isGameEl) {
+                    const gameTitle = (el as any).game_title || (el._raw as any)?.game_title || '互动游戏';
+                    const gameUrl   = (el as any).game_url  || (el._raw as any)?.game_url
+                                   || (el as any).share_url || (el._raw as any)?.game_url || '';
+                    const typeLabel = (el as any).type_label || (el._raw as any)?.type_label || '';
+                    const hasGame   = !!(gameTitle && gameTitle !== '互动游戏' || gameUrl);
+                    return (
+                      <div
+                        key={el.element_id}
+                        data-element-row
+                        className={clsx(
+                          styles.elementRow,
+                          dragOverIdx === idx && styles.elementRowDropTarget,
+                        )}
+                        onDragOver={e => handleDragOver(e, idx)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={() => handleDrop(idx)}
+                      >
+                        <div
+                          className={styles.elementDragHandle}
+                          draggable
+                          onDragStart={e => handleDragStart(idx, e)}
+                          onDragEnd={handleDragEnd}
+                          title="拖拽排序"
+                        >
+                          <GripVertical size={14} />
+                        </div>
+                        <div className={styles.elementMain}>
+                          {hasGame ? (
+                            <div className={styles.gameInsertedCard}>
+                              <div className={styles.gameInsertedCardLeft}>
+                                <Gamepad2 size={14} className={styles.gameInsertedIcon} />
+                                <div className={styles.gameInsertedInfo}>
+                                  <span className={styles.gameInsertedTitle}>{gameTitle}</span>
+                                  {typeLabel && <span className={styles.gameInsertedBadge}>{typeLabel}</span>}
+                                  {gameUrl && (
+                                    <a
+                                      className={styles.gameInsertedUrl}
+                                      href={gameUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                    >{gameUrl}</a>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                className={styles.gameReSelectBtn}
+                                onClick={() => setActiveTab('game')}
+                                title="切换到游戏 Tab 重新选择"
+                              >
+                                <Gamepad2 size={11} /> 再次插入
+                              </button>
+                            </div>
+                          ) : (
+                            <div className={styles.gameUnlinkedHint}>
+                              <Gamepad2 size={15} style={{ opacity: 0.35 }} />
+                              <span>尚未关联游戏 — </span>
+                              <button
+                                className={styles.gameGoTabBtn}
+                                onClick={() => setActiveTab('game')}
+                              >
+                                前往游戏 Tab 插入
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <button className={styles.elementDeleteBtn} onClick={() => removeElement(idx)} title="删除游戏占位符">
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     );
                   }
