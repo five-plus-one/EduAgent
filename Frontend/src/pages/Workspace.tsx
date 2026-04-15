@@ -930,6 +930,7 @@ export default function Workspace() {
                           background: appliedThemeColors
                             ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
                             : undefined,
+                          color: appliedThemeColors ? '#fff' : undefined,
                         }}
                       >
                         {appliedThemeName}
