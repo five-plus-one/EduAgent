@@ -927,17 +927,22 @@ def save_manual_slide_edit(
         slide["title"] = body.title
 
     if body.elements is not None:
-        # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
+        # ── 保留原图片元素的 resolved 字段 ────────────────────────────────────
         old_resolved: dict = {
             e["element_id"]: e.get("resolved")
             for e in slide.get("elements", [])
             if e.get("type") == "image"
         }
-        # 保留 DB 中已有的 game_placeholder 元素（前端编辑器不感知这类元素）
-        db_game_placeholders: list = [
-            e for e in slide.get("elements", [])
+        # ── 索引 DB 中的 game_placeholder（以 element_id 为 key）──────────────
+        # game_placeholder 的 game_url / game_id / game_title 等字段
+        # 仅由 add_game_placeholder 端点写入，前端不负责维护这些字段；
+        # PUT 时只允许前端更新 position，其余游戏字段始终以 DB 版本为准。
+        db_game_index: dict = {
+            e["element_id"]: e
+            for e in slide.get("elements", [])
             if e.get("type") == "game_placeholder"
-        ]
+        }
+
         new_elements = []
         sent_elem_ids = set()
         for elem in body.elements:
@@ -946,17 +951,30 @@ def save_manual_slide_edit(
                 import uuid as _uuid
                 elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
             sent_elem_ids.add(elem["element_id"])
+
             if elem.get("type") == "image":
+                # 图片：resolved 始终以 DB 值为准
                 db_res = old_resolved.get(elem["element_id"])
                 if db_res:
                     elem["resolved"] = db_res
                 elif "resolved" in elem:
                     del elem["resolved"]
+
+            elif elem.get("type") == "game_placeholder":
+                # 游戏占位符：DB 版本为基准，只允许前端覆盖 position
+                db_gp = db_game_index.get(elem["element_id"])
+                if db_gp:
+                    new_position = elem.get("position", db_gp.get("position", "full"))
+                    elem = dict(db_gp)          # 以 DB 记录为准（含 game_url 等）
+                    elem["position"] = new_position  # 允许前端调整位置
+
             new_elements.append(elem)
-        # 追加前端未提交的 game_placeholder（避免「只懂编辑内容的」PUT 把它删掉）
-        for gp in db_game_placeholders:
-            if gp.get("element_id") not in sent_elem_ids:
+
+        # 前端未提交的 game_placeholder（老编辑器不感知）→ 原样保留
+        for eid, gp in db_game_index.items():
+            if eid not in sent_elem_ids:
                 new_elements.append(gp)
+
         slide["elements"] = new_elements
 
 
