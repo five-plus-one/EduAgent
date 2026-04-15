@@ -479,6 +479,30 @@
   background-color: var(--bg-glass-hover);
 }
 
+/* ── 切换主题按钮：带渐变边框与高亮色彩 ── */
+.themeBtn {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04)) !important;
+  color: #6366f1 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+
+.themeBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.10)) !important;
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.2) !important;
+  transform: translateY(-1px);
+}
+
+.themeBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .tabsContent {
   flex: 1;
   overflow-y: auto;

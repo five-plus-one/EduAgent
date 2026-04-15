@@ -23,7 +23,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -114,9 +114,15 @@ export default function Workspace() {
   const [anyImageSaving, setAnyImageSaving] = useState(false);
   // ── PPT 主题选色器 ────────────────────────────────────
   const [showThemePicker, setShowThemePicker] = useState(false);
+  /** 'export': 打开导出流；'apply': 打开实时预览应用流 */
+  const [themePickerMode, setThemePickerMode] = useState<'export' | 'apply'>('export');
   /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
   const [pendingCustomColors, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
+  /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
+  const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(null);
+  /** 应用的主题名称（不导出，仅用于显示） */
+  const [appliedThemeName, setAppliedThemeName] = useState<string | null>(null);
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -721,12 +727,44 @@ export default function Workspace() {
                 )}
               </Tabs.Trigger>
             </Tabs.List>
-            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
+            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {pages.length > 0 && (
                 <>
+                  {/* 切换主题按钮：应用到预览，不导出 */}
+                  <button
+                    className={clsx('button-base', styles.exportBtn, styles.themeBtn)}
+                    onClick={() => {
+                      setThemePickerMode('apply');
+                      setShowThemePicker(true);
+                    }}
+                    disabled={sessionId === 'new'}
+                    title="一键切换 PPT 预览主题"
+                    style={{ position: 'relative' }}
+                  >
+                    <Palette size={15} />
+                    <span>切换主题</span>
+                    {appliedThemeName && (
+                      <span style={{
+                        fontSize: '9px', fontWeight: 700, padding: '1px 5px',
+                        borderRadius: '99px', marginLeft: '2px',
+                        background: appliedThemeColors
+                          ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
+                          : 'rgba(99,102,241,0.15)',
+                        color: appliedThemeColors ? '#fff' : '#6366f1',
+                        letterSpacing: '0.02em',
+                        maxWidth: '70px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>{appliedThemeName}</span>
+                    )}
+                  </button>
                   <button
                     className={clsx('button-base', styles.exportBtn)}
-                    onClick={() => setShowThemePicker(true)}
+                    onClick={() => {
+                      setThemePickerMode('export');
+                      setShowThemePicker(true);
+                    }}
                     disabled={isExporting || anyImageSaving || sessionId === 'new'}
                     title={anyImageSaving ? '图片保存中，请稍候再导出' : '选择主题并导出 PPT'}
                   >
@@ -891,7 +929,16 @@ export default function Workspace() {
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
-            <div className={styles.canvasArea}>
+            <div
+              className={styles.canvasArea}
+              style={appliedThemeColors ? {
+                '--ppt-bg':        appliedThemeColors.bg_color,
+                '--ppt-primary':   appliedThemeColors.primary,
+                '--ppt-secondary': appliedThemeColors.secondary,
+                '--ppt-accent':    appliedThemeColors.accent,
+                '--ppt-text':      appliedThemeColors.text_color,
+              } as React.CSSProperties : {}}
+            >
               {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
               {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
@@ -1120,14 +1167,30 @@ export default function Workspace() {
       {/* ── PPT 主题选色器 Overlay ── */}
       {showThemePicker && (
         <ThemePicker
+          mode={themePickerMode}
           selectedKey={pendingThemeKey}
           onSelect={setPendingThemeKey}
-          onConfirm={(themeKey, customColors) => {
+          onConfirm={(themeKey, customColors, resolvedColors) => {
             setShowThemePicker(false);
-            setPendingCustomColors(customColors);
-            // 自定义主题传 custom_key，后端需自定义颜色时通过 customColors 单独透传
-            const keyToSend = themeKey === CUSTOM_KEY ? undefined : (themeKey ?? undefined);
-            exportCourseware(keyToSend, customColors);
+            if (themePickerMode === 'apply') {
+              // 一键应用主题到预览区，不导出
+              if (resolvedColors) setAppliedThemeColors(resolvedColors);
+              // 记录主题名称用于按钮显示
+              if (themeKey === CUSTOM_KEY) {
+                setAppliedThemeName('自定义');
+              } else if (themeKey === null) {
+                setAppliedThemeName('自动');
+              } else {
+                setAppliedThemeName(themeKey);
+              }
+              // 同步记录到 pendingThemeKey/CustomColors，下次导出时自动使用
+              setPendingCustomColors(customColors);
+            } else {
+              // 导出流
+              setPendingCustomColors(customColors);
+              const keyToSend = themeKey === CUSTOM_KEY ? undefined : (themeKey ?? undefined);
+              exportCourseware(keyToSend, customColors);
+            }
           }}
           onCancel={() => setShowThemePicker(false)}
         />

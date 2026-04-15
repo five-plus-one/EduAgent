@@ -1,12 +1,11 @@
 /**
  * ThemePicker v2 — PPT 主题选择器（全功能版）
  *
- * 新增：
- * - 一键快速切换：主题网格直接单击即选中并可快速应用
- * - 自定义主题编辑器：5 个颜色字段 + 颜色 picker 原生控件
- * - 实时 PPT 幻灯片预览：用 canvas 渲染主题效果
- * - 持久化：选中 key / 自定义颜色写入 localStorage
- * - 紧凑快捷入口模式（compact=true）：仅显示色块行 + 自定义按钮，无弹框
+ * 支持两种模式：
+ * - mode='export'（默认）：确认按钮「确定并导出」，触发 PPT 导出
+ * - mode='apply'：确认按钮「应用主题」，仅将颜色注入预览区 CSS 变量，不导出
+ *
+ * onConfirm 新增第 3 个参数 resolvedColors，父组件可直接用于注入 CSS 变量。
  */
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { getThemes, type PptTheme } from '../utils/api';
@@ -44,8 +43,16 @@ interface ThemePickerProps {
   /** 当前选中的主题 key（null 表示「自动」，CUSTOM_KEY 表示自定义）*/
   selectedKey: string | null;
   onSelect: (key: string | null) => void;
-  onConfirm: (key: string | null, customColors?: CustomThemeColors) => void;
+  /**
+   * 确认回调。
+   * @param key - 主题 key（null=自动，CUSTOM_KEY=自定义）
+   * @param customColors - 仅当 key === CUSTOM_KEY 时有值
+   * @param resolvedColors - 解析后的完整颜色对象（任何模式均携带），父组件可直接注入 CSS 变量
+   */
+  onConfirm: (key: string | null, customColors?: CustomThemeColors, resolvedColors?: CustomThemeColors) => void;
   onCancel: () => void;
+  /** 'export'（默认）：确认即导出；'apply'：确认只应用主题到预览，不导出 */
+  mode?: 'export' | 'apply';
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -229,7 +236,7 @@ function ThemeChip({
 // ─────────────────────────────────────────────────────────────────
 
 export default function ThemePicker({
-  selectedKey, onSelect, onConfirm, onCancel,
+  selectedKey, onSelect, onConfirm, onCancel, mode = 'export',
 }: ThemePickerProps) {
   const [themes, setThemes] = useState<PptTheme[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,7 +284,25 @@ export default function ThemePicker({
   const handleConfirm = () => {
     const key = tab === 'custom' ? CUSTOM_KEY : selectedKey;
     saveTheme(key);
-    onConfirm(key, tab === 'custom' ? customColors : undefined);
+
+    // 解析当前选中的完整颜色，供父组件直接注入 CSS 变量
+    const AUTO_COLORS: CustomThemeColors = {
+      bg_color: '#F8FAFC', primary: '#0F172A', secondary: '#64748B',
+      accent: '#3B82F6', text_color: '#1E293B',
+    };
+    let resolvedColors: CustomThemeColors;
+    if (tab === 'custom') {
+      resolvedColors = { ...customColors };
+    } else if (key === null) {
+      resolvedColors = AUTO_COLORS;
+    } else {
+      const found = themes.find(t => t.key === key);
+      resolvedColors = found
+        ? { bg_color: found.bg_color, primary: found.primary, secondary: found.secondary, accent: found.accent, text_color: found.text_color }
+        : AUTO_COLORS;
+    }
+
+    onConfirm(key, tab === 'custom' ? customColors : undefined, resolvedColors);
   };
 
   // 当前预览颜色
@@ -439,7 +464,7 @@ export default function ThemePicker({
             disabled={loading && tab === 'preset'}
           >
             <Zap size={13} />
-            确定并导出
+            {mode === 'apply' ? '应用主题' : '确定并导出'}
           </button>
         </div>
       </div>
