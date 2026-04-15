@@ -1,6 +1,6 @@
 import uuid
 import os
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -20,13 +20,13 @@ class IterateWordRequest(BaseModel):
 
 
 class ReplaceImageRequest(BaseModel):
-    """PATCH /sessions/{id}/courseware/slides/{page}/elements/{elem}/image 的请求体"""
+    """ PATCH /sessions/{id}/courseware/slides/{page}/elements/{elem}/image 的请求体"""
     image_id: str  # 用户图片库中的 image_id
 
 
 class ManualSlideEditRequest(BaseModel):
     """
-    PUT /sessions/{id}/courseware/slides/{page_index} 的请求体。
+    PUT /sessions/{id}/courseware/slides/{page_index} 的请求体。
     前端手动编辑对话框关闭时调用，将当前页的完整状态持久化到 DB。
     字段均可省略，只传实际改动了的部分。
     """
@@ -42,6 +42,15 @@ class ApplyLayoutRequest(BaseModel):
     """
     layout_type: str  # cover | minimal_list | two_column | stat_callout | timeline | full_content
 
+
+class AddGameElemRequest(BaseModel):
+    """
+    POST /sessions/{id}/courseware/slides/{page_index}/elements/game 的请求体。
+    game_id 和 game_url 必须至少提供一个。
+    """
+    game_id:  Optional[str] = None   # 会话内游戏的 game_id（game_xxxxxxxx）
+    game_url: Optional[str] = None   # 任意游戏 URL（与 game_id 二选一）
+    position: str = "full"           # element position，默认 full
 
 router = APIRouter()
 
@@ -1096,4 +1105,161 @@ def apply_layout_template(
         "layout_type": target_layout,         # 实际应用的布局（可能已被映射）
         "original_layout_type": body.layout_type,  # 前端请求的布局
         "slide": slide,                       # 完整更新后的页面数据
+    }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 游戏占位符插入：POST /sessions/{id}/courseware/slides/{page_index}/elements/game
+# ──────────────────────────────────────────────────────────────────────────────
+
+@router.post("/sessions/{session_id}/courseware/slides/{page_index}/elements/game")
+def add_game_placeholder(
+    session_id: str,
+    page_index: int,
+    body: AddGameElemRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    向指定 PPT 页面插入一个 game_placeholder 元素。
+
+    - 传 game_id（会话内游戏）：自动解析游戏标题/类型，并创建或复用永久公开分享链接
+    - 传 game_url（任意 URL）：尝试从 URL 提取 game_id，若无法提取则直接使用 URL
+    - game_id 和 game_url 至少提供一个
+
+    返回值：
+      element_id  — 新插入元素的 ID（game_xxxxxxxx）
+      element     — 完整元素对象
+      slide       — 更新后的完整页面数据（含所有元素）
+    """
+    import re as _re
+    import secrets
+    import string
+    import json as _json
+    from sqlalchemy.orm.attributes import flag_modified
+    from app.models.game import Game
+    from app.models.game_share import GameShare
+    from app.services.game_generator import GAME_TYPE_META
+    from app.core.config import settings
+
+    if not body.game_id and not body.game_url:
+        raise HTTPException(status_code=400, detail="game_id 或 game_url 至少提供一个")
+
+    # 1. 验证会话归属
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id,
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 2. 解析 game_id（若仅传入了 URL）
+    resolved_game_id = body.game_id
+    resolved_game_url = body.game_url or ""
+
+    if not resolved_game_id and body.game_url:
+        m = _re.search(r'/games/(game_[a-f0-9]{8})/(?:preview|play)', body.game_url)
+        if m:
+            resolved_game_id = m.group(1)
+
+    # 3. 查询游戏元数据 & 创建/复用公开分享链接
+    game_title = "互动游戏"
+    game_type  = "custom"
+    type_label = "互动游戏"
+
+    if resolved_game_id:
+        game = db.query(Game).filter(
+            Game.id == resolved_game_id,
+            Game.user_id == current_user.id,
+        ).first()
+        if game:
+            game_title = game.title
+            game_type  = game.game_type
+            type_label = GAME_TYPE_META.get(game_type, {}).get("label", game_type)
+
+            if game.status == "completed":
+                # 复用已有的永久分享链接，或新建一个
+                _ALPHA = string.ascii_letters + string.digits
+                existing = db.query(GameShare).filter(
+                    GameShare.game_id == resolved_game_id,
+                    GameShare.created_by == current_user.id,
+                    GameShare.is_active == True,
+                    GameShare.expires_at == None,  # noqa: E711
+                ).first()
+                if existing:
+                    resolved_game_url = f"{settings.SERVER_URL}/s/{existing.code}"
+                else:
+                    for _ in range(10):
+                        code = "".join(secrets.choice(_ALPHA) for _ in range(6))
+                        if not db.query(GameShare).filter(GameShare.code == code).first():
+                            break
+                    share = GameShare(
+                        code=code,
+                        game_id=resolved_game_id,
+                        created_by=current_user.id,
+                        expires_at=None,
+                    )
+                    db.add(share)
+                    db.commit()
+                    resolved_game_url = f"{settings.SERVER_URL}/s/{code}"
+            else:
+                # 游戏尚未完成，记录 preview URL 作占位
+                if not resolved_game_url:
+                    resolved_game_url = f"{settings.SERVER_URL}/api/v1/games/{resolved_game_id}/preview"
+
+    # 4. 构造 game_placeholder 元素
+    elem_id = f"game_{uuid.uuid4().hex[:8]}"
+    new_elem = {
+        "element_id": elem_id,
+        "type":       "game_placeholder",
+        "position":   body.position,
+        "content":    [],
+        "is_accent":  False,
+        "game_id":    resolved_game_id or "",
+        "game_url":   resolved_game_url,
+        "game_title": game_title,
+        "game_type":  game_type,
+        "type_label": type_label,
+    }
+
+    # 5. 追加元素到目标 slide
+    cw = db.query(Courseware).filter(Courseware.session_id == session_id).first()
+    if not cw or not cw.ppt_data:
+        raise HTTPException(status_code=404, detail="No courseware found for this session")
+
+    cw_data = cw.ppt_data
+    if isinstance(cw_data, str):
+        try:
+            cw_data = _json.loads(cw_data)
+        except Exception:
+            cw_data = {}
+    if not isinstance(cw_data, dict):
+        cw_data = {}
+
+    slides: list = list(cw_data.get("ppt_data", []))
+    idx = next((i for i, s in enumerate(slides) if s.get("page_index") == page_index), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail=f"Slide {page_index} not found")
+
+    slide = dict(slides[idx])
+    slide["elements"] = list(slide.get("elements", [])) + [new_elem]
+    slides[idx] = slide
+
+    new_data = dict(cw_data)
+    new_data["ppt_data"] = slides
+    cw.ppt_data = new_data
+    flag_modified(cw, "ppt_data")
+    db.commit()
+
+    import logging as _log
+    _log.getLogger(__name__).info(
+        f"[game_placeholder] inserted elem={elem_id} into session={session_id} page={page_index} "
+        f"game_id={resolved_game_id} url={resolved_game_url}"
+    )
+
+    return {
+        "page_index": page_index,
+        "element_id": elem_id,
+        "element":    new_elem,
+        "slide":      slide,
     }

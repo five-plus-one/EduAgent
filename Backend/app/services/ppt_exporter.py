@@ -2200,8 +2200,128 @@ def _render_image_placeholder(slide, elem: dict, col_x: float, col_w: float, col
 
 
 # ──────────────────────────────────────────────
-# Table element renderer
+# Hyperlink helper (OOXML 直接操作)
 # ──────────────────────────────────────────────
+
+def _add_run_hyperlink(run, url: str, slide) -> None:
+    """将 URL 绑定到一个文本 run 上，导出成点击跨页跳转超链接。"""
+    try:
+        R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        HYP_RT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+        rId = slide.part.relate_to(url, HYP_RT, is_external=True)
+        rPr = run._r.find(qn("a:rPr"))
+        if rPr is None:
+            rPr = etree.SubElement(run._r, qn("a:rPr"))
+            run._r.insert(0, rPr)
+        hl = etree.SubElement(rPr, qn("a:hlinkClick"))
+        hl.set(f"{{{R_NS}}}id", rId)
+    except Exception as _he:
+        logger.warning(f"[game_placeholder] hyperlink attach failed: {_he}")
+
+
+# ──────────────────────────────────────────────
+# Game placeholder renderer
+# ──────────────────────────────────────────────
+
+def render_game_placeholders(slide, page: dict, colors: dict) -> None:
+    """
+    在每页 layout renderer 后追加调用。
+    扫描 page.elements 中所有 type=game_placeholder 元素，
+    在满幻灯片底部游戏卡片区域排列渲染。
+    """
+    from pptx.util import Inches, Pt
+    from pptx.enum.text import PP_ALIGN
+
+    game_elems = [e for e in page.get("elements", []) if e.get("type") == "game_placeholder"]
+    if not game_elems:
+        return
+
+    acc  = colors["acc"]
+    bg   = colors["bg"]
+    txt  = colors["txt"]
+    pri  = colors["pri"]
+    dark = _is_dark(colors)
+
+    # 种第区域：幻灯片底部——高度 1.2 in，充充幻灯片可用宽度
+    ZONE_Y = SLIDE_H - 1.55
+    ZONE_H = 1.30
+    ZONE_X = MARGIN_LEFT
+    ZONE_W = CONTENT_W
+
+    card_w  = min(ZONE_W / max(len(game_elems), 1) - 0.15, 3.8)
+    gap     = (ZONE_W - card_w * len(game_elems)) / max(len(game_elems) + 1, 2)
+
+    card_bg  = blend(acc, bg, 0.20) if dark else blend(acc, RGBColor(0xFF, 0xFF, 0xFF), 0.18)
+    brd      = acc
+
+    for i, elem in enumerate(game_elems):
+        cx = ZONE_X + gap + i * (card_w + gap)
+        cy = ZONE_Y
+
+        game_url   = elem.get("game_url", "")
+        game_title = elem.get("game_title", elem.get("title", "互动游戏"))
+        type_label = elem.get("type_label", "互动游戏")
+
+        # 卡片背景
+        rect_rounded(slide, cx, cy, card_w, ZONE_H, card_bg, brd)
+        line_h(slide, cx, cy, card_w, 0.055, acc)   # 顶部强调条
+
+        # 🎮 图标 + 底部 type_label 右对齐
+        icon_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + 0.08),
+            Inches(0.45),      Inches(0.45),
+        )
+        icon_tf = icon_tb.text_frame
+        ip = icon_tf.paragraphs[0]
+        ir = ip.add_run()
+        ir.text = "🎮"
+        ir.font.size = Pt(22)
+
+        # type_label 小字（幻灯版右上角）
+        lbl_tb = slide.shapes.add_textbox(
+            Inches(cx + card_w - 1.3), Inches(cy + 0.08),
+            Inches(1.20),              Inches(0.30),
+        )
+        lbl_tf = lbl_tb.text_frame
+        lp = lbl_tf.paragraphs[0]
+        lp.alignment = PP_ALIGN.RIGHT
+        lr = lp.add_run()
+        lr.text = type_label
+        lr.font.size   = Pt(9)
+        lr.font.color.rgb = blend(acc, bg, 0.55)
+
+        # 游戏标题（可点击超链接）
+        title_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + 0.50),
+            Inches(card_w - 0.24), Inches(0.62),
+        )
+        title_tf = title_tb.text_frame
+        title_tf.word_wrap = True
+        tp = title_tf.paragraphs[0]
+        tr = tp.add_run()
+        tr.text = game_title
+        tr.font.size  = Pt(13)
+        tr.font.bold  = True
+        tr.font.color.rgb = acc
+        if game_url:
+            _add_run_hyperlink(tr, game_url, slide)
+
+        # 点击提示
+        hint_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + ZONE_H - 0.40),
+            Inches(card_w - 0.24), Inches(0.32),
+        )
+        hint_tf = hint_tb.text_frame
+        hp = hint_tf.paragraphs[0]
+        hr = hp.add_run()
+        hr.text = "点击打开游戏 →" if game_url else "游戏链接待生成"
+        hr.font.size = Pt(9)
+        hr.font.italic = True
+        hr.font.color.rgb = blend(acc, bg, 0.52)
+        if game_url:
+            _add_run_hyperlink(hr, game_url, slide)
+
+
 
 def render_table_element(slide, elem: dict, colors: dict,
                          x: float, y: float, w: float) -> float:
@@ -2910,6 +3030,8 @@ def run_export_task(task_id: str, session_id: str, theme_key: str | None = None)
                 layout_type = page.get("layout_type", "minimal_list")
                 renderer = LAYOUT_RENDERERS.get(layout_type, render_default)
                 renderer(slide, page, colors)
+                # 游戏占位符升并在幻灯片底部渲染（各布局共用）
+                render_game_placeholders(slide, page, colors)
 
             task.stage    = "saving_file"
             task.progress = 90
