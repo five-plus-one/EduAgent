@@ -1245,3 +1245,129 @@
 .gamePickerName { flex: 1; font-weight: 600; }
 .gamePickerType { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
 .gamePickerCheck { color: #22c55e; flex-shrink: 0; }
+
+/* ── 游戏 Tab 新式插入流 UI ──────────────────────────── */
+
+/* 区块容器：方案A / 方案B */
+.gameInsertBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.07));
+  border-radius: 11px;
+}
+
+.gameInsertBlockTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  letter-spacing: 0.01em;
+}
+
+/* 插入按钮：主色渐变 */
+.gameInsertBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.15s, box-shadow 0.15s, transform 0.1s;
+  box-shadow: 0 3px 12px rgba(99,102,241,0.3);
+  margin-top: 4px;
+}
+.gameInsertBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 18px rgba(99,102,241,0.4);
+}
+.gameInsertBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* 分隔线 "or" */
+.gameInsertSep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--text-tertiary, #94a3b8);
+  font-size: 11.5px;
+}
+.gameInsertSep::before,
+.gameInsertSep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-glass, rgba(0,0,0,0.08));
+}
+
+/* URL 输入行 */
+.gameUrlRow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.gameUrlInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.1));
+  background: var(--bg-primary, #fff);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary, #0f172a);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.gameUrlInput:focus { border-color: rgba(99,102,241,0.5); }
+.gameUrlInput::placeholder { color: var(--text-tertiary, #94a3b8); font-family: inherit; font-size: 11.5px; }
+
+/* 插入成功提示条 */
+.gameInsertSuccess {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  background: rgba(34,197,94,0.07);
+  border: 1.5px solid rgba(34,197,94,0.25);
+  border-radius: 10px;
+  color: #16a34a;
+  font-size: 12.5px;
+  animation: slideInDown 0.2s ease;
+}
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.gameInsertSuccess strong { font-weight: 800; }
+
+.gameInsertSuccessTitle {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-top: 3px;
+}
+.gameInsertSuccessUrl {
+  display: block;
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #6366f1;
+  margin-top: 2px;
+  text-decoration: none;
+  word-break: break-all;
+}
+.gameInsertSuccessUrl:hover { text-decoration: underline; }
+
+/* gamePickCheck — 选中勾 (在 gameInsertBlock 内的列表项用) */
+.gamePickCheck { color: #22c55e; flex-shrink: 0; margin-left: auto; }
