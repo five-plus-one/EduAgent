@@ -28,7 +28,7 @@ import { clsx } from 'clsx';
 import styles from './PPTPageWorkbench.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 import { apiClient, resolveImagePreviewUrl } from '../utils/api';
-import { listSessionGames, createShareLink, type GameMeta } from '../utils/gamesApi';
+import { listSessionGames, insertGameElement, type GameMeta } from '../utils/gamesApi';
 
 /* ─── 公共类型 ──────────────────────────────────────────────── */
 
@@ -232,10 +232,14 @@ export default function PPTPageWorkbench({
   const [gameList, setGameList]               = useState<GameMeta[]>([]);
   const [gameListLoading, setGameListLoading] = useState(false);
   const [selectedGameId, setSelectedGameId]   = useState<string | null>(null);
-  const [gameShareUrl, setGameShareUrl]       = useState<string | null>(null);
-  const [gameCopied, setGameCopied]           = useState(false);
-  const [gameSharingLoading, setGameSharingLoading] = useState(false);
-  const [gameShareError, setGameShareError]   = useState<string | null>(null);
+  /** 粘贴URL方案输入框 */
+  const [gameUrlInput, setGameUrlInput]       = useState('');
+  /** 插入中状态 */
+  const [gameInsertLoading, setGameInsertLoading] = useState(false);
+  /** 插入错误消息 */
+  const [gameInsertError, setGameInsertError] = useState<string | null>(null);
+  /** 最近一次插入成功的 element 信息（用于成功状态展示）*/
+  const [lastInsertedGame, setLastInsertedGame] = useState<{ title: string; url: string } | null>(null);
 
   /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
@@ -1029,66 +1033,123 @@ export default function PPTPageWorkbench({
         {activeTab === 'game' && (
           <div className={styles.body}>
             <section className={styles.section}>
-              <label className={styles.sectionLabel}><Gamepad2 size={13} /> 选择要插入的游戏</label>
+              <label className={styles.sectionLabel}><Gamepad2 size={13} /> 插入游戏到当前幻灯片</label>
               <p className={styles.aiHint}>
-                生成短链接后，可以在 PPT 幻灯片中插入超链接，学生点击即可在浏览器中玩游戏。
+                选择本课已生成的游戏，或粘贴游戏链接，后端将自动插入可点击的游戏卡片到此页底部。
               </p>
 
-              {gameListLoading ? (
-                <div className={styles.gameLoadingRow}>
-                  <Loader2 size={16} className={styles.spinIcon} />
-                  <span>加载游戏列表...</span>
-                </div>
-              ) : gameList.length === 0 ? (
-                <div className={styles.gameEmptyHint}>本节课还没有生成任何游戏</div>
-              ) : (
-                <div className={styles.gamePickList}>
-                  {gameList.map(g => (
-                    <button
-                      key={g.game_id}
-                      className={`${styles.gamePickItem} ${selectedGameId === g.game_id ? styles.gamePickItemActive : ''}`}
-                      onClick={() => { setSelectedGameId(g.game_id); setGameShareUrl(null); setGameCopied(false); }}
-                    >
-                      <Gamepad2 size={13} />
-                      <div className={styles.gamePickName}>{g.title}</div>
-                      <div className={styles.gamePickType}>{g.type_label}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {selectedGameId && !gameShareUrl && (
-                <button
-                  className={styles.gameGenShareBtn}
-                  disabled={gameSharingLoading}
-                  onClick={handleGameShare}
-                >
-                  {gameSharingLoading
-                    ? <><Loader2 size={13} className={styles.spinIcon} /> 生成中...</>
-                    : <><Share2 size={13} /> 生成分享短链接</>
-                  }
-                </button>
-              )}
-
-              {gameShareError && (
-                <p className={styles.gameShareError}>{gameShareError}</p>
-              )}
-
-              {gameShareUrl && (
-                <div className={styles.gameShareResult}>
-                  <div className={styles.gameShareUrlBox}>
-                    <code className={styles.gameShareUrlText}>{gameShareUrl}</code>
+              {/* 成功提示 */}
+              {lastInsertedGame && !gameInsertLoading && (
+                <div className={styles.gameInsertSuccess}>
+                  <Check size={14} />
+                  <div>
+                    <strong>插入成功！</strong><br />
+                    <span className={styles.gameInsertSuccessTitle}>{lastInsertedGame.title}</span>
+                    <a className={styles.gameInsertSuccessUrl} href={lastInsertedGame.url} target="_blank" rel="noreferrer">
+                      {lastInsertedGame.url}
+                    </a>
                   </div>
-                  <button
-                    className={`${styles.gameCopyBtn} ${gameCopied ? styles.gameCopyBtnDone : ''}`}
-                    onClick={handleCopyGameShare}
-                  >
-                    {gameCopied ? <><Check size={13} /> 已复制!</> : <><Copy size={13} /> 复制短链接</>}
-                  </button>
-                  <p className={styles.gameShareTip}>
-                    将上方链接添加为 PPT 内超链接，学生单击就能直接在浏览器中玩游戏
-                  </p>
                 </div>
+              )}
+
+              {/* 方案A：从游戏列表选择 */}
+              <div className={styles.gameInsertBlock}>
+                <span className={styles.gameInsertBlockTitle}>🎮 从本课游戏中选择</span>
+                {gameListLoading ? (
+                  <div className={styles.gameLoadingRow}>
+                    <Loader2 size={16} className={styles.spinIcon} />
+                    <span>加载游戏列表...</span>
+                  </div>
+                ) : gameList.filter(g => g.status === 'completed').length === 0 ? (
+                  <div className={styles.gameEmptyHint}>
+                    {gameList.length === 0 ? '本节课还没有生成任何游戏' : '暂无已完成的游戏'}
+                  </div>
+                ) : (
+                  <div className={styles.gamePickList}>
+                    {gameList.filter(g => g.status === 'completed').map(g => (
+                      <button
+                        key={g.game_id}
+                        className={`${styles.gamePickItem} ${selectedGameId === g.game_id ? styles.gamePickItemActive : ''}`}
+                        onClick={() => {
+                          setSelectedGameId(selectedGameId === g.game_id ? null : g.game_id);
+                          setGameInsertError(null);
+                          setLastInsertedGame(null);
+                        }}
+                      >
+                        <Gamepad2 size={13} />
+                        <div className={styles.gamePickName}>{g.title}</div>
+                        <div className={styles.gamePickType}>{g.type_label}</div>
+                        {selectedGameId === g.game_id && <Check size={13} className={styles.gamePickCheck} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedGameId && (
+                  <button
+                    className={styles.gameInsertBtn}
+                    disabled={gameInsertLoading}
+                    onClick={async () => {
+                      setGameInsertLoading(true);
+                      setGameInsertError(null);
+                      try {
+                        const res = await insertGameElement(sessionId, page.page_index, { game_id: selectedGameId });
+                        setLastInsertedGame({ title: res.element.game_title, url: res.element.game_url });
+                        // 用后端返回的完整 slide 数据刷新父组件
+                        onSave(res.slide as any);
+                      } catch (e: any) {
+                        setGameInsertError(e?.response?.data?.message || e?.message || '插入失败，请重试');
+                      } finally {
+                        setGameInsertLoading(false);
+                      }
+                    }}
+                  >
+                    {gameInsertLoading
+                      ? <><Loader2 size={13} className={styles.spinIcon} /> 插入中...</>
+                      : <><Gamepad2 size={13} /> 插入到当前幻灯片</>}
+                  </button>
+                )}
+              </div>
+
+              {/* 分隔线 */}
+              <div className={styles.gameInsertSep}><span>或</span></div>
+
+              {/* 方案B：粘贴 URL */}
+              <div className={styles.gameInsertBlock}>
+                <span className={styles.gameInsertBlockTitle}>🔗 粘贴游戏链接</span>
+                <div className={styles.gameUrlRow}>
+                  <input
+                    className={styles.gameUrlInput}
+                    placeholder="粘贴游戏预览 URL 或分享短链接..."
+                    value={gameUrlInput}
+                    onChange={e => { setGameUrlInput(e.target.value); setGameInsertError(null); setLastInsertedGame(null); }}
+                  />
+                  <button
+                    className={styles.gameInsertBtn}
+                    style={{ flexShrink: 0 }}
+                    disabled={!gameUrlInput.trim() || gameInsertLoading}
+                    onClick={async () => {
+                      setGameInsertLoading(true);
+                      setGameInsertError(null);
+                      try {
+                        const res = await insertGameElement(sessionId, page.page_index, { game_url: gameUrlInput.trim() });
+                        setLastInsertedGame({ title: res.element.game_title, url: res.element.game_url });
+                        setGameUrlInput('');
+                        onSave(res.slide as any);
+                      } catch (e: any) {
+                        setGameInsertError(e?.response?.data?.message || e?.message || '插入失败，请检查链接格式');
+                      } finally {
+                        setGameInsertLoading(false);
+                      }
+                    }}
+                  >
+                    {gameInsertLoading ? <Loader2 size={13} className={styles.spinIcon} /> : <Gamepad2 size={13} />}
+                    插入
+                  </button>
+                </div>
+              </div>
+
+              {gameInsertError && (
+                <p className={styles.gameShareError}>{gameInsertError}</p>
               )}
             </section>
           </div>
