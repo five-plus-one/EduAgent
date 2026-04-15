@@ -213,10 +213,11 @@ export default function GamePanel({
   const [selectedId, setSelectedId]       = useState<string | null>(null);
   const [previewTab, setPreviewTab]       = useState<'preview' | 'source'>('preview');
   
-  const [previewHtml, setPreviewHtml]           = useState<string | null>(null);
-  const [previewHtmlGameId, setPreviewHtmlGameId] = useState<string | null>(null); // 当前 previewHtml 对应的 game_id
-  const [previewLoading, setPreviewLoading]       = useState(false);
-  const [previewError, setPreviewError]           = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml]     = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError]   = useState<string | null>(null);
+  // ref 追踪「当前已为哪个 gameId 发起/完成了 preview 请求」，避免重复 fetch
+  const previewLoadedForRef = useRef<string | null>(null);
   const [sourceLoading, setSourceLoading]   = useState(false);
   const [sourceCode, setSourceCode]         = useState<string | null>(null);
   
@@ -240,17 +241,15 @@ export default function GamePanel({
   // ── 通知父组件 ───────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 生成完成后自动选中新游戏，并提前开始加载 HTML ────────────────
+  // ── 生成完成后自动选中新游戏 ────────────────────────────────────────
   useEffect(() => {
     if (completedGameId && generatingSessionId === sessionId) {
-      // 立即开始拉取 HTML，避免 selectedId 切换后的白屏等待
+      // 标记已为该 gameId 发起请求，配合 Effect B 的去重逻辑
+      previewLoadedForRef.current = completedGameId;
       setPreviewLoading(true);
       setPreviewError(null);
       fetchGameHtml(completedGameId)
-        .then(html => {
-          setPreviewHtml(html);
-          setPreviewHtmlGameId(completedGameId);
-        })
+        .then(html => setPreviewHtml(html))
         .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
         .finally(() => setPreviewLoading(false));
 
@@ -407,20 +406,20 @@ export default function GamePanel({
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
-      // 已经有对应 game 的 HTML（生成完成时提前拉取），跳过重复请求
-      if (previewHtmlGameId === selectedId && previewHtml) return;
+      // 已经在级漏为该 gameId（生成完成时提前拉取或已缓存），跳过
+      if (previewLoadedForRef.current === selectedId) return;
+      previewLoadedForRef.current = selectedId;
       setPreviewHtml(null);
-      setPreviewHtmlGameId(null);
       setPreviewError(null);
       setPreviewLoading(true);
       fetchGameHtml(selectedId)
-        .then(html => { setPreviewHtml(html); setPreviewHtmlGameId(selectedId); })
+        .then(html => setPreviewHtml(html))
         .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
         .finally(() => setPreviewLoading(false));
     } else if (previewTab === 'source' && !sourceCode) {
       loadSource(selectedId);
     }
-  }, [selectedId, previewTab, previewHtmlGameId, previewHtml, loadSource]);
+  }, [selectedId, previewTab, loadSource]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
@@ -431,13 +430,13 @@ export default function GamePanel({
 
   // ── 分享链接复制 ─────────────────────────────────────────────────
   const handleCopyShareLink = async () => {
-    if (!selectedId || sharingLoading) return;
+    if (!effectiveGameId || sharingLoading) return;
     setSharingLoading(true);
     setShareError(null);
 
     let url: string;
     try {
-      const link = await createShareLink(selectedId);
+      const link = await createShareLink(effectiveGameId);
       // full_short_url 如果带域名用域名；都不带则拼当前页面 origin
       url = link.full_short_url
         || `${window.location.origin}${link.short_url}`
@@ -482,7 +481,9 @@ export default function GamePanel({
     setSharingLoading(false);
   };
 
-  const selectedGame = games.find(g => g.game_id === selectedId);
+  // previewLoadedForRef.current 在 selectedId 还没切换时也能找到游戏元数据
+  const effectiveGameId = selectedId === 'generating' ? (previewLoadedForRef.current ?? null) : selectedId;
+  const selectedGame = games.find(g => g.game_id === effectiveGameId);
 
   // ─────────────────────────────────────────────────────────────
   // 渲染
@@ -731,8 +732,8 @@ export default function GamePanel({
             thinking={genThinking}
             isStreaming={isLiveStream}
           />
-        ) : refreshingList && selectedId === 'generating' ? (
-          /* 生成完成，正在拉取列表的过渡态 */
+        ) : refreshingList && selectedId === 'generating' && !previewHtml ? (
+          /* 生成完成，正在拉取列表的过渡态（HTML还未就绪时才显示） */
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>正在加载游戏...</p>
@@ -744,6 +745,13 @@ export default function GamePanel({
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>后台正在生成中...</p>
             <small>由于页面刷新等原因未连接实时进度，生成完毕后方可预览</small>
+          </div>
+        ) : selectedId === 'generating' && (completedGameId || previewLoading) ? (
+          /* 过渡帧：completedGameId 已设置但本地 Effect 尚未切换 selectedId，或 HTML 正在加载 */
+          <div className={styles.previewEmpty}>
+            <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
+            <p>游戏生成完成，加载预览中...</p>
+            <small>马上就好</small>
           </div>
         ) : (!selectedId || selectedId === 'generating') ? (
           <div className={styles.previewEmpty}>
@@ -808,7 +816,7 @@ export default function GamePanel({
                 <button
                   className={clsx(styles.shareBtn, shareCopied && styles.shareBtnCopied)}
                   onClick={handleCopyShareLink}
-                  disabled={sharingLoading || !selectedId}
+                  disabled={sharingLoading || !effectiveGameId}
                   title="生成短链接并复制到剪贴板，可嵌入PPT"
                 >
                   {sharingLoading
@@ -820,7 +828,7 @@ export default function GamePanel({
                 </button>
                 {/* 新标签页打开 */}
                 <a
-                  href={selectedId ? gameShareUrl(selectedId) : '#'}
+                  href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.iconActionBtn}
@@ -861,10 +869,10 @@ export default function GamePanel({
                     <button
                       className={styles.retryBtn}
                       onClick={() => {
-                        if (!selectedId) return;
+                        if (!effectiveGameId) return;
                         setPreviewError(null);
                         setPreviewLoading(true);
-                        fetchGameHtml(selectedId)
+                        fetchGameHtml(effectiveGameId)
                           .then(setPreviewHtml)
                           .catch(e => setPreviewError(e?.message ?? '加载失败'))
                           .finally(() => setPreviewLoading(false));
@@ -873,7 +881,7 @@ export default function GamePanel({
                       <RefreshCw size={12} /> 重试
                     </button>
                     <a
-                      href={gameShareUrl(selectedId!)}
+                          href={gameShareUrl(effectiveGameId ?? '')}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.retryBtn}
@@ -885,7 +893,7 @@ export default function GamePanel({
                 )}
                 {previewHtml && !previewLoading && !previewError && (
                   <iframe
-                    key={selectedId}
+                    key={effectiveGameId}
                     srcDoc={previewHtml}
                     sandbox="allow-scripts allow-same-origin allow-forms"
                     className={styles.iframe}
