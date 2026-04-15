@@ -399,6 +399,33 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
       );
     }
 
+    // ── Game Placeholder element ────────────────────────────────
+    if (el.type === 'game_placeholder' || el.type === 'interactive_game') {
+      const gameTitle = (el as any).game_title || (el as any).alt || '互动游戏';
+      const gameUrl   = (el as any).game_url  || (el as any).share_url || ((el as any).content?.[0] ?? '');
+      const typeLabel = (el as any).type_label ?? '';
+
+      return (
+        <div key={el.element_id} className={styles.gamePlaceholderCard}>
+          <div className={styles.gamePlaceholderInner}>
+            <div className={styles.gamePlaceholderIcon}>🎮</div>
+            <div className={styles.gamePlaceholderContent}>
+              <span className={styles.gamePlaceholderTitle}>
+                {gameUrl
+                  ? <a href={gameUrl} target="_blank" rel="noreferrer" className={styles.gamePlaceholderLink}>{gameTitle}</a>
+                  : gameTitle
+                }
+              </span>
+              {typeLabel && <span className={styles.gamePlaceholderBadge}>{typeLabel}</span>}
+            </div>
+            {gameUrl && (
+              <span className={styles.gamePlaceholderHint}>点击打开游戏 →</span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 

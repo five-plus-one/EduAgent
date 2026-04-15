@@ -479,6 +479,30 @@
   background-color: var(--bg-glass-hover);
 }
 
+/* ── 切换主题按钮：带渐变边框与高亮色彩 ── */
+.themeBtn {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04)) !important;
+  color: #6366f1 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  transition: all 0.18s ease;
+}
+
+.themeBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(139,92,246,0.10)) !important;
+  border-color: rgba(99, 102, 241, 0.55) !important;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.2) !important;
+  transform: translateY(-1px);
+}
+
+.themeBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .tabsContent {
   flex: 1;
   overflow-y: auto;
@@ -502,6 +526,98 @@
   gap: 24px;
   align-items: center;
   padding-bottom: 64px;
+}
+
+/* ── PPT 预览内部工具栏 ─────────────────────────────────── */
+.pptToolbar {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--bg-secondary, rgba(248,250,252,0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.07));
+  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  flex-shrink: 0;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pptToolbarBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pptToolbarBtn:hover {
+  background: var(--bg-primary, #fff);
+  border-color: var(--border-glass, rgba(0,0,0,0.1));
+  color: var(--text-primary);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+}
+
+.pptToolbarThemeBtn {
+  border-color: rgba(99,102,241,0.3);
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04));
+  color: #6366f1 !important;
+}
+
+.pptToolbarThemeBtn:hover {
+  background: linear-gradient(135deg, rgba(99,102,241,0.13), rgba(139,92,246,0.09)) !important;
+  border-color: rgba(99,102,241,0.5) !important;
+  box-shadow: 0 2px 10px rgba(99,102,241,0.18) !important;
+}
+
+.pptToolbarThemeBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: rgba(99,102,241,0.15);
+  color: #6366f1;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* When background is set via style prop (theme gradient), override color to white */
+}
+
+.pptToolbarDivider {
+  display: inline-block;
+  width: 1px;
+  height: 14px;
+  background: var(--border-glass, rgba(0,0,0,0.1));
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.pptToolbarHint {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+  margin-left: 2px;
 }
 
 /* ---------------- SPEECH ERROR ---------------- */

@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react';
 import { triggerExport, getExportStatus, downloadExportedFile, API_BASE_URL } from '../utils/api';
+import type { ThemeCustomColors } from '../components/ThemePicker';
 
 /**
  * useExport — 封装 PPT 异步导出流程
  *
- * 1. 调用 triggerExport(sessionId, themeKey?) 触发后台任务
+ * 1. 调用 triggerExport(sessionId, themeKey?, customColors?) 触发后台任务
  * 2. 每 2s 轮询 getExportStatus(task_id)
  *    ✅ completed → 解析 download_urls.ppt_url 或 filename
  *    ❌ failed    → 抛出 error
@@ -13,12 +14,12 @@ import { triggerExport, getExportStatus, downloadExportedFile, API_BASE_URL } fr
 export function useExport(sessionId: string) {
   const [isExporting, setIsExporting] = useState(false);
 
-  const exportCourseware = useCallback(async (themeKey?: string) => {
+  const exportCourseware = useCallback(async (themeKey?: string, customColors?: ThemeCustomColors) => {
     if (isExporting || !sessionId || sessionId === 'new') return;
     setIsExporting(true);
     try {
-      // 1. 触发导出（可选主题）
-      const triggerRes = await triggerExport(sessionId, themeKey);
+      // 1. 触发导出（可选主题 / 自定义颜色）
+      const triggerRes = await triggerExport(sessionId, themeKey, customColors);
       const taskId: string = triggerRes.task_id;
 
       if (!taskId) throw new Error('服务端未返回 task_id，请稍后重试');

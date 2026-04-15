@@ -440,6 +440,39 @@
 .gameItem:hover .deleteBtn { opacity: 1; }
 .deleteBtn:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
 
+/* ── 列表行内重命名框 ── */
+.renameInput {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-primary, #fff);
+  border: 1.5px solid #6366f1;
+  border-radius: 5px;
+  padding: 1px 6px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  min-width: 0;
+}
+
+/* ── 预览工具栏行内重命名框 ── */
+.previewTitleInput {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--bg-primary, #fff);
+  border: 1.5px solid #6366f1;
+  border-radius: 5px;
+  padding: 2px 7px;
+  outline: none;
+  max-width: 220px;
+  min-width: 80px;
+  font-family: inherit;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  transition: box-shadow 0.15s;
+}
+
 /* ══════════════════════════════════════════════════════════
    右栏 — 预览区
    ══════════════════════════════════════════════════════════ */
@@ -521,6 +554,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  transition: background 0.12s;
+}
+.previewTitle:hover {
+  background: rgba(99,102,241,0.08);
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 2px;
 }
 .previewVersion {
   font-size: 10.5px;
