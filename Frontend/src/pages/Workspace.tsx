@@ -21,7 +21,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, type ThemeCustomColors as ApiThemeCustomColors } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
 import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette } from 'lucide-react';
 
@@ -113,6 +113,10 @@ export default function Workspace() {
   // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
   const [anyImageSaving, setAnyImageSaving] = useState(false);
   // ── PPT 主题选色器 ────────────────────────────────────
+  // localStorage key：按会话级隔离，避免跨会话污染
+  const LS_COLORS_KEY = sessionId !== 'new' ? `eduagent_ppt_colors_${sessionId}` : null;
+  const LS_NAME_KEY   = sessionId !== 'new' ? `eduagent_ppt_name_${sessionId}` : null;
+
   const [showThemePicker, setShowThemePicker] = useState(false);
   /** 'export': 打开导出流；'apply': 打开实时预览应用流 */
   const [themePickerMode, setThemePickerMode] = useState<'export' | 'apply'>('export');
@@ -120,9 +124,21 @@ export default function Workspace() {
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
   const [pendingCustomColors, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
   /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
-  const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(null);
+  const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(() => {
+    // localStorage 防闪烁：后端返回前快速占位
+    try {
+      const key = sessionId !== 'new' ? `eduagent_ppt_colors_${sessionId}` : null;
+      const raw = key ? localStorage.getItem(key) : null;
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
   /** 应用的主题名称（不导出，仅用于显示） */
-  const [appliedThemeName, setAppliedThemeName] = useState<string | null>(null);
+  const [appliedThemeName, setAppliedThemeName] = useState<string | null>(() => {
+    try {
+      const key = sessionId !== 'new' ? `eduagent_ppt_name_${sessionId}` : null;
+      return key ? localStorage.getItem(key) : null;
+    } catch { return null; }
+  });
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -302,6 +318,20 @@ export default function Workspace() {
         setDocToFileId(mapping);
         // 读取 course_name 作为页面标题
         if (res?.course_name) setSessionTitle(res.course_name);
+
+        // —— 应用后端返回的 ppt_theme，覆盖 localStorage 占位符 ——
+        const pptTheme = res?.ppt_theme;
+        if (pptTheme?.resolved_colors) {
+          setAppliedThemeColors(pptTheme.resolved_colors);
+          const nameFromKey = pptTheme.theme_key ?? '自定义';
+          setAppliedThemeName(nameFromKey);
+          setPendingThemeKey(pptTheme.theme_key);
+          // 同步更新 localStorage 缓存
+          try {
+            localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(pptTheme.resolved_colors));
+            localStorage.setItem(`eduagent_ppt_name_${sessionId}`, nameFromKey);
+          } catch { /* ignore quota errors */ }
+        }
       }).catch(e => console.warn('Failed to load linked docs for session', e));
       return () => { active = false; };
     }
@@ -1176,18 +1206,27 @@ export default function Workspace() {
           onConfirm={(themeKey, customColors, resolvedColors) => {
             setShowThemePicker(false);
             if (themePickerMode === 'apply') {
-              // 一键应用主题到预览区，不导出
+              // ① 立即注入 CSS 变量（实时预览生效）
               if (resolvedColors) setAppliedThemeColors(resolvedColors);
-              // 记录主题名称用于按钮显示
-              if (themeKey === CUSTOM_KEY) {
-                setAppliedThemeName('自定义');
-              } else if (themeKey === null) {
-                setAppliedThemeName('自动');
-              } else {
-                setAppliedThemeName(themeKey);
-              }
-              // 同步记录到 pendingThemeKey/CustomColors，下次导出时自动使用
+              const displayName = themeKey === CUSTOM_KEY ? '自定义' : (themeKey ?? '自动');
+              setAppliedThemeName(displayName);
               setPendingCustomColors(customColors);
+
+              // ② localStorage 双写（防闪烁 cache，后端返回前展示）
+              if (resolvedColors && sessionId !== 'new') {
+                try {
+                  localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(resolvedColors));
+                  localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
+                } catch { /* ignore quota errors */ }
+              }
+
+              // ③ 持久化到后端（fire-and-forget，失败不阻断预览）
+              if (sessionId !== 'new') {
+                const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
+                const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
+                saveSessionTheme(sessionId, keyToSave, colorsToSave)
+                  .catch(err => console.warn('[Theme] 后端持久化失败（预览不受影响）:', err));
+              }
             } else {
               // 导出流
               setPendingCustomColors(customColors);
