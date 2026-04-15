@@ -1371,3 +1371,109 @@
 
 /* gamePickCheck — 选中勾 (在 gameInsertBlock 内的列表项用) */
 .gamePickCheck { color: #22c55e; flex-shrink: 0; margin-left: auto; }
+
+/* ── Edit Tab 游戏元素行：已插入状态卡片 ──────────────────── */
+.gameInsertedCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.07), rgba(139,92,246,0.04));
+  border: 1.5px solid rgba(99,102,241,0.22);
+  border-radius: 9px;
+  width: 100%;
+}
+.gameInsertedCardLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+.gameInsertedIcon { color: #6366f1; flex-shrink: 0; margin-top: 1px; }
+.gameInsertedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gameInsertedTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4f46e5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameInsertedBadge {
+  align-self: flex-start;
+  padding: 1px 7px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.gameInsertedUrl {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(99,102,241,0.55);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.gameInsertedUrl:hover { text-decoration: underline; }
+
+/* 「再次插入」按钮 */
+.gameReSelectBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(99,102,241,0.25);
+  background: rgba(99,102,241,0.07);
+  color: #6366f1;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.gameReSelectBtn:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); }
+
+/* 未关联提示行 */
+.gameUnlinkedHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(15,23,42,0.03);
+  border: 1px dashed rgba(15,23,42,0.12);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary, #94a3b8);
+  width: 100%;
+}
+
+/* 「前往游戏 Tab」按钮（内联文字链） */
+.gameGoTabBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #6366f1;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.gameGoTabBtn:hover { opacity: 0.75; }
+

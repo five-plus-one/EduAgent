@@ -319,7 +319,7 @@ export default function PPTPageWorkbench({
         alt: isImg ? '' : undefined } as any,
     };
     if (isTable) {
-      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
+      newEl.headers = (def as any).defaultHeaders ?? ['\u5217\u68071', '\u5217\u68072', '\u5217\u68073'];
       newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
     }
     setElements(prev => [...prev, newEl]);
