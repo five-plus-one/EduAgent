@@ -928,29 +928,35 @@ def save_manual_slide_edit(
 
     if body.elements is not None:
         # 保留原图片元素的 resolved 字段，防止手动编辑时丢失已替换的图片
-        # NOTE: resolved 只能通过 PATCH /elements/{id}/image 修改。
-        #       前端 fromEditable() 会把 _raw.resolved（可能是旧值）一并 spread 进来，
-        #       所以这里必须始终用 DB 当前的 resolved 覆盖前端发来的值，而不是仅在"not in elem"时才回填。
         old_resolved: dict = {
             e["element_id"]: e.get("resolved")
             for e in slide.get("elements", [])
             if e.get("type") == "image"
         }
+        # 保留 DB 中已有的 game_placeholder 元素（前端编辑器不感知这类元素）
+        db_game_placeholders: list = [
+            e for e in slide.get("elements", [])
+            if e.get("type") == "game_placeholder"
+        ]
         new_elements = []
+        sent_elem_ids = set()
         for elem in body.elements:
             elem = dict(elem)
-            # 确保每个 element 有 element_id
             if not elem.get("element_id"):
                 import uuid as _uuid
                 elem["element_id"] = f"e_{_uuid.uuid4().hex[:8]}"
-            # 图片元素：resolved 字段始终以 DB 当前值为准（忽略前端发来的 resolved）
+            sent_elem_ids.add(elem["element_id"])
             if elem.get("type") == "image":
                 db_res = old_resolved.get(elem["element_id"])
                 if db_res:
-                    elem["resolved"] = db_res          # 用 DB 中已替换的图片信息
+                    elem["resolved"] = db_res
                 elif "resolved" in elem:
-                    del elem["resolved"]               # 移除前端带来的过时 resolved
+                    del elem["resolved"]
             new_elements.append(elem)
+        # 追加前端未提交的 game_placeholder（避免「只懂编辑内容的」PUT 把它删掉）
+        for gp in db_game_placeholders:
+            if gp.get("element_id") not in sent_elem_ids:
+                new_elements.append(gp)
         slide["elements"] = new_elements
 
 
@@ -1017,8 +1023,9 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
     if layout_type == "two_column":
         img_elems   = [e for e in elements if e.get("type") == "image"]
         tbl_elems   = [e for e in elements if e.get("type") == "table"]
+        game_elems  = [e for e in elements if e.get("type") == "game_placeholder"]
         text_elems  = [e for e in elements
-                       if e.get("type") not in ("image", "table")]
+                       if e.get("type") not in ("image", "table", "game_placeholder")]
 
         # position slot names: top/mid/bottom 连续分配
         def _position_slots(prefix: str, n: int) -> list:
@@ -1034,6 +1041,9 @@ def _reassign_positions(elements: list, layout_type: str) -> list:
             e["position"] = pos
         # Table elements keep "full" so render_two_column places them at full width
         for e in tbl_elems:
+            e["position"] = "full"
+        # game_placeholder 永远保持 "full"，由 render_game_placeholders 处理
+        for e in game_elems:
             e["position"] = "full"
 
         # 如果没有图片元素，把最后一个文字元素放右列作占位

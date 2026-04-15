@@ -1883,9 +1883,13 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     table_elems = [e for e in elements if e.get("type") == "table"]
     # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
     img_elems  = [e for e in elements if e.get("type") == "image"]
+    # game_placeholder 由 render_game_placeholders 在各布局 renderer 后统一处理，
+    # 排除在 body_elems 之外，避免产生空卡片干扰排版
     body_elems = [e for e in elements
-                  if not _is_stat(e) and e.get("type") not in ("image", "table")] or [
-        e for e in elements if e.get("type") not in ("image", "table")
+                  if not _is_stat(e)
+                  and e.get("type") not in ("image", "table", "game_placeholder")] or [
+        e for e in elements
+        if e.get("type") not in ("image", "table", "game_placeholder")
     ]
 
     # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
@@ -2524,27 +2528,26 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     right_table_elems = [e for e in elements if e.get("type") == "table"
                          and "right" in _tbl_pos(e)]
     all_table_elems   = full_table_elems + left_table_elems + right_table_elems
-    # 非表格元素按左右分布
-    col_elements = [e for e in elements if e not in all_table_elems]
+    # game_placeholder 元素由 render_game_placeholders 处理，从 col_elements 排除
+    col_elements = [
+        e for e in elements
+        if e not in all_table_elems and e.get("type") != "game_placeholder"
+    ]
 
-    # Flexible position detection:
-    #   left / left_top / left_bottom  → left column
-    #   right / right_top / right_bottom → right column
+    # 按 position 字段精确分两列：
+    #   left / left_top / left_bottom  → 左列
+    #   right / right_top / right_bottom → 右列
+    #   其他（full/center/空）→ 默认左列
     def _col(e):
         return str(e.get("position", "left")).lower()
 
-    left_elems  = [e for e in col_elements if "left"  in _col(e)]
+    left_elems  = [e for e in col_elements if "left"  in _col(e) or _col(e) in ("", "full", "center")]
     right_elems = [e for e in col_elements if "right" in _col(e)]
-
+    # 降级处理：所有元素均无明确 position 时自动对半分
+    # 注意：只在「两侧均无元素」时才走自动分列，有任一侧就封不强覆用户手动设置的 position
     if not left_elems and not right_elems:
         half = max(len(col_elements) // 2, 1)
         left_elems, right_elems = col_elements[:half], col_elements[half:]
-    elif not left_elems:           # all labeled right — split evenly
-        half = max(len(right_elems) // 2, 1)
-        left_elems, right_elems = right_elems[:half], right_elems[half:]
-    elif not right_elems:          # all labeled left — split evenly
-        half = max(len(left_elems) // 2, 1)
-        left_elems, right_elems = left_elems[:half], left_elems[half:]
 
     half_w  = (CONTENT_W - 0.28) / 2
     lx      = MARGIN_LEFT
@@ -2889,7 +2892,8 @@ def render_default(slide, page: dict, colors: dict) -> None:
     # ── 图片和表格分别单独渲染，不进入文字卡循环 ────────────────────────────────────
     img_elems   = [e for e in elements if e.get("type") == "image"]
     table_elems = [e for e in elements if e.get("type") == "table"]
-    text_elems  = [e for e in elements if e.get("type") not in ("image", "table")]
+    # game_placeholder 由 render_game_placeholders 统一处理
+    text_elems  = [e for e in elements if e.get("type") not in ("image", "table", "game_placeholder")]
     has_img     = bool(img_elems)
 
     # 图片放右列（40% 宽），文字占左 58%（有图时）
