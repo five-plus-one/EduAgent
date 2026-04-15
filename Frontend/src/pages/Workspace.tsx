@@ -730,35 +730,6 @@ export default function Workspace() {
             <div className={styles.headerActions} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               {pages.length > 0 && (
                 <>
-                  {/* 切换主题按钮：应用到预览，不导出 */}
-                  <button
-                    className={clsx('button-base', styles.exportBtn, styles.themeBtn)}
-                    onClick={() => {
-                      setThemePickerMode('apply');
-                      setShowThemePicker(true);
-                    }}
-                    disabled={sessionId === 'new'}
-                    title="一键切换 PPT 预览主题"
-                    style={{ position: 'relative' }}
-                  >
-                    <Palette size={15} />
-                    <span>切换主题</span>
-                    {appliedThemeName && (
-                      <span style={{
-                        fontSize: '9px', fontWeight: 700, padding: '1px 5px',
-                        borderRadius: '99px', marginLeft: '2px',
-                        background: appliedThemeColors
-                          ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
-                          : 'rgba(99,102,241,0.15)',
-                        color: appliedThemeColors ? '#fff' : '#6366f1',
-                        letterSpacing: '0.02em',
-                        maxWidth: '70px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}>{appliedThemeName}</span>
-                    )}
-                  </button>
                   <button
                     className={clsx('button-base', styles.exportBtn)}
                     onClick={() => {
@@ -939,7 +910,38 @@ export default function Workspace() {
                 '--ppt-text':      appliedThemeColors.text_color,
               } as React.CSSProperties : {}}
             >
-              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
+              {/* ── PPT 预览内部工具栏：切换主题入口 ── */}
+              {pages.length > 0 && !isStreaming && (
+                <div className={styles.pptToolbar}>
+                  <button
+                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarThemeBtn)}
+                    onClick={() => {
+                      setThemePickerMode('apply');
+                      setShowThemePicker(true);
+                    }}
+                    title="一键切换 PPT 预览主题，支持预设与自定义颜色"
+                  >
+                    <Palette size={14} />
+                    <span>切换主题</span>
+                    {appliedThemeName && (
+                      <span
+                        className={styles.pptToolbarThemeBadge}
+                        style={{
+                          background: appliedThemeColors
+                            ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
+                            : undefined,
+                        }}
+                      >
+                        {appliedThemeName}
+                      </span>
+                    )}
+                  </button>
+                  <span className={styles.pptToolbarDivider} />
+                  <span className={styles.pptToolbarHint}>
+                    {pages.length} 页幻灯片
+                  </span>
+                </div>
+              )}
               {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
