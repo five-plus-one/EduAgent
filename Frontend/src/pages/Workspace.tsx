@@ -114,15 +114,12 @@ export default function Workspace() {
   const [anyImageSaving, setAnyImageSaving] = useState(false);
   // ── PPT 主题选色器 ────────────────────────────────────
   // localStorage key：按会话级隔离，避免跨会话污染
-  const LS_COLORS_KEY = sessionId !== 'new' ? `eduagent_ppt_colors_${sessionId}` : null;
-  const LS_NAME_KEY   = sessionId !== 'new' ? `eduagent_ppt_name_${sessionId}` : null;
-
   const [showThemePicker, setShowThemePicker] = useState(false);
   /** 'export': 打开导出流；'apply': 打开实时预览应用流 */
   const [themePickerMode, setThemePickerMode] = useState<'export' | 'apply'>('export');
   /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
-  const [pendingCustomColors, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
+  const [, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
   /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
   const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(() => {
     // localStorage 防闪烁：后端返回前快速占位
@@ -147,7 +144,7 @@ export default function Workspace() {
   // ── 互动小游戏 ────────────────────────────────────────────
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
-  const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [, setActiveGameId] = useState<string | null>(null);
 
   // ── Session 标题（读取 + 内联编辑）────────────────────
   const [sessionTitle, setSessionTitle] = useState('');

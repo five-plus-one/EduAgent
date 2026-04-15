@@ -18,7 +18,7 @@ import {
 import {
   listSessionGames, getGameSource,
   deleteGame, renameGame, fetchGameHtml, createShareLink, gameShareUrl,
-  streamGameTask, GAME_TYPE_DEFAULTS,
+  GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
 import { useGameStore } from '../store/useGameStore';
@@ -235,7 +235,7 @@ export default function GamePanel({
   // 重命名状态
   const [renamingId,  setRenamingId]  = useState<string | null>(null);
   const [renameVal,   setRenameVal]   = useState('');
-  const [renameSaving, setRenameSaving] = useState(false);
+  const [, setRenameSaving] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // ── 通知父组件 ───────────────────────────────────────────

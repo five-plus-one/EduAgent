@@ -28,7 +28,7 @@ import { clsx } from 'clsx';
 import styles from './PPTPageWorkbench.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 import { apiClient, resolveImagePreviewUrl } from '../utils/api';
-import { listSessionGames, insertGameElement, type GameMeta } from '../utils/gamesApi';
+import { listSessionGames, type GameMeta } from '../utils/gamesApi';
 
 /* ─── 公共类型 ──────────────────────────────────────────────── */
 
@@ -231,16 +231,6 @@ export default function PPTPageWorkbench({
   /* ── 游戏占位符状态 ──────────────────────────────────────── */
   const [gameList, setGameList]               = useState<GameMeta[]>([]);
   const [gameListLoading, setGameListLoading] = useState(false);
-  const [selectedGameId, setSelectedGameId]   = useState<string | null>(null);
-  /** 粘贴URL方案输入框 */
-  const [gameUrlInput, setGameUrlInput]       = useState('');
-  /** 插入中状态 */
-  const [gameInsertLoading, setGameInsertLoading] = useState(false);
-  /** 插入错误消息 */
-  const [gameInsertError, setGameInsertError] = useState<string | null>(null);
-  /** 最近一次插入成功的 element 信息（用于成功状态展示）*/
-  const [lastInsertedGame, setLastInsertedGame] = useState<{ title: string; url: string } | null>(null);
-
   /* ── 游戏选择弹窗状态 ───────────────────────────────── */
   /** 当前打开游戏选择弹窗的元素索引，-1 表示关闭 */
   const [gamePickerIdx, setGamePickerIdx] = useState<number>(-1);
@@ -1286,7 +1276,16 @@ function ImagePickerModal({
 
 
 /* --- 游戏选择弹窗 ------------------------------------------------- */
-function GamePickerModal({ games, loading, selectedGameId, onSelect, onClose, styles, }) {
+interface GamePickerModalProps {
+  games: GameMeta[];
+  loading: boolean;
+  selectedGameId: string | null;
+  onSelect: (game: GameMeta) => void;
+  onClose: () => void;
+  styles: Record<string, string>;
+}
+
+function GamePickerModal({ games, loading, selectedGameId, onSelect, onClose, styles }: GamePickerModalProps) {
   const completed = games.filter(g => g.status === 'completed');
   return (
     <div className={styles.gameModalOverlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

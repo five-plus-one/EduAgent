@@ -57,7 +57,9 @@ export interface GameSource {
   title: string;
   game_type: string;
   version: number;
-  html_code: string;
+  html_code?: string;
+  html_content?: string;
+  content?: string;
   char_count: number;
 }
 
