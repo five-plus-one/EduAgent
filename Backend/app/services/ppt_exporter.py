@@ -2957,10 +2957,14 @@ LAYOUT_RENDERERS = {
 # Main export entry point
 # ──────────────────────────────────────────────
 
-def run_export_task(task_id: str, session_id: str, theme_key: str | None = None):
+def run_export_task(task_id: str, session_id: str,
+                    theme_key: str | None = None,
+                    custom_colors: dict | None = None):
     """
-    theme_key: PREMIUM_THEMES 中的键名（如 'ocean_depths'）。
-    不传或传 None 则用 pick_premium_theme() 自动根据 session_id 决定。
+    theme_key:     PREMIUM_THEMES 中的键名（如 'ocean_depths'）。
+    custom_colors: 完整颜色字典 {bg_color, primary, secondary, accent, text_color}。
+    两者均为 None 时，按 pick_premium_theme() 自动根据 session_id 决定。
+    custom_colors 优先级最高（当用户完全自定义配色时使用）。
     """
     db: Session = SessionLocal()
     task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
@@ -3002,13 +3006,22 @@ def run_export_task(task_id: str, session_id: str, theme_key: str | None = None)
             if not isinstance(slides_arr, list):
                 slides_arr = []
 
-            # 主题选择：优先用户指定的 theme_key，否则自动选择
-            if theme_key and theme_key in PREMIUM_THEMES:
+            # 主题选择三级优先级
+            if custom_colors and isinstance(custom_colors, dict) and all(
+                k in custom_colors for k in ("bg_color", "primary", "secondary", "accent", "text_color")
+            ):
+                # 优先级 1：完全自定义颜色
+                sel = custom_colors
+                logger.info(f"[export] using custom colors: bg={sel['bg_color']}")
+            elif theme_key and theme_key in PREMIUM_THEMES:
+                # 优先级 2：预设主题
                 sel = PREMIUM_THEMES[theme_key]
-                logger.info(f"[export] using user-specified theme: {theme_key}")
+                logger.info(f"[export] using preset theme: {theme_key}")
             else:
+                # 优先级 3：自动哈希选色
                 sel = pick_premium_theme(session_id, theme)
                 logger.info(f"[export] auto-selected theme: bg={sel['bg_color']}")
+
             colors = {
                 "bg":  hex2rgb(sel["bg_color"]),
                 "pri": hex2rgb(sel["primary"]),

@@ -520,7 +520,8 @@ def get_export_themes():
 # ---- 导出触发 ----
 
 class ExportRequest(BaseModel):
-    theme_key: Optional[str] = None  # 不传 → 自动选择；传入主题键名就用对应主题
+    theme_key:     Optional[str]  = None  # 不传 → 用会话主题 or 自动
+    custom_colors: Optional[dict] = None  # 自定义颜色（覆盖 theme_key）
 
 @router.post("/sessions/{session_id}/export")
 def trigger_export(
@@ -531,12 +532,34 @@ def trigger_export(
     db: Session = Depends(deps.get_db)
 ):
     """触发 PPT 导出任务。
-    body.theme_key 匹配 PREMIUM_THEMES 键名则优先使用该主题，否则自动选色。"""
-    session_ctx = db.query(SessionContext).filter(SessionContext.id == session_id, SessionContext.user_id == current_user.id).first()
+    主题优先级：请求体 theme_key → 会话已保存主题 → 后端哈希自动选择。
+    """
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id,
+    ).first()
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    theme_key = (body.theme_key if body else None) or None
+    # ── 主题三级优先级 ──────────────────────────────────────────────────────
+    # 1) 请求体显式传入
+    theme_key     = (body.theme_key     if body else None) or None
+    custom_colors = (body.custom_colors if body else None) or None
+
+    # 2) fallback：会话保存的主题偏好
+    if theme_key is None and custom_colors is None:
+        import json as _j
+        saved_key    = session_ctx.ppt_theme_key
+        saved_custom = session_ctx.ppt_custom_colors
+        if isinstance(saved_custom, str):
+            try:
+                saved_custom = _j.loads(saved_custom)
+            except Exception:
+                saved_custom = None
+        theme_key     = saved_key
+        custom_colors = saved_custom
+
+    # 3) 若均无，run_export_task 内部按 session_id 哈希自动选色（已有逻辑）
 
     task_id = "exp_" + uuid.uuid4().hex[:8]
     task = GenerationTask(
@@ -549,7 +572,7 @@ def trigger_export(
     db.add(task)
     db.commit()
 
-    background_tasks.add_task(run_export_task, task_id, session_id, theme_key)
+    background_tasks.add_task(run_export_task, task_id, session_id, theme_key, custom_colors)
     return {"task_id": task_id, "status": "generating", "theme_key": theme_key}
 
 @router.get("/export/tasks/{task_id}")

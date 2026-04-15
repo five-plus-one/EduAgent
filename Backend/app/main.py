@@ -40,6 +40,23 @@ def _migrate_video_columns():
 
 _migrate_video_columns()
 
+# ── 兼容旧数据库：新增 PPT 主题偏好列 ────────────────────────────────────
+def _migrate_session_theme_columns():
+    _theme_cols = [
+        ("ppt_theme_key",        "VARCHAR"),
+        ("ppt_custom_colors",    "TEXT"),       # JSON 存为 TEXT（SQLite 兼容）
+        ("ppt_theme_updated_at", "DATETIME"),
+    ]
+    with engine.connect() as conn:
+        for col, col_def in _theme_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE session_context ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                pass  # 列已存在，忽略
+
+_migrate_session_theme_columns()
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
