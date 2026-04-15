@@ -142,6 +142,26 @@ export const streamChatCompletion = async (
   activeGameId?: string | null,
 ) => {
   const token = localStorage.getItem('access_token');
+  let lastGameTriggerSignature: string | null = null;
+
+  const emitGameTrigger = (payload: any) => {
+    if (!callbacks?.onGameEvent) return;
+    const spec = payload?.game_trigger ?? payload?.game_spec ?? payload;
+    if (!spec) return;
+
+    const signature = JSON.stringify({
+      task_id: spec.task_id ?? null,
+      game_id: spec.game_id ?? null,
+      game_type: spec.game_type ?? null,
+      title: spec.title ?? null,
+      is_refinement: !!spec.is_refinement,
+      refinement_instruction: spec.refinement_instruction ?? null,
+    });
+
+    if (signature === lastGameTriggerSignature) return;
+    lastGameTriggerSignature = signature;
+    callbacks.onGameEvent('game_trigger', { game_trigger: spec });
+  };
 
   await fetchEventSource(`${API_BASE_URL}/sessions/${sessionId}/chat`, {
     method: 'POST',
@@ -168,14 +188,14 @@ export const streamChatCompletion = async (
         } else if (data.event_type === 'game_suggest' && callbacks?.onGameEvent) {
           callbacks.onGameEvent('game_suggest', data);
         } else if (data.event_type === 'game_trigger' && callbacks?.onGameEvent) {
-          callbacks.onGameEvent('game_trigger', data);
+          emitGameTrigger(data);
         } else {
           // Default: text chunk (may contain <think> tags for DeepSeek-style streaming)
           // Also check for game_spec in finished messages
           onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent, data.event_type, data);
           // Finished message may carry game_spec (equivalent to game_trigger)
-          if (data.is_finished && data.game_spec && callbacks?.onGameEvent) {
-            callbacks.onGameEvent('game_trigger', { game_trigger: data.game_spec });
+          if (data.is_finished && data.game_spec) {
+            emitGameTrigger({ game_trigger: data.game_spec });
           }
         }
       } catch {

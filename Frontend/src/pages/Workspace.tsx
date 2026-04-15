@@ -145,6 +145,13 @@ export default function Workspace() {
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
   const [, setActiveGameId] = useState<string | null>(null);
+  const lastGameTriggerSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingTrigger) {
+      lastGameTriggerSignatureRef.current = null;
+    }
+  }, [pendingTrigger]);
 
   // ── Session 标题（读取 + 内联编辑）────────────────────
   const [sessionTitle, setSessionTitle] = useState('');
@@ -437,6 +444,7 @@ export default function Workspace() {
 
   // ── 游戏 SSE 事件监听 ─────────────────────────────────────
   useEffect(() => {
+    lastGameTriggerSignatureRef.current = null;
     const handleGameSuggest = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
@@ -447,7 +455,21 @@ export default function Workspace() {
     const handleGameTrigger = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        setPendingTrigger(ev.detail.spec);
+        const spec = ev.detail.spec as GameSpec | undefined;
+        if (!spec) return;
+
+        const signature = JSON.stringify({
+          task_id: spec.task_id ?? null,
+          game_id: spec.game_id ?? null,
+          game_type: spec.game_type ?? null,
+          title: spec.title ?? null,
+          is_refinement: !!spec.is_refinement,
+          refinement_instruction: spec.refinement_instruction ?? null,
+        });
+
+        if (signature === lastGameTriggerSignatureRef.current) return;
+        lastGameTriggerSignatureRef.current = signature;
+        setPendingTrigger(spec);
         setActiveTab('games');
       }
     };
