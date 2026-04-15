@@ -97,6 +97,59 @@
   border: 1px solid rgba(245,158,11,0.25);
 }
 
+/* ── Edit Tab 底部保存栏 ─────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  background: white;
+  flex-shrink: 0;
+}
+
+.saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 9px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  box-shadow: 0 2px 10px rgba(99,102,241,0.28);
+}
+.saveBtn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.saveBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(15,23,42,0.12);
+  background: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.cancelBtn:hover { background: rgba(15,23,42,0.04); color: #0f172a; }
+
+
 .closeBtn {
   display: flex;
   align-items: center;

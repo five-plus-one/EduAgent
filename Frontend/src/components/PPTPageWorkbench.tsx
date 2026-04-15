@@ -459,6 +459,7 @@ export default function PPTPageWorkbench({
 
 
   return (
+    <div className={styles.overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div className={styles.panel}>
       {/* ──────────────── 头部 ──────────────── */}
       <div className={styles.header}>
@@ -557,31 +558,18 @@ export default function PPTPageWorkbench({
                                     <button
                                       key={g.game_id}
                                       className={`${styles.gamePickerItem} ${isSel ? styles.gamePickerItemActive : ''}`}
-                                      disabled={gameInsertLoading}
-                                      onClick={async () => {
-                                        updateElement(idx, { game_id: g.game_id, game_title: g.title });
-                                        setGameInsertLoading(true);
-                                        setGameInsertError(null);
-                                        try {
-                                          const res = await insertGameElement(
-                                            sessionId, page.page_index, { game_id: g.game_id }
-                                          );
-                                          onSave(res.slide as any);
-                                        } catch (e: any) {
-                                          setGameInsertError(e?.response?.data?.message || e?.message || '插入失败，请重试');
-                                          updateElement(idx, { game_id: currentGameId, game_title: currentGameTitle });
-                                        } finally {
-                                          setGameInsertLoading(false);
-                                        }
+                                      onClick={() => {
+                                        // 仅本地关联：更新元素的 game_id/game_title，随 Save 一起提交
+                                        updateElement(idx, {
+                                          game_id: g.game_id,
+                                          game_title: g.title,
+                                        });
                                       }}
                                     >
                                       <Gamepad2 size={12} />
                                       <span className={styles.gamePickerName}>{g.title}</span>
                                       {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
-                                      {isSel && gameInsertLoading
-                                        ? <Loader2 size={12} className={styles.spinIcon} />
-                                        : isSel && <Check size={12} className={styles.gamePickerCheck} />
-                                      }
+                                      {isSel && <Check size={12} className={styles.gamePickerCheck} />}
                                     </button>
                                   );
                                 })}
@@ -921,6 +909,20 @@ export default function PPTPageWorkbench({
               )}
             </section>
 
+            {/* 底部保存栏 */}
+            <div className={styles.footer}>
+              <button
+                className={styles.saveBtn}
+                disabled={!isDirty}
+                onClick={handleSave}
+              >
+                <Check size={14} /> 保存更改
+              </button>
+              <button className={styles.cancelBtn} onClick={onClose}>
+                取消
+              </button>
+            </div>
+
           </div>
         )}
 
@@ -1017,8 +1019,8 @@ export default function PPTPageWorkbench({
           </div>
         )}
 
-
       </div>
+    </div>
     </div>
   );
 }
