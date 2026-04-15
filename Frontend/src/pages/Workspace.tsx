@@ -115,11 +115,8 @@ export default function Workspace() {
   // ── PPT 主题选色器 ────────────────────────────────────
   // localStorage key：按会话级隔离，避免跨会话污染
   const [showThemePicker, setShowThemePicker] = useState(false);
-  /** 'export': 打开导出流；'apply': 打开实时预览应用流 */
-  const [themePickerMode, setThemePickerMode] = useState<'export' | 'apply'>('export');
   /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
-  const [, setPendingCustomColors] = useState<ThemeCustomColors | undefined>();
   /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
   const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(() => {
     // localStorage 防闪烁：后端返回前快速占位
@@ -179,6 +176,27 @@ export default function Workspace() {
       setIsExportingWord(false);
     }
   };
+
+  const handleExportPpt = useCallback(() => {
+    if (sessionId === 'new' || isExporting || anyImageSaving || pages.length === 0) return;
+
+    const isCustomTheme =
+      pendingThemeKey === CUSTOM_KEY ||
+      (pendingThemeKey === null && appliedThemeName === '自定义' && !!appliedThemeColors);
+
+    const themeKeyToSend = !isCustomTheme && pendingThemeKey ? pendingThemeKey : undefined;
+    const customColorsToSend = isCustomTheme ? (appliedThemeColors ?? undefined) : undefined;
+    exportCourseware(themeKeyToSend, customColorsToSend);
+  }, [
+    sessionId,
+    isExporting,
+    anyImageSaving,
+    pages.length,
+    pendingThemeKey,
+    appliedThemeName,
+    appliedThemeColors,
+    exportCourseware,
+  ]);
   
   const fetchKbDocs = useCallback(async () => {
     try {
@@ -326,14 +344,16 @@ export default function Workspace() {
         // —— 应用后端返回的 ppt_theme，覆盖 localStorage 占位符 ——
         const pptTheme = res?.ppt_theme;
         if (pptTheme?.resolved_colors) {
+          const isCustomTheme = !!pptTheme.custom_colors;
+          const selectedThemeKey = isCustomTheme ? CUSTOM_KEY : (pptTheme.theme_key ?? null);
+          const displayName = isCustomTheme ? '自定义' : (pptTheme.theme_key ?? '自动');
           setAppliedThemeColors(pptTheme.resolved_colors);
-          const nameFromKey = pptTheme.theme_key ?? '自定义';
-          setAppliedThemeName(nameFromKey);
-          setPendingThemeKey(pptTheme.theme_key);
-          // 同步更新 localStorage 缓存
+          setAppliedThemeName(displayName);
+          setPendingThemeKey(selectedThemeKey);
+          // ???? localStorage ??
           try {
             localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(pptTheme.resolved_colors));
-            localStorage.setItem(`eduagent_ppt_name_${sessionId}`, nameFromKey);
+            localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
           } catch { /* ignore quota errors */ }
         }
       }).catch(e => console.warn('Failed to load linked docs for session', e));
@@ -776,34 +796,6 @@ export default function Workspace() {
                 )}
               </Tabs.Trigger>
             </Tabs.List>
-            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {pages.length > 0 && (
-                <>
-                  <button
-                    className={clsx('button-base', styles.exportBtn)}
-                    onClick={() => {
-                      setThemePickerMode('export');
-                      setShowThemePicker(true);
-                    }}
-                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '选择主题并导出 PPT'}
-                  >
-                    <Download size={16} className={clsx(isExporting && styles.rotating)} />
-                    {isExporting ? '导出 PPT 中...' : '导出 PPT'}
-                  </button>
-                  {wordDoc && (
-                    <button 
-                      className={clsx('button-base', styles.exportBtn)}
-                      onClick={handleExportWord}
-                      disabled={isExportingWord || sessionId === 'new'}
-                    >
-                      <FileText size={16} className={clsx(isExportingWord && styles.rotating)} /> 
-                      {isExportingWord ? '导出中...' : '导出讲义 (.docx)'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
@@ -965,7 +957,6 @@ export default function Workspace() {
                   <button
                     className={clsx(styles.pptToolbarBtn, styles.pptToolbarThemeBtn)}
                     onClick={() => {
-                      setThemePickerMode('apply');
                       setShowThemePicker(true);
                     }}
                     title="一键切换 PPT 预览主题，支持预设与自定义颜色"
@@ -986,6 +977,16 @@ export default function Workspace() {
                       </span>
                     )}
                   </button>
+                  <button
+                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarExportBtn)}
+                    onClick={handleExportPpt}
+                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '直接使用当前主题导出 PPT'}
+                  >
+                    <Download size={14} className={clsx(isExporting && styles.rotating)} />
+                    <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
+                  </button>
+                  <span className={styles.pptToolbarSpacer} />
                   <span className={styles.pptToolbarDivider} />
                   <span className={styles.pptToolbarHint}>
                     {pages.length} 页幻灯片
@@ -1219,38 +1220,27 @@ export default function Workspace() {
       {/* ── PPT 主题选色器 Overlay ── */}
       {showThemePicker && (
         <ThemePicker
-          mode={themePickerMode}
+          mode="apply"
           selectedKey={pendingThemeKey}
           onSelect={setPendingThemeKey}
           onConfirm={(themeKey, customColors, resolvedColors) => {
             setShowThemePicker(false);
-            if (themePickerMode === 'apply') {
-              // ① 立即注入 CSS 变量（实时预览生效）
-              if (resolvedColors) setAppliedThemeColors(resolvedColors);
-              const displayName = themeKey === CUSTOM_KEY ? '自定义' : (themeKey ?? '自动');
-              setAppliedThemeName(displayName);
-              setPendingCustomColors(customColors);
+            if (resolvedColors) setAppliedThemeColors(resolvedColors);
+            const displayName = themeKey === CUSTOM_KEY ? '自定义' : (themeKey ?? '自动');
+            setAppliedThemeName(displayName);
 
-              // ② localStorage 双写（防闪烁 cache，后端返回前展示）
-              if (resolvedColors && sessionId !== 'new') {
-                try {
-                  localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(resolvedColors));
-                  localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
-                } catch { /* ignore quota errors */ }
-              }
+            if (resolvedColors && sessionId !== 'new') {
+              try {
+                localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(resolvedColors));
+                localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
+              } catch { /* ignore quota errors */ }
+            }
 
-              // ③ 持久化到后端（fire-and-forget，失败不阻断预览）
-              if (sessionId !== 'new') {
-                const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
-                const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
-                saveSessionTheme(sessionId, keyToSave, colorsToSave)
-                  .catch(err => console.warn('[Theme] 后端持久化失败（预览不受影响）:', err));
-              }
-            } else {
-              // 导出流
-              setPendingCustomColors(customColors);
-              const keyToSend = themeKey === CUSTOM_KEY ? undefined : (themeKey ?? undefined);
-              exportCourseware(keyToSend, customColors);
+            if (sessionId !== 'new') {
+              const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
+              const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
+              saveSessionTheme(sessionId, keyToSave, colorsToSave)
+                .catch(err => console.warn('[Theme] 后端持久化失败（预览不受影响）', err));
             }
           }}
           onCancel={() => setShowThemePicker(false)}
