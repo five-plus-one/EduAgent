@@ -1,3 +1,4 @@
+// @refresh reset
 /**
  * PPTPageWorkbench — 合并后的页面工作台
  *
@@ -7,6 +8,7 @@
  *   🖼️  替换图片   — 搜索 / 浏览图库             (原 PPTImageEditDrawer 换图子面板)
  *   🪄  切换布局   — 6 种版式模板                (原 PPTImageEditDrawer 布局子面板)
  *   ✨  AI 指令   — 针对当前页的自由指令
+ *   🎮  游戏占位符 — 生成短链接可嵌入 PPT
  *
  * 触发入口：
  *   - 点击卡片上的🖊 铅笔按钮 → defaultTab = 'edit'
@@ -20,12 +22,13 @@ import {
   Hash, Clock, AlignLeft, ChevronRight,
   Search, Loader2, LayoutGrid, Maximize2, AlignCenter, Crop,
   Rows, Columns, BarChart2, Star, Grid,
-  Wand2,
+  Wand2, Gamepad2, Share2, Copy,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import styles from './PPTPageWorkbench.module.css';
 import type { PPTPage, PPTElement } from '../hooks/useCourseware';
 import { apiClient, resolveImagePreviewUrl } from '../utils/api';
+import { listSessionGames, createShareLink, type GameMeta } from '../utils/gamesApi';
 
 /* ─── 公共类型 ──────────────────────────────────────────────── */
 
@@ -41,7 +44,7 @@ export interface ImageElement {
   resolved?: { preview_url?: string; image_id?: string; source?: string };
 }
 
-export type WorkbenchTab = 'edit' | 'layout' | 'ai';
+export type WorkbenchTab = 'edit' | 'layout' | 'ai' | 'game';
 
 export interface PPTPageWorkbenchProps {
   open: boolean;
@@ -88,9 +91,10 @@ const ELEMENT_TYPES = [
     defaultHeaders: ['列标题1', '列标题2', '列标题3'],
     defaultRows: [['', '', '']],
   },
+  { type: 'interactive_game', label: '游戏占位符', icon: <Gamepad2 size={14} />, defaultContent: [], defaultPosition: 'full', description: '链接一个互动游戏，展示为游戏卡片并嵌入短链接', isGame: true },
 ] as const;
 
-type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
+type ElementTypeDef = typeof ELEMENT_TYPES[number] & { useItemEditor?: boolean; hasTime?: boolean; hasAccent?: boolean; isImage?: boolean; isTable?: boolean; isGame?: boolean; defaultHeaders?: string[]; defaultRows?: string[][] };
 const TYPE_MAP = Object.fromEntries((ELEMENT_TYPES as readonly any[]).map(t => [t.type, t])) as Record<string, ElementTypeDef>;
 const POSITIONS = ['full', 'center', 'left', 'right', 'top', 'bottom', 'left_top', 'left_bottom', 'right_top', 'right_bottom'];
 
@@ -102,6 +106,10 @@ interface EditableEl {
   /** 表格专属字段 */
   headers?: string[];
   rows?: string[][];
+  /** 游戏占位符专属字段 */
+  game_id?: string;
+  game_title?: string;
+  share_url?: string;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 9);
@@ -114,6 +122,10 @@ function toEditable(el: PPTElement): EditableEl {
     alt: el.alt,
     query: el.query,
     _raw: el,
+    // 游戏占位符字段
+    game_id:    (el as any).game_id    ?? undefined,
+    game_title: (el as any).game_title ?? undefined,
+    share_url:  (el as any).share_url  ?? undefined,
   };
   if (el.type === 'table') {
     // 优先用接口字段，降级到 _raw 增强兼容（防止 Pydantic strip 后前端导致数据丢失）
@@ -132,11 +144,17 @@ function fromEditable(e: EditableEl): PPTElement {
   if (e.type === 'image') {
     base.alt = e.alt; base.query = e.query || e.alt; delete base.content;
   } else if (e.type === 'table') {
-    // 表格：直接写 headers/rows，content 保持为空数组
     base.headers = e.headers ?? [];
     base.rows    = e.rows    ?? [];
     base.content = [];
     delete base.alt; delete base.query;
+  } else if (e.type === 'interactive_game') {
+    base.game_id    = e.game_id;
+    base.game_title = e.game_title;
+    base.share_url  = e.share_url;
+    base.alt        = e.game_title ?? '互动游戏';
+    base.content    = e.share_url ? [e.share_url] : [];
+    delete base.query;
   } else {
     base.content = e.textLines.length > 0 ? e.textLines : undefined;
     delete base.alt; delete base.query;
@@ -160,7 +178,7 @@ function normalizeImages(items: any[]): ImageResult[] {
    主组件
    ══════════════════════════════════════════════════════════════ */
 export default function PPTPageWorkbench({
-  open, page, defaultTab = 'edit', activeImageElement = null,
+  open, page, sessionId, defaultTab = 'edit', activeImageElement = null,
   onClose, onSave, onIterate, onReplaceImage, onChangeFit, onApplyLayout,
 }: PPTPageWorkbenchProps) {
 
@@ -210,6 +228,15 @@ export default function PPTPageWorkbench({
    */
   const [pickerFit, setPickerFit] = useState<ObjectFitMode>('cover');
 
+  /* ── 游戏占位符状态 ──────────────────────────────────────── */
+  const [gameList, setGameList]               = useState<GameMeta[]>([]);
+  const [gameListLoading, setGameListLoading] = useState(false);
+  const [selectedGameId, setSelectedGameId]   = useState<string | null>(null);
+  const [gameShareUrl, setGameShareUrl]       = useState<string | null>(null);
+  const [gameCopied, setGameCopied]           = useState(false);
+  const [gameSharingLoading, setGameSharingLoading] = useState(false);
+  const [gameShareError, setGameShareError]   = useState<string | null>(null);
+
   /* ── 重置（换页时）───────────────────────────────────────────── */
   useEffect(() => {
     if (!open) return;
@@ -250,6 +277,16 @@ export default function PPTPageWorkbench({
     }
   }, [pickerOpen, imageMode]);
 
+  /* ── 游戏列表加载（切到 game tab 时触发）─────────────────── */
+  useEffect(() => {
+    if (activeTab !== 'game' || !open) return;
+    setGameListLoading(true);
+    listSessionGames(sessionId)
+      .then(list => setGameList(list))
+      .catch(() => setGameList([]))
+      .finally(() => setGameListLoading(false));
+  }, [activeTab, open, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const markDirty = () => setIsDirty(true);
 
   /* ── 内容编辑操作 ─────────────────────────────────────────── */
@@ -262,19 +299,23 @@ export default function PPTPageWorkbench({
     const id = uid();
     const isImg   = (def as any).isImage;
     const isTable = (def as any).isTable;
+    const isGame  = (def as any).isGame;
     const newEl: EditableEl = {
       element_id: id, type: def.type, position: def.defaultPosition,
-      textLines: isImg ? [] : [...(def.defaultContent as any)],
+      textLines: (isImg || isGame) ? [] : [...(def.defaultContent as any)],
       alt:   isImg   ? '' : undefined,
       query: isImg   ? '' : undefined,
       time:  (def as any).hasTime ? '' : undefined,
+      // 游戏占位符专属
+      game_id:    isGame ? undefined : undefined,
+      game_title: isGame ? undefined : undefined,
+      share_url:  isGame ? undefined : undefined,
       _raw: { element_id: id, type: def.type, position: def.defaultPosition,
-        content: isImg ? undefined : def.defaultContent,
-        alt: isImg ? '' : undefined } as any,
+        content: (isImg || isGame) ? undefined : def.defaultContent,
+        alt: (isImg || isGame) ? '' : undefined } as any,
     };
-    // 表格元素预填默认结构
     if (isTable) {
-      newEl.headers = (def as any).defaultHeaders ?? ['共1', '共2', '共3'];
+      newEl.headers = (def as any).defaultHeaders ?? ['列1', '列2', '列3'];
       newEl.rows    = (def as any).defaultRows    ?? [['', '', '']];
     }
     setElements(prev => [...prev, newEl]);
@@ -413,8 +454,31 @@ export default function PPTPageWorkbench({
   const TAB_DEFS: { key: WorkbenchTab; label: string; icon: React.ReactNode }[] = [
     { key: 'edit',   label: '编辑内容', icon: <Pencil size={13} /> },
     { key: 'layout', label: '切换布局', icon: <LayoutGrid size={13} /> },
+    { key: 'game',   label: '游戏占位符', icon: <Gamepad2 size={13} /> },
     { key: 'ai',     label: 'AI 指令',  icon: <Wand2 size={13} /> },
   ];
+
+  const handleGameShare = async () => {
+    if (!selectedGameId || gameSharingLoading) return;
+    setGameSharingLoading(true);
+    setGameShareError(null);
+    try {
+      const link = await createShareLink(selectedGameId);
+      const url = link.full_short_url || `${window.location.origin}${link.short_url}`;
+      setGameShareUrl(url);
+    } catch {
+      setGameShareError('生成分享链接失败，请重试');
+    } finally {
+      setGameSharingLoading(false);
+    }
+  };
+
+  const handleCopyGameShare = async () => {
+    if (!gameShareUrl) return;
+    await navigator.clipboard.writeText(gameShareUrl);
+    setGameCopied(true);
+    setTimeout(() => setGameCopied(false), 2500);
+  };
 
   return (
     <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
@@ -674,6 +738,60 @@ export default function PPTPageWorkbench({
                               </div>
                             </div>
                           );
+                        })() : el.type === 'interactive_game' ? (() => {
+                          return (
+                            <div className={styles.gameElementEditor}>
+                              {el.game_id ? (
+                                <div className={styles.gameSelectedPreview}>
+                                  <Gamepad2 size={14} className={styles.gameSelectedIcon} />
+                                  <div className={styles.gameSelectedInfo}>
+                                    <span className={styles.gameSelectedTitle}>{el.game_title || '互动游戏'}</span>
+                                    {el.share_url
+                                      ? <span className={styles.gameSelectedUrl}>{el.share_url}</span>
+                                      : <span className={styles.gameSelectedUrl} style={{opacity:0.4}}>生成链接中...</span>
+                                    }
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className={styles.gameNoSelection}>
+                                  <Gamepad2 size={16} style={{opacity:0.3}} />
+                                  <span>请在下方选择要链接的游戏</span>
+                                </div>
+                              )}
+                              {gameListLoading ? (
+                                <div className={styles.gamePickerLoading}>
+                                  <Loader2 size={13} className={styles.spinIcon} /> 加载游戏列表...
+                                </div>
+                              ) : gameList.length === 0 ? (
+                                <div className={styles.gamePickerEmpty}>本节课暂无互动游戏</div>
+                              ) : (
+                                <div className={styles.gamePickerList}>
+                                  {gameList.map(g => {
+                                    const isSelected = el.game_id === g.game_id;
+                                    return (
+                                      <button
+                                        key={g.game_id}
+                                        className={`${styles.gamePickerItem} ${isSelected ? styles.gamePickerItemActive : ''}`}
+                                        onClick={async () => {
+                                          updateElement(idx, { game_id: g.game_id, game_title: g.title, share_url: undefined });
+                                          try {
+                                            const link = await createShareLink(g.game_id);
+                                            const url = link.full_short_url || `${window.location.origin}${link.short_url}`;
+                                            updateElement(idx, { share_url: url });
+                                          } catch { /* 不阻塞选择 */ }
+                                        }}
+                                      >
+                                        <Gamepad2 size={12} />
+                                        <span className={styles.gamePickerName}>{g.title}</span>
+                                        {g.type_label && <span className={styles.gamePickerType}>{g.type_label}</span>}
+                                        {isSelected && <Check size={12} className={styles.gamePickerCheck} />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
                         })() : el.type === 'table' ? (
                           /* ── 表格编辑器 ── */
                           <div className={styles.tableEditor}>
@@ -901,6 +1019,77 @@ export default function PPTPageWorkbench({
               >
                 <Sparkles size={14} /> 发送 AI 指令
               </button>
+            </section>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════
+            Tab: 游戏占位符
+            ══════════════════════════════════════════════════════ */}
+        {activeTab === 'game' && (
+          <div className={styles.body}>
+            <section className={styles.section}>
+              <label className={styles.sectionLabel}><Gamepad2 size={13} /> 选择要插入的游戏</label>
+              <p className={styles.aiHint}>
+                生成短链接后，可以在 PPT 幻灯片中插入超链接，学生点击即可在浏览器中玩游戏。
+              </p>
+
+              {gameListLoading ? (
+                <div className={styles.gameLoadingRow}>
+                  <Loader2 size={16} className={styles.spinIcon} />
+                  <span>加载游戏列表...</span>
+                </div>
+              ) : gameList.length === 0 ? (
+                <div className={styles.gameEmptyHint}>本节课还没有生成任何游戏</div>
+              ) : (
+                <div className={styles.gamePickList}>
+                  {gameList.map(g => (
+                    <button
+                      key={g.game_id}
+                      className={`${styles.gamePickItem} ${selectedGameId === g.game_id ? styles.gamePickItemActive : ''}`}
+                      onClick={() => { setSelectedGameId(g.game_id); setGameShareUrl(null); setGameCopied(false); }}
+                    >
+                      <Gamepad2 size={13} />
+                      <div className={styles.gamePickName}>{g.title}</div>
+                      <div className={styles.gamePickType}>{g.type_label}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {selectedGameId && !gameShareUrl && (
+                <button
+                  className={styles.gameGenShareBtn}
+                  disabled={gameSharingLoading}
+                  onClick={handleGameShare}
+                >
+                  {gameSharingLoading
+                    ? <><Loader2 size={13} className={styles.spinIcon} /> 生成中...</>
+                    : <><Share2 size={13} /> 生成分享短链接</>
+                  }
+                </button>
+              )}
+
+              {gameShareError && (
+                <p className={styles.gameShareError}>{gameShareError}</p>
+              )}
+
+              {gameShareUrl && (
+                <div className={styles.gameShareResult}>
+                  <div className={styles.gameShareUrlBox}>
+                    <code className={styles.gameShareUrlText}>{gameShareUrl}</code>
+                  </div>
+                  <button
+                    className={`${styles.gameCopyBtn} ${gameCopied ? styles.gameCopyBtnDone : ''}`}
+                    onClick={handleCopyGameShare}
+                  >
+                    {gameCopied ? <><Check size={13} /> 已复制!</> : <><Copy size={13} /> 复制短链接</>}
+                  </button>
+                  <p className={styles.gameShareTip}>
+                    将上方链接添加为 PPT 内超链接，学生单击就能直接在浏览器中玩游戏
+                  </p>
+                </div>
+              )}
             </section>
           </div>
         )}
