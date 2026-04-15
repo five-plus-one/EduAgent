@@ -418,9 +418,6 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
               </span>
               {typeLabel && <span className={styles.gamePlaceholderBadge}>{typeLabel}</span>}
             </div>
-            {gameUrl && (
-              <span className={styles.gamePlaceholderHint}>点击打开游戏 →</span>
-            )}
           </div>
         </div>
       );
