@@ -853,6 +853,220 @@
   margin-left: 2px;
 }
 
+.stickyTopbarShell {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  width: 100%;
+  padding: 20px 0 6px;
+  background:
+    linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(248, 250, 252, 0.82) 72%, rgba(248, 250, 252, 0) 100%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.workspaceTopbar {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 252, 0.88));
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.workspaceTopbarPpt {
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.workspaceTopbarWord {
+  border-color: rgba(14, 116, 144, 0.16);
+}
+
+.topbarPrimary {
+  min-width: 0;
+  flex: 1;
+}
+
+.topbarEyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  opacity: 0.74;
+}
+
+.topbarHeadlineRow {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.topbarTitle {
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+}
+
+.topbarDescription {
+  margin: 9px 0 0;
+  max-width: 620px;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.topbarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.topbarActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+}
+
+.topbarActionBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.topbarActionBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.topbarGhostAction {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.topbarGhostAction:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.12);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.12);
+}
+
+.topbarSoftAction {
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--text-primary);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.topbarSoftAction:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.09);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.topbarPrimaryAction {
+  background: linear-gradient(135deg, #2563eb, #0f766e);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.22);
+}
+
+.topbarPrimaryAction:hover:not(:disabled) {
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.28);
+}
+
+.topbarThemeChip,
+.topbarCountPill,
+.topbarStatusPill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbarThemeChip {
+  color: var(--text-primary);
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.topbarCountPill {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+
+.topbarStatusPill {
+  border: 1px solid transparent;
+}
+
+.statusWarnPill {
+  background: rgba(217, 119, 6, 0.12);
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.2);
+}
+
+.statusOkPill {
+  background: rgba(15, 159, 110, 0.12);
+  color: #0f9f6e;
+  border-color: rgba(15, 159, 110, 0.18);
+}
+
+.modeSwitch {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.modeSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.modeSwitchBtnActive {
+  background: #ffffff;
+  color: var(--text-primary);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.09);
+}
+
 /* ---------------- SPEECH ERROR ---------------- */
 .speechError {
   font-size: 0.82rem;

@@ -133,8 +133,6 @@ export default function Workspace() {
       return key ? localStorage.getItem(key) : null;
     } catch { return null; }
   });
-  // 讲义预览 / 编辑工作流
-  const [wordMode, setWordMode] = useState<'preview' | 'edit'>('preview');
   const [wordMode, setWordMode] = useState<'preview' | 'edit'>('preview');
   const [wordDraft, setWordDraft] = useState('');
   const [wordSavedSnapshot, setWordSavedSnapshot] = useState('');
