@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Library, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { KnowledgeBasePanel } from './KnowledgeBase';
@@ -8,8 +8,8 @@ import styles from './AssetPage.module.css';
 type AssetTab = 'knowledge' | 'images';
 
 const TABS: { key: AssetTab; label: string; icon: typeof Library; desc: string }[] = [
-  { key: 'knowledge', label: '知识库管理', icon: Library,   desc: '上传并管理 RAG 知识文档' },
-  { key: 'images',    label: '图片素材库', icon: ImageIcon, desc: '管理课件图片与素材' },
+  { key: 'knowledge', label: '知识库文档', icon: Library, desc: '上传与管理教学文档、视频与 RAG 素材' },
+  { key: 'images', label: '图片素材', icon: ImageIcon, desc: '统一管理课件图像、标签与描述信息' },
 ];
 
 export default function AssetPage() {
@@ -19,8 +19,11 @@ export default function AssetPage() {
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div className={styles.headerLeft}>
+          <span className={styles.pageEyebrow}>Asset Center</span>
           <h1 className={styles.pageTitle}>素材管理</h1>
-          <p className={styles.pageDesc}>统一管理您的知识库文档和图片素材，为 AI 课件生成提供精准原料</p>
+          <p className={styles.pageDesc}>
+            将知识库文档与图片素材收拢到同一套资产中心里，减少跳转，提升备课与生成效率。
+          </p>
         </div>
 
         <nav className={styles.tabBar} aria-label="素材类型切换">
@@ -45,7 +48,7 @@ export default function AssetPage() {
 
       <main className={styles.content}>
         {activeTab === 'knowledge' && <KnowledgeBasePanel />}
-        {activeTab === 'images'    && <ImageUploadPanel />}
+        {activeTab === 'images' && <ImageUploadPanel />}
       </main>
     </div>
   );

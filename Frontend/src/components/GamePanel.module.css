@@ -252,6 +252,37 @@
 }
 .refreshBtn:hover { background: var(--bg-secondary); color: var(--text-primary); }
 
+@media (max-width: 900px) {
+  .root {
+    flex-direction: column;
+    gap: 12px;
+    overflow: auto;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
+    padding-bottom: 12px;
+  }
+
+  .preview {
+    min-height: 0;
+    width: 100%;
+  }
+
+  .previewHeader {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .previewMeta,
+  .previewActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 /* ── 手动创建面板 ── */
 .manualPanel {
   background: var(--bg-primary, #fff);

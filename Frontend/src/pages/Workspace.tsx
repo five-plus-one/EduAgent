@@ -104,6 +104,7 @@ export default function Workspace() {
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
+  const [mobilePane, setMobilePane] = useState<'chat' | 'files' | 'ppt' | 'more'>('chat');
   /** 鍙傝€冭祫鏂?Tab 鐨勫瓙闈㈡澘鍒囨崲锛歞ocs锛堢煡璇嗗簱鏂囦欢锛?| images锛堜細璇濆浘鐗囷級 */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
   const [isUploadingKb, setIsUploadingKb] = useState(false);
@@ -185,9 +186,24 @@ export default function Workspace() {
     return () => { alive = false; };
   }, []);
 
+  useEffect(() => {
+    if (activeTab === 'files') {
+      setMobilePane('files');
+      return;
+    }
+    if (activeTab === 'ppt') {
+      setMobilePane('ppt');
+      return;
+    }
+    if (activeTab === 'word' || activeTab === 'games') {
+      setMobilePane('more');
+    }
+  }, [activeTab]);
+
   /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
   const handleOpenFiles = () => {
     setActiveTab('files');
+    setMobilePane('files');
     setFilesSubTab('docs');
     setFilesHighlight(true);
     setTimeout(() => setFilesHighlight(false), 1800);
@@ -630,7 +646,10 @@ export default function Workspace() {
     <div className={styles.workspace}>
       
       {/* LEFT PANEL: Chat Interaction */}
-      <section className={styles.chatPanel} style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}>
+      <section
+        className={clsx(styles.chatPanel, mobilePane === 'chat' && styles.mobilePaneActive)}
+        style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}
+      >
         <header className={styles.chatHeader}>
           <div className={styles.sessionInfo}>
             {sessionId === 'new' ? (
@@ -824,7 +843,7 @@ export default function Workspace() {
       />
 
       {/* RIGHT PANEL: Visual WorkSpace */}
-      <section className={styles.visualPanel}>
+      <section className={clsx(styles.visualPanel, mobilePane !== 'chat' && styles.mobilePaneActive)}>
         {sessionId === 'new' ? (
           <div className={styles.welcomeHero}>
             <div className={styles.heroContent}>
@@ -1395,6 +1414,50 @@ export default function Workspace() {
           }}
           onCancel={() => setShowThemePicker(false)}
         />
+      )}
+
+      {sessionId !== 'new' && (
+        <nav className={styles.mobileWorkspaceNav}>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'chat' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => setMobilePane('chat')}
+          >
+            <Sparkles size={16} />
+            <span>会话</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'files' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              setActiveTab('files');
+              setMobilePane('files');
+            }}
+          >
+            <Library size={16} />
+            <span>资料</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'ppt' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              setActiveTab('ppt');
+              setMobilePane('ppt');
+            }}
+          >
+            <Palette size={16} />
+            <span>课件</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'more' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              if (activeTab !== 'word' && activeTab !== 'games') {
+                setActiveTab('word');
+              }
+              setMobilePane('more');
+            }}
+          >
+            <FileText size={16} />
+            <span>更多</span>
+          </button>
+        </nav>
       )}
 
     </div>
