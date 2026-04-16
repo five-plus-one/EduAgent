@@ -164,7 +164,7 @@ export default function Workspace() {
   const displayedWordDoc = wordDirty ? wordDraft : persistedWordDoc;
   const resolveThemeDisplayName = useCallback((themeKey: string | null, isCustomTheme = false) => {
     if (isCustomTheme) return '自定义';
-    if (!themeKey) return '鑷姩';
+    if (!themeKey) return '自动';
     return themeLabelMap.get(themeKey) ?? themeKey;
   }, [themeLabelMap]);
   const isCustomThemeActive =
