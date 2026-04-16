@@ -93,7 +93,7 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!isStreaming && streamPages.length > 0) {
-      fetchPreview();
+      fetchPreview(true);
     }
   }, [isStreaming, streamPages, fetchPreview]);
 
@@ -556,7 +556,7 @@ export default function Workspace() {
     if (!isSynthesizing && sessionId !== 'new' && sessionId) {
       console.log('[Sync] AI completed synthesis/tools, checking for PPT updates.');
       // Adding a slight delay to ensure DB transaction commits before fetch
-      setTimeout(() => fetchPreview(), 500);
+      setTimeout(() => fetchPreview(true), 500);
     }
   }, [isSynthesizing, fetchPreview, sessionId]);
 

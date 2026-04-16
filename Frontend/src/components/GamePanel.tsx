@@ -245,13 +245,27 @@ export default function GamePanel({
   useEffect(() => {
     if (completedGameId && generatingSessionId === sessionId) {
       // 标记已为该 gameId 发起请求，配合 Effect B 的去重逻辑
-      previewLoadedForRef.current = completedGameId;
+      setPreviewHtml(null);
       setPreviewLoading(true);
       setPreviewError(null);
-      fetchGameHtml(completedGameId)
-        .then(html => setPreviewHtml(html))
-        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
-        .finally(() => setPreviewLoading(false));
+      (async () => {
+        try {
+          let html = await fetchGameHtml(completedGameId);
+          if (!html || !html.trim()) {
+            await new Promise(r => setTimeout(r, 800));
+            html = await fetchGameHtml(completedGameId);
+          }
+          if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+          previewLoadedForRef.current = completedGameId;
+          setPreviewHtml(html);
+        } catch (err: any) {
+          previewLoadedForRef.current = null;
+          setPreviewHtml(null);
+          setPreviewError(err?.message ?? 'Preview load failed');
+        } finally {
+          setPreviewLoading(false);
+        }
+      })();
 
       setSelectedId(completedGameId);
       setPreviewTab('preview');
@@ -342,6 +356,11 @@ export default function GamePanel({
     onClearSuggest();
   }, [pendingTrigger, selectedId, triggerGenerate, resumeGenerate, sessionId, onClearTrigger, onClearSuggest]);
 
+  useEffect(() => {
+    if (!pendingTrigger?.task_id || generating) return;
+    handleConfirmTrigger();
+  }, [pendingTrigger, generating, handleConfirmTrigger]);
+
   const handleManualGenerate = () => {
     const spec: GameSpec = {
       game_type: manualType,
@@ -414,24 +433,51 @@ export default function GamePanel({
     finally { setSourceLoading(false); }
   }, []);
 
+  const loadPreviewHtml = useCallback(async (gameId: string, retry = false) => {
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const html = await fetchGameHtml(gameId);
+      if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+      previewLoadedForRef.current = gameId;
+      setPreviewHtml(html);
+    } catch (err: any) {
+      if (retry) {
+        try {
+          await new Promise(r => setTimeout(r, 800));
+          const html = await fetchGameHtml(gameId);
+          if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+          previewLoadedForRef.current = gameId;
+          setPreviewHtml(html);
+          setPreviewError(null);
+          return;
+        } catch (retryErr: any) {
+          previewLoadedForRef.current = null;
+          setPreviewHtml(null);
+          setPreviewError(retryErr?.message ?? 'Preview load failed');
+          return;
+        }
+      }
+      previewLoadedForRef.current = null;
+      setPreviewHtml(null);
+      setPreviewError(err?.message ?? 'Preview load failed');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
   // ── 选中游戏 / Tab 切换时加载内容 ────────────────────────────────────
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
       // 已经在级漏为该 gameId（生成完成时提前拉取或已缓存），跳过
-      if (previewLoadedForRef.current === selectedId) return;
-      previewLoadedForRef.current = selectedId;
+      if (previewLoadedForRef.current === selectedId && previewHtml) return;
       setPreviewHtml(null);
-      setPreviewError(null);
-      setPreviewLoading(true);
-      fetchGameHtml(selectedId)
-        .then(html => setPreviewHtml(html))
-        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
-        .finally(() => setPreviewLoading(false));
+      loadPreviewHtml(selectedId, true);
     } else if (previewTab === 'source' && !sourceCode) {
       loadSource(selectedId);
     }
-  }, [selectedId, previewTab, loadSource]);
+  }, [selectedId, previewTab, previewHtml, loadPreviewHtml, loadSource, sourceCode]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
@@ -539,7 +585,7 @@ export default function GamePanel({
             )}
 
             {/* AI 触发横幅 */}
-            {pendingTrigger && (
+            {pendingTrigger && !pendingTrigger.task_id && (
               <div className={styles.triggerBanner}>
                 <div className={styles.triggerHeader}>
                   <Zap size={13} className={styles.triggerIcon} />
@@ -882,12 +928,7 @@ export default function GamePanel({
                       className={styles.retryBtn}
                       onClick={() => {
                         if (!effectiveGameId) return;
-                        setPreviewError(null);
-                        setPreviewLoading(true);
-                        fetchGameHtml(effectiveGameId)
-                          .then(setPreviewHtml)
-                          .catch(e => setPreviewError(e?.message ?? '加载失败'))
-                          .finally(() => setPreviewLoading(false));
+                        loadPreviewHtml(effectiveGameId, true);
                       }}
                     >
                       <RefreshCw size={12} /> 重试
