@@ -13,12 +13,12 @@ import { clsx } from 'clsx';
 import {
   Gamepad2, Loader2, Trash2, Code2, Eye, RefreshCw,
   ChevronRight, Sparkles, CheckCircle, AlertCircle, Copy, Check,
-  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink,
+  X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink, Brain,
 } from 'lucide-react';
 import {
   listSessionGames, getGameSource,
-  deleteGame, fetchGameHtml, createShareLink, gameShareUrl,
-  streamGameTask, GAME_TYPE_DEFAULTS,
+  deleteGame, renameGame, fetchGameHtml, createShareLink, gameShareUrl,
+  GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
 import { useGameStore } from '../store/useGameStore';
@@ -78,11 +78,13 @@ interface StreamingCodeWindowProps {
   progress: number;
   stageMessage?: string;
   code: string;         // 实时累积的 HTML 代码
+  thinking?: string;    // 深度思考记录
   isStreaming: boolean; // true = SSE 中，false = 轮询降级
 }
 
-function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming }: StreamingCodeWindowProps) {
+function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, isStreaming }: StreamingCodeWindowProps) {
   const codeBodyRef = useRef<HTMLDivElement>(null);
+  const thinkingBodyRef = useRef<HTMLDivElement>(null);
   const stageIdx = STAGES.indexOf(stage);
   const pct = Math.max(0, Math.min(100, progress));
 
@@ -91,6 +93,12 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming 
     const el = codeBodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [code]);
+
+  // 自动滚动深度思考的底部
+  useEffect(() => {
+    const el = thinkingBodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thinking]);
 
   const lines = code ? code.split('\n') : [];
 
@@ -111,6 +119,16 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, isStreaming 
         <div className={styles.progressBar} style={{ width: `${pct}%` }} />
         <span className={styles.progressPct}>{pct}%</span>
       </div>
+
+      {/* 深度思考框 */}
+      {thinking && (
+        <div className={styles.thinkingBox} ref={thinkingBodyRef}>
+          <div className={styles.thinkingHeader}>
+            <Brain size={12} /> 第 {STAGE_LABELS[stage] ?? '处理'} 阶段思考中...
+          </div>
+          <div className={styles.thinkingText}>{thinking}</div>
+        </div>
+      )}
 
       {/* 代码窗口 */}
       <div className={styles.codeWindow}>
@@ -180,9 +198,10 @@ export default function GamePanel({
 
   // ── 全局游戏生成状态（从 store 读） ───────────────────────
   const {
-    gameLists, generating, generatingSessionId, genStage, genProgress, genStageMsg,
-    streamedCode, isLiveStream, genError, refreshingList, completedGameId,
-    triggerGenerate: storeTrigger, setGameList, refreshGames, clearCompletedGameId, clearGenError
+    gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
+    streamedCode, genThinking, isLiveStream, genError, refreshingList, completedGameId,
+    triggerGenerate: storeTrigger, resumeGenerate, setGameList, refreshGames, clearCompletedGameId, clearGenError,
+    renameGameInStore,
   } = useGameStore();
 
   const isCurrentGenerating = generating && generatingSessionId === sessionId;
@@ -194,9 +213,11 @@ export default function GamePanel({
   const [selectedId, setSelectedId]       = useState<string | null>(null);
   const [previewTab, setPreviewTab]       = useState<'preview' | 'source'>('preview');
   
-  const [previewHtml, setPreviewHtml]       = useState<string | null>(null);
+  const [previewHtml, setPreviewHtml]     = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError]     = useState<string | null>(null);
+  const [previewError, setPreviewError]   = useState<string | null>(null);
+  // ref 追踪「当前已为哪个 gameId 发起/完成了 preview 请求」，避免重复 fetch
+  const previewLoadedForRef = useRef<string | null>(null);
   const [sourceLoading, setSourceLoading]   = useState(false);
   const [sourceCode, setSourceCode]         = useState<string | null>(null);
   
@@ -211,12 +232,27 @@ export default function GamePanel({
   const [manualTopics, setManualTopics]       = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
 
+  // 重命名状态
+  const [renamingId,  setRenamingId]  = useState<string | null>(null);
+  const [renameVal,   setRenameVal]   = useState('');
+  const [, setRenameSaving] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
   // ── 通知父组件 ───────────────────────────────────────────
   useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 生成完成后自动选中新游戏 ───────────────────────────
+  // ── 生成完成后自动选中新游戏 ────────────────────────────────────────
   useEffect(() => {
     if (completedGameId && generatingSessionId === sessionId) {
+      // 标记已为该 gameId 发起请求，配合 Effect B 的去重逻辑
+      previewLoadedForRef.current = completedGameId;
+      setPreviewLoading(true);
+      setPreviewError(null);
+      fetchGameHtml(completedGameId)
+        .then(html => setPreviewHtml(html))
+        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
+        .finally(() => setPreviewLoading(false));
+
       setSelectedId(completedGameId);
       setPreviewTab('preview');
       setSourceCode(null);
@@ -230,6 +266,17 @@ export default function GamePanel({
       setSelectedId('generating');
     }
   }, [isCurrentGenerating, selectedId]);
+
+  // 自动重连后台生成流：如果点击了正在生成但未在当前流中运行的卡片，自动发出恢复流请求
+  useEffect(() => {
+    if (!selectedId || selectedId === 'generating') return;
+    const g = games.find(x => x.game_id === selectedId);
+    if (g?.status === 'generating') {
+      if (!isCurrentGenerating || generatingRefineId !== selectedId) {
+        resumeGenerate(sessionId, selectedId);
+      }
+    }
+  }, [selectedId, games, isCurrentGenerating, generatingRefineId, sessionId, resumeGenerate]);
 
   // ── 拉取游戏列表 ─────────────────────────────────────────
   const fetchGames = useCallback(async (silent = false) => {
@@ -278,10 +325,22 @@ export default function GamePanel({
 
   const handleConfirmTrigger = useCallback(() => {
     if (!pendingTrigger) return;
-    triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
+    if (pendingTrigger.task_id) {
+      // 后端 game_trigger 事件携带了 task_id：后端已经在生成了
+      // 直接接管流监听进度，不重新调 generateGame（避免重复生成）
+      const refineId = pendingTrigger.is_refinement
+        ? (pendingTrigger.game_id ?? selectedId)
+        : null;
+      // 重置 UI 状态
+      setSelectedId('generating');
+      resumeGenerate(sessionId, refineId ?? pendingTrigger.task_id, pendingTrigger.task_id);
+    } else {
+      // 手动创建 / 无 task_id：前端发起生成请求
+      triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
+    }
     onClearTrigger();
     onClearSuggest();
-  }, [pendingTrigger, selectedId, triggerGenerate, onClearTrigger, onClearSuggest]);
+  }, [pendingTrigger, selectedId, triggerGenerate, resumeGenerate, sessionId, onClearTrigger, onClearSuggest]);
 
   const handleManualGenerate = () => {
     const spec: GameSpec = {
@@ -293,6 +352,35 @@ export default function GamePanel({
     };
     triggerGenerate(spec, null);
     setShowManualPanel(false);
+  };
+
+  // ─────────────────────────────────────────────────────────────
+  // 重命名
+  // ─────────────────────────────────────────────────────────────
+  const startRename = (gameId: string, currentTitle: string) => {
+    setRenamingId(gameId);
+    setRenameVal(currentTitle);
+    setTimeout(() => renameInputRef.current?.select(), 30);
+  };
+
+  const commitRename = async () => {
+    if (!renamingId) return;
+    const trimmed = renameVal.trim();
+    if (!trimmed) { setRenamingId(null); return; }
+    const originalTitle = games.find(g => g.game_id === renamingId)?.title ?? trimmed;
+    if (trimmed === originalTitle) { setRenamingId(null); return; }
+    setRenameSaving(true);
+    // 居观先更新，失败再回滚
+    renameGameInStore(sessionId, renamingId, trimmed);
+    setRenamingId(null);
+    try {
+      await renameGame(renamingId, trimmed);
+    } catch {
+      // 回滚
+      renameGameInStore(sessionId, renamingId ?? '', originalTitle);
+    } finally {
+      setRenameSaving(false);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -330,6 +418,9 @@ export default function GamePanel({
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
+      // 已经在级漏为该 gameId（生成完成时提前拉取或已缓存），跳过
+      if (previewLoadedForRef.current === selectedId) return;
+      previewLoadedForRef.current = selectedId;
       setPreviewHtml(null);
       setPreviewError(null);
       setPreviewLoading(true);
@@ -349,29 +440,62 @@ export default function GamePanel({
     });
   };
 
-  // ── 分享晋接复制──────────────────────────────────────────────────
+  // ── 分享链接复制 ─────────────────────────────────────────────────
   const handleCopyShareLink = async () => {
-    if (!selectedId || sharingLoading) return;
+    if (!effectiveGameId || sharingLoading) return;
     setSharingLoading(true);
     setShareError(null);
+
+    let url: string;
     try {
-      const link = await createShareLink(selectedId);
+      const link = await createShareLink(effectiveGameId);
       // full_short_url 如果带域名用域名；都不带则拼当前页面 origin
-      const url = link.full_short_url
+      url = link.full_short_url
         || `${window.location.origin}${link.short_url}`
         || `${window.location.origin}/play/${link.code}`;
-      await navigator.clipboard.writeText(url);
-      setShareCopied(true);
-      setTimeout(() => setShareCopied(false), 2500);
-    } catch (e: any) {
+    } catch {
+      // 只有 API 真正失败才报错
       setShareError('生成分享链接失败');
       setTimeout(() => setShareError(null), 3000);
-    } finally {
       setSharingLoading(false);
+      return;
     }
+
+    // API 成功，尝试写入剪贴板
+    // iframe 占有焦点时 clipboard API 会抛 "Document is not focused"，用 execCommand 降级
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch {
+      // 降级：创建临时 textarea，模拟 Ctrl+C
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignored */ }
+    }
+
+    if (copied) {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    } else {
+      // 两种方法都失败：提示用户手动复制（URL 已获取，不报"失败"）
+      setShareError(`链接已生成，请手动复制：${url}`);
+      setTimeout(() => setShareError(null), 8000);
+    }
+
+    setSharingLoading(false);
   };
 
-  const selectedGame = games.find(g => g.game_id === selectedId);
+  // previewLoadedForRef.current 在 selectedId 还没切换时也能找到游戏元数据
+  const effectiveGameId = selectedId === 'generating' ? (previewLoadedForRef.current ?? null) : selectedId;
+  const selectedGame = games.find(g => g.game_id === effectiveGameId);
 
   // ─────────────────────────────────────────────────────────────
   // 渲染
@@ -497,8 +621,8 @@ export default function GamePanel({
               </div>
             ) : (
               <div className={styles.gameList}>
-                {/* 生成中骨架卡 */}
-                {isCurrentGenerating && (
+                {/* 独立生成中骨架卡（仅当全新生成时显示） */}
+                {isCurrentGenerating && !generatingRefineId && (
                   <div
                     className={clsx(styles.gameItem, styles.gameItemGenerating, selectedId === 'generating' && styles.gameItemActive)}
                     onClick={() => setSelectedId('generating')}
@@ -520,33 +644,88 @@ export default function GamePanel({
                     </div>
                   </div>
                 )}
-                {games.map(g => (
+                {games.map(g => {
+                  const isRefiningThis = isCurrentGenerating && generatingRefineId === g.game_id;
+                  const isActive = isRefiningThis ? selectedId === 'generating' : selectedId === g.game_id;
+
+                  return (
                   <div
                     key={g.game_id}
-                    className={clsx(styles.gameItem, selectedId === g.game_id && styles.gameItemActive)}
-                    onClick={() => { setSelectedId(g.game_id); setSourceCode(null); setPreviewTab('preview'); }}
+                    className={clsx(styles.gameItem, isActive && styles.gameItemActive, isRefiningThis && styles.gameItemGenerating)}
+                    onClick={() => { 
+                      if (isRefiningThis) {
+                        setSelectedId('generating');
+                      } else {
+                        setSelectedId(g.game_id); 
+                        setSourceCode(null); 
+                        setPreviewTab('preview'); 
+                      }
+                    }}
                   >
-                    <div className={styles.gameItemMain}>
-                      <span className={styles.gameItemTitle}>{g.title}</span>
-                      <span className={styles.gameItemMeta}>
-                        {g.type_label} · v{g.version} · {fmtDate(g.updated_at)}
-                      </span>
-                    </div>
-                    <div className={styles.gameItemRight}>
-                      {g.status === 'completed' && <CheckCircle size={13} className={styles.statusDone} />}
-                      {g.status === 'generating' && <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />}
-                      {g.status === 'failed' && <AlertCircle size={13} className={styles.statusFail} />}
-                      {selectedId === g.game_id && <ChevronRight size={13} className={styles.chevron} />}
-                      <button
-                        className={styles.deleteBtn}
-                        onClick={e => { e.stopPropagation(); handleDelete(g.game_id); }}
-                        disabled={deletingIds.has(g.game_id)} title="删除"
-                      >
-                        {deletingIds.has(g.game_id) ? <Loader2 size={11} className={styles.spin} /> : <Trash2 size={11} />}
-                      </button>
-                    </div>
+                    {isRefiningThis ? (
+                      <>
+                        <div className={styles.generatingPulse} />
+                        <div className={styles.gameItemMain}>
+                          <span className={styles.gameItemTitle}>
+                            {isLiveStream ? '⚡ 实时修改中...' : '⏳ 修改中...'}
+                          </span>
+                          <span className={styles.gameItemMeta}>
+                            {STAGE_LABELS[genStage] ?? '处理中'} · {genProgress}%
+                            {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
+                          </span>
+                        </div>
+                        {/* 右侧小箭头 */}
+                        <div className={styles.gameItemRight}>
+                          {selectedId === 'generating' && <ChevronRight size={13} className={styles.chevron} />}
+                          <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className={styles.gameItemMain}>
+                          {renamingId === g.game_id ? (
+                            <input
+                              ref={renameInputRef}
+                              className={styles.renameInput}
+                              value={renameVal}
+                              onClick={e => e.stopPropagation()}
+                              onChange={e => setRenameVal(e.target.value)}
+                              onBlur={commitRename}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') commitRename();
+                                if (e.key === 'Escape') setRenamingId(null);
+                                e.stopPropagation();
+                              }}
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              className={styles.gameItemTitle}
+                              onDoubleClick={e => { e.stopPropagation(); startRename(g.game_id, g.title); }}
+                              title="双击重命名"
+                            >{g.title}</span>
+                          )}
+                          <span className={styles.gameItemMeta}>
+                            {g.type_label} · v{g.version} · {fmtDate(g.updated_at)}
+                          </span>
+                        </div>
+                        <div className={styles.gameItemRight}>
+                          {g.status === 'completed' && <CheckCircle size={13} className={styles.statusDone} />}
+                          {g.status === 'generating' && <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />}
+                          {g.status === 'failed' && <AlertCircle size={13} className={styles.statusFail} />}
+                          {selectedId === g.game_id && <ChevronRight size={13} className={styles.chevron} />}
+                          <button
+                            className={styles.deleteBtn}
+                            onClick={e => { e.stopPropagation(); handleDelete(g.game_id); }}
+                            disabled={deletingIds.has(g.game_id)} title="删除"
+                          >
+                            {deletingIds.has(g.game_id) ? <Loader2 size={11} className={styles.spin} /> : <Trash2 size={11} />}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </>
@@ -555,21 +734,36 @@ export default function GamePanel({
 
       {/* ─── 右栏：预览 ─── */}
       <div className={styles.preview}>
-        {selectedId === 'generating' && isCurrentGenerating ? (
+        {(selectedId === 'generating' || selectedId === generatingRefineId) && isCurrentGenerating ? (
           /* 实时流式代码窗口 */
           <StreamingCodeWindow
             stage={genStage}
             progress={genProgress}
             stageMessage={genStageMsg}
             code={streamedCode}
+            thinking={genThinking}
             isStreaming={isLiveStream}
           />
-        ) : refreshingList && selectedId === 'generating' ? (
-          /* 生成完成，正在拉取列表的过渡态 */
+        ) : refreshingList && selectedId === 'generating' && !previewHtml ? (
+          /* 生成完成，正在拉取列表的过渡态（HTML还未就绪时才显示） */
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>正在加载游戏...</p>
             <small>马上就好，游戏即将可以运行</small>
+          </div>
+        ) : selectedGame?.status === 'generating' ? (
+          /* 未完成或后台生成中的挂起状态 */
+          <div className={styles.previewEmpty}>
+            <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
+            <p>后台正在生成中...</p>
+            <small>由于页面刷新等原因未连接实时进度，生成完毕后方可预览</small>
+          </div>
+        ) : selectedId === 'generating' && (completedGameId || previewLoading) ? (
+          /* 过渡帧：completedGameId 已设置但本地 Effect 尚未切换 selectedId，或 HTML 正在加载 */
+          <div className={styles.previewEmpty}>
+            <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
+            <p>游戏生成完成，加载预览中...</p>
+            <small>马上就好</small>
           </div>
         ) : (!selectedId || selectedId === 'generating') ? (
           <div className={styles.previewEmpty}>
@@ -597,7 +791,26 @@ export default function GamePanel({
               </div>
 
               <div className={styles.previewMeta}>
-                <span className={styles.previewTitle}>{selectedGame?.title}</span>
+                {selectedGame && renamingId === selectedGame.game_id ? (
+                  <input
+                    ref={renameInputRef}
+                    className={styles.previewTitleInput}
+                    value={renameVal}
+                    onChange={e => setRenameVal(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') commitRename();
+                      if (e.key === 'Escape') setRenamingId(null);
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <span
+                    className={styles.previewTitle}
+                    title="点击重命名"
+                    onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
+                  >{selectedGame?.title}</span>
+                )}
                 {selectedGame && <span className={styles.previewVersion}>v{selectedGame.version}</span>}
               </div>
 
@@ -615,7 +828,7 @@ export default function GamePanel({
                 <button
                   className={clsx(styles.shareBtn, shareCopied && styles.shareBtnCopied)}
                   onClick={handleCopyShareLink}
-                  disabled={sharingLoading || !selectedId}
+                  disabled={sharingLoading || !effectiveGameId}
                   title="生成短链接并复制到剪贴板，可嵌入PPT"
                 >
                   {sharingLoading
@@ -627,7 +840,7 @@ export default function GamePanel({
                 </button>
                 {/* 新标签页打开 */}
                 <a
-                  href={selectedId ? gameShareUrl(selectedId) : '#'}
+                  href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={styles.iconActionBtn}
@@ -668,10 +881,10 @@ export default function GamePanel({
                     <button
                       className={styles.retryBtn}
                       onClick={() => {
-                        if (!selectedId) return;
+                        if (!effectiveGameId) return;
                         setPreviewError(null);
                         setPreviewLoading(true);
-                        fetchGameHtml(selectedId)
+                        fetchGameHtml(effectiveGameId)
                           .then(setPreviewHtml)
                           .catch(e => setPreviewError(e?.message ?? '加载失败'))
                           .finally(() => setPreviewLoading(false));
@@ -680,7 +893,7 @@ export default function GamePanel({
                       <RefreshCw size={12} /> 重试
                     </button>
                     <a
-                      href={gameShareUrl(selectedId!)}
+                          href={gameShareUrl(effectiveGameId ?? '')}
                       target="_blank"
                       rel="noopener noreferrer"
                       className={styles.retryBtn}
@@ -692,7 +905,7 @@ export default function GamePanel({
                 )}
                 {previewHtml && !previewLoading && !previewError && (
                   <iframe
-                    key={selectedId}
+                    key={effectiveGameId}
                     srcDoc={previewHtml}
                     sandbox="allow-scripts allow-same-origin allow-forms"
                     className={styles.iframe}

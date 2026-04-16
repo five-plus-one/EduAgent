@@ -97,6 +97,59 @@
   border: 1px solid rgba(245,158,11,0.25);
 }
 
+/* ── Edit Tab 底部保存栏 ─────────────────────────────────── */
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  background: white;
+  flex-shrink: 0;
+}
+
+.saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 9px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  box-shadow: 0 2px 10px rgba(99,102,241,0.28);
+}
+.saveBtn:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.saveBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.cancelBtn {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(15,23,42,0.12);
+  background: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.cancelBtn:hover { background: rgba(15,23,42,0.04); color: #0f172a; }
+
+
 .closeBtn {
   display: flex;
   align-items: center;
@@ -1245,3 +1298,436 @@
 .gamePickerName { flex: 1; font-weight: 600; }
 .gamePickerType { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; }
 .gamePickerCheck { color: #22c55e; flex-shrink: 0; }
+
+/* ── 游戏 Tab 新式插入流 UI ──────────────────────────── */
+
+/* 区块容器：方案A / 方案B */
+.gameInsertBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-secondary, #f8fafc);
+  border: 1px solid var(--border-glass, rgba(0,0,0,0.07));
+  border-radius: 11px;
+}
+
+.gameInsertBlockTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary, #475569);
+  letter-spacing: 0.01em;
+}
+
+/* 插入按钮：主色渐变 */
+.gameInsertBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: opacity 0.15s, box-shadow 0.15s, transform 0.1s;
+  box-shadow: 0 3px 12px rgba(99,102,241,0.3);
+  margin-top: 4px;
+}
+.gameInsertBtn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 18px rgba(99,102,241,0.4);
+}
+.gameInsertBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* 分隔线 "or" */
+.gameInsertSep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  color: var(--text-tertiary, #94a3b8);
+  font-size: 11.5px;
+}
+.gameInsertSep::before,
+.gameInsertSep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-glass, rgba(0,0,0,0.08));
+}
+
+/* URL 输入行 */
+.gameUrlRow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.gameUrlInput {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.1));
+  background: var(--bg-primary, #fff);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary, #0f172a);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.gameUrlInput:focus { border-color: rgba(99,102,241,0.5); }
+.gameUrlInput::placeholder { color: var(--text-tertiary, #94a3b8); font-family: inherit; font-size: 11.5px; }
+
+/* 插入成功提示条 */
+.gameInsertSuccess {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  background: rgba(34,197,94,0.07);
+  border: 1.5px solid rgba(34,197,94,0.25);
+  border-radius: 10px;
+  color: #16a34a;
+  font-size: 12.5px;
+  animation: slideInDown 0.2s ease;
+}
+@keyframes slideInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.gameInsertSuccess strong { font-weight: 800; }
+
+.gameInsertSuccessTitle {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-top: 3px;
+}
+.gameInsertSuccessUrl {
+  display: block;
+  font-size: 10.5px;
+  font-family: 'JetBrains Mono', monospace;
+  color: #6366f1;
+  margin-top: 2px;
+  text-decoration: none;
+  word-break: break-all;
+}
+.gameInsertSuccessUrl:hover { text-decoration: underline; }
+
+/* gamePickCheck — 选中勾 (在 gameInsertBlock 内的列表项用) */
+.gamePickCheck { color: #22c55e; flex-shrink: 0; margin-left: auto; }
+
+/* ── Edit Tab 游戏元素行：已插入状态卡片 ──────────────────── */
+.gameInsertedCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.07), rgba(139,92,246,0.04));
+  border: 1.5px solid rgba(99,102,241,0.22);
+  border-radius: 9px;
+  width: 100%;
+}
+.gameInsertedCardLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+.gameInsertedIcon { color: #6366f1; flex-shrink: 0; margin-top: 1px; }
+.gameInsertedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.gameInsertedTitle {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4f46e5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameInsertedBadge {
+  align-self: flex-start;
+  padding: 1px 7px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.gameInsertedUrl {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(99,102,241,0.55);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.gameInsertedUrl:hover { text-decoration: underline; }
+
+/* 「再次插入」按钮 */
+.gameReSelectBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(99,102,241,0.25);
+  background: rgba(99,102,241,0.07);
+  color: #6366f1;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.gameReSelectBtn:hover { background: rgba(99,102,241,0.15); border-color: rgba(99,102,241,0.4); }
+
+/* 未关联提示行 */
+.gameUnlinkedHint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(15,23,42,0.03);
+  border: 1px dashed rgba(15,23,42,0.12);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-tertiary, #94a3b8);
+  width: 100%;
+}
+
+/* 「前往游戏 Tab」按钮（内联文字链） */
+.gameGoTabBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #6366f1;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.gameGoTabBtn:hover { opacity: 0.75; }
+
+/* ── Missing utility classes ──────────────────────────── */
+.spin { animation: spinIcon 1s linear infinite; }
+.gameShareError {
+  font-size: 11px;
+  color: #ef4444;
+  margin: 4px 0 0;
+  padding: 0 2px;
+}
+
+
+/* ── interactive_game 元素行 ────────────────────────────────── */
+.gameLinkedRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(99,102,241,0.06);
+  border: 1px solid rgba(99,102,241,0.18);
+  flex: 1;
+  min-width: 0;
+}
+.gameLinkedIcon { color: #6366f1; flex-shrink: 0; }
+.gameLinkedTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameChangeBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,0.35);
+  background: none;
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.gameChangeBtn:hover { background: rgba(99,102,241,0.08); }
+
+.gameUnlinkedRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(15,23,42,0.03);
+  border: 1px dashed rgba(15,23,42,0.15);
+  flex: 1;
+  min-width: 0;
+}
+.gameUnlinkedHint {
+  font-size: 12px;
+  color: #94a3b8;
+  flex: 1;
+}
+.gameSelectBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: all 0.15s;
+  box-shadow: 0 2px 6px rgba(99,102,241,0.28);
+}
+.gameSelectBtn:hover { filter: brightness(1.08); }
+
+/* ── 游戏选择弹窗 ───────────────────────────────────────────── */
+.gameModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 800;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.14s ease;
+}
+.gameModalPanel {
+  width: min(420px, 92vw);
+  max-height: 70vh;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalSlideIn 0.2s cubic-bezier(0.22,1,0.36,1);
+}
+@keyframes modalSlideIn {
+  from { transform: scale(0.94) translateY(12px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.gameModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 13px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+  flex-shrink: 0;
+}
+.gameModalTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.gameModalBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15,23,42,0.08) transparent;
+}
+.gameModalList {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.gameModalItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(15,23,42,0.07);
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.gameModalItem:hover { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.04); }
+.gameModalItemActive {
+  border-color: #6366f1 !important;
+  background: rgba(99,102,241,0.07) !important;
+}
+.gameModalItemLeft {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+}
+.gameModalItemIcon { color: #6366f1; flex-shrink: 0; }
+.gameModalItemInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.gameModalItemTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameModalItemBadge {
+  font-size: 10px;
+  color: #6366f1;
+  background: rgba(99,102,241,0.1);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 600;
+  width: fit-content;
+}
+.gameModalItemCheck { color: #6366f1; flex-shrink: 0; }
+.gameModalLoading, .gameModalEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+.gameModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  flex-shrink: 0;
+}

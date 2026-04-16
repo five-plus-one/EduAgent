@@ -22,6 +22,10 @@ export interface GameSpec {
   custom_requirements?: string;
   is_refinement: boolean;
   refinement_instruction?: string;
+  /** 后端已创建的任务 ID（game_trigger SSE 携带，前端直接接管流用） */
+  task_id?: string;
+  /** 后端已创建的游戏 ID */
+  game_id?: string;
 }
 
 export interface GameTask {
@@ -53,7 +57,9 @@ export interface GameSource {
   title: string;
   game_type: string;
   version: number;
-  html_code: string;
+  html_code?: string;
+  html_content?: string;
+  content?: string;
   char_count: number;
 }
 
@@ -187,6 +193,54 @@ export async function deleteGame(gameId: string): Promise<void> {
   await apiClient.delete(`/games/${gameId}`);
 }
 
+/** 7b. 重命名游戏（PATCH /games/{game_id}） */
+export async function renameGame(
+  gameId: string,
+  title: string,
+): Promise<{ game_id: string; title: string }> {
+  const res = await apiClient.patch(`/games/${gameId}`, { title });
+  return res.data?.data ?? res.data;
+}
+
+/**
+ * 7c. 插入游戏占位符元素到 PPT 指定页面
+ * POST /sessions/{session_id}/courseware/slides/{page_index}/elements/game
+ *
+ * 方案A: { game_id }  — 选择会话内已有游戏，后端自动生成分享链接
+ * 方案B: { game_url } — 粘贴任意 URL，后端提取 game_id 或直接保存
+ *
+ * @returns 后端写入后的完整 slide 数据（含新增的 game_placeholder element）
+ */
+export interface InsertGameElementResult {
+  page_index: number;
+  element_id: string;
+  element: {
+    element_id: string;
+    type: 'game_placeholder';
+    position: string;
+    content: unknown[];
+    is_accent: boolean;
+    game_id: string;
+    game_url: string;
+    game_title: string;
+    game_type: string;
+    type_label: string;
+  };
+  slide: unknown;
+}
+
+export async function insertGameElement(
+  sessionId: string,
+  pageIndex: number,
+  params: { game_id: string; game_url?: null } | { game_id?: null; game_url: string },
+): Promise<InsertGameElementResult> {
+  const res = await apiClient.post(
+    `/sessions/${sessionId}/courseware/slides/${pageIndex}/elements/game`,
+    params,
+  );
+  return res.data?.data ?? res.data;
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 分享短链接 API
 // ─────────────────────────────────────────────────────────────────
@@ -315,6 +369,8 @@ export interface GameStreamCallbacks {
   onStage?: (stage: string, progress: number, message?: string) => void;
   /** 实际 HTML 代码片段（来自 LLM token 流）*/
   onChunk?: (chunk: string, progress: number, accumulated: string) => void;
+  /** 深度思考片段 */
+  onThinking?: (chunk: string, accumulated: string) => void;
   /** 生成完成 */
   onDone?: (gameId: string, version: number) => void;
   /** 生成失败 */
@@ -341,6 +397,7 @@ export async function streamGameTask(
   const url = `${API_BASE_URL}/games/tasks/${taskId}/stream`;
   let streamFailed = false;
   let accumulated = '';
+  let accumulatedThinking = '';
 
   try {
     await fetchEventSource(url, {
@@ -353,9 +410,14 @@ export async function streamGameTask(
       // fetchEventSource 会在非 2xx 时 throw，我们捕获后降级
       async onopen(response) {
         if (!response.ok) {
-          // 404 = 后端未实现，降级到轮询
           streamFailed = true;
           throw new Error(`SSE_NOT_SUPPORTED:${response.status}`);
+        }
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.includes('text/event-stream')) {
+          // 后端返回了 200 OK，但不是 SSE（例如返回了提示 JSON），强制进入降级轮询
+          streamFailed = true;
+          throw new Error('NOT_EVENT_STREAM');
         }
       },
       onmessage(ev) {
@@ -369,6 +431,10 @@ export async function streamGameTask(
             case 'code_chunk':
               accumulated += data.chunk ?? '';
               callbacks.onChunk?.(data.chunk ?? '', data.progress ?? 0, accumulated);
+              break;
+            case 'thinking':
+              accumulatedThinking += data.chunk ?? '';
+              callbacks.onThinking?.(data.chunk ?? '', accumulatedThinking);
               break;
             case 'done':
               callbacks.onDone?.(data.game_id, data.version ?? 1);
