@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
-import { login, getMe } from '../utils/api';
+import { login, getMe, getApiErrorMessage } from '../utils/api';
 import { useAppStore } from '../store/useAppStore';
 import styles from './Login.module.css';
 
@@ -38,7 +38,6 @@ export default function Login() {
         setErrorMsg('登录失败，请检查账号密码');
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
       setErrorMsg(axiosErr.response?.data?.message ?? '网络错误，请稍后再试');
     } finally {
       setLoading(false);

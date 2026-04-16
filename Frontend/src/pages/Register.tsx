@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowRight, Loader2, Sparkles, UserPlus } from 'lucide-react';
 import { clsx } from 'clsx';
-import { register, login, getMe } from '../utils/api';
+import { register, login, getMe, getApiErrorMessage } from '../utils/api';
 import { useAppStore } from '../store/useAppStore';
 import styles from './Login.module.css'; // Reuse the Login glassmorphism styles
 
@@ -61,7 +61,6 @@ export default function Register() {
         navigate('/');
       }
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } } };
       setErrorMsg(axiosErr.response?.data?.message ?? '注册失败，请检查信息后重试');
     } finally {
       setLoading(false);

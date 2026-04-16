@@ -18,6 +18,22 @@ export const apiClient = axios.create({
   timeout: API_TIMEOUT, // 2分钟长超时，保证深度思考能力（可通过 VITE_API_TIMEOUT 覆盖）
 });
 
+export const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (typeof data === 'string' && data.trim()) return data;
+    if (data && typeof data === 'object') {
+      const detail = 'detail' in data ? data.detail : undefined;
+      const message = 'message' in data ? data.message : undefined;
+      if (typeof detail === 'string' && detail.trim()) return detail;
+      if (typeof message === 'string' && message.trim()) return message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+};
+
 // Request Interceptor: attach Bearer token if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
