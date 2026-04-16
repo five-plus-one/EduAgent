@@ -4,22 +4,25 @@ import { ArrowRight, Loader2, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { login, getMe, getApiErrorMessage } from '../utils/api';
 import { useAppStore } from '../store/useAppStore';
+import { useNotificationStore } from '../store/useNotificationStore';
 import styles from './Login.module.css';
 
 export default function Login() {
   const [username, setUsername] = useState('teacher_01');
   const [password, setPassword] = useState('123456');
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
   const navigate = useNavigate();
   const setUser = useAppStore((state) => state.setUser);
+  const pushNotification = useNotificationStore((state) => state.pushNotification);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) return;
+    if (!username || !password) {
+      pushNotification({ tone: 'warning', title: '请补全登录信息', message: '请输入用户名和密码后再登录。' });
+      return;
+    }
 
     setLoading(true);
-    setErrorMsg('');
     try {
       const res = await login(username, password);
 
@@ -35,10 +38,10 @@ export default function Login() {
         });
         navigate('/');
       } else {
-        setErrorMsg('登录失败，请检查账号密码');
+        pushNotification({ tone: 'error', title: '登录失败', message: '登录失败，请检查用户名和密码后重试。' });
       }
     } catch (err: unknown) {
-      setErrorMsg(getApiErrorMessage(err, '网络错误，请稍后再试'));
+      pushNotification({ tone: 'error', title: '登录失败', message: getApiErrorMessage(err, '网络错误，请稍后再试') });
     } finally {
       setLoading(false);
     }
@@ -98,11 +101,6 @@ export default function Login() {
             )}
             <div className={styles.btnGlow}></div>
           </button>
-          {errorMsg && (
-            <p style={{color:'hsl(340,80%,50%)', fontSize:'0.9rem', textAlign:'center', marginTop: '8px'}}>
-              ⚠️ {errorMsg}
-            </p>
-          )}
         </form>
         
         <div className={styles.loginFooter}>

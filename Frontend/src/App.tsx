@@ -6,6 +6,7 @@ import AssetPage from './pages/AssetPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import GamePublicPage from './pages/GamePublicPage';
+import NotificationCenter from './components/NotificationCenter';
 import { useAppStore } from './store/useAppStore';
 import { getMe } from './utils/api';
 
@@ -125,6 +126,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <NotificationCenter />
       <Routes>
         {/* 公开路由（无需登录） */}
         <Route path="/play/:code" element={<GamePublicPage />} />

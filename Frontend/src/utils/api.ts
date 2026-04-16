@@ -18,19 +18,33 @@ export const apiClient = axios.create({
   timeout: API_TIMEOUT, // 2分钟长超时，保证深度思考能力（可通过 VITE_API_TIMEOUT 覆盖）
 });
 
+const API_MESSAGE_TRANSLATIONS: Record<string, string> = {
+  'Incorrect username or password': '用户名或密码不正确',
+  'Could not validate credentials': '登录状态校验失败，请重新登录',
+  'Not authenticated': '请先登录后再继续',
+  'Invalid or expired token': '登录已过期，请重新登录',
+  'The user with this username already exists in the system.': '该用户名已存在，请更换后重试',
+};
+
+const localizeApiMessage = (message: string) => {
+  const trimmed = message.trim();
+  if (!trimmed) return trimmed;
+  return API_MESSAGE_TRANSLATIONS[trimmed] ?? trimmed;
+};
+
 export const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data;
-    if (typeof data === 'string' && data.trim()) return data;
+    if (typeof data === 'string' && data.trim()) return localizeApiMessage(data);
     if (data && typeof data === 'object') {
       const detail = 'detail' in data ? data.detail : undefined;
       const message = 'message' in data ? data.message : undefined;
-      if (typeof detail === 'string' && detail.trim()) return detail;
-      if (typeof message === 'string' && message.trim()) return message;
+      if (typeof detail === 'string' && detail.trim()) return localizeApiMessage(detail);
+      if (typeof message === 'string' && message.trim()) return localizeApiMessage(message);
     }
   }
 
-  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error instanceof Error && error.message.trim()) return localizeApiMessage(error.message);
   return fallback;
 };
 
