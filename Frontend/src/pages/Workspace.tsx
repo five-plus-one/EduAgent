@@ -23,7 +23,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -133,9 +133,12 @@ export default function Workspace() {
       return key ? localStorage.getItem(key) : null;
     } catch { return null; }
   });
-  // 教案手动编辑模式
-  const [wordEditMode, setWordEditMode] = useState(false);
+  // 讲义预览 / 编辑工作流
+  const [wordMode, setWordMode] = useState<'preview' | 'edit'>('preview');
+  const [wordMode, setWordMode] = useState<'preview' | 'edit'>('preview');
   const [wordDraft, setWordDraft] = useState('');
+  const [wordSavedSnapshot, setWordSavedSnapshot] = useState('');
+  const [isSavingWord, setIsSavingWord] = useState(false);
   const wordEditRef = useRef<HTMLTextAreaElement>(null);
 
   // ── 互动小游戏 ────────────────────────────────────────────
@@ -156,6 +159,10 @@ export default function Workspace() {
   const [titleDraft, setTitleDraft] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const persistedWordDoc = streamWordDoc || wordDoc;
+  const hasWordContent = Boolean(persistedWordDoc);
+  const wordDirty = wordDraft !== wordSavedSnapshot;
+  const displayedWordDoc = wordDirty ? wordDraft : persistedWordDoc;
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -176,6 +183,50 @@ export default function Workspace() {
       setIsExportingWord(false);
     }
   };
+
+  useEffect(() => {
+    setWordMode('preview');
+    setWordDraft('');
+    setWordSavedSnapshot('');
+    setIsSavingWord(false);
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (wordDirty) return;
+    setWordDraft(persistedWordDoc);
+    setWordSavedSnapshot(persistedWordDoc);
+  }, [persistedWordDoc, wordDirty]);
+
+  useEffect(() => {
+    if (wordMode === 'edit') {
+      setTimeout(() => wordEditRef.current?.focus(), 80);
+    }
+  }, [wordMode]);
+
+  const handleWordPreview = useCallback(() => {
+    setWordMode('preview');
+  }, []);
+
+  const handleEnterWordEdit = useCallback(() => {
+    if (!hasWordContent && !wordDraft) return;
+    if (!wordDirty) {
+      setWordDraft(persistedWordDoc);
+      setWordSavedSnapshot(persistedWordDoc);
+    }
+    setWordMode('edit');
+  }, [hasWordContent, persistedWordDoc, wordDirty, wordDraft]);
+
+  const handleSaveWord = useCallback(async () => {
+    if (sessionId === 'new' || isSavingWord || !wordDirty) return;
+    setIsSavingWord(true);
+    try {
+      await saveWordDoc(wordDraft);
+      setWordSavedSnapshot(wordDraft);
+      setWordMode('preview');
+    } finally {
+      setIsSavingWord(false);
+    }
+  }, [sessionId, isSavingWord, wordDirty, saveWordDoc, wordDraft]);
 
   const handleExportPpt = useCallback(() => {
     if (sessionId === 'new' || isExporting || anyImageSaving || pages.length === 0) return;
@@ -953,44 +1004,56 @@ export default function Workspace() {
             >
               {/* ── PPT 预览内部工具栏：切换主题入口 ── */}
               {pages.length > 0 && !isStreaming && (
-                <div className={styles.pptToolbar}>
-                  <button
-                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarThemeBtn)}
-                    onClick={() => {
-                      setShowThemePicker(true);
-                    }}
-                    title="一键切换 PPT 预览主题，支持预设与自定义颜色"
-                  >
-                    <Palette size={14} />
-                    <span>切换主题</span>
-                    {appliedThemeName && (
-                      <span
-                        className={styles.pptToolbarThemeBadge}
-                        style={{
-                          background: appliedThemeColors
-                            ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
-                            : undefined,
-                          color: appliedThemeColors ? '#fff' : undefined,
+                <div className={styles.stickyTopbarShell}>
+                  <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarPpt)}>
+                    <div className={styles.topbarPrimary}>
+                      <div className={styles.topbarEyebrow}>课件预览</div>
+                      <div className={styles.topbarHeadlineRow}>
+                        <h3 className={styles.topbarTitle}>当前课件已生成</h3>
+                        <span className={styles.topbarCountPill}>{pages.length} 页幻灯片</span>
+                      </div>
+                      <p className={styles.topbarDescription}>
+                        顶栏固定在上方，滚动浏览页面时仍可快速切换主题或直接导出。
+                      </p>
+                    </div>
+
+                    <div className={styles.topbarActions}>
+                      <button
+                        className={clsx(styles.topbarActionBtn, styles.topbarGhostAction)}
+                        onClick={() => {
+                          setShowThemePicker(true);
                         }}
+                        title="切换课件主题"
                       >
-                        {appliedThemeName}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarExportBtn)}
-                    onClick={handleExportPpt}
-                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '直接使用当前主题导出 PPT'}
-                  >
-                    <Download size={14} className={clsx(isExporting && styles.rotating)} />
-                    <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
-                  </button>
-                  <span className={styles.pptToolbarSpacer} />
-                  <span className={styles.pptToolbarDivider} />
-                  <span className={styles.pptToolbarHint}>
-                    {pages.length} 页幻灯片
-                  </span>
+                        <Palette size={15} />
+                        <span>切换主题</span>
+                      </button>
+
+                      {appliedThemeName && (
+                        <span
+                          className={styles.topbarThemeChip}
+                          style={{
+                            background: appliedThemeColors
+                              ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
+                              : undefined,
+                            color: appliedThemeColors ? '#fff' : undefined,
+                          }}
+                        >
+                          当前主题 · {appliedThemeName}
+                        </span>
+                      )}
+
+                      <button
+                        className={clsx(styles.topbarActionBtn, styles.topbarPrimaryAction)}
+                        onClick={handleExportPpt}
+                        disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                        title={anyImageSaving ? '图片保存中，请稍候再导出' : '使用当前主题导出 PPT'}
+                      >
+                        <Download size={15} className={clsx(isExporting && styles.rotating)} />
+                        <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
               {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
@@ -1087,54 +1150,59 @@ export default function Workspace() {
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="word">
-            {/* 教案工具栏 */}
-            <div className={styles.wordToolbar}>
-              <span className={styles.wordToolbarTitle}>
-                讲义文稿
-              </span>
-              <div className={styles.wordToolbarActions}>
-                {(streamWordDoc || wordDoc) && (
-                  <>
-                    <button
-                      className={clsx(styles.wordModeBtn, !wordEditMode && styles.wordModeBtnActive)}
-                      onClick={() => setWordEditMode(false)}
-                    >
-                      预览
-                    </button>
-                    <button
-                      className={clsx(styles.wordModeBtn, wordEditMode && styles.wordModeBtnActive)}
-                      onClick={() => {
-                        setWordDraft(streamWordDoc || wordDoc);
-                        setWordEditMode(true);
-                        setTimeout(() => wordEditRef.current?.focus(), 80);
-                      }}
-                    >
-                      <Pencil size={12} /> 编辑
-                    </button>
-                    {wordEditMode && (
+            {(persistedWordDoc || wordDirty) && (
+              <div className={styles.stickyTopbarShell}>
+                <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarWord)}>
+                  <div className={styles.topbarPrimary}>
+                    <div className={styles.topbarEyebrow}>讲义工作台</div>
+                    <div className={styles.topbarHeadlineRow}>
+                      <h3 className={styles.topbarTitle}>
+                        {wordMode === 'edit' ? '正在编辑讲义草稿' : wordDirty ? '正在预览未保存草稿' : '正在预览已保存讲义'}
+                      </h3>
+                      {wordDirty ? (
+                        <span className={clsx(styles.topbarStatusPill, styles.statusWarnPill)}>未保存更改</span>
+                      ) : (
+                        <span className={clsx(styles.topbarStatusPill, styles.statusOkPill)}>已保存</span>
+                      )}
+                    </div>
+                    <p className={styles.topbarDescription}>
+                      预览和编辑共用同一份草稿。切去预览不会丢内容，只有点击保存才会写回讲义正文。
+                    </p>
+                  </div>
+                  <div className={styles.topbarActions}>
+                    <div className={styles.modeSwitch}>
                       <button
-                        className={styles.wordSaveBtn}
-                        onClick={async () => {
-                          setWordEditMode(false);       // 乐观退出，用户不感知延迟
-                          await saveWordDoc(wordDraft); // 后台持久化，失败也保留本地
-                        }}
+                        className={clsx(styles.modeSwitchBtn, wordMode === 'preview' && styles.modeSwitchBtnActive)}
+                        onClick={handleWordPreview}
                       >
-                        <Check size={12} /> 保存
+                        <Eye size={14} /> 预览
                       </button>
-                    )}
-                  </>
-                )}
-                {!wordEditMode && (streamWordDoc || wordDoc) && (
-                  <button
-                    className={clsx('button-primary', styles.exportWordBtn)}
-                    onClick={handleExportWord}
-                    disabled={isExportingWord || !wordDoc || sessionId === 'new'}
-                  >
-                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
-                  </button>
-                )}
+                      <button
+                        className={clsx(styles.modeSwitchBtn, wordMode === 'edit' && styles.modeSwitchBtnActive)}
+                        onClick={handleEnterWordEdit}
+                      >
+                        <Pencil size={14} /> 编辑
+                      </button>
+                    </div>
+                    <button
+                      className={clsx(styles.topbarActionBtn, styles.topbarSoftAction)}
+                      onClick={handleSaveWord}
+                      disabled={!wordDirty || isSavingWord || sessionId === 'new'}
+                    >
+                      {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 保存中...</> : <><Check size={14} /> 保存</>}
+                    </button>
+                    <button
+                      className={clsx(styles.topbarActionBtn, styles.topbarPrimaryAction)}
+                      onClick={handleExportWord}
+                      disabled={isExportingWord || !wordDoc || sessionId === 'new' || wordDirty}
+                      title={wordDirty ? '请先保存当前草稿，再导出 Word' : '导出 Word 讲义'}
+                    >
+                      {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className={clsx(styles.wordDoc, 'glass-panel')}>
               {isGenerating && !isStreaming ? (
@@ -1147,8 +1215,7 @@ export default function Workspace() {
                     请稍作等待，全套资料链即可完成闭环。
                   </p>
                 </div>
-              ) : wordEditMode ? (
-                /* ── 手动编辑模式 */
+              ) : wordMode === 'edit' ? (
                 <textarea
                   ref={wordEditRef}
                   className={styles.wordEditTextarea}
@@ -1157,13 +1224,13 @@ export default function Workspace() {
                   placeholder="在此处编辑 Markdown 讲义内容..."
                   spellCheck={false}
                 />
-              ) : (streamWordDoc || wordDoc) ? (
+              ) : displayedWordDoc ? (
                 <div className={styles.markdownWrapper} onMouseUp={handleSelection} ref={wordDocRef}>
                   <ReactMarkdown 
                     remarkPlugins={[remarkGfm, remarkMath]} 
                     rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }], rehypeRaw]}
                   >
-                    {streamWordDoc || wordDoc}
+                    {displayedWordDoc}
                   </ReactMarkdown>
                 </div>
               ) : (

@@ -408,6 +408,8 @@
   border-bottom: 1px solid var(--border-glass);
   background-color: hsla(var(--hue), 20%, 98%, 0.8);
   backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
   z-index: 5;
 }
 
@@ -496,8 +498,228 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: 0 24px 24px;
   min-width: 0;
+}
+
+.stickyTopbarShell {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  width: 100%;
+  max-width: 960px;
+  padding-top: 4px;
+}
+
+.workspaceTopbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)),
+    rgba(255, 255, 255, 0.85);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.workspaceTopbarPpt {
+  border-color: rgba(59, 130, 246, 0.16);
+}
+
+.workspaceTopbarWord {
+  border-color: rgba(245, 158, 11, 0.18);
+}
+
+.topbarPrimary {
+  min-width: 0;
+  flex: 1;
+}
+
+.topbarEyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 8px;
+}
+
+.topbarHeadlineRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.topbarTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.03em;
+}
+
+.topbarDescription {
+  margin: 0;
+  max-width: 620px;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.topbarCountPill,
+.topbarStatusPill,
+.topbarThemeChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.topbarCountPill {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1d4ed8;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+}
+
+.topbarStatusPill {
+  border: 1px solid transparent;
+}
+
+.statusOkPill {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.statusWarnPill {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.topbarThemeChip {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.16);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.topbarActionBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.topbarActionBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.topbarActionBtn:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.topbarGhostAction {
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-primary);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.topbarGhostAction:hover:not(:disabled) {
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #4f46e5;
+  box-shadow: 0 12px 24px rgba(99, 102, 241, 0.08);
+}
+
+.topbarSoftAction {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.14), rgba(249, 115, 22, 0.1));
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.topbarSoftAction:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.14);
+}
+
+.topbarPrimaryAction {
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.22);
+}
+
+.topbarPrimaryAction:hover:not(:disabled) {
+  box-shadow: 0 16px 28px rgba(79, 70, 229, 0.28);
+}
+
+.modeSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.modeSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.modeSwitchBtn:hover {
+  color: var(--text-primary);
+}
+
+.modeSwitchBtnActive {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(79, 70, 229, 0.12));
+  color: #1d4ed8;
 }
 
 .placeholderCentric {
@@ -1537,5 +1759,31 @@
 .wordEditTextarea::-webkit-scrollbar { width: 4px; }
 .wordEditTextarea::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.1); border-radius: 2px; }
 .wordEditTextarea::placeholder { color: rgba(15,23,42,0.28); font-style: italic; }
+
+@media (max-width: 900px) {
+  .tabsContent {
+    padding: 16px;
+  }
+
+  .stickyTopbarShell {
+    max-width: 100%;
+  }
+
+  .workspaceTopbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .topbarActions {
+    justify-content: flex-start;
+  }
+
+  .topbarThemeChip {
+    max-width: 100%;
+  }
+}
 
 
