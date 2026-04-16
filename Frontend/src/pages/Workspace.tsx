@@ -163,15 +163,15 @@ export default function Workspace() {
   const wordDirty = wordDraft !== wordSavedSnapshot;
   const displayedWordDoc = wordDirty ? wordDraft : persistedWordDoc;
   const resolveThemeDisplayName = useCallback((themeKey: string | null, isCustomTheme = false) => {
-    if (isCustomTheme) return '鑷畾涔?;
+    if (isCustomTheme) return '自定义';
     if (!themeKey) return '鑷姩';
     return themeLabelMap.get(themeKey) ?? themeKey;
   }, [themeLabelMap]);
   const isCustomThemeActive =
     pendingThemeKey === CUSTOM_KEY ||
-    (pendingThemeKey === null && appliedThemeName === '鑷畾涔? && !!appliedThemeColors);
+    (pendingThemeKey === null && appliedThemeName === '自定义' && !!appliedThemeColors);
   const currentThemeDisplayName = isCustomThemeActive
-    ? '鑷畾涔?
+    ? '自定义'
     : resolveThemeDisplayName(pendingThemeKey, false);
 
   useEffect(() => {
@@ -199,7 +199,7 @@ export default function Workspace() {
     try {
       await exportWordDocx(sessionId);
     } catch (e: any) {
-      alert('璁蹭箟瀵煎嚭澶辫触锛? + (e?.message || '鏈煡閿欒'));
+      alert('讲义导出失败：' + (e?.message || '未知错误'));
     } finally {
       setIsExportingWord(false);
     }
@@ -254,7 +254,7 @@ export default function Workspace() {
 
     const isCustomTheme =
       pendingThemeKey === CUSTOM_KEY ||
-      (pendingThemeKey === null && appliedThemeName === '鑷畾涔? && !!appliedThemeColors);
+      (pendingThemeKey === null && appliedThemeName === '自定义' && !!appliedThemeColors);
 
     const themeKeyToSend = !isCustomTheme && pendingThemeKey ? pendingThemeKey : undefined;
     const customColorsToSend = isCustomTheme ? (appliedThemeColors ?? undefined) : undefined;
@@ -293,7 +293,7 @@ export default function Workspace() {
 
   const handleToggleLink = async (docId: string, isLinked: boolean) => {
     if (sessionId === 'new') {
-      alert('璇峰厛鍒涘缓浼氳瘽鍐嶇鐞嗗叧鑱旇祫鏂?);
+      alert('请先创建会话，再管理关联资料');
       return;
     }
     
@@ -336,7 +336,7 @@ export default function Workspace() {
         }).catch(() => { /* non-critical 鈥?document_id fallback still works */ });
       }
     } catch (e) {
-      alert(isLinked ? '璧勬枡瑙ｇ粦澶辫触锛岃閲嶈瘯銆? : '璧勬枡鍏宠仈澶辫触锛岃閲嶈瘯銆?);
+      alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');
     } finally {
       setLinkingDocs(prev => {
         const next = new Set(prev);
@@ -355,7 +355,7 @@ export default function Workspace() {
       await uploadKnowledgeDoc(file, { subject: '閫氱敤绫荤洰' });
       await fetchKbDocs();
     } catch {
-      alert('涓婁紶澶辫触锛岃妫€鏌ユ枃浠舵牸寮忔垨缃戠粶锛堟敮鎸?PDF / DOCX / PPTX / TXT / MD锛?);
+      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / PPTX / TXT / MD）');
     } finally {
       setIsUploadingKb(false);
     }
@@ -618,7 +618,7 @@ export default function Workspace() {
 
   const handleHighlightAsk = () => {
     const brief = selectionText.length > 40 ? selectionText.substring(0, 40) + '...' : selectionText;
-    setInputText(`閽堝鍐呭閫夋锛氣€?{brief}鈥漒n鎴戠殑淇敼鎰忚鏄細`);
+    setInputText(`针对内容选段：“${brief}”\n我的修改意见是：`);
     setSelectionText('');
     window.getSelection()?.removeAllRanges();
     setTimeout(() => {
@@ -661,7 +661,7 @@ export default function Workspace() {
                 title="鐐瑰嚮淇敼鏍囬"
               >
                 <span className={styles.sessionTitleText}>
-                  {sessionTitle || '鏃犳爣棰樹細璇?}
+                  {sessionTitle || '无标题会话'}
                 </span>
                 <button
                   className={styles.titleEditBtn}
@@ -724,8 +724,8 @@ export default function Workspace() {
                   <div className={styles.emptyIconWrapper}>
                     <Sparkles size={32} />
                   </div>
-                  <h3>鎮ㄦ兂璁捐浠€涔堣绋嬶紵</h3>
-                  <p>杈撳叆鏁欏鎬濊矾锛屾垨涓婁紶鍙傝€冭祫鏂欙紝AI 灏嗚嚜鍔ㄨ繘琛岃璁′笌閲嶇粍銆?/p>
+                  <h3>您想设计什么课程？</h3>
+                  <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
                 </div>
               ) : messages.length === 0 && isSynthesizing ? (
                 /* AI 璇锋眰宸插彂鍑轰絾鍝嶅簲杩樻湭鍒帮細鏄剧ず绛夊緟鍔ㄧ敾 */
@@ -757,7 +757,7 @@ export default function Workspace() {
               <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
                 <button
                   className={clsx(styles.iconButton, styles.paperclipBtn)}
-                  title="涓婁紶鍙傝€冭祫鏂?
+                  title="上传参考资料"
                   disabled={isGenerating || sessionId === 'new'}
                   onClick={handleOpenFiles}
                 >
@@ -801,7 +801,7 @@ export default function Workspace() {
                       className={clsx('button-primary', styles.sendButton)}
                       disabled={!inputText.trim() || isGenerating}
                       onClick={handleSubmit}
-                      title="鍙戦€佹秷鎭?
+                      title="发送消息"
                     >
                       <Send size={18} />
                     </button>
@@ -835,20 +835,20 @@ export default function Workspace() {
                 寮€鍚綘鐨?<span>AI 鍒涙剰绌洪棿</span>
               </h2>
               <p className={styles.heroDesc}>
-                鍦ㄨ繖閲屾瀯寤恒€佹帹婕斿苟娌夋穩浣犵殑鏁欏鎬濇兂銆?br/>
-                涓婁紶璇枡搴擄紝鍙渶涓€鍙ヨ瘽鍗冲彲鐢熸垚澶氱鍥惧厓鎺掔増璇句欢涓庨厤濂楄涔夈€?
+                在这里构建、推演并沉淀你的教学想法。<br/>
+                上传资料后，只需一句话就能生成多端联动排版的课件与配套讲义。
               </p>
               
               <div className={styles.heroFeatures}>
                 <div className={styles.featureCard}>
                   <Library size={24} className={styles.featureIcon} />
-                  <h4>鍏ㄥ眬 RAG 鐭ヨ瘑搴?/h4>
-                  <p>鏃犵紳鍏宠仈鏁欏鏉愭枡锛岀‘淇?AI 鎻愬彇鍐呭绮惧噯銆佺揣璐村ぇ绾蹭笖缁濅笉鍙戞暎銆?/p>
+                  <h4>全局 RAG 知识库</h4>
+                  <p>无缝关联教学材料，确保 AI 提取内容精准、紧扣大纲且不发散。</p>
                 </div>
                 <div className={styles.featureCard}>
                   <Link size={24} className={styles.featureIcon} />
-                  <h4>澶氱鐗╂枡涓€鑷存€у苟琛岀敓鎴?/h4>
-                  <p>涓€閿彁鐐?PPT 楠ㄦ灦涓?Word 瀹屾暣涓茶瘝锛屽憡鍒満姊扮殑鏂囨。鎺掔増涓庡鍒堕粡璐淬€?/p>
+                  <h4>多端物料一致并行生成</h4>
+                  <p>一键打通 PPT 骨架与 Word 完整讲义，告别机械排版与重复黏贴。</p>
                 </div>
               </div>
             </div>
@@ -857,7 +857,7 @@ export default function Workspace() {
         <Tabs.Root className={styles.tabsRoot} value={activeTab} onValueChange={setActiveTab}>
           <header className={styles.visualHeader}>
             <Tabs.List className={styles.tabsList}>
-              <Tabs.Trigger className={styles.tabsTrigger} value="files">鍙傝€冭祫鏂?/Tabs.Trigger>
+              <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="ppt">璇句欢棰勮 (PPT)</Tabs.Trigger>
               <Tabs.Trigger className={styles.tabsTrigger} value="word">璁蹭箟 (Word)</Tabs.Trigger>
               <Tabs.Trigger className={clsx(styles.tabsTrigger, styles.gameTrigger)} value="games">
@@ -871,7 +871,7 @@ export default function Workspace() {
             <div className={styles.visualHeaderTools}>
               {activeTab === 'ppt' && pages.length > 0 && (
                 <>
-                  <span className={styles.visualHeaderBadge}>{pages.length} 椤?/span>
+                  <span className={styles.visualHeaderBadge}>{pages.length} 页</span>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
                     onClick={() => setShowThemePicker(true)}
@@ -894,7 +894,7 @@ export default function Workspace() {
               {activeTab === 'word' && (persistedWordDoc || wordDirty) && (
                 <>
                   {wordDirty && (
-                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>鏈繚瀛?/span>
+                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>未保存</span>
                   )}
                   <div className={styles.headerModeSwitch}>
                     <button
@@ -1044,14 +1044,14 @@ export default function Workspace() {
                                   title={!isCompleted ? '鍚戦噺鍖栧畬鎴愬悗鏂瑰彲鍏宠仈' : isLinked ? '鐐瑰嚮瑙ｉ櫎缁戝畾' : '鐐瑰嚮鍔犲叆浼氳瘽'}
                                 >
                                   {isLinking ? (
-                                    <><Loader2 size={14} className={styles.spinner} /> 鍙樻洿涓?/>
+                                    <><Loader2 size={14} className={styles.spinner} /> 变更中...</>
                                   ) : !isCompleted ? (
-                                    <><Clock size={14} /> 澶勭悊涓?/>
+                                    <><Clock size={14} /> 处理中...</>
                                   ) : isLinked ? (
                                     hoveredLinkDoc === doc.document_id ? (
                                       <><Unlink size={14} /> 鍙栨秷缁戝畾</>
                                     ) : (
-                                      <><CheckCircle size={14} /> 宸茬粦瀹?/>
+                                      <><CheckCircle size={14} /> 已绑定</>
                                     )
                                   ) : (
                                     <><Link size={14} /> 鍔犲叆浼氳瘽</>
@@ -1092,7 +1092,7 @@ export default function Workspace() {
                     <div className={styles.topbarPrimary}>
                       <div className={styles.topbarEyebrow}>璇句欢棰勮</div>
                       <div className={styles.topbarHeadlineRow}>
-                        <h3 className={styles.topbarTitle}>褰撳墠璇句欢宸茬敓鎴?/h3>
+                        <h3 className={styles.topbarTitle}>当前课件已生成</h3>
                         <span className={styles.topbarCountPill}>{pages.length} 椤靛够鐏墖</span>
                       </div>
                       <p className={styles.topbarDescription}>
@@ -1144,9 +1144,9 @@ export default function Workspace() {
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 姝ｅ湪鏅鸿兘鎺掔増璇句欢</h3>
                   <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                    澶фā鍨嬫鍦ㄦ繁搴﹂噸缁勭煡璇嗘灦鏋勶紝骞朵负鎮ㄦ覆鏌撳绔浘鍏冩帓鐗堛€?br/>
-                    璇ヨ繃绋嬫瀬鍏舵秷鑰楀績鏅猴紝绾﹂渶 <strong>80-90 绉?/strong>銆?br/>
-                    鎮ㄥ彲浠ュ垏鍥炲乏渚у鐞嗗叾浠栦細璇濓紝鍚庡彴娓叉煋涓嶄細涓柇銆?
+                    大模型正在深度重组知识结构，并为您渲染多端图文排版。<br/>
+                    该过程较消耗算力，约需 <strong>80-90 秒</strong>。<br/>
+                    您可以切回左侧处理其他会话，后台生成不会中断。
                   </p>
                 </div>
               ) : previewStatus === 'error' && !isStreaming && pages.length === 0 ? (
@@ -1217,8 +1217,8 @@ export default function Workspace() {
                   {pages.length === 0 && !isStreaming && previewStatus !== 'loading' && (
                     <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                       <Sparkles size={48} style={{ marginBottom: '16px' }} />
-                      <h3>璇句欢寰呯敓鎴?/h3>
-                      <p>璇风偣鍑诲彸涓婅銆屸湪 AI 涓€閿敓鎴愯浠躲€嶅紑濮?/p>
+                      <h3>课件待生成</h3>
+                      <p>请点击右上角“AI 一键生成课件”开始</p>
                     </div>
                   )}
                   
@@ -1237,15 +1237,15 @@ export default function Workspace() {
               <div className={styles.stickyTopbarShell}>
                 <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarWord)}>
                   <div className={styles.topbarPrimary}>
-                    <div className={styles.topbarEyebrow}>璁蹭箟宸ヤ綔鍙?/div>
+                    <div className={styles.topbarEyebrow}>讲义工作台</div>
                     <div className={styles.topbarHeadlineRow}>
                       <h3 className={styles.topbarTitle}>
-                        {wordMode === 'edit' ? '姝ｅ湪缂栬緫璁蹭箟鑽夌' : wordDirty ? '姝ｅ湪棰勮鏈繚瀛樿崏绋? : '姝ｅ湪棰勮宸蹭繚瀛樿涔?}
+                        {wordMode === 'edit' ? '正在编辑讲义草稿' : wordDirty ? '正在预览未保存草稿' : '正在预览已保存讲义'}
                       </h3>
                       {wordDirty ? (
-                        <span className={clsx(styles.topbarStatusPill, styles.statusWarnPill)}>鏈繚瀛樻洿鏀?/span>
+                        <span className={clsx(styles.topbarStatusPill, styles.statusWarnPill)}>未保存更改</span>
                       ) : (
-                        <span className={clsx(styles.topbarStatusPill, styles.statusOkPill)}>宸蹭繚瀛?/span>
+                        <span className={clsx(styles.topbarStatusPill, styles.statusOkPill)}>已保存</span>
                       )}
                     </div>
                     <p className={styles.topbarDescription}>
@@ -1293,9 +1293,9 @@ export default function Workspace() {
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 姝ｅ湪鎻愮偧璁蹭箟闀挎枃</h3>
                   <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                    澶фā鍨嬫鍦ㄤ负鎮ㄦ墿鍐欎笌璇句欢閰嶅鐨勫畬鏁存暀瀛﹁涔夋枃绋裤€?br/>
-                    璇ュ苟琛屾祦澶勭悊澶х害闇€瑕?<strong>80-90 绉?/strong>銆?br/>
-                    璇风◢浣滅瓑寰咃紝鍏ㄥ璧勬枡閾惧嵆鍙畬鎴愰棴鐜€?
+                    大模型正在为您扩写与课件配套的完整教学讲义文稿。<br/>
+                    该并行流处理大约需要 <strong>80-90 秒</strong>。<br/>
+                    请稍作等待，整套资料链路即可完成闭环。
                   </p>
                 </div>
               ) : wordMode === 'edit' ? (
@@ -1319,7 +1319,7 @@ export default function Workspace() {
               ) : (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                   <Sparkles size={48} style={{ marginBottom: '16px' }} />
-                  <h3>璁蹭箟寰呯敓鎴?/h3>
+                  <h3>讲义待生成</h3>
                   <p>闅忚浠朵竴骞朵骇鍑猴紝璇峰厛鐢熸垚璇句欢</p>
                 </div>
               )}
@@ -1359,7 +1359,7 @@ export default function Workspace() {
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>
                   璇峰厛鍒涘缓浼氳瘽
                 </p>
-                <small style={{ fontSize: 12 }}>浜掑姩娓告垙鍔熻兘闇€瑕佸湪娲昏穬浼氳瘽涓娇鐢?/small>
+                  <small style={{ fontSize: 12 }}>互动游戏功能需要在活跃会话中使用</small>
               </div>
             )}
           </Tabs.Content>
@@ -1390,7 +1390,7 @@ export default function Workspace() {
               const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
               const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
               saveSessionTheme(sessionId, keyToSave, colorsToSave)
-                .catch(err => console.warn('[Theme] 鍚庣鎸佷箙鍖栧け璐ワ紙棰勮涓嶅彈褰卞搷锛?, err));
+                .catch(err => console.warn('[Theme] persist failed (preview unaffected)', err));
             }
           }}
           onCancel={() => setShowThemePicker(false)}
