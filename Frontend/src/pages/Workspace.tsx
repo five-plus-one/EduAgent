@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
@@ -29,7 +29,7 @@ export default function Workspace() {
   const { sessionId = 'new' } = useParams();
   const [inputText, setInputText] = useState('');
 
-  // ── 可拖拽分割线 ────────────────────────────────────────
+  // 鈹€鈹€ 鍙嫋鎷藉垎鍓茬嚎 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const CHAT_MIN = 280;
   const CHAT_MAX = 680;
   const CHAT_DEFAULT = 420;
@@ -100,34 +100,34 @@ export default function Workspace() {
   // RAG Knowledge Base Integration
   const [kbDocs, setKbDocs] = useState<any[]>([]);
   const [linkedDocs, setLinkedDocs] = useState<Set<string>>(new Set());       // Set of document_ids
-  const [docToFileId, setDocToFileId] = useState<Map<string, string>>(new Map()); // document_id → session_file_id
+  const [docToFileId, setDocToFileId] = useState<Map<string, string>>(new Map()); // document_id 鈫?session_file_id
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
-  /** 参考资料 Tab 的子面板切换：docs（知识库文件） | images（会话图片） */
+  /** 鍙傝€冭祫鏂?Tab 鐨勫瓙闈㈡澘鍒囨崲锛歞ocs锛堢煡璇嗗簱鏂囦欢锛?| images锛堜細璇濆浘鐗囷級 */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
   const [isUploadingKb, setIsUploadingKb] = useState(false);
   const [isDraggingKb, setIsDraggingKb] = useState(false);
   const [filesHighlight, setFilesHighlight] = useState(false);
   const [isExportingWord, setIsExportingWord] = useState(false);
-  // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
+  // P2: 浠绘剰涓€寮犲够鐏墖姝ｅ湪淇濆瓨鍥剧墖锛屽鍑烘寜閽煭鏆傜鐢ㄩ槻绔炴€?
   const [anyImageSaving, setAnyImageSaving] = useState(false);
-  // ── PPT 主题选色器 ────────────────────────────────────
-  // localStorage key：按会话级隔离，避免跨会话污染
+  // 鈹€鈹€ PPT 涓婚閫夎壊鍣?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // localStorage key锛氭寜浼氳瘽绾ч殧绂伙紝閬垮厤璺ㄤ細璇濇薄鏌?
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [themeLabelMap, setThemeLabelMap] = useState<Map<string, string>>(new Map());
-  /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
+  /** null 琛ㄧず銆岃嚜鍔ㄣ€嶏紝string 琛ㄧず閫変腑鐨?theme_key锛孋USTOM_KEY 琛ㄧず鑷畾涔?*/
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
-  /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
+  /** 褰撳墠搴旂敤鍒?PPT 棰勮鍖虹殑涓婚棰滆壊锛堢敤浜?CSS 鍙橀噺娉ㄥ叆锛?*/
   const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(() => {
-    // localStorage 防闪烁：后端返回前快速占位
+    // localStorage 闃查棯鐑侊細鍚庣杩斿洖鍓嶅揩閫熷崰浣?
     try {
       const key = sessionId !== 'new' ? `eduagent_ppt_colors_${sessionId}` : null;
       const raw = key ? localStorage.getItem(key) : null;
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   });
-  /** 应用的主题名称（不导出，仅用于显示） */
+  /** 搴旂敤鐨勪富棰樺悕绉帮紙涓嶅鍑猴紝浠呯敤浜庢樉绀猴級 */
   const [appliedThemeName, setAppliedThemeName] = useState<string | null>(() => {
     try {
       const key = sessionId !== 'new' ? `eduagent_ppt_name_${sessionId}` : null;
@@ -140,7 +140,7 @@ export default function Workspace() {
   const [isSavingWord, setIsSavingWord] = useState(false);
   const wordEditRef = useRef<HTMLTextAreaElement>(null);
 
-  // ── 互动小游戏 ────────────────────────────────────────────
+  // 鈹€鈹€ 浜掑姩灏忔父鎴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
   const [, setActiveGameId] = useState<string | null>(null);
@@ -152,7 +152,7 @@ export default function Workspace() {
     }
   }, [pendingTrigger]);
 
-  // ── Session 标题（读取 + 内联编辑）────────────────────
+  // 鈹€鈹€ Session 鏍囬锛堣鍙?+ 鍐呰仈缂栬緫锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [sessionTitle, setSessionTitle] = useState('');
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -163,10 +163,16 @@ export default function Workspace() {
   const wordDirty = wordDraft !== wordSavedSnapshot;
   const displayedWordDoc = wordDirty ? wordDraft : persistedWordDoc;
   const resolveThemeDisplayName = useCallback((themeKey: string | null, isCustomTheme = false) => {
-    if (isCustomTheme) return '自定义';
-    if (!themeKey) return '自动';
+    if (isCustomTheme) return '鑷畾涔?;
+    if (!themeKey) return '鑷姩';
     return themeLabelMap.get(themeKey) ?? themeKey;
   }, [themeLabelMap]);
+  const isCustomThemeActive =
+    pendingThemeKey === CUSTOM_KEY ||
+    (pendingThemeKey === null && appliedThemeName === '鑷畾涔? && !!appliedThemeColors);
+  const currentThemeDisplayName = isCustomThemeActive
+    ? '鑷畾涔?
+    : resolveThemeDisplayName(pendingThemeKey, false);
 
   useEffect(() => {
     let alive = true;
@@ -179,7 +185,7 @@ export default function Workspace() {
     return () => { alive = false; };
   }, []);
 
-  /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
+  /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
   const handleOpenFiles = () => {
     setActiveTab('files');
     setFilesSubTab('docs');
@@ -193,7 +199,7 @@ export default function Workspace() {
     try {
       await exportWordDocx(sessionId);
     } catch (e: any) {
-      alert('讲义导出失败：' + (e?.message || '未知错误'));
+      alert('璁蹭箟瀵煎嚭澶辫触锛? + (e?.message || '鏈煡閿欒'));
     } finally {
       setIsExportingWord(false);
     }
@@ -248,7 +254,7 @@ export default function Workspace() {
 
     const isCustomTheme =
       pendingThemeKey === CUSTOM_KEY ||
-      (pendingThemeKey === null && appliedThemeName === '自定义' && !!appliedThemeColors);
+      (pendingThemeKey === null && appliedThemeName === '鑷畾涔? && !!appliedThemeColors);
 
     const themeKeyToSend = !isCustomTheme && pendingThemeKey ? pendingThemeKey : undefined;
     const customColorsToSend = isCustomTheme ? (appliedThemeColors ?? undefined) : undefined;
@@ -287,7 +293,7 @@ export default function Workspace() {
 
   const handleToggleLink = async (docId: string, isLinked: boolean) => {
     if (sessionId === 'new') {
-      alert('请先创建会话再管理关联资料');
+      alert('璇峰厛鍒涘缓浼氳瘽鍐嶇鐞嗗叧鑱旇祫鏂?);
       return;
     }
     
@@ -321,16 +327,16 @@ export default function Workspace() {
           const mapping = new Map<string, string>();
           associated.forEach((entry: any) => {
             if (typeof entry === 'string') {
-              // old plain-string format — no session_file_id available
+              // old plain-string format 鈥?no session_file_id available
             } else if (entry?.document_id && entry?.session_file_id) {
               mapping.set(entry.document_id, entry.session_file_id);
             }
           });
           setDocToFileId(mapping);
-        }).catch(() => { /* non-critical — document_id fallback still works */ });
+        }).catch(() => { /* non-critical 鈥?document_id fallback still works */ });
       }
     } catch (e) {
-      alert(isLinked ? '资料解绑失败，请重试。' : '资料关联失败，请重试。');
+      alert(isLinked ? '璧勬枡瑙ｇ粦澶辫触锛岃閲嶈瘯銆? : '璧勬枡鍏宠仈澶辫触锛岃閲嶈瘯銆?);
     } finally {
       setLinkingDocs(prev => {
         const next = new Set(prev);
@@ -346,10 +352,10 @@ export default function Workspace() {
     e.target.value = ''; // reset so same file can be re-selected
     setIsUploadingKb(true);
     try {
-      await uploadKnowledgeDoc(file, { subject: '通用类目' });
+      await uploadKnowledgeDoc(file, { subject: '閫氱敤绫荤洰' });
       await fetchKbDocs();
     } catch {
-      alert('上传失败，请检查文件格式或网络（支持 PDF / DOCX / PPTX / TXT / MD）');
+      alert('涓婁紶澶辫触锛岃妫€鏌ユ枃浠舵牸寮忔垨缃戠粶锛堟敮鎸?PDF / DOCX / PPTX / TXT / MD锛?);
     } finally {
       setIsUploadingKb(false);
     }
@@ -359,13 +365,13 @@ export default function Workspace() {
     const valid = Array.from(files).filter(f =>
       ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (!valid.length) { alert('仅支持 PDF / DOCX / PPTX / TXT / MD 格式文件'); return; }
+    if (!valid.length) { alert('浠呮敮鎸?PDF / DOCX / PPTX / TXT / MD 鏍煎紡鏂囦欢'); return; }
     setIsUploadingKb(true);
     try {
-      await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '通用类目' })));
+      await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '閫氱敤绫荤洰' })));
       await fetchKbDocs();
     } catch {
-      alert('上传失败，请检查文件格式或网络');
+      alert('涓婁紶澶辫触锛岃妫€鏌ユ枃浠舵牸寮忔垨缃戠粶');
     } finally {
       setIsUploadingKb(false);
     }
@@ -404,10 +410,10 @@ export default function Workspace() {
 
         setLinkedDocs(docIds);
         setDocToFileId(mapping);
-        // 读取 course_name 作为页面标题
+        // 璇诲彇 course_name 浣滀负椤甸潰鏍囬
         if (res?.course_name) setSessionTitle(res.course_name);
 
-        // —— 应用后端返回的 ppt_theme，覆盖 localStorage 占位符 ——
+        // 鈥斺€?搴旂敤鍚庣杩斿洖鐨?ppt_theme锛岃鐩?localStorage 鍗犱綅绗?鈥斺€?
         const pptTheme = res?.ppt_theme;
         if (pptTheme?.resolved_colors) {
           const isCustomTheme = !!pptTheme.custom_colors;
@@ -425,11 +431,11 @@ export default function Workspace() {
       }).catch(e => console.warn('Failed to load linked docs for session', e));
       return () => { active = false; };
     }
-    // 新建模式清除标题
+    // 鏂板缓妯″紡娓呴櫎鏍囬
     if (sessionId === 'new') setSessionTitle('');
   }, [sessionId, resolveThemeDisplayName]);
 
-  // 监听 Sidebar 重命名操作，同步更新顶部标题
+  // 鐩戝惉 Sidebar 閲嶅懡鍚嶆搷浣滐紝鍚屾鏇存柊椤堕儴鏍囬
   useEffect(() => {
     const handleRenamed = (e: Event) => {
       const { sessionId: renamedId, courseName } = (e as CustomEvent).detail ?? {};
@@ -441,7 +447,7 @@ export default function Workspace() {
     return () => window.removeEventListener('EduAgent_Session_Renamed', handleRenamed);
   }, [sessionId]);
 
-  // 内联标题编辑 handlers
+  // 鍐呰仈鏍囬缂栬緫 handlers
   const startTitleEdit = () => {
     setTitleDraft(sessionTitle);
     setTitleEditing(true);
@@ -458,14 +464,14 @@ export default function Workspace() {
     try {
       await renameSession(sessionId, trimmed);
       setSessionTitle(trimmed);
-      // 通知 Sidebar 同步更新列表标题
+      // 閫氱煡 Sidebar 鍚屾鏇存柊鍒楄〃鏍囬
       window.dispatchEvent(
         new CustomEvent('EduAgent_Session_Renamed', {
           detail: { sessionId, courseName: trimmed },
         })
       );
     } catch {
-      // 失败时保留旧标题
+      // 澶辫触鏃朵繚鐣欐棫鏍囬
     } finally {
       setTitleSaving(false);
       setTitleEditing(false);
@@ -501,7 +507,7 @@ export default function Workspace() {
        if (ev.detail?.sessionId === sessionId) {
           console.log('[Stream Trigger] Tool requested streaming, switching to PPT and starting stream.');
           setActiveTab('ppt');
-          // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+          // 鍏ㄩ噺閲嶇敓鎴愶細鍏堟竻绌烘棫棰勮锛岄伩鍏嶆柊鏃ч〉鍙犲姞娓叉煋
           clearPages();
           await startStreaming(Array.from(linkedDocs), ev.detail.mode || 'depth');
           fetchPreview();
@@ -528,7 +534,7 @@ export default function Workspace() {
     };
   }, [latestIntent, sessionId, isStreaming, stopStreaming, startStreaming, linkedDocs, fetchPreview]);
 
-  // ── 游戏 SSE 事件监听 ─────────────────────────────────────
+  // 鈹€鈹€ 娓告垙 SSE 浜嬩欢鐩戝惉 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => {
     lastGameTriggerSignatureRef.current = null;
     const handleGameSuggest = (e: Event) => {
@@ -612,7 +618,7 @@ export default function Workspace() {
 
   const handleHighlightAsk = () => {
     const brief = selectionText.length > 40 ? selectionText.substring(0, 40) + '...' : selectionText;
-    setInputText(`针对内容选段：“${brief}”\n我的修改意见是：`);
+    setInputText(`閽堝鍐呭閫夋锛氣€?{brief}鈥漒n鎴戠殑淇敼鎰忚鏄細`);
     setSelectionText('');
     window.getSelection()?.removeAllRanges();
     setTimeout(() => {
@@ -628,9 +634,9 @@ export default function Workspace() {
         <header className={styles.chatHeader}>
           <div className={styles.sessionInfo}>
             {sessionId === 'new' ? (
-              <h2 className={styles.sessionTitle}>新建课件会话</h2>
+              <h2 className={styles.sessionTitle}>鏂板缓璇句欢浼氳瘽</h2>
             ) : titleEditing ? (
-              /* 内联编辑模式 */
+              /* 鍐呰仈缂栬緫妯″紡 */
               <div className={styles.titleEditRow}>
                 <input
                   ref={titleInputRef}
@@ -649,18 +655,18 @@ export default function Workspace() {
                 {titleSaving && <Loader2 size={14} className={styles.rotating} />}
               </div>
             ) : (
-              /* 展示模式：hover 显示铅笔 */
+              /* 灞曠ず妯″紡锛歨over 鏄剧ず閾呯瑪 */
               <h2
                 className={styles.sessionTitle}
-                title="点击修改标题"
+                title="鐐瑰嚮淇敼鏍囬"
               >
                 <span className={styles.sessionTitleText}>
-                  {sessionTitle || '无标题会话'}
+                  {sessionTitle || '鏃犳爣棰樹細璇?}
                 </span>
                 <button
                   className={styles.titleEditBtn}
                   onClick={startTitleEdit}
-                  title="修改标题"
+                  title="淇敼鏍囬"
                 >
                   <Pencil size={12} />
                 </button>
@@ -668,9 +674,9 @@ export default function Workspace() {
             )}
             <span className={styles.sessionStatus}>
               {isSynthesizing ? (
-                 <><Sparkles size={14} className={clsx(styles.sparkleIcon, styles.rotating)}/> 思考中...</>
+                 <><Sparkles size={14} className={clsx(styles.sparkleIcon, styles.rotating)}/> 鎬濊€冧腑...</>
               ) : (
-                 <><Sparkles size={14} className={styles.sparkleIcon}/> 准备就绪</>
+                 <><Sparkles size={14} className={styles.sparkleIcon}/> 鍑嗗灏辩华</>
               )}
             </span>
           </div>
@@ -681,29 +687,29 @@ export default function Workspace() {
             <div className={styles.newSessionIconRing}>
               <Sparkles size={36} />
             </div>
-            <h3 className={styles.newSessionTitle}>开始你的 AI 创作之旅</h3>
+            <h3 className={styles.newSessionTitle}>寮€濮嬩綘鐨?AI 鍒涗綔涔嬫梾</h3>
             <p className={styles.newSessionDesc}>
-              新建一个会话，告诉 AI 你想设计什么课程，<br />
-              即可开启协作备课之旅。
+              鏂板缓涓€涓細璇濓紝鍛婅瘔 AI 浣犳兂璁捐浠€涔堣绋嬶紝<br />
+              鍗冲彲寮€鍚崗浣滃璇句箣鏃呫€?
             </p>
             <button
               className={clsx('button-primary', styles.newSessionCta)}
               onClick={() => {
-                // 触发 Sidebar 的新建弹窗，通过全局事件传递
+                // 瑙﹀彂 Sidebar 鐨勬柊寤哄脊绐楋紝閫氳繃鍏ㄥ眬浜嬩欢浼犻€?
                 window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
               }}
             >
-              <Sparkles size={16} /> 新建课件会话
+              <Sparkles size={16} /> 鏂板缓璇句欢浼氳瘽
             </button>
           </div>
         ) : isLoadingHistory ? (
-          /* ── 历史记录加载骨架屏 ── */
+          /* 鈹€鈹€ 鍘嗗彶璁板綍鍔犺浇楠ㄦ灦灞?鈹€鈹€ */
           <div className={styles.historyLoadingWrapper}>
             <div className={styles.historyLoadingSpinner}>
               <Loader2 size={36} className={styles.rotating} />
             </div>
-            <p className={styles.historyLoadingTitle}>正在恢复会话...</p>
-            <p className={styles.historyLoadingHint}>正在从服务器加载历史对话记录</p>
+            <p className={styles.historyLoadingTitle}>姝ｅ湪鎭㈠浼氳瘽...</p>
+            <p className={styles.historyLoadingHint}>姝ｅ湪浠庢湇鍔″櫒鍔犺浇鍘嗗彶瀵硅瘽璁板綍</p>
             <div className={styles.loadingSkeletonGroup}>
               <div className={clsx(styles.loadingSkeleton, styles.skeletonAi)} />
               <div className={clsx(styles.loadingSkeleton, styles.skeletonUser)} />
@@ -718,16 +724,16 @@ export default function Workspace() {
                   <div className={styles.emptyIconWrapper}>
                     <Sparkles size={32} />
                   </div>
-                  <h3>您想设计什么课程？</h3>
-                  <p>输入教学思路，或上传参考资料，AI 将自动进行设计与重组。</p>
+                  <h3>鎮ㄦ兂璁捐浠€涔堣绋嬶紵</h3>
+                  <p>杈撳叆鏁欏鎬濊矾锛屾垨涓婁紶鍙傝€冭祫鏂欙紝AI 灏嗚嚜鍔ㄨ繘琛岃璁′笌閲嶇粍銆?/p>
                 </div>
               ) : messages.length === 0 && isSynthesizing ? (
-                /* AI 请求已发出但响应还未到：显示等待动画 */
+                /* AI 璇锋眰宸插彂鍑轰絾鍝嶅簲杩樻湭鍒帮細鏄剧ず绛夊緟鍔ㄧ敾 */
                 <div className={styles.awaitingResponseWrapper}>
                   <div className={styles.awaitingDots}>
                     <span /><span /><span />
                   </div>
-                  <p className={styles.awaitingText}>AI 正在思考中，请稍候...</p>
+                  <p className={styles.awaitingText}>AI 姝ｅ湪鎬濊€冧腑锛岃绋嶅€?..</p>
                 </div>
               ) : (
                 messages.map((msg) => (
@@ -751,7 +757,7 @@ export default function Workspace() {
               <div className={clsx(styles.omniDock, 'glass-panel', isGenerating && styles.dockDisabled)}>
                 <button
                   className={clsx(styles.iconButton, styles.paperclipBtn)}
-                  title="上传参考资料"
+                  title="涓婁紶鍙傝€冭祫鏂?
                   disabled={isGenerating || sessionId === 'new'}
                   onClick={handleOpenFiles}
                 >
@@ -760,7 +766,7 @@ export default function Workspace() {
                 <textarea 
                   ref={inputRef}
                   className={styles.textarea} 
-                  placeholder={isGenerating ? "后台正在生成课件全局结构，为保证状态一致性，暂缓文字指令..." : "描述您的教学逻辑，或者选中右侧PPT指定修改..."}
+                  placeholder={isGenerating ? "鍚庡彴姝ｅ湪鐢熸垚璇句欢鍏ㄥ眬缁撴瀯锛屼负淇濊瘉鐘舵€佷竴鑷存€э紝鏆傜紦鏂囧瓧鎸囦护..." : "鎻忚堪鎮ㄧ殑鏁欏閫昏緫锛屾垨鑰呴€変腑鍙充晶PPT鎸囧畾淇敼..."}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -774,7 +780,7 @@ export default function Workspace() {
                     onMouseUp={stopRecording}
                     onTouchStart={startRecording}
                     onTouchEnd={stopRecording}
-                    title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
+                    title={!isSpeechSupported ? '鎮ㄧ殑娴忚鍣ㄤ笉鏀寔璇煶璇嗗埆' : isGenerating ? '鐢熸垚鏈熼棿绂佺敤璇煶' : '闀挎寜璇磋瘽'}
                     disabled={!isSpeechSupported || isGenerating}
                   >
                     {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
@@ -786,7 +792,7 @@ export default function Workspace() {
                         stopGeneration();
                         if (isStreaming) stopStreaming();
                       }}
-                      title="停止生成"
+                      title="鍋滄鐢熸垚"
                     >
                       <Square size={18} fill="currentColor" />
                     </button>
@@ -795,7 +801,7 @@ export default function Workspace() {
                       className={clsx('button-primary', styles.sendButton)}
                       disabled={!inputText.trim() || isGenerating}
                       onClick={handleSubmit}
-                      title="发送消息"
+                      title="鍙戦€佹秷鎭?
                     >
                       <Send size={18} />
                     </button>
@@ -803,7 +809,7 @@ export default function Workspace() {
                 </div>
               </div>
               {speechError && (
-                <p className={styles.speechError}>⚠️ {speechError}</p>
+                <p className={styles.speechError}>鈿狅笍 {speechError}</p>
               )}
             </div>
           </>
@@ -814,7 +820,7 @@ export default function Workspace() {
       <div
         className={styles.divider}
         onMouseDown={handleDividerMouseDown}
-        title="拖拽调整宽度"
+        title="鎷栨嫿璋冩暣瀹藉害"
       />
 
       {/* RIGHT PANEL: Visual WorkSpace */}
@@ -823,26 +829,26 @@ export default function Workspace() {
           <div className={styles.welcomeHero}>
             <div className={styles.heroContent}>
               <div className={styles.heroBadge}>
-                <Sparkles size={14} /> 全新一代智能备课
+                <Sparkles size={14} /> 鍏ㄦ柊涓€浠ｆ櫤鑳藉璇?
               </div>
               <h2 className={styles.heroTitle}>
-                开启你的 <span>AI 创意空间</span>
+                寮€鍚綘鐨?<span>AI 鍒涙剰绌洪棿</span>
               </h2>
               <p className={styles.heroDesc}>
-                在这里构建、推演并沉淀你的教学思想。<br/>
-                上传语料库，只需一句话即可生成多端图元排版课件与配套讲义。
+                鍦ㄨ繖閲屾瀯寤恒€佹帹婕斿苟娌夋穩浣犵殑鏁欏鎬濇兂銆?br/>
+                涓婁紶璇枡搴擄紝鍙渶涓€鍙ヨ瘽鍗冲彲鐢熸垚澶氱鍥惧厓鎺掔増璇句欢涓庨厤濂楄涔夈€?
               </p>
               
               <div className={styles.heroFeatures}>
                 <div className={styles.featureCard}>
                   <Library size={24} className={styles.featureIcon} />
-                  <h4>全局 RAG 知识库</h4>
-                  <p>无缝关联教学材料，确保 AI 提取内容精准、紧贴大纲且绝不发散。</p>
+                  <h4>鍏ㄥ眬 RAG 鐭ヨ瘑搴?/h4>
+                  <p>鏃犵紳鍏宠仈鏁欏鏉愭枡锛岀‘淇?AI 鎻愬彇鍐呭绮惧噯銆佺揣璐村ぇ绾蹭笖缁濅笉鍙戞暎銆?/p>
                 </div>
                 <div className={styles.featureCard}>
                   <Link size={24} className={styles.featureIcon} />
-                  <h4>多端物料一致性并行生成</h4>
-                  <p>一键提炼 PPT 骨架与 Word 完整串词，告别机械的文档排版与复制黏贴。</p>
+                  <h4>澶氱鐗╂枡涓€鑷存€у苟琛岀敓鎴?/h4>
+                  <p>涓€閿彁鐐?PPT 楠ㄦ灦涓?Word 瀹屾暣涓茶瘝锛屽憡鍒満姊扮殑鏂囨。鎺掔増涓庡鍒堕粡璐淬€?/p>
                 </div>
               </div>
             </div>
@@ -851,12 +857,12 @@ export default function Workspace() {
         <Tabs.Root className={styles.tabsRoot} value={activeTab} onValueChange={setActiveTab}>
           <header className={styles.visualHeader}>
             <Tabs.List className={styles.tabsList}>
-              <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
-              <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
-              <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
+              <Tabs.Trigger className={styles.tabsTrigger} value="files">鍙傝€冭祫鏂?/Tabs.Trigger>
+              <Tabs.Trigger className={styles.tabsTrigger} value="ppt">璇句欢棰勮 (PPT)</Tabs.Trigger>
+              <Tabs.Trigger className={styles.tabsTrigger} value="word">璁蹭箟 (Word)</Tabs.Trigger>
               <Tabs.Trigger className={clsx(styles.tabsTrigger, styles.gameTrigger)} value="games">
                 <Gamepad2 size={13} />
-                互动游戏
+                浜掑姩娓告垙
                 {(pendingSuggest || pendingTrigger) && (
                   <span className={styles.gameTabDot} />
                 )}
@@ -865,30 +871,30 @@ export default function Workspace() {
             <div className={styles.visualHeaderTools}>
               {activeTab === 'ppt' && pages.length > 0 && (
                 <>
-                  <span className={styles.visualHeaderBadge}>{pages.length} 页</span>
+                  <span className={styles.visualHeaderBadge}>{pages.length} 椤?/span>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
                     onClick={() => setShowThemePicker(true)}
-                    title="切换课件主题"
+                    title="鍒囨崲璇句欢涓婚"
                   >
                     <Palette size={14} />
-                    <span>{appliedThemeName ? `主题 · ${appliedThemeName}` : '主题'}</span>
+                    <span>{currentThemeDisplayName ? `涓婚 路 ${currentThemeDisplayName}` : '涓婚'}</span>
                   </button>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
                     onClick={handleExportPpt}
                     disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '图片保存中，请稍后再导出' : '使用当前主题导出 PPT'}
+                    title={anyImageSaving ? '鍥剧墖淇濆瓨涓紝璇风◢鍚庡啀瀵煎嚭' : '浣跨敤褰撳墠涓婚瀵煎嚭 PPT'}
                   >
                     <Download size={14} className={clsx(isExporting && styles.rotating)} />
-                    <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
+                    <span>{isExporting ? '瀵煎嚭涓?..' : '瀵煎嚭 PPT'}</span>
                   </button>
                 </>
               )}
               {activeTab === 'word' && (persistedWordDoc || wordDirty) && (
                 <>
                   {wordDirty && (
-                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>未保存</span>
+                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>鏈繚瀛?/span>
                   )}
                   <div className={styles.headerModeSwitch}>
                     <button
@@ -896,14 +902,14 @@ export default function Workspace() {
                       onClick={handleWordPreview}
                     >
                       <Eye size={13} />
-                      <span>预览</span>
+                      <span>棰勮</span>
                     </button>
                     <button
                       className={clsx(styles.headerModeBtn, wordMode === 'edit' && styles.headerModeBtnActive)}
                       onClick={handleEnterWordEdit}
                     >
                       <Pencil size={13} />
-                      <span>编辑</span>
+                      <span>缂栬緫</span>
                     </button>
                   </div>
                   <button
@@ -911,15 +917,15 @@ export default function Workspace() {
                     onClick={handleSaveWord}
                     disabled={!wordDirty || isSavingWord || sessionId === 'new'}
                   >
-                    {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 保存中...</> : <><Check size={14} /> 保存</>}
+                    {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 淇濆瓨涓?..</> : <><Check size={14} /> 淇濆瓨</>}
                   </button>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
                     onClick={handleExportWord}
                     disabled={isExportingWord || !wordDoc || sessionId === 'new' || wordDirty}
-                    title={wordDirty ? '请先保存当前草稿，再导出 Word' : '导出 Word 讲义'}
+                    title={wordDirty ? '璇峰厛淇濆瓨褰撳墠鑽夌锛屽啀瀵煎嚭 Word' : '瀵煎嚭 Word 璁蹭箟'}
                   >
-                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
+                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 瀵煎嚭涓?..</> : <><Download size={14} /> 瀵煎嚭 Word</>}
                   </button>
                 </>
               )}
@@ -928,26 +934,26 @@ export default function Workspace() {
 
           <Tabs.Content className={styles.tabsContent} value="files">
             <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
-              {/* 子 Tab 切换（知识库文档 / 图片素材） */}
+              {/* 瀛?Tab 鍒囨崲锛堢煡璇嗗簱鏂囨。 / 鍥剧墖绱犳潗锛?*/}
               <div className={styles.subTabBar}>
                 <button
                   className={clsx(styles.subTabBtn, filesSubTab === 'docs' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('docs')}
                 >
-                  <Library size={14} /> 知识库文档
+                  <Library size={14} /> 鐭ヨ瘑搴撴枃妗?
                 </button>
                 <button
                   className={clsx(styles.subTabBtn, filesSubTab === 'images' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('images')}
                 >
-                  <ImageIcon size={14} /> 图片素材
+                  <ImageIcon size={14} /> 鍥剧墖绱犳潗
                 </button>
               </div>
 
-              {/* 知识库文档面板 */}
+              {/* 鐭ヨ瘑搴撴枃妗ｉ潰鏉?*/}
               {filesSubTab === 'docs' && (
                 <>
-                  {/* 拖拽上传区 */}
+                  {/* 鎷栨嫿涓婁紶鍖?*/}
                   <div
                     className={clsx(styles.kbDropzone, isDraggingKb && styles.kbDropzoneDragging, isUploadingKb && styles.kbDropzoneUploading)}
                     onDrop={(e) => { e.preventDefault(); setIsDraggingKb(false); if (e.dataTransfer.files.length) handleKbFilesDrop(e.dataTransfer.files); }}
@@ -956,7 +962,7 @@ export default function Workspace() {
                     onClick={() => !isUploadingKb && kbFileInputRef.current?.click()}
                     role="button"
                     tabIndex={0}
-                    aria-label="点击或拖拽文档到此处上传"
+                    aria-label="鐐瑰嚮鎴栨嫋鎷芥枃妗ｅ埌姝ゅ涓婁紶"
                   >
                     <input
                       ref={kbFileInputRef}
@@ -966,17 +972,17 @@ export default function Workspace() {
                       onChange={handleKbUpload}
                     />
                     {isUploadingKb ? (
-                      <><Loader2 size={20} className={styles.spinner} /> <span>上传中...</span></>
+                      <><Loader2 size={20} className={styles.spinner} /> <span>涓婁紶涓?..</span></>
                     ) : isDraggingKb ? (
-                      <><UploadCloud size={20} /> <span>松开即可上传</span></>
+                      <><UploadCloud size={20} /> <span>鏉惧紑鍗冲彲涓婁紶</span></>
                     ) : (
-                      <><UploadCloud size={18} /> <span>拖拽 / 点击上传文档</span><small>PDF · DOCX · PPTX · TXT · MD</small></>
+                      <><UploadCloud size={18} /> <span>鎷栨嫿 / 鐐瑰嚮涓婁紶鏂囨。</span><small>PDF 路 DOCX 路 PPTX 路 TXT 路 MD</small></>
                     )}
                   </div>
 
                   {kbDocs.length === 0 ? (
                     <div className={styles.placeholderCentric}>
-                      暂无知识库文档，拖拽或点击上方区域添加
+                      鏆傛棤鐭ヨ瘑搴撴枃妗ｏ紝鎷栨嫿鎴栫偣鍑讳笂鏂瑰尯鍩熸坊鍔?
                     </div>
                   ) : (
                     <div className={styles.kbList}>
@@ -994,25 +1000,25 @@ export default function Workspace() {
                               <div className={styles.kbItemTextWrap}>
                                 <h4 className={styles.kbItemTitle} title={doc.filename}>{doc.filename}</h4>
                                 <div className={styles.kbItemMetaRow}>
-                                  <span className={styles.kbItemMeta}>{doc.subject || '通用类目'}</span>
+                                  <span className={styles.kbItemMeta}>{doc.subject || '閫氱敤绫荤洰'}</span>
                                   {isCompleted && (
                                     <span className={clsx(styles.docStatusBadge, styles.statusCompleted)}>
-                                      <CheckCircle size={10} /> 已向量化
+                                      <CheckCircle size={10} /> 宸插悜閲忓寲
                                     </span>
                                   )}
                                   {isProcessing && (
                                     <span className={clsx(styles.docStatusBadge, styles.statusProcessing)}>
-                                      <Loader2 size={10} className={styles.spinner} /> 向量化中...
+                                      <Loader2 size={10} className={styles.spinner} /> 鍚戦噺鍖栦腑...
                                     </span>
                                   )}
                                   {isPending && (
                                     <span className={clsx(styles.docStatusBadge, styles.statusPending)}>
-                                      <Clock size={10} /> 等待处理
+                                      <Clock size={10} /> 绛夊緟澶勭悊
                                     </span>
                                   )}
                                   {isFailed && (
                                     <span className={clsx(styles.docStatusBadge, styles.statusFailed)}>
-                                      <AlertCircle size={10} /> 失败
+                                      <AlertCircle size={10} /> 澶辫触
                                     </span>
                                   )}
                                 </div>
@@ -1021,7 +1027,7 @@ export default function Workspace() {
                             <div className={styles.kbItemActions}>
                               {isFailed ? (
                                 <span className={styles.failedLabel}>
-                                  <AlertCircle size={13} /> 不可关联
+                                  <AlertCircle size={13} /> 涓嶅彲鍏宠仈
                                 </span>
                               ) : (
                                 <button
@@ -1035,20 +1041,20 @@ export default function Workspace() {
                                   onClick={() => handleToggleLink(doc.document_id, isLinked)}
                                   onMouseEnter={() => setHoveredLinkDoc(doc.document_id)}
                                   onMouseLeave={() => setHoveredLinkDoc(null)}
-                                  title={!isCompleted ? '向量化完成后方可关联' : isLinked ? '点击解除绑定' : '点击加入会话'}
+                                  title={!isCompleted ? '鍚戦噺鍖栧畬鎴愬悗鏂瑰彲鍏宠仈' : isLinked ? '鐐瑰嚮瑙ｉ櫎缁戝畾' : '鐐瑰嚮鍔犲叆浼氳瘽'}
                                 >
                                   {isLinking ? (
-                                    <><Loader2 size={14} className={styles.spinner} /> 变更中</>
+                                    <><Loader2 size={14} className={styles.spinner} /> 鍙樻洿涓?/>
                                   ) : !isCompleted ? (
-                                    <><Clock size={14} /> 处理中</>
+                                    <><Clock size={14} /> 澶勭悊涓?/>
                                   ) : isLinked ? (
                                     hoveredLinkDoc === doc.document_id ? (
-                                      <><Unlink size={14} /> 取消绑定</>
+                                      <><Unlink size={14} /> 鍙栨秷缁戝畾</>
                                     ) : (
-                                      <><CheckCircle size={14} /> 已绑定</>
+                                      <><CheckCircle size={14} /> 宸茬粦瀹?/>
                                     )
                                   ) : (
-                                    <><Link size={14} /> 加入会话</>
+                                    <><Link size={14} /> 鍔犲叆浼氳瘽</>
                                   )}
                                 </button>
                               )}
@@ -1061,7 +1067,7 @@ export default function Workspace() {
                 </>
               )}
 
-              {/* 图片素材面板 */}
+              {/* 鍥剧墖绱犳潗闈㈡澘 */}
               {filesSubTab === 'images' && (
                 <ImageUploadPanel />
               )}
@@ -1079,18 +1085,18 @@ export default function Workspace() {
                 '--ppt-text':      appliedThemeColors.text_color,
               } as React.CSSProperties : {}}
             >
-              {/* ── PPT 预览内部工具栏：切换主题入口 ── */}
+              {/* 鈹€鈹€ PPT 棰勮鍐呴儴宸ュ叿鏍忥細鍒囨崲涓婚鍏ュ彛 鈹€鈹€ */}
               {pages.length > 0 && !isStreaming && (
                 <div className={styles.stickyTopbarShell}>
                   <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarPpt)}>
                     <div className={styles.topbarPrimary}>
-                      <div className={styles.topbarEyebrow}>课件预览</div>
+                      <div className={styles.topbarEyebrow}>璇句欢棰勮</div>
                       <div className={styles.topbarHeadlineRow}>
-                        <h3 className={styles.topbarTitle}>当前课件已生成</h3>
-                        <span className={styles.topbarCountPill}>{pages.length} 页幻灯片</span>
+                        <h3 className={styles.topbarTitle}>褰撳墠璇句欢宸茬敓鎴?/h3>
+                        <span className={styles.topbarCountPill}>{pages.length} 椤靛够鐏墖</span>
                       </div>
                       <p className={styles.topbarDescription}>
-                        顶栏固定在上方，滚动浏览页面时仍可快速切换主题或直接导出。
+                        椤舵爮鍥哄畾鍦ㄤ笂鏂癸紝婊氬姩娴忚椤甸潰鏃朵粛鍙揩閫熷垏鎹富棰樻垨鐩存帴瀵煎嚭銆?
                       </p>
                     </div>
 
@@ -1100,13 +1106,13 @@ export default function Workspace() {
                         onClick={() => {
                           setShowThemePicker(true);
                         }}
-                        title="切换课件主题"
+                        title="鍒囨崲璇句欢涓婚"
                       >
                         <Palette size={15} />
-                        <span>切换主题</span>
+                        <span>鍒囨崲涓婚</span>
                       </button>
 
-                      {appliedThemeName && (
+                      {currentThemeDisplayName && (
                         <span
                           className={styles.topbarThemeChip}
                           style={{
@@ -1116,7 +1122,7 @@ export default function Workspace() {
                             color: appliedThemeColors ? '#fff' : undefined,
                           }}
                         >
-                          当前主题 · {appliedThemeName}
+                          当前主题 · {currentThemeDisplayName}
                         </span>
                       )}
 
@@ -1124,10 +1130,10 @@ export default function Workspace() {
                         className={clsx(styles.topbarActionBtn, styles.topbarPrimaryAction)}
                         onClick={handleExportPpt}
                         disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                        title={anyImageSaving ? '图片保存中，请稍候再导出' : '使用当前主题导出 PPT'}
+                        title={anyImageSaving ? '鍥剧墖淇濆瓨涓紝璇风◢鍊欏啀瀵煎嚭' : '浣跨敤褰撳墠涓婚瀵煎嚭 PPT'}
                       >
                         <Download size={15} className={clsx(isExporting && styles.rotating)} />
-                        <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
+                        <span>{isExporting ? '瀵煎嚭涓?..' : '瀵煎嚭 PPT'}</span>
                       </button>
                     </div>
                   </div>
@@ -1136,31 +1142,31 @@ export default function Workspace() {
               {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
-                  <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
+                  <h3 style={{ marginBottom: '12px' }}>AI 姝ｅ湪鏅鸿兘鎺掔増璇句欢</h3>
                   <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                    大模型正在深度重组知识架构，并为您渲染多端图元排版。<br/>
-                    该过程极其消耗心智，约需 <strong>80-90 秒</strong>。<br/>
-                    您可以切回左侧处理其他会话，后台渲染不会中断。
+                    澶фā鍨嬫鍦ㄦ繁搴﹂噸缁勭煡璇嗘灦鏋勶紝骞朵负鎮ㄦ覆鏌撳绔浘鍏冩帓鐗堛€?br/>
+                    璇ヨ繃绋嬫瀬鍏舵秷鑰楀績鏅猴紝绾﹂渶 <strong>80-90 绉?/strong>銆?br/>
+                    鎮ㄥ彲浠ュ垏鍥炲乏渚у鐞嗗叾浠栦細璇濓紝鍚庡彴娓叉煋涓嶄細涓柇銆?
                   </p>
                 </div>
               ) : previewStatus === 'error' && !isStreaming && pages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
-                  <span style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</span>
-                  <h3 style={{ marginBottom: '12px' }}>课件加载中断</h3>
+                  <span style={{ fontSize: '48px', marginBottom: '16px' }}>鈿狅笍</span>
+                  <h3 style={{ marginBottom: '12px' }}>璇句欢鍔犺浇涓柇</h3>
                   <p style={{ maxWidth: '380px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                    此时无法拉取课件预览。这极大可能是后端发生数据严重异常（Validation Error），或者是由于生成的课件结构缺少必需字段而被后端拒绝。
+                    姝ゆ椂鏃犳硶鎷夊彇璇句欢棰勮銆傝繖鏋佸ぇ鍙兘鏄悗绔彂鐢熸暟鎹弗閲嶅紓甯革紙Validation Error锛夛紝鎴栬€呮槸鐢变簬鐢熸垚鐨勮浠剁粨鏋勭己灏戝繀闇€瀛楁鑰岃鍚庣鎷掔粷銆?
                   </p>
                   <button
                     className='button-primary'
                     onClick={() => {
-                      // 全量重生成：先清空旧预览，避免新旧页叠加渲染
+                      // 鍏ㄩ噺閲嶇敓鎴愶細鍏堟竻绌烘棫棰勮锛岄伩鍏嶆柊鏃ч〉鍙犲姞娓叉煋
                       clearPages();
                       startStreaming(Array.from(linkedDocs), 'fast', true);
                     }}
                     disabled={sessionId === 'new'}
                     style={{ padding: '10px 24px' }}
                   >
-                    🔄 重新生成
+                    馃攧 閲嶆柊鐢熸垚
                   </button>
                 </div>
               ) : (
@@ -1211,14 +1217,14 @@ export default function Workspace() {
                   {pages.length === 0 && !isStreaming && previewStatus !== 'loading' && (
                     <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                       <Sparkles size={48} style={{ marginBottom: '16px' }} />
-                      <h3>课件待生成</h3>
-                      <p>请点击右上角「✨ AI 一键生成课件」开始</p>
+                      <h3>璇句欢寰呯敓鎴?/h3>
+                      <p>璇风偣鍑诲彸涓婅銆屸湪 AI 涓€閿敓鎴愯浠躲€嶅紑濮?/p>
                     </div>
                   )}
                   
                   {streamError && !isStreaming && (
                     <div className={styles.streamErrorToast}>
-                      ⚠️ {streamError}
+                      鈿狅笍 {streamError}
                     </div>
                   )}
                 </>
@@ -1231,19 +1237,19 @@ export default function Workspace() {
               <div className={styles.stickyTopbarShell}>
                 <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarWord)}>
                   <div className={styles.topbarPrimary}>
-                    <div className={styles.topbarEyebrow}>讲义工作台</div>
+                    <div className={styles.topbarEyebrow}>璁蹭箟宸ヤ綔鍙?/div>
                     <div className={styles.topbarHeadlineRow}>
                       <h3 className={styles.topbarTitle}>
-                        {wordMode === 'edit' ? '正在编辑讲义草稿' : wordDirty ? '正在预览未保存草稿' : '正在预览已保存讲义'}
+                        {wordMode === 'edit' ? '姝ｅ湪缂栬緫璁蹭箟鑽夌' : wordDirty ? '姝ｅ湪棰勮鏈繚瀛樿崏绋? : '姝ｅ湪棰勮宸蹭繚瀛樿涔?}
                       </h3>
                       {wordDirty ? (
-                        <span className={clsx(styles.topbarStatusPill, styles.statusWarnPill)}>未保存更改</span>
+                        <span className={clsx(styles.topbarStatusPill, styles.statusWarnPill)}>鏈繚瀛樻洿鏀?/span>
                       ) : (
-                        <span className={clsx(styles.topbarStatusPill, styles.statusOkPill)}>已保存</span>
+                        <span className={clsx(styles.topbarStatusPill, styles.statusOkPill)}>宸蹭繚瀛?/span>
                       )}
                     </div>
                     <p className={styles.topbarDescription}>
-                      预览和编辑共用同一份草稿。切去预览不会丢内容，只有点击保存才会写回讲义正文。
+                      棰勮鍜岀紪杈戝叡鐢ㄥ悓涓€浠借崏绋裤€傚垏鍘婚瑙堜笉浼氫涪鍐呭锛屽彧鏈夌偣鍑讳繚瀛樻墠浼氬啓鍥炶涔夋鏂囥€?
                     </p>
                   </div>
                   <div className={styles.topbarActions}>
@@ -1252,13 +1258,13 @@ export default function Workspace() {
                         className={clsx(styles.modeSwitchBtn, wordMode === 'preview' && styles.modeSwitchBtnActive)}
                         onClick={handleWordPreview}
                       >
-                        <Eye size={14} /> 预览
+                        <Eye size={14} /> 棰勮
                       </button>
                       <button
                         className={clsx(styles.modeSwitchBtn, wordMode === 'edit' && styles.modeSwitchBtnActive)}
                         onClick={handleEnterWordEdit}
                       >
-                        <Pencil size={14} /> 编辑
+                        <Pencil size={14} /> 缂栬緫
                       </button>
                     </div>
                     <button
@@ -1266,15 +1272,15 @@ export default function Workspace() {
                       onClick={handleSaveWord}
                       disabled={!wordDirty || isSavingWord || sessionId === 'new'}
                     >
-                      {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 保存中...</> : <><Check size={14} /> 保存</>}
+                      {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 淇濆瓨涓?..</> : <><Check size={14} /> 淇濆瓨</>}
                     </button>
                     <button
                       className={clsx(styles.topbarActionBtn, styles.topbarPrimaryAction)}
                       onClick={handleExportWord}
                       disabled={isExportingWord || !wordDoc || sessionId === 'new' || wordDirty}
-                      title={wordDirty ? '请先保存当前草稿，再导出 Word' : '导出 Word 讲义'}
+                      title={wordDirty ? '璇峰厛淇濆瓨褰撳墠鑽夌锛屽啀瀵煎嚭 Word' : '瀵煎嚭 Word 璁蹭箟'}
                     >
-                      {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
+                      {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 瀵煎嚭涓?..</> : <><Download size={14} /> 瀵煎嚭 Word</>}
                     </button>
                   </div>
                 </div>
@@ -1285,11 +1291,11 @@ export default function Workspace() {
               {isGenerating && !isStreaming ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
-                  <h3 style={{ marginBottom: '12px' }}>AI 正在提炼讲义长文</h3>
+                  <h3 style={{ marginBottom: '12px' }}>AI 姝ｅ湪鎻愮偧璁蹭箟闀挎枃</h3>
                   <p style={{ maxWidth: '420px', textAlign: 'center', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-                    大模型正在为您扩写与课件配套的完整教学讲义文稿。<br/>
-                    该并行流处理大约需要 <strong>80-90 秒</strong>。<br/>
-                    请稍作等待，全套资料链即可完成闭环。
+                    澶фā鍨嬫鍦ㄤ负鎮ㄦ墿鍐欎笌璇句欢閰嶅鐨勫畬鏁存暀瀛﹁涔夋枃绋裤€?br/>
+                    璇ュ苟琛屾祦澶勭悊澶х害闇€瑕?<strong>80-90 绉?/strong>銆?br/>
+                    璇风◢浣滅瓑寰咃紝鍏ㄥ璧勬枡閾惧嵆鍙畬鎴愰棴鐜€?
                   </p>
                 </div>
               ) : wordMode === 'edit' ? (
@@ -1298,7 +1304,7 @@ export default function Workspace() {
                   className={styles.wordEditTextarea}
                   value={wordDraft}
                   onChange={e => setWordDraft(e.target.value)}
-                  placeholder="在此处编辑 Markdown 讲义内容..."
+                  placeholder="鍦ㄦ澶勭紪杈?Markdown 璁蹭箟鍐呭..."
                   spellCheck={false}
                 />
               ) : displayedWordDoc ? (
@@ -1313,8 +1319,8 @@ export default function Workspace() {
               ) : (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                   <Sparkles size={48} style={{ marginBottom: '16px' }} />
-                  <h3>讲义待生成</h3>
-                  <p>随课件一并产出，请先生成课件</p>
+                  <h3>璁蹭箟寰呯敓鎴?/h3>
+                  <p>闅忚浠朵竴骞朵骇鍑猴紝璇峰厛鐢熸垚璇句欢</p>
                 </div>
               )}
             </div>
@@ -1326,12 +1332,12 @@ export default function Workspace() {
                 style={{ top: floatPos.top, left: floatPos.left }}
                 onClick={handleHighlightAsk}
               >
-                ✨ 针对此划词发起修改
+                鉁?閽堝姝ゅ垝璇嶅彂璧蜂慨鏀?
               </button>
             )}
           </Tabs.Content>
 
-          {/* ── 互动小游戏 Tab ── */}
+          {/* 鈹€鈹€ 浜掑姩灏忔父鎴?Tab 鈹€鈹€ */}
           <Tabs.Content className={styles.tabsContent} value="games">
             {sessionId !== 'new' && (
               <GamePanel
@@ -1351,9 +1357,9 @@ export default function Workspace() {
               }}>
                 <Gamepad2 size={36} style={{ opacity: 0.3 }} />
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)' }}>
-                  请先创建会话
+                  璇峰厛鍒涘缓浼氳瘽
                 </p>
-                <small style={{ fontSize: 12 }}>互动游戏功能需要在活跃会话中使用</small>
+                <small style={{ fontSize: 12 }}>浜掑姩娓告垙鍔熻兘闇€瑕佸湪娲昏穬浼氳瘽涓娇鐢?/small>
               </div>
             )}
           </Tabs.Content>
@@ -1361,7 +1367,7 @@ export default function Workspace() {
         )}
       </section>
 
-      {/* ── PPT 主题选色器 Overlay ── */}
+      {/* 鈹€鈹€ PPT 涓婚閫夎壊鍣?Overlay 鈹€鈹€ */}
       {showThemePicker && (
         <ThemePicker
           mode="apply"
@@ -1384,7 +1390,7 @@ export default function Workspace() {
               const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
               const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
               saveSessionTheme(sessionId, keyToSave, colorsToSave)
-                .catch(err => console.warn('[Theme] 后端持久化失败（预览不受影响）', err));
+                .catch(err => console.warn('[Theme] 鍚庣鎸佷箙鍖栧け璐ワ紙棰勮涓嶅彈褰卞搷锛?, err));
             }
           }}
           onCancel={() => setShowThemePicker(false)}
