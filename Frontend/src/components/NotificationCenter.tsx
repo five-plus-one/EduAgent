@@ -23,8 +23,9 @@ function NotificationCard({ item }: { item: NotificationItem }) {
   const Icon = ICON_MAP[item.tone] ?? Bell;
 
   useEffect(() => {
-    if (item.duration <= 0) return undefined;
-    const timer = window.setTimeout(() => dismissNotification(item.id), item.duration);
+    const duration = item.duration ?? 4200;
+    if (duration <= 0) return undefined;
+    const timer = window.setTimeout(() => dismissNotification(item.id), duration);
     return () => window.clearTimeout(timer);
   }, [dismissNotification, item.duration, item.id]);
 
