@@ -12,6 +12,7 @@ class SessionResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     content: str
+    active_game_id: Optional[str] = None  # 当前预览的游戏 ID，有值时 AI 可对其进行精炼
 
 class SessionItem(BaseModel):
     session_id: str

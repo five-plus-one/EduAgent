@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Integer, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.db.base_class import Base
@@ -10,6 +10,10 @@ class SessionContext(Base):
     course_name = Column(String, nullable=True)
     target_audience = Column(String, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    # PPT 主题偏好持久化
+    ppt_theme_key        = Column(String,   nullable=True)  # e.g. "ocean_depths"；NULL 表示自动
+    ppt_custom_colors    = Column(JSON,     nullable=True)  # 自定义颜色字典；NULL 表示使用预设
+    ppt_theme_updated_at = Column(DateTime, nullable=True)  # 最近一次修改的时间
     messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")
 
 class Message(Base):

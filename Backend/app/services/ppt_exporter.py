@@ -29,6 +29,9 @@ LIGHT_THEME_KEYS = ["modern_minimalist", "sunset_boulevard", "golden_hour",
                      "forest_canopy", "desert_rose", "arctic_frost"]
 DARK_THEME_KEYS  = ["ocean_depths", "cyber_neon", "midnight_galaxy", "botanical_garden"]
 
+# 所有被视为「游戏占位符」的 element type 值（后端用 game_placeholder，前端/AI 会生成 interactive_game）
+_GAME_ELEM_TYPES = {"game_placeholder", "interactive_game"}
+
 
 def simple_hash(s: str) -> int:
     """Deterministic hash of a string, matches frontend implementation."""
@@ -1701,8 +1704,10 @@ def draw_bg_decor(slide, page: dict, colors: dict) -> None:
     # Accent-tinted, creates a colour vignette in the top-left corner.
     _oval(-1.2, -1.2, 3.6, 3.6, acc, 0.24)
 
-    # ── Layer B: bottom-right primary glow (partially off-edge) ───────────────
-    _oval(SLIDE_W - 2.0, SLIDE_H - 2.0, 3.8, 3.8, pri, 0.20)
+    # ── Layer B: bottom-right primary glow (mostly off-edge) ──────────────────
+    # Pushed far off-edge so only a curved sliver is visible in the corner,
+    # preventing any overlap with the page-number watermark (bottom-right text).
+    _oval(SLIDE_W - 0.6, SLIDE_H - 0.6, 4.5, 4.5, pri, 0.15)
 
     # ── Layer C: diagonal mid-zone rectangle (very faint — simulates gradient) ─
     mid_mix   = pri if dark else RGBColor(0xFF, 0xFF, 0xFF)
@@ -1723,10 +1728,14 @@ def draw_bg_decor(slide, page: dict, colors: dict) -> None:
         _oval(SLIDE_W / 2 - 1.4, CONTENT_T + 0.95, 2.8, 2.8, acc, 0.09)
 
     elif layout == "two_column":
-        # Soft vertical divider glow exactly between columns
+        # Three small dot-circles form a tasteful dotted divider between columns.
+        # Replaces the old tall narrow oval (1.3" wide × 5.8" tall) which was ugly.
         mid_x = MARGIN_LEFT + (CONTENT_W - 0.28) / 2
-        _oval(mid_x - 0.65, CONTENT_T - 0.1, 1.3, SLIDE_H - CONTENT_T - 0.1,
-              acc, 0.10)
+        dot_y0 = CONTENT_T + (SLIDE_H - CONTENT_T - 0.36) * 0.18
+        dot_gap = (SLIDE_H - CONTENT_T - 0.36) * 0.32
+        for k in range(3):
+            _oval(mid_x - 0.15, dot_y0 + k * dot_gap, 0.30, 0.30,
+                  acc, 0.25 - k * 0.04)
 
     elif layout == "timeline":
         # Horizontal mid-band (the "river" for the timeline events to flow through)
@@ -1877,9 +1886,15 @@ def render_minimal_list(slide, page: dict, colors: dict) -> None:
     table_elems = [e for e in elements if e.get("type") == "table"]
     # ── 先渲染图片元素（right-column 或全宽）──────────────────────────────────
     img_elems  = [e for e in elements if e.get("type") == "image"]
+    # game_placeholder / interactive_game 由 render_game_placeholders 在各布局 renderer 后统一处理，
+    # 排除在 body_elems 之外，避免产生空卡片干扰排版
     body_elems = [e for e in elements
-                  if not _is_stat(e) and e.get("type") not in ("image", "table")] or [
-        e for e in elements if e.get("type") not in ("image", "table")
+                  if not _is_stat(e)
+                  and e.get("type") not in ("image", "table")
+                  and e.get("type") not in _GAME_ELEM_TYPES] or [
+        e for e in elements
+        if e.get("type") not in ("image", "table")
+        and e.get("type") not in _GAME_ELEM_TYPES
     ]
 
     # 图片放右半列（宽度与 stat 右区相同，约 40% CONTENT_W）
@@ -2194,8 +2209,128 @@ def _render_image_placeholder(slide, elem: dict, col_x: float, col_w: float, col
 
 
 # ──────────────────────────────────────────────
-# Table element renderer
+# Hyperlink helper (OOXML 直接操作)
 # ──────────────────────────────────────────────
+
+def _add_run_hyperlink(run, url: str, slide) -> None:
+    """将 URL 绑定到一个文本 run 上，导出成点击跨页跳转超链接。"""
+    try:
+        R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        HYP_RT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+        rId = slide.part.relate_to(url, HYP_RT, is_external=True)
+        rPr = run._r.find(qn("a:rPr"))
+        if rPr is None:
+            rPr = etree.SubElement(run._r, qn("a:rPr"))
+            run._r.insert(0, rPr)
+        hl = etree.SubElement(rPr, qn("a:hlinkClick"))
+        hl.set(f"{{{R_NS}}}id", rId)
+    except Exception as _he:
+        logger.warning(f"[game_placeholder] hyperlink attach failed: {_he}")
+
+
+# ──────────────────────────────────────────────
+# Game placeholder renderer
+# ──────────────────────────────────────────────
+
+def render_game_placeholders(slide, page: dict, colors: dict) -> None:
+    """
+    在每页 layout renderer 后追加调用。
+    扫描 page.elements 中所有 type=game_placeholder 元素，
+    在满幻灯片底部游戏卡片区域排列渲染。
+    """
+    from pptx.util import Inches, Pt
+    from pptx.enum.text import PP_ALIGN
+
+    game_elems = [e for e in page.get("elements", []) if e.get("type") in _GAME_ELEM_TYPES]
+    if not game_elems:
+        return
+
+    acc  = colors["acc"]
+    bg   = colors["bg"]
+    txt  = colors["txt"]
+    pri  = colors["pri"]
+    dark = _is_dark(colors)
+
+    # 种第区域：幻灯片底部——高度 1.2 in，充充幻灯片可用宽度
+    ZONE_Y = SLIDE_H - 1.55
+    ZONE_H = 1.30
+    ZONE_X = MARGIN_LEFT
+    ZONE_W = CONTENT_W
+
+    card_w  = min(ZONE_W / max(len(game_elems), 1) - 0.15, 3.8)
+    gap     = (ZONE_W - card_w * len(game_elems)) / max(len(game_elems) + 1, 2)
+
+    card_bg  = blend(acc, bg, 0.20) if dark else blend(acc, RGBColor(0xFF, 0xFF, 0xFF), 0.18)
+    brd      = acc
+
+    for i, elem in enumerate(game_elems):
+        cx = ZONE_X + gap + i * (card_w + gap)
+        cy = ZONE_Y
+
+        game_url   = elem.get("game_url", "")
+        game_title = elem.get("game_title", elem.get("title", "互动游戏"))
+        type_label = elem.get("type_label", "互动游戏")
+
+        # 卡片背景
+        rect_rounded(slide, cx, cy, card_w, ZONE_H, card_bg, brd)
+        line_h(slide, cx, cy, card_w, 0.055, acc)   # 顶部强调条
+
+        # 🎮 图标 + 底部 type_label 右对齐
+        icon_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + 0.08),
+            Inches(0.45),      Inches(0.45),
+        )
+        icon_tf = icon_tb.text_frame
+        ip = icon_tf.paragraphs[0]
+        ir = ip.add_run()
+        ir.text = "🎮"
+        ir.font.size = Pt(22)
+
+        # type_label 小字（幻灯版右上角）
+        lbl_tb = slide.shapes.add_textbox(
+            Inches(cx + card_w - 1.3), Inches(cy + 0.08),
+            Inches(1.20),              Inches(0.30),
+        )
+        lbl_tf = lbl_tb.text_frame
+        lp = lbl_tf.paragraphs[0]
+        lp.alignment = PP_ALIGN.RIGHT
+        lr = lp.add_run()
+        lr.text = type_label
+        lr.font.size   = Pt(9)
+        lr.font.color.rgb = blend(acc, bg, 0.55)
+
+        # 游戏标题（可点击超链接）
+        title_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + 0.50),
+            Inches(card_w - 0.24), Inches(0.62),
+        )
+        title_tf = title_tb.text_frame
+        title_tf.word_wrap = True
+        tp = title_tf.paragraphs[0]
+        tr = tp.add_run()
+        tr.text = game_title
+        tr.font.size  = Pt(13)
+        tr.font.bold  = True
+        tr.font.color.rgb = acc
+        if game_url:
+            _add_run_hyperlink(tr, game_url, slide)
+
+        # 点击提示
+        hint_tb = slide.shapes.add_textbox(
+            Inches(cx + 0.12), Inches(cy + ZONE_H - 0.40),
+            Inches(card_w - 0.24), Inches(0.32),
+        )
+        hint_tf = hint_tb.text_frame
+        hp = hint_tf.paragraphs[0]
+        hr = hp.add_run()
+        hr.text = "点击打开游戏 →" if game_url else "游戏链接待生成"
+        hr.font.size = Pt(9)
+        hr.font.italic = True
+        hr.font.color.rgb = blend(acc, bg, 0.52)
+        if game_url:
+            _add_run_hyperlink(hr, game_url, slide)
+
+
 
 def render_table_element(slide, elem: dict, colors: dict,
                          x: float, y: float, w: float) -> float:
@@ -2398,27 +2533,26 @@ def render_two_column(slide, page: dict, colors: dict) -> None:
     right_table_elems = [e for e in elements if e.get("type") == "table"
                          and "right" in _tbl_pos(e)]
     all_table_elems   = full_table_elems + left_table_elems + right_table_elems
-    # 非表格元素按左右分布
-    col_elements = [e for e in elements if e not in all_table_elems]
+    # game_placeholder / interactive_game 元素由 render_game_placeholders 处理，从 col_elements 排除
+    col_elements = [
+        e for e in elements
+        if e not in all_table_elems and e.get("type") not in _GAME_ELEM_TYPES
+    ]
 
-    # Flexible position detection:
-    #   left / left_top / left_bottom  → left column
-    #   right / right_top / right_bottom → right column
+    # 按 position 字段精确分两列：
+    #   left / left_top / left_bottom  → 左列
+    #   right / right_top / right_bottom → 右列
+    #   其他（full/center/空）→ 默认左列
     def _col(e):
         return str(e.get("position", "left")).lower()
 
-    left_elems  = [e for e in col_elements if "left"  in _col(e)]
+    left_elems  = [e for e in col_elements if "left"  in _col(e) or _col(e) in ("", "full", "center")]
     right_elems = [e for e in col_elements if "right" in _col(e)]
-
+    # 降级处理：所有元素均无明确 position 时自动对半分
+    # 注意：只在「两侧均无元素」时才走自动分列，有任一侧就封不强覆用户手动设置的 position
     if not left_elems and not right_elems:
         half = max(len(col_elements) // 2, 1)
         left_elems, right_elems = col_elements[:half], col_elements[half:]
-    elif not left_elems:           # all labeled right — split evenly
-        half = max(len(right_elems) // 2, 1)
-        left_elems, right_elems = right_elems[:half], right_elems[half:]
-    elif not right_elems:          # all labeled left — split evenly
-        half = max(len(left_elems) // 2, 1)
-        left_elems, right_elems = left_elems[:half], left_elems[half:]
 
     half_w  = (CONTENT_W - 0.28) / 2
     lx      = MARGIN_LEFT
@@ -2588,11 +2722,21 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
     draw_chrome(slide, page.get("page_index", 1), page.get("title", ""), colors)
 
     elements = page.get("elements", [])
-    # 表格单独处理，not 放进 big/other，避免 get_content_list 读到空 content
+    # 表格和游戏元素单独处理
     table_elems = [e for e in elements if e.get("type") == "table"]
-    big   = [e for e in elements if (e.get("is_accent") or e.get("type") in ("huge_number", "stat"))
-             and e not in table_elems]
-    other = [e for e in elements if e not in big and e not in table_elems]
+    game_elems  = [e for e in elements if e.get("type") in _GAME_ELEM_TYPES]
+    excl = set(id(e) for e in table_elems + game_elems)
+    # big：is_accent=True 的元素 或 type in (huge_number/stat) 且内容较短
+    # 注意：is_accent=True 的元素无论 type 如何，都走大圆圈视觉区域,
+    #       type="huge_number"/"stat" 的元素额外要求内容短（避免把长段落放圆圈）
+    big   = [e for e in elements
+             if id(e) not in excl
+             and (
+                 e.get("is_accent")                                    # 明确标记强调
+                 or (e.get("type") in ("huge_number", "stat")          # 统计类短值
+                     and any(len(str(c)) <= 10 for c in (e.get("content") or ["x"])))
+             )]
+    other = [e for e in elements if id(e) not in excl and e not in big]
 
     n_big   = max(len(big), 1)
     # ── 横排全部 big elements ──────────────────────────────────────────
@@ -2627,9 +2771,11 @@ def render_stat_callout(slide, page: dict, colors: dict) -> None:
             sub = "  ".join(items[1:])
             add_rich_box(slide, sub, cell_x, big_top + sz + 0.08, cell_w, 0.42, 12, txt, acc)
 
-    # ── 非 big 元素排布在圆圈行下方 ──────────────────────────────
-    big_row_h = sz + 0.62
-    sup_y     = big_top + big_row_h
+    # ── 非 big 元素排布在圆圈行下方（big 为空时从内容顶部开始）─────────
+    if big:
+        sup_y = big_top + sz + 0.62
+    else:
+        sup_y = CONTENT_T          # big 为空时 other 从内容顶部开始
     if other:
         each_h = (SLIDE_H - sup_y - 0.35) / max(len(other), 1)
         for elem in other:
@@ -2763,7 +2909,10 @@ def render_default(slide, page: dict, colors: dict) -> None:
     # ── 图片和表格分别单独渲染，不进入文字卡循环 ────────────────────────────────────
     img_elems   = [e for e in elements if e.get("type") == "image"]
     table_elems = [e for e in elements if e.get("type") == "table"]
-    text_elems  = [e for e in elements if e.get("type") not in ("image", "table")]
+    # game_placeholder / interactive_game 由 render_game_placeholders 统一处理
+    text_elems  = [e for e in elements
+                   if e.get("type") not in ("image", "table")
+                   and e.get("type") not in _GAME_ELEM_TYPES]
     has_img     = bool(img_elems)
 
     # 图片放右列（40% 宽），文字占左 58%（有图时）
@@ -2831,7 +2980,15 @@ LAYOUT_RENDERERS = {
 # Main export entry point
 # ──────────────────────────────────────────────
 
-def run_export_task(task_id: str, session_id: str):
+def run_export_task(task_id: str, session_id: str,
+                    theme_key: str | None = None,
+                    custom_colors: dict | None = None):
+    """
+    theme_key:     PREMIUM_THEMES 中的键名（如 'ocean_depths'）。
+    custom_colors: 完整颜色字典 {bg_color, primary, secondary, accent, text_color}。
+    两者均为 None 时，按 pick_premium_theme() 自动根据 session_id 决定。
+    custom_colors 优先级最高（当用户完全自定义配色时使用）。
+    """
     db: Session = SessionLocal()
     task = db.query(GenerationTask).filter(GenerationTask.id == task_id).first()
     if not task:
@@ -2872,8 +3029,22 @@ def run_export_task(task_id: str, session_id: str):
             if not isinstance(slides_arr, list):
                 slides_arr = []
 
-            # Use premium theme (deterministic by session_id + LLM luminance intent)
-            sel = pick_premium_theme(session_id, theme)
+            # 主题选择三级优先级
+            if custom_colors and isinstance(custom_colors, dict) and all(
+                k in custom_colors for k in ("bg_color", "primary", "secondary", "accent", "text_color")
+            ):
+                # 优先级 1：完全自定义颜色
+                sel = custom_colors
+                logger.info(f"[export] using custom colors: bg={sel['bg_color']}")
+            elif theme_key and theme_key in PREMIUM_THEMES:
+                # 优先级 2：预设主题
+                sel = PREMIUM_THEMES[theme_key]
+                logger.info(f"[export] using preset theme: {theme_key}")
+            else:
+                # 优先级 3：自动哈希选色
+                sel = pick_premium_theme(session_id, theme)
+                logger.info(f"[export] auto-selected theme: bg={sel['bg_color']}")
+
             colors = {
                 "bg":  hex2rgb(sel["bg_color"]),
                 "pri": hex2rgb(sel["primary"]),
@@ -2881,6 +3052,44 @@ def run_export_task(task_id: str, session_id: str):
                 "acc": hex2rgb(sel["accent"]),
                 "txt": hex2rgb(sel["text_color"]),
             }
+
+            # ── 导出前富化游戏元素 game_url ────────────────────────────────────
+            # interactive_game 元素（AI 生成）只有 game_id，没有 game_url；
+            # 此步统一为所有缺 game_url 的游戏元素查找/创建 share 短链接。
+            try:
+                from app.models.game_share import GameShare as _GS
+                from app.core.config import settings as _settings
+                _SERVER_URL = _settings.SERVER_URL   # 与 games.py 保持一致，使用前端域名
+                _GAME_TYPES_EX = {"game_placeholder", "interactive_game"}
+                for _page in slides_arr:
+                    for _elem in _page.get("elements", []):
+                        if _elem.get("type") not in _GAME_TYPES_EX:
+                            continue
+                        if _elem.get("game_url"):      # 已有链接，跳过
+                            continue
+                        _gid = _elem.get("game_id", "")
+                        if not _gid:
+                            continue
+                        # 查找已有 active share
+                        _share = db.query(_GS).filter(
+                            _GS.game_id == _gid, _GS.is_active == True
+                        ).first()
+                        if not _share:
+                            # 创建新 share（GameShare 主键是 code，无 id 字段；created_by NOT NULL）
+                            _code = uuid.uuid4().hex[:8].upper()
+                            _share = _GS(
+                                code=_code,
+                                game_id=_gid,
+                                is_active=True,
+                                view_count=0,
+                                created_by="export_system",   # NOT NULL，用系统标记
+                            )
+                            db.add(_share)
+                            db.commit()
+                        _elem["game_url"] = f"{_SERVER_URL}/s/{_share.code}"
+                        logger.info(f"[export] enriched game_url for {_gid}: {_elem['game_url']}")
+            except Exception as _enrich_err:
+                logger.error(f"[export] game URL enrichment failed: {_enrich_err}", exc_info=True)
 
             for page in slides_arr:
                 slide = prs.slides.add_slide(blank_layout)
@@ -2895,6 +3104,8 @@ def run_export_task(task_id: str, session_id: str):
                 layout_type = page.get("layout_type", "minimal_list")
                 renderer = LAYOUT_RENDERERS.get(layout_type, render_default)
                 renderer(slide, page, colors)
+                # 游戏占位符升并在幻灯片底部渲染（各布局共用）
+                render_game_placeholders(slide, page, colors)
 
             task.stage    = "saving_file"
             task.progress = 90

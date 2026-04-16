@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import uuid
 import json
 import os
+import re
 import shutil
 
 from app.api import deps
@@ -16,17 +17,150 @@ from app.services.llm_service import stream_chat_response
 from app.db.session import SessionLocal
 from app.services.document_processor_task import process_session_file_task
 from app.services.vector_store import delete_document_vectors
+from app.services.ppt_exporter import PREMIUM_THEMES
 
 router = APIRouter()
 
 SESSION_UPLOAD_DIR = os.path.join(os.getcwd(), "uploads", "sessions")
 os.makedirs(SESSION_UPLOAD_DIR, exist_ok=True)
 
+_HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
+
 class ReferenceRequest(BaseModel):
     reference_ids: list[str]
 
 class IntentUpdateRequest(BaseModel):
     intent_desc: str
+
+class ThemeUpdateRequest(BaseModel):
+    theme_key:     str | None = None   # 预设主题 key；None = 自定义或重置
+    custom_colors: dict | None = None  # 当 theme_key=None 且有此字段时视为自定义
+
+
+_CUSTOM_COLOR_FIELDS = ("bg_color", "primary", "secondary", "accent", "text_color")
+
+
+def _build_ppt_theme(session_ctx: SessionContext) -> dict | None:
+    """从 session 记录构造 ppt_theme 响应对象（含 resolved_colors）。"""
+    key = session_ctx.ppt_theme_key
+    custom = session_ctx.ppt_custom_colors
+    if isinstance(custom, str):
+        try:
+            import json as _j
+            custom = _j.loads(custom)
+        except Exception:
+            custom = None
+
+    updated_at = session_ctx.ppt_theme_updated_at
+    if updated_at is None and key is None and custom is None:
+        return None   # 从未设置过，返回 null
+
+    # 解析 resolved_colors
+    if key and key in PREMIUM_THEMES:
+        t = PREMIUM_THEMES[key]
+        resolved = {
+            "bg_color":   t["bg_color"],
+            "primary":    t["primary"],
+            "secondary":  t["secondary"],
+            "accent":     t["accent"],
+            "text_color": t["text_color"],
+        }
+    elif custom and isinstance(custom, dict):
+        resolved = {f: custom.get(f, "") for f in _CUSTOM_COLOR_FIELDS}
+    else:
+        resolved = None   # 将触发「自动」
+
+    return {
+        "theme_key":       key,
+        "custom_colors":   custom,
+        "resolved_colors": resolved,
+        "updated_at":      updated_at,
+    }
+
+
+router = APIRouter()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATCH /sessions/{session_id}/theme — 保存/更新主题偏好
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.patch("/{session_id}/theme")
+def update_session_theme(
+    session_id: str,
+    body: ThemeUpdateRequest,
+    current_user: User = Depends(deps.get_current_user),
+    db: Session = Depends(deps.get_db),
+):
+    """
+    保存会话的 PPT 主题选择。
+
+    场景 A — 选择预设主题：{"theme_key": "ocean_depths"}
+    场景 B — 自定义颜色：{"theme_key": null, "custom_colors": {...5 色}}
+    场景 C — 重置为自动：{"theme_key": null}
+    """
+    from datetime import datetime, timezone
+
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id,
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # 验证 theme_key
+    if body.theme_key is not None and body.theme_key not in PREMIUM_THEMES:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": 4001,
+                "message": "theme_key 不合法",
+                "data": {
+                    "error_ref": "ERR-TH001",
+                    "details": [{"field": "theme_key", "issue": f"unknown theme: {body.theme_key}"}],
+                },
+            },
+        )
+
+    # 验证 custom_colors
+    custom = None
+    if body.theme_key is None and body.custom_colors:
+        missing = [f for f in _CUSTOM_COLOR_FIELDS if f not in body.custom_colors]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": 4002,
+                    "message": "custom_colors 字段缺失",
+                    "data": {"details": [{"field": f, "issue": "missing"} for f in missing]},
+                },
+            )
+        invalid = [
+            f for f in _CUSTOM_COLOR_FIELDS
+            if not _HEX_RE.match(body.custom_colors.get(f, ""))
+        ]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": 4002,
+                    "message": "颜色值格式不合法（需要 #RRGGBB）",
+                    "data": {"details": [{"field": f, "issue": "invalid hex color"} for f in invalid]},
+                },
+            )
+        custom = {f: body.custom_colors[f] for f in _CUSTOM_COLOR_FIELDS}
+
+    # 写入 DB
+    session_ctx.ppt_theme_key        = body.theme_key
+    session_ctx.ppt_custom_colors    = custom
+    session_ctx.ppt_theme_updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(session_ctx)
+
+    return {
+        "session_id": session_id,
+        "ppt_theme":  _build_ppt_theme(session_ctx),
+    }
+
 
 @router.post("", response_model=SessionResponse)
 def create_session(
@@ -103,12 +237,13 @@ def get_session_detail(
         "associated_files": [
             {
                 "session_file_id": sf.id,
-                "document_id": sf.document_id,   # 知识库原始文档 ID，用于前端侧边栏勾选状态还原
+                "document_id": sf.document_id,
                 "filename": sf.filename,
                 "status": sf.status,
             }
             for sf in session_files
-        ]
+        ],
+        "ppt_theme": _build_ppt_theme(session_ctx),
     }
 
 @router.put("/{session_id}")
@@ -195,7 +330,7 @@ async def chat_with_session(
     async def sse_generator():
         ai_full_text = ""
         is_thinking = False
-        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id):
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, user_id=current_user.id, active_game_id=chat_msg.active_game_id):
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:

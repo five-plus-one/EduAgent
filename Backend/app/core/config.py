@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
     
+    # Public server URL（用于拼接分享链接，应填前端地址）
+    # 开发环境默认值；生产环境在服务器 .env 中设置 SERVER_URL=https://eduagent.five-plus-one.com
+    SERVER_URL: str = "http://localhost:5173"
+    
     # Auth
     SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7" # Development key
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days

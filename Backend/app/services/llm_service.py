@@ -1,4 +1,5 @@
 import json
+import os
 import logging
 import httpx
 from app.core.config import settings
@@ -13,9 +14,9 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "ProposePPTPlan",
             "description": (
-                "【第一步：布局方案提案】当用户首次说出想生成整套PPT时，必须先调用此工具幕出布局方案。"
-                "方案要求：每页只需一行，格式为 「页码 [布局] 标题 —— 元素位置概述」，不要堆叠大段文字内容。"
-                "元素位置概述示例：「左：3条要点列表；右：配图」、「全幅大标题+副标题」、「顶部引導语；中部大数字卡片×4」。"
+                "《第一步：布局方案提案》当用户首次说出想生成整套PPT时，必须先调用此工具幕出布局方案。"
+                "方案要求：每页只需一行，格式为 《页码 [布局] 标题 —— 元素位置概述》，不要堆叠大段文字内容。"
+                "元素位置概述示例：《左：3条要点列表；右：配图》、《全幅大标题+副标题》、《顶部引导语；中部大数字卡片×4》。"
                 "绝对不需要写具体教学内容，只描述页面的“有什么”和“在哪里”。"
                 "提交方案后等待用户确认，用户认可后再调用 GenerateFullPPT 正式生成。"
                 "绝对不能在对话文本中直接输出大纲，必须通过此工具提交。"
@@ -27,12 +28,12 @@ TOOLS_SCHEMA = [
                         "type": "string",
                         "description": (
                             "PPT布局方案，Markdown格式。每页一行。"
-                            "布局类型只能从cover/minimal_list/two_column/stat_callout/timeline这5种中选，禁止使用其他名称。"
+                            "布局类型只能从 cover/minimal_list/two_column/stat_callout/timeline 迕5种中选，禁止使用其他名称。"
                             "示例：\n"
                             "**P1** [cover] 课程大标题 —— 全幅标题+副标题居中\n"
                             "**P2** [minimal_list] 教学目标 —— 左上：标题；全幅：3-4条要点列表\n"
                             "**P3** [two_column] 原理对比 —— 左：3条文字列表；右：配图\n"
-                            "**P4** [stat_callout] 核心数据 —— 居中大数字「98%」+说明文字\n"
+                            "**P4** [stat_callout] 核心数据 —— 居中大数字〈98%〉+说明文字\n"
                             "**P5** [timeline] 发展历程 —— 左到右：4个时间节点卡片\n"
                             "(不需要写具体文字内容，只描述元素数量、位置。禁止使用以上5种之外的布局名)"
                         )
@@ -51,7 +52,7 @@ TOOLS_SCHEMA = [
         "function": {
             "name": "GenerateFullPPT",
             "description": (
-                "【第二步：正式生成】仅在用户明确确认 ProposePPTPlan 方案后才调用此工具，启动实际PPT生成流程。"
+                "《第二步：正式生成》仅在用户明确确认 ProposePPTPlan 方案后才调用此工具，启动实际PPT生成流程。"
                 "未经用户确认严禁调用。"
             ),
             "parameters": {
@@ -67,7 +68,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "UpdateSlide",
-            "description": "【核心工具】局部更新幻灯片页。当用户要求修改某页时，重新生成该页完整的标题与布局组件，精准覆盖。",
+            "description": "《核心工具》局部更新幻灯片页。当用户要求修改某页时，重新生成该页完整的标题与布局组件，精准覆盖。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -87,7 +88,7 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "AddSlide",
-            "description": "在指定位置新增一页幻灯片。参数格式与 UpdateSlide 完全一致，必须传入结构化 title 和 new_elements，禁止用 content 字符串。",
+            "description": "在指定位置新增一页幻灯片。参数格式与 UpdateSlide 完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -116,38 +117,109 @@ TOOLS_SCHEMA = [
                 "required": ["page_index"]
             }
         }
-    }
+    },
+    # ── 游戏工具 ─────────────────────────────────────────────────────────
+    {
+        "type": "function",
+        "function": {
+            "name": "ProposeGameTypes",
+            "description": (
+                "《游戏建e诟》当教师表达想要互动小游戏的意图时（涉及「游戏」「互动」「小游戏」「激活」「趣味」「小测测」等词），调用此工具展示游戏类型。"
+                "将 suggestions 列表设置为最适合课件内容的 2-3 个首选类型，其他类型也可选。"
+                "此工具不触发生成，只展示建议并返回待确认状态。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "suggestions": {
+                        "type": "array",
+                        "description": "排序推荐的游戏类型（最多3个首选）",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type":   {"type": "string", "description": "quiz/memory/fillblank/sort/match/flashcard/custom"},
+                                "reason": {"type": "string", "description": "为什么这个类型适合当前课件"}
+                            }
+                        }
+                    },
+                    "pending_question": {
+                        "type": "string",
+                        "description": "还需要向教师确认的问题（如游戏类型、侧重知识点等）"
+                    }
+                },
+                "required": ["suggestions", "pending_question"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "GenerateGame",
+            "description": (
+                "《游戏生成》当游戏类型和知识点已明确后，必须立即调用此工具触发后端 HTML 游戏生成。"
+                "此工具会直接在后台启动游戏生成任务，调用后游戏即开始生成，无需前端确认。"
+                "若教师要改进已有游戏（如修改规则/时间/样式），将 is_refinement 设为 true 并在 refinement_instruction 中详细描述需求。"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "game_type":              {"type": "string",  "description": "quiz/memory/fillblank/sort/match/flashcard/custom"},
+                    "title":                  {"type": "string",  "description": "游戏标题"},
+                    "key_topics":             {"type": "array",   "items": {"type": "string"}, "description": "核心考察知识点"},
+                    "custom_requirements":    {"type": "string",  "description": "追加要求"},
+                    "is_refinement":          {"type": "boolean", "description": "是否为改进已有游戏"},
+                    "refinement_instruction": {"type": "string",  "description": "改进说明，仅 is_refinement=true 时填写"}
+                },
+                "required": ["game_type", "title", "key_topics"]
+            }
+        }
+    },
 ]
 
 SYSTEM_PROMPT = (
-    "你是多模态AI互动式教学智能体。你有能力通过调用工具（如 UpdateSlide，ProposePPTPlan，GenerateFullPPT等）直接修改用户的课件或者大纲。\n"
-    "CRITICAL RULES:\n"
+    "你是多模态AI互动式教学智能体——一个统一身份的教学内容创作助手。\n"
+    "你可以生产两种交付物：\n"
+    "  A. PPT 课件（结构化 JSON），通过 ProposePPTPlan / GenerateFullPPT / UpdateSlide / AddSlide / DeleteSlide 工具操作\n"
+    "  B. 互动教学小游戏（自含 HTML），通过 ProposeGameTypes / GenerateGame 工具操作\n"
+    "任何时候教师都可以切换意图，包括在游戏讨论中途转向PPT生成，或反之。\n"
+    "\n"
+    "CRITICAL RULES (PPT 部分):\n"
     "1. NEVER output presentation content, outlines, or slide mockups in Markdown format directly in your conversational response.\n"
     "   Whenever the user asks to create, modify, or format a slide, you MUST ONLY use the provided tools.\n"
     "   Your text response should only be brief conversational acknowledgement.\n"
     "2. AddSlide 工具与 UpdateSlide 工具参数格式完全一致：必须传入 title（标题字符串）和 new_elements（元素对象数组）。\n"
     "   AddSlide 禁止使用 content 字符串参数，必须构造完整的结构化 new_elements 数组。\n"
-    "3. 当用户要求'将某页分成两页'时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
-    "4. 【两步生成流程（严格遵守）】\n"
+    "3. 当用户要求‘将某页分成两页’时：先调用 UpdateSlide 修改原页，再调用 AddSlide 插入新页，两次调用均使用完整的 new_elements 结构。\n"
+    "4. 《两步生成流程（严格遵守）》\n"
     "   当用户首次表示想要生成整套PPT/课件时，必须严格执行以下两步：\n"
     "   ▸ 第一步：调用 ProposePPTPlan 工具，以“布局素描”格式呈现每页方案。\n"
-    "   ▸ 布局素描要求：每页一行、格式为「Pn [layout] 页面标题 —— 元素位置描述」。\n"
+    "   ▸ 布局素描要求：每页一行、格式为《Pn [layout] 页面标题 —— 元素位置描述》。\n"
     "   ▸ 元素位置描述要简洁：指出有几个区块、分别在哪里（左/右/居中/全幅）、是文字列表还是图片，不需要写具体教学内容。\n"
     "   ▸ 示例：P3 [two_column] 量子力学基础 —— 左：3条要点列表；右：配图\n"
-    "   ▸ 第二步：等待用户明确确认（如：'好的'/'可以'/'就这样'/'开始生成'/'没问题'等）后，再调用 GenerateFullPPT 正式生成。\n"
+    "   ▸ 第二步：等待用户明确确认（如：‘好的’/‘可以’/‘就这样’/‘开始生成’/‘没问题’等）后，再调用 GenerateFullPPT 正式生成。\n"
     "   ▸ 严禁跳过 ProposePPTPlan 直接调用 GenerateFullPPT，这会导致用户无法预知生成结果。\n"
-    "5. 【方案草稿阶段 ★ 最高优先级 ★】\n"
+    "5. 《方案草稿阶段 ★ 最高优先级 ★》\n"
     "   判断方法：查看对话历史，若 ProposePPTPlan 已被调用但 GenerateFullPPT 尚未被调用，即处于方案草稿阶段。\n"
-    "   此阶段内用户的任何修改意见（如'把P3改成…'、'去掉P5'、'调换P4和P6'、'多加一页'等），\n"
+    "   此阶段内用户的任何修改意见（如‘把P3改成…’、‘去P5’、‘调换P4和P6’、‘多加一页’等），\n"
     "   必须将修改后的完整方案重新调用 ProposePPTPlan 提交，等用户再次确认。\n"
     "   ★ 在此阶段绝对禁止调用 UpdateSlide / AddSlide / DeleteSlide ★\n"
     "   这些工具只有在 GenerateFullPPT 已成功执行之后才能使用。\n"
     "   在草稿阶段调用这些工具会对不存在的PPT发起修改，是严重逻辑错误，必须避免。\n"
-    "6. 【PPT已生成阶段规则】\n"
+    "6. 《PPT已生成阶段规则》\n"
     "   GenerateFullPPT 已被成功调用后，绝对禁止再次调用 GenerateFullPPT 或 ProposePPTPlan。\n"
     "   任何局部调整（修改某页、新增页、删除页）均只能使用 UpdateSlide / AddSlide / DeleteSlide。\n"
-    "   违反此规则将导致用户已有的整套课件丢失，是严重错误。"
-)
+    "   违反此规则将导致用户已有的整套课件丢失，是严重错误。\n"
+    "\n"
+    "GAME RULES (游戏部分):\n"
+    "7. 当教师表达游戏意图（涉及「游戏」「互动」「小游戏」「激活」「小测测」等词），必须调用 ProposeGameTypes 展示游戏类型供选择。\n"
+    "   对话中同时涉及PPT和游戏时，优先完成当前意图，不要中途切换。\n"
+    "8. ★ 当游戏类型和知识点已明确（教师已选择类型或明确表示'生成'/'开始'/'就这个'等），必须立即调用 GenerateGame 工具。★\n"
+    "   不得用文字描述代替工具调用，不得说'我将为你生成…'而不调用工具，必须直接调用 GenerateGame。\n"
+    "   调用后后台立即开始生成，在对话中简短告知教师游戏生成已启动即可。\n"
+    "9. 如教师要求改进已有游戏（如：'把计时改到60秒''背景改深色''增加难度'），必须立即调用 GenerateGame 并将 is_refinement 设为 true，\n"
+    "   refinement_instruction 详细写明教师的具体要求（越详细越好），系统会在已有 HTML 基础上精确修改。\n"
+    "   ★ 改进游戏时绝对不能创建新游戏，必须使用 is_refinement=true。★\n"
+)
 
 
 
@@ -155,7 +227,9 @@ async def stream_chat_response(
     messages_history: list,
     new_user_input: str,
     rag_context: str = "",
-    session_id: str = None
+    session_id: str = None,
+    user_id: str = None,        # 用于在后端直接创建 Game 记录时关联用户
+    active_game_id: str = None,   # 如有已生成游戏，注入其 HTML 以支持精炼
 ):
     # 构造消息列表
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -196,6 +270,41 @@ async def stream_chat_response(
                 "content": f"【当前已有课件全局状态（JSON数组，包含所有幻灯片与元素）】：\n{cw_json}\n\n注意：你要基于以上全局视角进行精确工具修改操作！"
             })
 
+    if session_id and active_game_id:
+        def _get_game_html():
+            from app.db.session import SessionLocal
+            from app.models.game import Game
+            from app.services.game_generator import GAMES_DIR
+            db = SessionLocal()
+            try:
+                g = db.query(Game).filter(
+                    Game.id == active_game_id,
+                    Game.session_id == session_id,
+                    Game.status == "completed",
+                ).first()
+                if g and g.html_file:
+                    html_path = os.path.join(GAMES_DIR, g.html_file)
+                    if os.path.exists(html_path):
+                        with open(html_path, encoding="utf-8") as f:
+                            return f.read()
+            except Exception:
+                pass
+            finally:
+                db.close()
+            return None
+
+        import asyncio
+        game_html = await asyncio.to_thread(_get_game_html)
+        if game_html:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"《当前已有游戏 HTML（效果预览 ID: {active_game_id}）"
+                    f"——教师可能要求改进此游戏》：\n\n"
+                    f"{game_html[:8000]}"
+                )
+            })
+
     for msg in messages_history:
         role = "user" if msg.role == "user" else "assistant"
         messages.append({"role": role, "content": msg.content})
@@ -220,6 +329,7 @@ async def stream_chat_response(
     base_url = settings.OPENAI_API_BASE.rstrip("/")
     tool_calls_buffer: dict[int, dict] = {}
     extracted_intent = ""
+    game_spec_buffer = None      # set when GenerateGame tool fires this turn
     propose_plan_called = False  # True when ProposePPTPlan runs this turn
 
     try:
@@ -335,6 +445,170 @@ async def stream_chat_response(
         elif t_name in ["generatefullppt", "generate_full_ppt"]:
             extracted_intent = "generate_courseware"
 
+        elif t_name in ["proposegametypes", "propose_game_types"]:
+            # ── ProposeGameTypes: 格式化建议列表推送给前端 ─────────────────────
+            _LABELS = {
+                "quiz":      "🎯 选择题闯关",
+                "memory":    "🃏 记忆配对翻牌",
+                "fillblank": "✍️ 填空挑战",
+                "sort":      "📊 拖拽排序",
+                "match":     "🔗 拖拽连线",
+                "flashcard": "⚡ 快问快答",
+                "custom":    "🎨 自定义游戏",
+            }
+            _ALL_TYPES = ["quiz", "memory", "fillblank", "sort", "match", "flashcard", "custom"]
+            suggestions  = t_args.get("suggestions", [])
+            pending_q    = t_args.get("pending_question", "")
+            top_keys     = {s.get("type") for s in suggestions}
+
+            text_lines = ["根据课件内容，为您推荐以下互动游戏类型：\n"]
+            if suggestions:
+                text_lines.append("**📌 首选推荐：**")
+                for s in suggestions:
+                    tk = s.get("type", "")
+                    text_lines.append(
+                        f"- **{_LABELS.get(tk, tk)}**（`{tk}`）"
+                        + (f"\n  ↳ {s['reason']}" if s.get("reason") else "")
+                    )
+            text_lines.append("\n**全部可选类型：**")
+            for t in _ALL_TYPES:
+                if t not in top_keys:
+                    text_lines.append(f"- {_LABELS.get(t, t)}（`{t}`）")
+            if pending_q:
+                text_lines.append(f"\n❓ **{pending_q}**")
+
+            gt_text_evt = json.dumps(
+                {"event_type": "text",
+                 "chunk": "\n".join(text_lines),
+                 "is_finished": False},
+                ensure_ascii=False
+            )
+            yield f"data: {gt_text_evt}\n\n"
+
+            # 结构化 game_suggest 事件供前端渲染选型 UI
+            gs_evt = json.dumps({
+                "event_type": "game_suggest",
+                "game_suggest": {
+                    "suggestions":    suggestions,
+                    "pending_question": pending_q,
+                    "all_types": [
+                        {"key": t, "label": _LABELS.get(t, t)}
+                        for t in _ALL_TYPES
+                    ],
+                },
+                "is_finished": False
+            }, ensure_ascii=False)
+            yield f"data: {gs_evt}\n\n"
+
+        elif t_name in ["generategame", "generate_game"]:
+            # ── GenerateGame: 后端直接创建任务并启动生成，不再依赖前端回调 ────────
+            # 前端收到 game_trigger 事件后可选择连接 SSE 进度流；
+            # 即使前端不处理此事件，后台任务也会在 3 秒后自动完成生成。
+            game_spec_buffer = {
+                "game_type":              t_args.get("game_type", "quiz"),
+                "title":                  t_args.get("title", ""),
+                "key_topics":             t_args.get("key_topics", []),
+                "custom_requirements":    t_args.get("custom_requirements", ""),
+                "is_refinement":          t_args.get("is_refinement", False),
+                "refinement_instruction": t_args.get("refinement_instruction", ""),
+            }
+
+            _auto_task_id = None
+            _auto_game_id = None
+
+            if session_id and user_id:
+                try:
+                    import uuid as _uuid_mod
+                    from app.db.session import SessionLocal as _SL
+                    from app.models.game import Game as _GameModel
+                    from app.models.generation import GenerationTask as _GTModel
+                    from app.services.game_generator import run_game_task as _run_game_task
+
+                    # ── 精炼：复用已有游戏（active_game_id）──────────────────────────
+                    # ── 新建：创建全新 Game 记录     ──────────────────────────────────
+                    _auto_task_id = "gtask_" + _uuid_mod.uuid4().hex[:8]
+
+                    _db_local = _SL()
+                    try:
+                        _is_ref = game_spec_buffer["is_refinement"]
+
+                        if _is_ref and active_game_id:
+                            _existing = _db_local.query(_GameModel).filter(
+                                _GameModel.id      == active_game_id,
+                                _GameModel.user_id == user_id,
+                            ).first()
+                            if _existing and _existing.status == "completed":
+                                # 精炼前保存旧 html_file，用于失败时回滚
+                                game_spec_buffer["_orig_html_file"] = _existing.html_file
+                                _existing.status    = "pending"
+                                _existing.spec_json = game_spec_buffer
+                                _auto_game_id       = active_game_id
+                                logger.info(f"[GenerateGame] refine game={active_game_id} (backup={_existing.html_file})")
+
+                            else:
+                                _is_ref = False
+                                game_spec_buffer["is_refinement"] = False
+                                logger.warning(
+                                    f"[GenerateGame] active_game_id={active_game_id} "
+                                    "not ready, falling back to new game creation"
+                                )
+
+                        if not _is_ref:
+                            _auto_game_id = "game_" + _uuid_mod.uuid4().hex[:8]
+                            _db_local.add(_GameModel(
+                                id         = _auto_game_id,
+                                session_id = session_id,
+                                user_id    = user_id,
+                                title      = game_spec_buffer["title"],
+                                game_type  = game_spec_buffer["game_type"],
+                                status     = "pending",
+                                spec_json  = game_spec_buffer,
+                            ))
+
+                        if _auto_game_id:
+                            _db_local.add(_GTModel(
+                                id          = _auto_task_id,
+                                session_id  = session_id,
+                                task_type   = "game",
+                                status      = "pending",
+                                stage       = "init",
+                                result_data = {"game_id": _auto_game_id},
+                            ))
+
+                        _db_local.commit()
+                    finally:
+                        _db_local.close()
+
+                    if _auto_game_id:
+                        import threading as _threading
+                        _is_ref_log = game_spec_buffer.get("is_refinement", False)
+                        _threading.Thread(
+                            target = _run_game_task,
+                            args   = (_auto_task_id, _auto_game_id, session_id, game_spec_buffer),
+                            daemon = True,
+                            name   = "game-{}-{}".format(
+                                "refine" if _is_ref_log else "new", _auto_game_id
+                            ),
+                        ).start()
+                        logger.info(
+                            "[GenerateGame] %s task=%s game=%s type=%s",
+                            "refine" if _is_ref_log else "new",
+                            _auto_task_id, _auto_game_id, game_spec_buffer.get("game_type"),
+                        )
+                        game_spec_buffer["task_id"] = _auto_task_id
+                        game_spec_buffer["game_id"] = _auto_game_id
+
+                except Exception as _ge:
+                    logger.error("[GenerateGame] failed: %s", _ge, exc_info=True)
+
+            gt_evt = json.dumps({
+                "event_type": "game_trigger",
+                "game_trigger": game_spec_buffer,
+                "is_finished": False
+            }, ensure_ascii=False)
+            yield f"data: {gt_evt}\n\n"
+
+
         elif t_name in ["updateslide", "update_slide", "addslide", "add_slide", "deleteslide", "delete_slide"]:
             should_refetch = True
             try:
@@ -444,7 +718,8 @@ async def stream_chat_response(
         "event_type": "text",
         "chunk": "",
         "is_finished": True,
-        "extracted_intent": extracted_intent
+        "extracted_intent": extracted_intent,
+        "game_spec": game_spec_buffer,  # non-null when GenerateGame was called this turn
     }, ensure_ascii=False)
     yield f"data: {final_data}\n\n"
 

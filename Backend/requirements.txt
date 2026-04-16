@@ -1,47 +1,48 @@
 # EduAgent Backend — Python 依赖清单
-# 运行环境：Python 3.10+（推荐 Anaconda）
+# 运行环境：Python 3.10+
 #
 # 安装：pip install -r requirements.txt
+#
+# ── 强制使用清华 TUNA 镜像（解决国内服务器访问 pypi.org 超时）────
+--index-url https://pypi.tuna.tsinghua.edu.cn/simple/
+--trusted-host pypi.tuna.tsinghua.edu.cn
 
 # ── Web 框架 ──────────────────────────────────────────────────
-fastapi==0.135.2
-uvicorn[standard]==0.42.0      # [standard] 包含 websockets / watchfiles
-python-multipart==0.0.22       # 文件上传支持（FastAPI 需要）
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0      # [standard] 包含 websockets / watchfiles
+python-multipart>=0.0.9        # 文件上传支持（FastAPI 需要）
 
 # ── 数据验证 & 配置 ────────────────────────────────────────────
-pydantic==2.12.5
-pydantic-settings==2.13.1
-python-dotenv==1.2.2           # 从 .env 文件读取环境变量
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0           # 从 .env 文件读取环境变量
 
 # ── 数据库 ─────────────────────────────────────────────────────
-SQLAlchemy==2.0.48
+sqlalchemy>=2.0.0
 
 # ── 认证 ─────────────────────────────────────────────────────
-PyJWT==2.12.1
-bcrypt==5.0.0
-passlib==1.7.4                 # 密码哈希工具（bcrypt 后端）
+PyJWT>=2.8.0
+bcrypt>=4.0.0
 
 # ── HTTP 客户端 ────────────────────────────────────────────────
-httpx==0.28.1                  # 异步 HTTP（图片标注、OpenAI直连等）
+httpx>=0.27.0                  # 异步 HTTP（图片标注、OpenAI 直连等）
 
 # ── LLM & 向量检索 ─────────────────────────────────────────────
-langchain==1.2.13
-langchain-openai==1.1.12
-langchain-chroma==1.1.0        # ChromaDB 向量库 LangChain 集成
-langchain-community==0.4.1     # 社区加载器（文档解析等）
-langchain-text-splitters==1.1.1
-chromadb==1.5.5
-openai==2.30.0                 # OpenAI SDK（langchain-openai 的底层依赖）
-tiktoken==0.12.0               # Token 计数（OpenAI 模型用）
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-chroma>=0.1.0        # ChromaDB 向量库 LangChain 集成
+langchain-text-splitters>=0.2.0
+chromadb>=0.5.0
+openai>=1.30.0                 # OpenAI SDK（langchain-openai 的底层依赖）
+tiktoken>=0.7.0                # Token 计数（OpenAI 模型用）
 
 # ── 文档处理 ────────────────────────────────────────────────────
-python-docx==1.2.0             # Word 文档生成
-python-pptx==1.0.2             # PPT 文档生成
-pypdf==6.9.2                   # PDF 解析
-lxml==6.0.2                    # XML 解析（word/ppt 内部使用）
-pillow==12.1.1                 # 图片处理（图片标注、缩放、读尺寸）
+python-docx>=1.1.0             # Word 文档生成
+python-pptx>=1.0.0             # PPT 文档生成
+pypdf>=4.0.0                   # PDF 解析
+lxml>=5.0.0                    # XML 解析（word/ppt 内部使用）
+pillow>=10.0.0                 # 图片处理（图片标注、缩放、读尺寸）
 
 # ── 视频处理 ────────────────────────────────────────────────────
 imageio-ffmpeg>=0.4.9          # 内置 FFmpeg 二进制（无需系统安装），用于音视频处理
-pydub>=0.25.1                  # 音频分段（Whisper API 25MB 单文件限制）
 requests>=2.31.0               # Whisper / Vision LLM HTTP 调用

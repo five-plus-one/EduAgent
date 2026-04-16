@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  eduagent-backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: eduagent-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./Backend/.env          # OPENAI_API_KEY / OPENAI_API_BASE / LLM_MODEL / SECRET_KEY
+    volumes:
+      - ./Backend/uploads:/app/uploads          # 上传文件持久化
+      - ./Backend/chroma_db:/app/chroma_db      # 向量库持久化
+      - ./Backend/edu_agent.db:/app/edu_agent.db  # SQLite 持久化
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
