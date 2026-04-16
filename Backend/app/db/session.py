@@ -1,16 +1,22 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool, StaticPool
 from app.core.config import settings
 
 _is_sqlite = "sqlite" in settings.SQLALCHEMY_DATABASE_URI
 
-engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI,
-    connect_args={
-        "check_same_thread": False,
-        "timeout": 30,          # 等待写锁最多 30s，而非立即报 OperationalError
-    } if _is_sqlite else {}
-)
+# SQLite 文件数据库 → NullPool：每次请求建新连接、用完即关，彻底消除池耗尽
+# （SQLite 不能从连接池受益：写操作序列化、并发连接无意义）
+# 内存数据库例外 → StaticPool（单连接保持状态）
+_engine_kwargs: dict = {}
+if _is_sqlite:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False, "timeout": 30}
+    if ":memory:" in settings.SQLALCHEMY_DATABASE_URI:
+        _engine_kwargs["poolclass"] = StaticPool
+    else:
+        _engine_kwargs["poolclass"] = NullPool
+
+engine = create_engine(settings.SQLALCHEMY_DATABASE_URI, **_engine_kwargs)
 
 if _is_sqlite:
     @event.listens_for(engine, "connect")
