@@ -21,7 +21,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
 import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye } from 'lucide-react';
 
@@ -115,6 +115,7 @@ export default function Workspace() {
   // ── PPT 主题选色器 ────────────────────────────────────
   // localStorage key：按会话级隔离，避免跨会话污染
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [themeLabelMap, setThemeLabelMap] = useState<Map<string, string>>(new Map());
   /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
   /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
@@ -161,6 +162,22 @@ export default function Workspace() {
   const hasWordContent = Boolean(persistedWordDoc);
   const wordDirty = wordDraft !== wordSavedSnapshot;
   const displayedWordDoc = wordDirty ? wordDraft : persistedWordDoc;
+  const resolveThemeDisplayName = useCallback((themeKey: string | null, isCustomTheme = false) => {
+    if (isCustomTheme) return '自定义';
+    if (!themeKey) return '自动';
+    return themeLabelMap.get(themeKey) ?? themeKey;
+  }, [themeLabelMap]);
+
+  useEffect(() => {
+    let alive = true;
+    getThemes()
+      .then((themes) => {
+        if (!alive) return;
+        setThemeLabelMap(new Map(themes.map(theme => [theme.key, theme.label])));
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   /** 点击 Paperclip 按钮：切换到参考资料 Tab 并触发高亮提示 */
   const handleOpenFiles = () => {
@@ -395,7 +412,7 @@ export default function Workspace() {
         if (pptTheme?.resolved_colors) {
           const isCustomTheme = !!pptTheme.custom_colors;
           const selectedThemeKey = isCustomTheme ? CUSTOM_KEY : (pptTheme.theme_key ?? null);
-          const displayName = isCustomTheme ? '自定义' : (pptTheme.theme_key ?? '自动');
+          const displayName = resolveThemeDisplayName(pptTheme.theme_key ?? null, isCustomTheme);
           setAppliedThemeColors(pptTheme.resolved_colors);
           setAppliedThemeName(displayName);
           setPendingThemeKey(selectedThemeKey);
@@ -410,7 +427,7 @@ export default function Workspace() {
     }
     // 新建模式清除标题
     if (sessionId === 'new') setSessionTitle('');
-  }, [sessionId]);
+  }, [sessionId, resolveThemeDisplayName]);
 
   // 监听 Sidebar 重命名操作，同步更新顶部标题
   useEffect(() => {
@@ -849,26 +866,13 @@ export default function Workspace() {
               {activeTab === 'ppt' && pages.length > 0 && (
                 <>
                   <span className={styles.visualHeaderBadge}>{pages.length} 页</span>
-                  {appliedThemeName && (
-                    <span
-                      className={styles.visualHeaderThemeChip}
-                      style={{
-                        background: appliedThemeColors
-                          ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
-                          : undefined,
-                        color: appliedThemeColors ? '#fff' : undefined,
-                      }}
-                    >
-                      {appliedThemeName}
-                    </span>
-                  )}
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
                     onClick={() => setShowThemePicker(true)}
                     title="切换课件主题"
                   >
                     <Palette size={14} />
-                    <span>主题</span>
+                    <span>{appliedThemeName ? `主题 · ${appliedThemeName}` : '主题'}</span>
                   </button>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
@@ -1366,7 +1370,7 @@ export default function Workspace() {
           onConfirm={(themeKey, customColors, resolvedColors) => {
             setShowThemePicker(false);
             if (resolvedColors) setAppliedThemeColors(resolvedColors);
-            const displayName = themeKey === CUSTOM_KEY ? '自定义' : (themeKey ?? '自动');
+            const displayName = resolveThemeDisplayName(themeKey === CUSTOM_KEY ? null : themeKey, themeKey === CUSTOM_KEY);
             setAppliedThemeName(displayName);
 
             if (resolvedColors && sessionId !== 'new') {
