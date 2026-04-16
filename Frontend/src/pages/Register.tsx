@@ -61,7 +61,7 @@ export default function Register() {
         navigate('/');
       }
     } catch (err: unknown) {
-      setErrorMsg(axiosErr.response?.data?.message ?? '注册失败，请检查信息后重试');
+      setErrorMsg(getApiErrorMessage(err, '注册失败，请检查信息后重试'));
     } finally {
       setLoading(false);
     }

@@ -38,7 +38,7 @@ export default function Login() {
         setErrorMsg('登录失败，请检查账号密码');
       }
     } catch (err: unknown) {
-      setErrorMsg(axiosErr.response?.data?.message ?? '网络错误，请稍后再试');
+      setErrorMsg(getApiErrorMessage(err, '网络错误，请稍后再试'));
     } finally {
       setLoading(false);
     }
