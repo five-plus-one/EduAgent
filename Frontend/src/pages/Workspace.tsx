@@ -848,7 +848,7 @@ export default function Workspace() {
             <div className={styles.visualHeaderTools}>
               {activeTab === 'ppt' && pages.length > 0 && (
                 <>
-                  <span className={styles.visualHeaderBadge}>{pages.length} 椤?/span>
+                  <span className={styles.visualHeaderBadge}>{pages.length} 页</span>
                   {appliedThemeName && (
                     <span
                       className={styles.visualHeaderThemeChip}
@@ -865,26 +865,26 @@ export default function Workspace() {
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
                     onClick={() => setShowThemePicker(true)}
-                    title="鍒囨崲璇句欢涓婚"
+                    title="切换课件主题"
                   >
                     <Palette size={14} />
-                    <span>涓婚</span>
+                    <span>主题</span>
                   </button>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
                     onClick={handleExportPpt}
                     disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '鍥剧墖淇濆瓨涓紝璇风◢鍊欏啀瀵煎嚭' : '浣跨敤褰撳墠涓婚瀵煎嚭 PPT'}
+                    title={anyImageSaving ? '图片保存中，请稍后再导出' : '使用当前主题导出 PPT'}
                   >
                     <Download size={14} className={clsx(isExporting && styles.rotating)} />
-                    <span>{isExporting ? '瀵煎嚭涓?..' : '瀵煎嚭 PPT'}</span>
+                    <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
                   </button>
                 </>
               )}
               {activeTab === 'word' && (persistedWordDoc || wordDirty) && (
                 <>
                   {wordDirty && (
-                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>鏈繚瀛?/span>
+                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>未保存</span>
                   )}
                   <div className={styles.headerModeSwitch}>
                     <button
@@ -892,14 +892,14 @@ export default function Workspace() {
                       onClick={handleWordPreview}
                     >
                       <Eye size={13} />
-                      <span>棰勮</span>
+                      <span>预览</span>
                     </button>
                     <button
                       className={clsx(styles.headerModeBtn, wordMode === 'edit' && styles.headerModeBtnActive)}
                       onClick={handleEnterWordEdit}
                     >
                       <Pencil size={13} />
-                      <span>缂栬緫</span>
+                      <span>编辑</span>
                     </button>
                   </div>
                   <button
@@ -907,15 +907,15 @@ export default function Workspace() {
                     onClick={handleSaveWord}
                     disabled={!wordDirty || isSavingWord || sessionId === 'new'}
                   >
-                    {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 淇濆瓨涓?..</> : <><Check size={14} /> 淇濆瓨</>}
+                    {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 保存中...</> : <><Check size={14} /> 保存</>}
                   </button>
                   <button
                     className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
                     onClick={handleExportWord}
                     disabled={isExportingWord || !wordDoc || sessionId === 'new' || wordDirty}
-                    title={wordDirty ? '璇峰厛淇濆瓨褰撳墠鑽夌锛屽啀瀵煎嚭 Word' : '瀵煎嚭 Word 璁蹭箟'}
+                    title={wordDirty ? '请先保存当前草稿，再导出 Word' : '导出 Word 讲义'}
                   >
-                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 瀵煎嚭涓?..</> : <><Download size={14} /> 瀵煎嚭 Word</>}
+                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 导出中...</> : <><Download size={14} /> 导出 Word</>}
                   </button>
                 </>
               )}
