@@ -347,7 +347,7 @@ export default function GamePanel({
         : null;
       // 重置 UI 状态
       setSelectedId('generating');
-      resumeGenerate(sessionId, refineId ?? pendingTrigger.task_id, pendingTrigger.task_id);
+      resumeGenerate(sessionId, refineId, pendingTrigger.task_id);
     } else {
       // 手动创建 / 无 task_id：前端发起生成请求
       triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
