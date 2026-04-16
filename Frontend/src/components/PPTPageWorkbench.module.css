@@ -203,8 +203,16 @@
 }
 
 /* ── Body ────────────────────────────────────────────────── */
+.mainArea {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 18px;
   display: flex;
@@ -576,6 +584,7 @@
   display: flex; gap: 10px; padding: 12px 18px 16px;
   border-top: 1px solid rgba(15,23,42,0.06); background: white;
   flex-shrink: 0; justify-content: flex-end;
+  margin-top: auto;
 }
 .cancelBtn {
   padding: 9px 18px; border-radius: 9px; border: 1px solid rgba(15,23,42,0.1);
