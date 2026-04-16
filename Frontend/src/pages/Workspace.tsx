@@ -845,6 +845,81 @@ export default function Workspace() {
                 )}
               </Tabs.Trigger>
             </Tabs.List>
+            <div className={styles.visualHeaderTools}>
+              {activeTab === 'ppt' && pages.length > 0 && (
+                <>
+                  <span className={styles.visualHeaderBadge}>{pages.length} 椤?/span>
+                  {appliedThemeName && (
+                    <span
+                      className={styles.visualHeaderThemeChip}
+                      style={{
+                        background: appliedThemeColors
+                          ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
+                          : undefined,
+                        color: appliedThemeColors ? '#fff' : undefined,
+                      }}
+                    >
+                      {appliedThemeName}
+                    </span>
+                  )}
+                  <button
+                    className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
+                    onClick={() => setShowThemePicker(true)}
+                    title="鍒囨崲璇句欢涓婚"
+                  >
+                    <Palette size={14} />
+                    <span>涓婚</span>
+                  </button>
+                  <button
+                    className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
+                    onClick={handleExportPpt}
+                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                    title={anyImageSaving ? '鍥剧墖淇濆瓨涓紝璇风◢鍊欏啀瀵煎嚭' : '浣跨敤褰撳墠涓婚瀵煎嚭 PPT'}
+                  >
+                    <Download size={14} className={clsx(isExporting && styles.rotating)} />
+                    <span>{isExporting ? '瀵煎嚭涓?..' : '瀵煎嚭 PPT'}</span>
+                  </button>
+                </>
+              )}
+              {activeTab === 'word' && (persistedWordDoc || wordDirty) && (
+                <>
+                  {wordDirty && (
+                    <span className={clsx(styles.visualHeaderBadge, styles.visualHeaderWarnBadge)}>鏈繚瀛?/span>
+                  )}
+                  <div className={styles.headerModeSwitch}>
+                    <button
+                      className={clsx(styles.headerModeBtn, wordMode === 'preview' && styles.headerModeBtnActive)}
+                      onClick={handleWordPreview}
+                    >
+                      <Eye size={13} />
+                      <span>棰勮</span>
+                    </button>
+                    <button
+                      className={clsx(styles.headerModeBtn, wordMode === 'edit' && styles.headerModeBtnActive)}
+                      onClick={handleEnterWordEdit}
+                    >
+                      <Pencil size={13} />
+                      <span>缂栬緫</span>
+                    </button>
+                  </div>
+                  <button
+                    className={clsx(styles.headerToolBtn, styles.headerToolGhost)}
+                    onClick={handleSaveWord}
+                    disabled={!wordDirty || isSavingWord || sessionId === 'new'}
+                  >
+                    {isSavingWord ? <><Loader2 size={14} className={styles.spinner} /> 淇濆瓨涓?..</> : <><Check size={14} /> 淇濆瓨</>}
+                  </button>
+                  <button
+                    className={clsx(styles.headerToolBtn, styles.headerToolPrimary)}
+                    onClick={handleExportWord}
+                    disabled={isExportingWord || !wordDoc || sessionId === 'new' || wordDirty}
+                    title={wordDirty ? '璇峰厛淇濆瓨褰撳墠鑽夌锛屽啀瀵煎嚭 Word' : '瀵煎嚭 Word 璁蹭箟'}
+                  >
+                    {isExportingWord ? <><Loader2 size={14} className={styles.spinner} /> 瀵煎嚭涓?..</> : <><Download size={14} /> 瀵煎嚭 Word</>}
+                  </button>
+                </>
+              )}
+            </div>
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
