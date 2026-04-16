@@ -11,7 +11,7 @@ import { usePPTStream } from '../hooks/usePPTStream';
 import PPTCard from '../components/PPTCard';
 import PPTSkeleton from '../components/PPTSkeleton';
 import ImageUploadPanel from '../components/ImageUploadPanel';
-import ThemePicker from '../components/ThemePicker';
+import ThemePicker, { CUSTOM_KEY, type ThemeCustomColors } from '../components/ThemePicker';
 import GamePanel from '../components/GamePanel';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,9 +21,9 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
-import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession } from '../utils/api';
+import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -112,10 +112,27 @@ export default function Workspace() {
   const [isExportingWord, setIsExportingWord] = useState(false);
   // P2: 任意一张幻灯片正在保存图片，导出按钮短暂禁用防竞态
   const [anyImageSaving, setAnyImageSaving] = useState(false);
-  // ── PPT 主题选色器 ─────────────────────────────────────────
+  // ── PPT 主题选色器 ────────────────────────────────────
+  // localStorage key：按会话级隔离，避免跨会话污染
   const [showThemePicker, setShowThemePicker] = useState(false);
-  /** null 表示「自动」，string 表示选中的 theme_key */
+  /** null 表示「自动」，string 表示选中的 theme_key，CUSTOM_KEY 表示自定义 */
   const [pendingThemeKey, setPendingThemeKey] = useState<string | null>(null);
+  /** 当前应用到 PPT 预览区的主题颜色（用于 CSS 变量注入） */
+  const [appliedThemeColors, setAppliedThemeColors] = useState<ThemeCustomColors | null>(() => {
+    // localStorage 防闪烁：后端返回前快速占位
+    try {
+      const key = sessionId !== 'new' ? `eduagent_ppt_colors_${sessionId}` : null;
+      const raw = key ? localStorage.getItem(key) : null;
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
+  /** 应用的主题名称（不导出，仅用于显示） */
+  const [appliedThemeName, setAppliedThemeName] = useState<string | null>(() => {
+    try {
+      const key = sessionId !== 'new' ? `eduagent_ppt_name_${sessionId}` : null;
+      return key ? localStorage.getItem(key) : null;
+    } catch { return null; }
+  });
   // 教案手动编辑模式
   const [wordEditMode, setWordEditMode] = useState(false);
   const [wordDraft, setWordDraft] = useState('');
@@ -124,7 +141,14 @@ export default function Workspace() {
   // ── 互动小游戏 ────────────────────────────────────────────
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
-  const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [, setActiveGameId] = useState<string | null>(null);
+  const lastGameTriggerSignatureRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!pendingTrigger) {
+      lastGameTriggerSignatureRef.current = null;
+    }
+  }, [pendingTrigger]);
 
   // ── Session 标题（读取 + 内联编辑）────────────────────
   const [sessionTitle, setSessionTitle] = useState('');
@@ -152,6 +176,27 @@ export default function Workspace() {
       setIsExportingWord(false);
     }
   };
+
+  const handleExportPpt = useCallback(() => {
+    if (sessionId === 'new' || isExporting || anyImageSaving || pages.length === 0) return;
+
+    const isCustomTheme =
+      pendingThemeKey === CUSTOM_KEY ||
+      (pendingThemeKey === null && appliedThemeName === '自定义' && !!appliedThemeColors);
+
+    const themeKeyToSend = !isCustomTheme && pendingThemeKey ? pendingThemeKey : undefined;
+    const customColorsToSend = isCustomTheme ? (appliedThemeColors ?? undefined) : undefined;
+    exportCourseware(themeKeyToSend, customColorsToSend);
+  }, [
+    sessionId,
+    isExporting,
+    anyImageSaving,
+    pages.length,
+    pendingThemeKey,
+    appliedThemeName,
+    appliedThemeColors,
+    exportCourseware,
+  ]);
   
   const fetchKbDocs = useCallback(async () => {
     try {
@@ -295,6 +340,22 @@ export default function Workspace() {
         setDocToFileId(mapping);
         // 读取 course_name 作为页面标题
         if (res?.course_name) setSessionTitle(res.course_name);
+
+        // —— 应用后端返回的 ppt_theme，覆盖 localStorage 占位符 ——
+        const pptTheme = res?.ppt_theme;
+        if (pptTheme?.resolved_colors) {
+          const isCustomTheme = !!pptTheme.custom_colors;
+          const selectedThemeKey = isCustomTheme ? CUSTOM_KEY : (pptTheme.theme_key ?? null);
+          const displayName = isCustomTheme ? '自定义' : (pptTheme.theme_key ?? '自动');
+          setAppliedThemeColors(pptTheme.resolved_colors);
+          setAppliedThemeName(displayName);
+          setPendingThemeKey(selectedThemeKey);
+          // ???? localStorage ??
+          try {
+            localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(pptTheme.resolved_colors));
+            localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
+          } catch { /* ignore quota errors */ }
+        }
       }).catch(e => console.warn('Failed to load linked docs for session', e));
       return () => { active = false; };
     }
@@ -403,6 +464,7 @@ export default function Workspace() {
 
   // ── 游戏 SSE 事件监听 ─────────────────────────────────────
   useEffect(() => {
+    lastGameTriggerSignatureRef.current = null;
     const handleGameSuggest = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
@@ -413,7 +475,21 @@ export default function Workspace() {
     const handleGameTrigger = (e: Event) => {
       const ev = e as CustomEvent;
       if (ev.detail?.sessionId === sessionId) {
-        setPendingTrigger(ev.detail.spec);
+        const spec = ev.detail.spec as GameSpec | undefined;
+        if (!spec) return;
+
+        const signature = JSON.stringify({
+          task_id: spec.task_id ?? null,
+          game_id: spec.game_id ?? null,
+          game_type: spec.game_type ?? null,
+          title: spec.title ?? null,
+          is_refinement: !!spec.is_refinement,
+          refinement_instruction: spec.refinement_instruction ?? null,
+        });
+
+        if (signature === lastGameTriggerSignatureRef.current) return;
+        lastGameTriggerSignatureRef.current = signature;
+        setPendingTrigger(spec);
         setActiveTab('games');
       }
     };
@@ -720,31 +796,6 @@ export default function Workspace() {
                 )}
               </Tabs.Trigger>
             </Tabs.List>
-            <div className={styles.headerActions} style={{ display: 'flex', gap: '8px' }}>
-              {pages.length > 0 && (
-                <>
-                  <button
-                    className={clsx('button-base', styles.exportBtn)}
-                    onClick={() => setShowThemePicker(true)}
-                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
-                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '选择主题并导出 PPT'}
-                  >
-                    <Download size={16} className={clsx(isExporting && styles.rotating)} />
-                    {isExporting ? '导出 PPT 中...' : '导出 PPT'}
-                  </button>
-                  {wordDoc && (
-                    <button 
-                      className={clsx('button-base', styles.exportBtn)}
-                      onClick={handleExportWord}
-                      disabled={isExportingWord || sessionId === 'new'}
-                    >
-                      <FileText size={16} className={clsx(isExportingWord && styles.rotating)} /> 
-                      {isExportingWord ? '导出中...' : '导出讲义 (.docx)'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
           </header>
 
           <Tabs.Content className={styles.tabsContent} value="files">
@@ -890,8 +941,58 @@ export default function Workspace() {
           </Tabs.Content>
           
           <Tabs.Content className={styles.tabsContent} value="ppt">
-            <div className={styles.canvasArea}>
-              {/* HEAVY LOADING: Only show full-screen loader if we aren't streaming yet and have no assets */}
+            <div
+              className={styles.canvasArea}
+              style={appliedThemeColors ? {
+                '--ppt-bg':        appliedThemeColors.bg_color,
+                '--ppt-primary':   appliedThemeColors.primary,
+                '--ppt-secondary': appliedThemeColors.secondary,
+                '--ppt-accent':    appliedThemeColors.accent,
+                '--ppt-text':      appliedThemeColors.text_color,
+              } as React.CSSProperties : {}}
+            >
+              {/* ── PPT 预览内部工具栏：切换主题入口 ── */}
+              {pages.length > 0 && !isStreaming && (
+                <div className={styles.pptToolbar}>
+                  <button
+                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarThemeBtn)}
+                    onClick={() => {
+                      setShowThemePicker(true);
+                    }}
+                    title="一键切换 PPT 预览主题，支持预设与自定义颜色"
+                  >
+                    <Palette size={14} />
+                    <span>切换主题</span>
+                    {appliedThemeName && (
+                      <span
+                        className={styles.pptToolbarThemeBadge}
+                        style={{
+                          background: appliedThemeColors
+                            ? `linear-gradient(135deg, ${appliedThemeColors.primary}, ${appliedThemeColors.accent})`
+                            : undefined,
+                          color: appliedThemeColors ? '#fff' : undefined,
+                        }}
+                      >
+                        {appliedThemeName}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    className={clsx(styles.pptToolbarBtn, styles.pptToolbarExportBtn)}
+                    onClick={handleExportPpt}
+                    disabled={isExporting || anyImageSaving || sessionId === 'new'}
+                    title={anyImageSaving ? '图片保存中，请稍候再导出' : '直接使用当前主题导出 PPT'}
+                  >
+                    <Download size={14} className={clsx(isExporting && styles.rotating)} />
+                    <span>{isExporting ? '导出中...' : '导出 PPT'}</span>
+                  </button>
+                  <span className={styles.pptToolbarSpacer} />
+                  <span className={styles.pptToolbarDivider} />
+                  <span className={styles.pptToolbarHint}>
+                    {pages.length} 页幻灯片
+                  </span>
+                </div>
+              )}
               {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
@@ -1119,11 +1220,28 @@ export default function Workspace() {
       {/* ── PPT 主题选色器 Overlay ── */}
       {showThemePicker && (
         <ThemePicker
+          mode="apply"
           selectedKey={pendingThemeKey}
           onSelect={setPendingThemeKey}
-          onConfirm={(themeKey) => {
+          onConfirm={(themeKey, customColors, resolvedColors) => {
             setShowThemePicker(false);
-            exportCourseware(themeKey ?? undefined);
+            if (resolvedColors) setAppliedThemeColors(resolvedColors);
+            const displayName = themeKey === CUSTOM_KEY ? '自定义' : (themeKey ?? '自动');
+            setAppliedThemeName(displayName);
+
+            if (resolvedColors && sessionId !== 'new') {
+              try {
+                localStorage.setItem(`eduagent_ppt_colors_${sessionId}`, JSON.stringify(resolvedColors));
+                localStorage.setItem(`eduagent_ppt_name_${sessionId}`, displayName);
+              } catch { /* ignore quota errors */ }
+            }
+
+            if (sessionId !== 'new') {
+              const keyToSave = themeKey === CUSTOM_KEY ? null : themeKey;
+              const colorsToSave = themeKey === CUSTOM_KEY ? customColors : undefined;
+              saveSessionTheme(sessionId, keyToSave, colorsToSave)
+                .catch(err => console.warn('[Theme] 后端持久化失败（预览不受影响）', err));
+            }
           }}
           onCancel={() => setShowThemePicker(false)}
         />

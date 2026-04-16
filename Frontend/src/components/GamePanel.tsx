@@ -18,7 +18,7 @@ import {
 import {
   listSessionGames, getGameSource,
   deleteGame, renameGame, fetchGameHtml, createShareLink, gameShareUrl,
-  streamGameTask, GAME_TYPE_DEFAULTS,
+  GAME_TYPE_DEFAULTS,
   type GameMeta, type GameSpec, type GameSuggestData,
 } from '../utils/gamesApi';
 import { useGameStore } from '../store/useGameStore';
@@ -235,7 +235,7 @@ export default function GamePanel({
   // 重命名状态
   const [renamingId,  setRenamingId]  = useState<string | null>(null);
   const [renameVal,   setRenameVal]   = useState('');
-  const [renameSaving, setRenameSaving] = useState(false);
+  const [, setRenameSaving] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // ── 通知父组件 ───────────────────────────────────────────
@@ -325,10 +325,22 @@ export default function GamePanel({
 
   const handleConfirmTrigger = useCallback(() => {
     if (!pendingTrigger) return;
-    triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
+    if (pendingTrigger.task_id) {
+      // 后端 game_trigger 事件携带了 task_id：后端已经在生成了
+      // 直接接管流监听进度，不重新调 generateGame（避免重复生成）
+      const refineId = pendingTrigger.is_refinement
+        ? (pendingTrigger.game_id ?? selectedId)
+        : null;
+      // 重置 UI 状态
+      setSelectedId('generating');
+      resumeGenerate(sessionId, refineId ?? pendingTrigger.task_id, pendingTrigger.task_id);
+    } else {
+      // 手动创建 / 无 task_id：前端发起生成请求
+      triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
+    }
     onClearTrigger();
     onClearSuggest();
-  }, [pendingTrigger, selectedId, triggerGenerate, onClearTrigger, onClearSuggest]);
+  }, [pendingTrigger, selectedId, triggerGenerate, resumeGenerate, sessionId, onClearTrigger, onClearSuggest]);
 
   const handleManualGenerate = () => {
     const spec: GameSpec = {

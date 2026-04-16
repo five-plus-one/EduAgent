@@ -226,7 +226,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           onThinking(_chunk, accumulated) {
             set({ genThinking: accumulated });
           },
-          async onDone(completedGameId) {
+          async onDone() {
             set({ genProgress: 100, genStageMsg: '生成完成！' });
             await new Promise(r => setTimeout(r, 300));
             try {

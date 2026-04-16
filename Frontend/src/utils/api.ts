@@ -18,6 +18,22 @@ export const apiClient = axios.create({
   timeout: API_TIMEOUT, // 2分钟长超时，保证深度思考能力（可通过 VITE_API_TIMEOUT 覆盖）
 });
 
+export const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (typeof data === 'string' && data.trim()) return data;
+    if (data && typeof data === 'object') {
+      const detail = 'detail' in data ? data.detail : undefined;
+      const message = 'message' in data ? data.message : undefined;
+      if (typeof detail === 'string' && detail.trim()) return detail;
+      if (typeof message === 'string' && message.trim()) return message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) return error.message;
+  return fallback;
+};
+
 // Request Interceptor: attach Bearer token if present
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token');
@@ -142,6 +158,26 @@ export const streamChatCompletion = async (
   activeGameId?: string | null,
 ) => {
   const token = localStorage.getItem('access_token');
+  let lastGameTriggerSignature: string | null = null;
+
+  const emitGameTrigger = (payload: any) => {
+    if (!callbacks?.onGameEvent) return;
+    const spec = payload?.game_trigger ?? payload?.game_spec ?? payload;
+    if (!spec) return;
+
+    const signature = JSON.stringify({
+      task_id: spec.task_id ?? null,
+      game_id: spec.game_id ?? null,
+      game_type: spec.game_type ?? null,
+      title: spec.title ?? null,
+      is_refinement: !!spec.is_refinement,
+      refinement_instruction: spec.refinement_instruction ?? null,
+    });
+
+    if (signature === lastGameTriggerSignature) return;
+    lastGameTriggerSignature = signature;
+    callbacks.onGameEvent('game_trigger', { game_trigger: spec });
+  };
 
   await fetchEventSource(`${API_BASE_URL}/sessions/${sessionId}/chat`, {
     method: 'POST',
@@ -168,14 +204,14 @@ export const streamChatCompletion = async (
         } else if (data.event_type === 'game_suggest' && callbacks?.onGameEvent) {
           callbacks.onGameEvent('game_suggest', data);
         } else if (data.event_type === 'game_trigger' && callbacks?.onGameEvent) {
-          callbacks.onGameEvent('game_trigger', data);
+          emitGameTrigger(data);
         } else {
           // Default: text chunk (may contain <think> tags for DeepSeek-style streaming)
           // Also check for game_spec in finished messages
           onMessage(data.chunk ?? '', data.is_finished, data.extracted_intent, data.event_type, data);
           // Finished message may carry game_spec (equivalent to game_trigger)
-          if (data.is_finished && data.game_spec && callbacks?.onGameEvent) {
-            callbacks.onGameEvent('game_trigger', { game_trigger: data.game_spec });
+          if (data.is_finished && data.game_spec) {
+            emitGameTrigger({ game_trigger: data.game_spec });
           }
         }
       } catch {
@@ -376,10 +412,62 @@ export const getThemes = async (): Promise<PptTheme[]> => {
   return (res.data?.data ?? res.data)?.themes ?? [];
 };
 
-/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 哈希自动选择） */
-export const triggerExport = async (sessionId: string, themeKey?: string) => {
-  const body = themeKey ? { theme_key: themeKey } : undefined;
-  const res = await apiClient.post(`/sessions/${sessionId}/export`, body);
+/** 会话 PPT 主题偏好（GET /sessions/{id} 响应中的 ppt_theme 字段） */
+export interface PptThemePreference {
+  /** 预设主题 key；null 表示使用自定义颜色或自动选择 */
+  theme_key: string | null;
+  /** 自定义颜色；theme_key=null 时才有值 */
+  custom_colors: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  } | null;
+  /** 后端预解析好的完整颜色（任何模式均携带），前端直接注入 CSS 变量 */
+  resolved_colors: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  } | null;
+  updated_at: string;
+}
+
+/**
+ * 5.0b 保存/更新会话的 PPT 主题偏好
+ * PATCH /sessions/{session_id}/theme
+ *
+ * - 选择预设主题：传 { theme_key: "ocean_depths" }
+ * - 自定义颜色：传 { theme_key: null, custom_colors: {...} }
+ * - 重置为「自动」：传 { theme_key: null }
+ *
+ * Fire-and-forget 可接受（失败不影响预览），但调用失败时会 reject Promise。
+ */
+export const saveSessionTheme = async (
+  sessionId: string,
+  themeKey: string | null,
+  customColors?: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  }
+): Promise<PptThemePreference> => {
+  const body: Record<string, unknown> = { theme_key: themeKey };
+  if (themeKey === null && customColors) {
+    body.custom_colors = customColors;
+  }
+  const res = await apiClient.patch(`/sessions/${sessionId}/theme`, body);
+  return res.data?.data ?? res.data;
+};
+
+/** 5.1 触发 PPT 导出（可选指定主题，不传则后端按 session 保存的主题或哈希自动选择） */
+export const triggerExport = async (
+  sessionId: string,
+  themeKey?: string,
+  customColors?: {
+    bg_color: string; primary: string; secondary: string;
+    accent: string; text_color: string;
+  },
+) => {
+  const body: Record<string, unknown> = {};
+  if (themeKey) body.theme_key = themeKey;
+  if (customColors) body.custom_colors = customColors;
+  const res = await apiClient.post(`/sessions/${sessionId}/export`, Object.keys(body).length ? body : undefined);
   return res.data?.data ?? res.data; // { task_id, status, theme_key }
 };
 

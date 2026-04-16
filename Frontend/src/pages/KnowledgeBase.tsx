@@ -2,16 +2,16 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
   FileVideo, AlertCircle, X, Download, RotateCcw, Pencil, Check,
-  ChevronDown, ChevronUp, Loader2,
+  Loader2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
 import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, getDownloadUrl, getPreviewUrl, formatDuration,
+  getKeyframeUrl, getDownloadUrl, formatDuration,
   retryKnowledgeDocument, patchKnowledgeDocument,
-  VIDEO_STAGE_LABELS,
+  VIDEO_STAGE_LABELS, type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
 
 // ── 类型 ───────────────────────────────────────────────────────
@@ -45,6 +45,13 @@ function getTitle(doc: KBDocument): string {
 function fmtDate(iso?: string) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getStageLabel(processStage?: string, progress?: number): string {
+  if (processStage && processStage in VIDEO_STAGE_LABELS) {
+    return VIDEO_STAGE_LABELS[processStage as VideoProcessStage];
+  }
+  return `处理中 ${progress ?? 0}%`;
 }
 
 // ── 删除确认弹窗 ───────────────────────────────────────────────
@@ -88,20 +95,17 @@ function DeleteDialog({ docName, phase, onConfirm, onCancel }: DeleteDialogProps
 
 interface PreviewPanelProps {
   doc: KBDocument;
-  apiBase: string;
   onClose: () => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onRename: (id: string, name: string) => void;
 }
 
-function PreviewPanel({ doc, apiBase, onClose, onDelete, onRetry, onRename }: PreviewPanelProps) {
+function PreviewPanel({ doc, onClose, onDelete, onRetry, onRename }: PreviewPanelProps) {
   const [tab, setTab] = useState<'summary' | 'frames' | 'transcript'>('summary');
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(getTitle(doc));
   const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
-  const [showFrames, setShowFrames] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const isVideo = doc.file_type === 'video';
@@ -135,7 +139,7 @@ function PreviewPanel({ doc, apiBase, onClose, onDelete, onRetry, onRename }: Pr
 
   const stageLabel =
     doc.stage_label
-    ?? (doc.process_stage ? VIDEO_STAGE_LABELS[doc.process_stage as any] ?? `处理中 ${doc.progress ?? 0}%` : `处理中 ${doc.progress ?? 0}%`);
+    ?? getStageLabel(doc.process_stage, doc.progress);
 
   return (
     <div className={styles.preview}>
@@ -346,8 +350,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; phase: 'confirm' | 'deleting' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const apiBase = (import.meta as any).env?.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1';
 
   // ── 拉取列表 ──────────────────────────────────────────────────
   const fetchDocs = useCallback(async (isSilent = false) => {
@@ -567,7 +569,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                             <div className={clsx(styles.statusBadge, styles.statusPending)}>
                               <Loader2 size={13} className={styles.rotating} />
                               {isProcessing
-                                ? (doc.stage_label ?? (doc.process_stage ? (VIDEO_STAGE_LABELS[doc.process_stage as any] ?? '处理中') : '处理中'))
+                                ? (doc.stage_label ?? getStageLabel(doc.process_stage, doc.progress))
                                 : '等待中'}
                               {doc.progress != null && ` ${doc.progress}%`}
                             </div>
@@ -603,7 +605,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       {selectedDoc && !compact && (
         <PreviewPanel
           doc={selectedDoc}
-          apiBase={apiBase}
           onClose={() => setSelectedDoc(null)}
           onDelete={handleDelete}
           onRetry={handleRetry}

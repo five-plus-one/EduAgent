@@ -22,6 +22,10 @@ export interface GameSpec {
   custom_requirements?: string;
   is_refinement: boolean;
   refinement_instruction?: string;
+  /** 后端已创建的任务 ID（game_trigger SSE 携带，前端直接接管流用） */
+  task_id?: string;
+  /** 后端已创建的游戏 ID */
+  game_id?: string;
 }
 
 export interface GameTask {
@@ -53,7 +57,9 @@ export interface GameSource {
   title: string;
   game_type: string;
   version: number;
-  html_code: string;
+  html_code?: string;
+  html_content?: string;
+  content?: string;
   char_count: number;
 }
 
@@ -193,6 +199,45 @@ export async function renameGame(
   title: string,
 ): Promise<{ game_id: string; title: string }> {
   const res = await apiClient.patch(`/games/${gameId}`, { title });
+  return res.data?.data ?? res.data;
+}
+
+/**
+ * 7c. 插入游戏占位符元素到 PPT 指定页面
+ * POST /sessions/{session_id}/courseware/slides/{page_index}/elements/game
+ *
+ * 方案A: { game_id }  — 选择会话内已有游戏，后端自动生成分享链接
+ * 方案B: { game_url } — 粘贴任意 URL，后端提取 game_id 或直接保存
+ *
+ * @returns 后端写入后的完整 slide 数据（含新增的 game_placeholder element）
+ */
+export interface InsertGameElementResult {
+  page_index: number;
+  element_id: string;
+  element: {
+    element_id: string;
+    type: 'game_placeholder';
+    position: string;
+    content: unknown[];
+    is_accent: boolean;
+    game_id: string;
+    game_url: string;
+    game_title: string;
+    game_type: string;
+    type_label: string;
+  };
+  slide: unknown;
+}
+
+export async function insertGameElement(
+  sessionId: string,
+  pageIndex: number,
+  params: { game_id: string; game_url?: null } | { game_id?: null; game_url: string },
+): Promise<InsertGameElementResult> {
+  const res = await apiClient.post(
+    `/sessions/${sessionId}/courseware/slides/${pageIndex}/elements/game`,
+    params,
+  );
   return res.data?.data ?? res.data;
 }
 

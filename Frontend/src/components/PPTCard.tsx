@@ -399,28 +399,53 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
       );
     }
 
+    // ── Game Placeholder element ────────────────────────────────
+    if (el.type === 'game_placeholder' || el.type === 'interactive_game') {
+      const gameTitle = (el as any).game_title || (el as any).alt || '互动游戏';
+      const gameUrl   = (el as any).game_url  || (el as any).share_url || ((el as any).content?.[0] ?? '');
+      const typeLabel = (el as any).type_label ?? '';
+
+      return (
+        <div key={el.element_id} className={styles.gamePlaceholderCard}>
+          <div className={styles.gamePlaceholderInner}>
+            <div className={styles.gamePlaceholderIcon}>🎮</div>
+            <div className={styles.gamePlaceholderContent}>
+              <span className={styles.gamePlaceholderTitle}>
+                {gameUrl
+                  ? <a href={gameUrl} target="_blank" rel="noreferrer" className={styles.gamePlaceholderLink}>{gameTitle}</a>
+                  : gameTitle
+                }
+              </span>
+              {typeLabel && <span className={styles.gamePlaceholderBadge}>{typeLabel}</span>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
   return (
     <>
-      {/* ── 外层包裹：用于将编辑按钮绝对定位到幻灯片右上角外侧 ── */}
-      <div className={styles.cardWrap}>
-        {/* 悬浮编辑按钮 - 始终显示（在幻灯片外部右上角） */}
+      <div className={styles.cardShell}>
         {!isUpdating && !isStreaming && onManualSave && (
-          <button
-            className={styles.floatEditBtn}
-            onClick={handleEditPageClick}
-            title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
-          >
-            <Pencil size={14} />
-            <span>编辑</span>
-          </button>
+          <div className={styles.cardToolbar}>
+            <button
+              className={styles.floatEditBtn}
+              onClick={handleEditPageClick}
+              title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+            >
+              <Pencil size={12} />
+              <span>编辑</span>
+            </button>
+          </div>
         )}
 
-        <div
-          className={clsx(styles.pptCard, isUpdating && styles.updating)}
-        >
+        <div className={styles.cardWrap}>
+          <div
+            className={clsx(styles.pptCard, isUpdating && styles.updating)}
+          >
           {/* cover 以外的页面保留原有 cardHeader（页码+标题） */}
           {page.layout_type !== 'cover' && (
             <div className={styles.cardHeader}>
@@ -565,10 +590,10 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
             </div>
           </div>
         )}
+          </div>
+        </div>
+
       </div>
-      {/* ← pptCard */}
-      </div>
-      {/* ← cardWrap */}
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (
