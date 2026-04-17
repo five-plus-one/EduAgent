@@ -209,6 +209,19 @@ export default function Workspace() {
     setTimeout(() => setFilesHighlight(false), 1800);
   };
 
+  useEffect(() => {
+    const handleOpenAssetsPanel = () => {
+      setActiveTab('files');
+      setMobilePane('files');
+      setFilesSubTab('docs');
+      setFilesHighlight(true);
+      setTimeout(() => setFilesHighlight(false), 1800);
+    };
+
+    window.addEventListener('EduAgent_Open_AssetsPanel', handleOpenAssetsPanel);
+    return () => window.removeEventListener('EduAgent_Open_AssetsPanel', handleOpenAssetsPanel);
+  }, []);
+
   const handleExportWord = async () => {
     if (!wordDoc || isExportingWord || sessionId === 'new') return;
     setIsExportingWord(true);

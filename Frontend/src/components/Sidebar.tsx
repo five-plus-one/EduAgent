@@ -246,6 +246,19 @@ export default function Sidebar() {
     setShowProfileModal(true);
   };
 
+  const handleOpenAssetsInWorkspace = () => {
+    const targetSessionId =
+      currentSessionId && currentSessionId !== 'new'
+        ? currentSessionId
+        : sessions[0]?.session_id ?? 'new';
+
+    navigate(`/chat/${targetSessionId}`);
+
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('EduAgent_Open_AssetsPanel'));
+    }, 40);
+  };
+
   const handleSaveProfile = async () => {
     setIsSavingProfile(true);
     try {
@@ -387,16 +400,17 @@ export default function Sidebar() {
         </nav>
 
         <div className={styles.footer}>
-          <NavLink
-            to="/assets"
+          <button
+            type="button"
             id="sidebar-asset-btn"
-            className={({ isActive }) => clsx(styles.assetButtonRow, isActive && styles.assetButtonRowActive)}
-            aria-label="打开素材管理"
+            className={styles.assetButtonRow}
+            aria-label="在工作台中打开素材管理"
+            onClick={handleOpenAssetsInWorkspace}
           >
             <LayoutGrid size={16} />
             <span>素材管理</span>
             <span className={styles.assetBadge}>文档与图片</span>
-          </NavLink>
+          </button>
 
           <button className={styles.profileBtn} onClick={openProfileModal}>
             <UserCircle size={24} />
