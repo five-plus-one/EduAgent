@@ -1,418 +1,353 @@
-/* ══════════════════════════════════════════════════════════
-   GamePanel v2 — 互动小游戏面板样式
-   ══════════════════════════════════════════════════════════ */
-
-/* ── 根布局 ── */
-.root {
-  display: flex;
+﻿.root {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
   height: 100%;
-  overflow: hidden;
-  position: relative;
+  min-height: 0;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(250, 252, 255, 0.92), rgba(242, 247, 255, 0.78));
 }
 
-/* 全屏：覆盖整个视口 */
 .rootFullscreen {
   position: fixed !important;
   inset: 0;
   z-index: 9999;
-  background: #fff;
+  padding: 18px;
+  background: linear-gradient(180deg, #f8fbff, #eef5ff);
 }
-.rootFullscreen .sidebar {
+
+.sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,250,255,0.94));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-md);
+  overflow-y: auto;
+}
+
+.sidebarCollapsed {
+  width: 76px;
+  padding: 16px 10px;
+  align-items: center;
+}
+
+.sidebarCollapsed > :not(.collapseBtn) {
   display: none !important;
 }
 
-/* ══════════════════════════════════════════════════════════
-   左栏 — 侧边栏
-   ══════════════════════════════════════════════════════════ */
-.sidebar {
-  width: 288px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  padding: 10px 10px 16px;
-  border-right: 1px solid var(--border-glass, rgba(0,0,0,0.08));
-  overflow-y: auto;
-  overflow-x: hidden;
-  background: var(--bg-secondary, #f8fafc);
-  transition: width 0.22s cubic-bezier(0.4,0,0.2,1),
-              padding 0.22s cubic-bezier(0.4,0,0.2,1),
-              opacity 0.18s;
-}
-
-/* 折叠状态 */
-.sidebarCollapsed {
-  width: 40px !important;
-  padding: 10px 4px !important;
-  overflow: hidden;
-}
-
-/* ── 折叠/展开按钮 ── */
-.collapseBtn {
-  display: flex;
+.collapseBtn,
+.refreshBtn,
+.iconActionBtn,
+.deleteBtn,
+.bannerClose {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 205, 229, 0.9);
+  background: rgba(255,255,255,0.88);
+  color: var(--text-secondary);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
-  border-radius: 7px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-tertiary);
   cursor: pointer;
-  transition: all 0.14s;
-  flex-shrink: 0;
-  align-self: flex-start;
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast), background var(--motion-fast);
 }
-.collapseBtn:hover { background: rgba(99,102,241,0.08); color: #6366f1; border-color: rgba(99,102,241,0.25); }
 
-/* ── AI 建议横幅 ── */
+.collapseBtn:hover,
+.refreshBtn:hover,
+.iconActionBtn:hover,
+.deleteBtn:hover,
+.bannerClose:hover {
+  transform: translateY(-1px);
+  color: var(--brand-strong);
+  border-color: rgba(76, 132, 255, 0.24);
+  box-shadow: var(--shadow-xs);
+}
+
+.suggestBanner,
+.triggerBanner,
+.manualPanel {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(191, 205, 229, 0.78);
+  box-shadow: var(--shadow-xs);
+}
+
 .suggestBanner {
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.04));
-  border: 1px solid rgba(99,102,241,0.18);
-  padding: 10px 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  animation: slideDown 0.2s ease;
+  background: linear-gradient(180deg, rgba(241, 246, 255, 0.96), rgba(255,255,255,0.96));
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
+.triggerBanner {
+  background: linear-gradient(180deg, rgba(233, 246, 255, 0.98), rgba(255,255,255,0.96));
 }
 
-.suggestHeader {
+.manualPanel {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246, 250, 255, 0.95));
+}
+
+.suggestHeader,
+.triggerHeader,
+.manualLabel {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #6366f1;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--brand-strong);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.suggestIcon { color: #6366f1; }
 
-.suggestQuestion {
-  font-size: 12px;
-  color: var(--text-secondary);
-  line-height: 1.5;
+.suggestQuestion,
+.triggerTitle,
+.triggerInstr {
   margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.65;
 }
 
-.suggestChips { display: flex; flex-direction: column; gap: 5px; }
+.suggestChips,
+.triggerTopics,
+.listActions,
+.previewActions,
+.previewTabs,
+.gameList {
+  display: flex;
+  gap: 10px;
+}
+
+.suggestChips {
+  flex-direction: column;
+}
 
 .suggestChip {
-  background: rgba(99,102,241,0.07);
-  border: 1px solid rgba(99,102,241,0.14);
-  border-radius: 7px;
-  padding: 5px 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(191, 205, 229, 0.76);
 }
-.suggestChipLabel { font-size: 11.5px; font-weight: 600; color: var(--text-primary); display: block; }
-.suggestChipReason { font-size: 10.5px; color: var(--text-tertiary); display: block; margin-top: 1px; line-height: 1.4; }
 
-/* ── AI 触发横幅 ── */
-.triggerBanner {
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(16,185,129,0.07), rgba(5,150,105,0.03));
-  border: 1px solid rgba(16,185,129,0.2);
-  padding: 10px 11px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  animation: slideDown 0.2s ease;
+.suggestChipLabel,
+.typeCardLabel,
+.gameItemTitle,
+.previewTitle {
+  font-weight: 800;
+  color: var(--text-primary);
 }
-.triggerHeader {
-  display: flex;
+
+.suggestChipReason,
+.typeCardHint,
+.gameItemMeta,
+.previewEmpty small,
+.typingHint,
+.shareErrorTip {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.topicTag,
+.previewVersion,
+.streamingBadge,
+.pollingBadge,
+.statusBadge,
+.codeStats {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #059669;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
 }
-.triggerIcon { color: #059669; }
-.triggerTitle { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 0; }
-.triggerTopics { display: flex; flex-wrap: wrap; gap: 4px; }
-.topicTag {
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 100px;
-  background: rgba(16,185,129,0.1);
-  color: #059669;
-  font-weight: 600;
+
+.topicTag,
+.previewVersion {
+  background: rgba(225, 238, 255, 0.96);
+  color: var(--brand-strong);
 }
+
 .triggerInstr {
-  font-size: 11px;
-  color: var(--text-secondary);
-  background: rgba(255,255,255,0.6);
-  border-radius: 6px;
-  padding: 4px 7px;
-  margin: 0;
-  line-height: 1.5;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(191, 205, 229, 0.72);
 }
 
-.bannerClose {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
+.confirmBtn,
+.newGameBtn,
+.shareBtn,
+.retryBtn,
+.secondaryBtn {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 14px;
   border: none;
-  background: transparent;
-  border-radius: 4px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.bannerClose:hover { background: rgba(0,0,0,0.06); color: var(--text-primary); }
-
-/* ── 确认按钮 ── */
-.confirmBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: none;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  font-size: 12.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
-  box-shadow: 0 2px 10px rgba(99,102,241,0.3);
-}
-.confirmBtn:hover:not(:disabled) {
-  opacity: 0.9;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(99,102,241,0.35);
-}
-.confirmBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ── 错误横幅 ── */
-.errorBar {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  background: rgba(239,68,68,0.08);
-  border: 1px solid rgba(239,68,68,0.18);
-  border-radius: 8px;
-  font-size: 11.5px;
-  color: #ef4444;
-}
-
-/* ── 操作栏 ── */
-.listActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.newGameBtn {
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 5px 10px;
-  border-radius: 7px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
-  background: var(--bg-primary, #fff);
-  color: var(--text-secondary);
-  font-size: 11.5px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.13s;
-  white-space: nowrap;
-}
-.newGameBtn:hover:not(:disabled) {
-  background: rgba(99,102,241,0.07);
-  border-color: rgba(99,102,241,0.25);
-  color: #6366f1;
-}
-.newGameBtn:disabled { opacity: 0.45; cursor: not-allowed; }
-
-.refreshBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
-  border-radius: 7px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all 0.13s;
-  flex-shrink: 0;
-}
-.refreshBtn:hover { background: var(--bg-secondary); color: var(--text-primary); }
-
-@media (max-width: 900px) {
-  .root {
-    flex-direction: column;
-    gap: 12px;
-    overflow: auto;
-  }
-
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--border-subtle, rgba(0,0,0,0.08));
-    padding-bottom: 12px;
-  }
-
-  .preview {
-    min-height: 0;
-    width: 100%;
-  }
-
-  .previewHeader {
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-
-  .previewMeta,
-  .previewActions {
-    width: 100%;
-    justify-content: space-between;
-  }
-}
-
-/* ── 手动创建面板 ── */
-.manualPanel {
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.08));
-  border-radius: 10px;
-  padding: 11px;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
-  animation: slideDown 0.18s ease;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast), opacity var(--motion-fast);
 }
 
-.manualLabel {
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0;
+.confirmBtn,
+.shareBtn {
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+  box-shadow: var(--shadow-sm);
 }
 
-.typeGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.newGameBtn,
+.retryBtn {
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(191, 205, 229, 0.9);
+}
+
+.confirmBtn:hover,
+.newGameBtn:hover,
+.shareBtn:hover,
+.retryBtn:hover {
+  transform: translateY(-1px);
+}
+
+.confirmBtn:disabled,
+.newGameBtn:disabled,
+.shareBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
 
 .typeCard {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 7px;
-  border-radius: 7px;
-  border: 1.5px solid var(--border-glass, rgba(0,0,0,0.08));
-  background: var(--bg-secondary, #f8fafc);
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(191, 205, 229, 0.84);
+  background: rgba(255,255,255,0.82);
   text-align: left;
   cursor: pointer;
-  transition: all 0.12s;
-  font-family: inherit;
+  transition: transform var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), background var(--motion-fast);
 }
-.typeCard:hover { border-color: rgba(99,102,241,0.3); background: rgba(99,102,241,0.04); }
+
+.typeCard:hover,
 .typeCardActive {
-  border-color: #6366f1 !important;
-  background: rgba(99,102,241,0.08) !important;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
-}
-.typeCardLabel { font-size: 11px; font-weight: 700; color: var(--text-primary); }
-.typeCardHint {
-  font-size: 9.5px; color: var(--text-tertiary); margin-top: 2px; line-height: 1.3;
-  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
-  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  transform: translateY(-1px);
+  border-color: rgba(76, 132, 255, 0.26);
+  background: rgba(241, 246, 255, 0.96);
+  box-shadow: var(--shadow-xs);
 }
 
-.manualInput {
+.manualInput,
+.renameInput,
+.previewTitleInput {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
-  border-radius: 7px;
-  background: var(--bg-secondary, #f8fafc);
-  color: var(--text-primary);
-  font-size: 12px;
-  font-family: inherit;
-  outline: none;
-  transition: border-color 0.13s;
   box-sizing: border-box;
-}
-.manualInput:focus { border-color: #6366f1; }
-.manualTextarea { resize: vertical; min-height: 48px; }
-
-/* ── 游戏列表 ── */
-.listLoading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 28px 0;
-  color: var(--text-tertiary);
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 205, 229, 0.92);
+  background: rgba(255,255,255,0.9);
+  color: var(--text-primary);
+  font: inherit;
+  outline: none;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 
-.emptyList {
+.manualTextarea {
+  min-height: 96px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  resize: vertical;
+}
+
+.manualInput:focus,
+.renameInput:focus,
+.previewTitleInput:focus {
+  border-color: rgba(76, 132, 255, 0.42);
+  box-shadow: 0 0 0 4px rgba(76, 132, 255, 0.12);
+}
+
+.listLoading,
+.emptyList,
+.previewEmpty,
+.sourceLoading,
+.codeWaiting {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 28px 12px;
+  gap: 10px;
   text-align: center;
-  gap: 5px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
-.emptyList p { font-size: 13px; font-weight: 500; margin: 0; color: var(--text-secondary); }
-.emptyList small { font-size: 10.5px; line-height: 1.55; }
-.emptyIcon { opacity: 0.28; }
 
-.gameList { display: flex; flex-direction: column; gap: 4px; }
+.emptyList,
+.previewEmpty {
+  min-height: 220px;
+  padding: 28px 16px;
+  border-radius: 22px;
+  background: rgba(255,255,255,0.74);
+  border: 1px dashed rgba(191, 205, 229, 0.8);
+}
+
+.gameList {
+  flex-direction: column;
+}
 
 .gameItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.06));
-  background: var(--bg-primary, #fff);
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(191, 205, 229, 0.78);
+  background: rgba(255,255,255,0.84);
   cursor: pointer;
-  transition: all 0.13s;
-  position: relative;
+  transition: transform var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), background var(--motion-fast);
   overflow: hidden;
 }
-.gameItem:hover { background: rgba(99,102,241,0.04); border-color: rgba(99,102,241,0.18); }
 
+.gameItem:hover,
 .gameItemActive {
-  background: rgba(99,102,241,0.07) !important;
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 2px rgba(99,102,241,0.12);
+  transform: translateY(-1px);
+  border-color: rgba(76, 132, 255, 0.24);
+  box-shadow: var(--shadow-sm);
 }
 
-/* 正在生成中的骨架卡 */
 .gameItemGenerating {
-  cursor: default;
-}
-.gameItemGenerating:hover {
-  background: var(--bg-primary, #fff) !important;
-  border-color: rgba(99,102,241,0.22) !important;
+  background: linear-gradient(180deg, rgba(247, 251, 255, 0.98), rgba(239, 246, 255, 0.94));
 }
 
 .generatingPulse {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.08) 50%, transparent 100%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(76, 132, 255, 0.08), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.8s linear infinite;
 }
 
 @keyframes shimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  to { transform: translateX(100%); }
+}
+
+.gameItemMain,
+.gameItemRight,
+.previewMeta {
+  position: relative;
+  z-index: 1;
 }
 
 .gameItemMain {
@@ -420,288 +355,103 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  position: relative;
-  z-index: 1;
-}
-.gameItemTitle {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.gameItemMeta {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.gameItemRight {
-  display: flex;
-  align-items: center;
   gap: 4px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 1;
 }
 
-.statusDone { color: #22c55e; }
-.statusGen  { color: #6366f1; }
-.statusFail { color: #ef4444; }
-.chevron    { color: #6366f1; }
+.gameItemMeta {
+  font-size: 0.8rem;
+}
+
+.gameItemRight,
+.previewActions {
+  align-items: center;
+}
 
 .deleteBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  color: var(--text-tertiary);
-  cursor: pointer;
   opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
-}
-.gameItem:hover .deleteBtn { opacity: 1; }
-.deleteBtn:hover { background: rgba(239,68,68,0.1); color: #ef4444; }
-
-/* ── 列表行内重命名框 ── */
-.renameInput {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-primary, #fff);
-  border: 1.5px solid #6366f1;
-  border-radius: 5px;
-  padding: 1px 6px;
-  outline: none;
-  width: 100%;
-  font-family: inherit;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
-  min-width: 0;
 }
 
-/* ── 预览工具栏行内重命名框 ── */
-.previewTitleInput {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-primary, #fff);
-  border: 1.5px solid #6366f1;
-  border-radius: 5px;
-  padding: 2px 7px;
-  outline: none;
-  max-width: 220px;
-  min-width: 80px;
-  font-family: inherit;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
-  transition: box-shadow 0.15s;
+.gameItem:hover .deleteBtn,
+.gameItemActive .deleteBtn {
+  opacity: 1;
 }
 
-/* ══════════════════════════════════════════════════════════
-   右栏 — 预览区
-   ══════════════════════════════════════════════════════════ */
+.statusDone { color: var(--success); }
+.statusGen { color: var(--brand-strong); }
+.statusFail { color: var(--danger); }
+.chevron { color: var(--brand-strong); }
+
 .preview {
-  flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  border-radius: 26px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,250,255,0.94));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
-  background: #fff;
 }
 
-.previewEmpty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--text-tertiary);
-  text-align: center;
-  padding: 48px 40px;
-}
-.previewEmpty p { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin: 0; }
-.previewEmpty small { font-size: 12px; line-height: 1.6; max-width: 260px; }
-
-/* ── 预览头部工具栏 ── */
 .previewHeader {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border-glass, rgba(0,0,0,0.08));
-  flex-shrink: 0;
-  background: var(--bg-secondary, #f8fafc);
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid rgba(191, 205, 229, 0.84);
+  background: rgba(247, 250, 255, 0.88);
 }
 
 .previewTabs {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.08));
-  border-radius: 7px;
-  padding: 2px;
+  flex-wrap: wrap;
 }
+
 .previewTab {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 9px;
-  border-radius: 5px;
-  border: none;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
   background: transparent;
-  color: var(--text-tertiary);
-  font-size: 11.5px;
-  font-weight: 600;
-  font-family: inherit;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 800;
   cursor: pointer;
-  transition: all 0.13s;
 }
-.previewTab:hover { color: var(--text-primary); }
+
 .previewTabActive {
-  background: var(--bg-secondary, #f1f5f9);
-  color: #6366f1 !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-color: rgba(76, 132, 255, 0.18);
 }
 
 .previewMeta {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  gap: 10px;
 }
+
 .previewTitle {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text-primary);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
-  border-radius: 4px;
-  padding: 1px 3px;
-  margin: -1px -3px;
-  transition: background 0.12s;
-}
-.previewTitle:hover {
-  background: rgba(99,102,241,0.08);
-  text-decoration: underline;
-  text-decoration-style: dashed;
-  text-underline-offset: 2px;
-}
-.previewVersion {
-  font-size: 10.5px;
-  padding: 1px 6px;
-  border-radius: 100px;
-  background: rgba(99,102,241,0.1);
-  color: #6366f1;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
-.previewActions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.iconActionBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border-glass, rgba(0,0,0,0.1));
-  border-radius: 7px;
-  background: var(--bg-primary, #fff);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: all 0.13s;
-}
-.iconActionBtn:hover:not(:disabled) {
-  background: rgba(99,102,241,0.08);
-  border-color: rgba(99,102,241,0.25);
-  color: #6366f1;
-}
-.iconActionBtn:disabled { opacity: 0.35; cursor: not-allowed; }
-
-/* ── 分享链接按钮 ── */
-.shareBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 10px;
-  height: 28px;
-  border: 1px solid rgba(99,102,241,0.25);
-  border-radius: 7px;
-  background: rgba(99,102,241,0.06);
-  color: #6366f1;
-  font-size: 11.5px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.14s;
-  white-space: nowrap;
-}
-.shareBtn:hover:not(:disabled) {
-  background: rgba(99,102,241,0.12);
-  border-color: rgba(99,102,241,0.45);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(99,102,241,0.18);
-}
-.shareBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-.shareBtnCopied {
-  background: rgba(34,197,94,0.1) !important;
-  border-color: rgba(34,197,94,0.4) !important;
-  color: #22c55e !important;
-}
-
-/* 分享错误行内提示 */
-.shareErrorTip {
-  font-size: 11px;
-  color: #ef4444;
-  padding: 2px 8px;
-  background: rgba(239,68,68,0.08);
-  border-radius: 5px;
-  white-space: nowrap;
-}
-
-/* ── iframe 容器（srcdoc 模式）── */
-.iframeWrap {
+.iframeWrap,
+.sourceWrap,
+.typingWrap {
   flex: 1;
+  min-height: 0;
+}
+
+.iframeWrap {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #fff;
+  background: linear-gradient(180deg, rgba(246,250,255,0.9), rgba(239, 246, 255, 0.82));
 }
 
-/* 预览加载中遮罩 */
-.previewLoadingOverlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: rgba(248, 250, 252, 0.92);
-  backdrop-filter: blur(4px);
-  z-index: 10;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-/* 预览错误状态 */
+.previewLoadingOverlay,
 .previewErrorOverlay {
   position: absolute;
   inset: 0;
@@ -709,362 +459,295 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 32px;
-  background: rgba(248, 250, 252, 0.96);
-  z-index: 10;
-  color: #ef4444;
-  text-align: center;
+  gap: 12px;
+  padding: 24px;
+  background: rgba(248, 251, 255, 0.94);
+  z-index: 2;
 }
+
 .previewErrorOverlay p {
-  font-size: 13px;
-  color: var(--text-secondary);
   margin: 0;
   max-width: 320px;
-}
-
-/* ── 源码高亮区（使用 react-syntax-highlighter 时的外层容器样式）── */
-.sourceEditorWrap {
-  flex: 1;
-  overflow: auto;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  background: var(--bg-primary, #fff);
-  position: relative;
-}
-
-/* ══════════════════════════════════════════════════════════
-   流式生成状态窗口（重构）
-   ══════════════════════════════════════════════════════════ */
-.typingWrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 24px;
-  background: var(--bg-primary, #fff);
-  overflow: hidden;
-  gap: 16px;
-}
-
-/* 深度思考框 */
-.thinkingBox {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--bg-secondary, #f8fafc);
-  border-left: 3px solid #6366f1;
-  border-radius: 4px 8px 8px 4px;
   color: var(--text-secondary);
-  font-size: 12px;
-  max-height: 120px;
-  overflow-y: auto;
-  transition: all 0.2s;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-}
-.thinkingHeader {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  color: #4f46e5;
-  font-size: 11.5px;
-}
-.thinkingText {
-  white-space: pre-wrap;
-  line-height: 1.6;
-  opacity: 0.85;
+  line-height: 1.7;
 }
 
-/* 阶段行 */
-.retryBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  border: 1px solid rgba(239,68,68,0.2);
-  border-radius: 7px;
-  background: transparent;
-  color: #ef4444;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background 0.12s;
-}
-.retryBtn:hover { background: rgba(239,68,68,0.08); }
-
-/* ── iframe ── */
 .iframe {
-  flex: 1;
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
   display: block;
+  background: #fff;
 }
 
-/* ── 源码区 ── */
+.sourceWrap,
+.codeWindow {
+  background: #0d1b31;
+}
+
 .sourceWrap {
-  flex: 1;
   overflow: auto;
-  background: #0f172a;
 }
-.sourceLoading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  height: 100%;
-  color: rgba(255,255,255,0.35);
-}
+
 .sourcePre {
   margin: 0;
   padding: 20px 24px;
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: #e2e8f0;
-  white-space: pre;
+  color: #d7e6ff;
+  font: 500 12.5px/1.7 'Consolas', 'Courier New', monospace;
 }
-.sourcePre code { font-family: inherit; }
 
-/* ══════════════════════════════════════════════════════════
-   实时生成动画：代码打字 + 进度
-   ══════════════════════════════════════════════════════════ */
 .typingWrap {
-  flex: 1;
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  padding: 32px 40px;
-  background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%);
-  overflow-y: auto;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), rgba(239, 246, 255, 0.9));
 }
 
-/* 阶段步骤 */
 .stageRow {
-  display: flex;
-  align-items: center;
-  gap: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
+
 .stageStep {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  position: relative;
-  flex: 1;
-  min-width: 60px;
+  gap: 8px;
 }
-.stageStep::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  left: calc(50% + 8px);
-  right: calc(-50% + 8px);
-  height: 2px;
-  background: rgba(99,102,241,0.15);
-  transition: background 0.4s;
-}
-.stageStep:last-child::before { display: none; }
-.stageStepDone::before { background: rgba(99,102,241,0.5) !important; }
 
 .stageStepDot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: rgba(99,102,241,0.15);
-  border: 2px solid rgba(99,102,241,0.2);
-  transition: all 0.35s;
-  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(191, 205, 229, 0.92);
+  box-shadow: 0 0 0 5px rgba(191, 205, 229, 0.32);
 }
-.stageStepDone .stageStepDot {
-  background: #6366f1;
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 4px rgba(99,102,241,0.18);
-  animation: dotGlow 1.4s ease-in-out infinite;
-}
-@keyframes dotGlow {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
-  50%       { box-shadow: 0 0 0 6px rgba(99,102,241,0.08); }
-}
-.stageStepLabel {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  transition: color 0.3s;
-}
-.stageStepDone .stageStepLabel { color: #6366f1; }
 
-/* 进度条 */
+.stageStepDone .stageStepDot {
+  background: var(--brand-strong);
+  box-shadow: 0 0 0 5px rgba(76, 132, 255, 0.16);
+}
+
+.stageStepLabel {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.stageStepDone .stageStepLabel {
+  color: var(--brand-strong);
+}
+
 .progressBarWrap {
-  width: 100%;
-  max-width: 500px;
-  height: 6px;
-  background: rgba(99,102,241,0.1);
-  border-radius: 3px;
   position: relative;
-  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(191, 205, 229, 0.72);
+  overflow: visible;
 }
+
 .progressBar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #6366f1, #8b5cf6);
-  transition: width 0.4s ease;
-  box-shadow: 0 0 8px rgba(99,102,241,0.4);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand), var(--brand-strong));
 }
+
 .progressPct {
   position: absolute;
-  right: -32px;
-  top: -8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #6366f1;
+  right: 0;
+  top: -24px;
+  color: var(--brand-strong);
+  font-size: 0.74rem;
+  font-weight: 800;
 }
 
-/* 代码窗口 */
+.thinkingBox {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(191, 205, 229, 0.8);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.thinkingHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--brand-strong);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.thinkingText {
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
 .codeWindow {
-  width: 100%;
-  max-width: 560px;
-  border-radius: 12px;
+  border-radius: 22px;
   overflow: hidden;
-  box-shadow:
-    0 20px 60px rgba(0,0,0,0.12),
-    0 0 0 1px rgba(0,0,0,0.06);
-  background: #1e293b;
+  box-shadow: 0 24px 60px rgba(8, 18, 36, 0.22);
 }
 
 .codeWindowBar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  background: #0f172a;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
+
 .codeDot {
   width: 10px;
   height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
+  border-radius: 999px;
 }
+
 .codeWindowTitle {
-  font-size: 11px;
-  color: rgba(255,255,255,0.35);
-  font-family: 'JetBrains Mono', monospace;
   margin-left: 4px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* LIVE / 轮询 徽章 */
-.streamingBadge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(239,68,68,0.25);
-  color: #f87171;
-  letter-spacing: 0.5px;
-  animation: badgePulse 1.8s ease-in-out infinite;
-}
-.pollingBadge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(148,163,184,0.2);
-  color: #94a3b8;
-  letter-spacing: 0.5px;
-}
-
-@keyframes badgePulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
-}
-
-/* 等待首个 chunk 时的占位 */
-.codeWaiting {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255,255,255,0.3);
-  font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  padding: 12px 16px;
+  color: rgba(255,255,255,0.7);
+  font: 700 0.76rem/1 'Consolas', monospace;
 }
 
-/* 代码统计栏 */
-.codeStats {
-  padding: 5px 16px;
-  font-size: 10.5px;
-  color: rgba(255,255,255,0.2);
-  border-top: 1px solid rgba(255,255,255,0.05);
-  font-family: 'JetBrains Mono', monospace;
-  text-align: right;
+.streamingBadge {
+  color: #8fd0ff;
+  background: rgba(76, 132, 255, 0.18);
+}
+
+.pollingBadge {
+  color: #cbd8ea;
+  background: rgba(203, 216, 234, 0.14);
 }
 
 .codeBody {
+  max-height: 320px;
+  overflow: auto;
   padding: 14px 0;
-  max-height: 240px;
-  overflow-y: auto;
-  overflow-x: auto;
 }
 
 .codeLine {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 10px;
   padding: 0 16px;
-  line-height: 1.7;
 }
+
 .codeLineNum {
-  width: 28px;
+  color: rgba(255,255,255,0.28);
   text-align: right;
-  color: rgba(255,255,255,0.18);
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-  user-select: none;
-  flex-shrink: 0;
-  padding-right: 12px;
+  font: 0.76rem/1.8 'Consolas', monospace;
 }
+
 .codeLineContent {
-  font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
-  color: #94a3b8;
+  color: #d7e6ff;
   white-space: pre;
+  font: 0.78rem/1.8 'Consolas', monospace;
 }
 
-/* 光标闪烁 */
+.codeStats {
+  justify-content: center;
+  color: rgba(255,255,255,0.72);
+  background: rgba(255,255,255,0.06);
+  margin: 0 14px 14px;
+}
+
 .cursor {
-  display: inline-block;
-  color: #6366f1;
-  font-weight: 300;
-  animation: blink 0.65s step-end infinite;
+  animation: blink 0.8s step-end infinite;
 }
+
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
+  50% { opacity: 0; }
 }
 
-.typingHint {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  margin: 0;
+.spin {
+  animation: spin 1s linear infinite;
 }
 
-/* ── 通用旋转 ── */
-.spin { animation: spinAnim 1s linear infinite; }
-@keyframes spinAnim { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1100px) {
+  .root {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebarCollapsed {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .sidebarCollapsed > :not(.collapseBtn) {
+    display: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .root,
+  .rootFullscreen {
+    padding: 10px;
+    gap: 12px;
+  }
+
+  .sidebar,
+  .preview {
+    border-radius: 22px;
+  }
+
+  .previewHeader {
+    flex-wrap: wrap;
+  }
+
+  .previewMeta,
+  .previewActions,
+  .previewTabs,
+  .listActions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .typeGrid,
+  .stageRow {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .root,
+  .rootFullscreen {
+    padding: 8px;
+  }
+
+  .sidebar,
+  .preview,
+  .codeWindow,
+  .emptyList,
+  .previewEmpty {
+    border-radius: 18px;
+  }
+
+  .typeGrid,
+  .stageRow {
+    grid-template-columns: 1fr;
+  }
+
+  .gameItem,
+  .previewHeader,
+  .typingWrap {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .codeLine {
+    grid-template-columns: 32px 1fr;
+    padding: 0 12px;
+  }
+}
