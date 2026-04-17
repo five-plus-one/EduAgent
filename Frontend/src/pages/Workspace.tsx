@@ -381,7 +381,7 @@ export default function Workspace() {
     const valid = Array.from(files).filter(f =>
       ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (!valid.length) { alert('浠呮敮鎸?PDF / DOCX / PPTX / TXT / MD 鏍煎紡鏂囦欢'); return; }
+    if (!valid.length) { alert('仅支持 PDF / DOCX / PPTX / TXT / MD 格式文件'); return; }
     setIsUploadingKb(true);
     try {
       await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '閫氱敤绫荤洰' })));
@@ -1463,4 +1463,5 @@ export default function Workspace() {
     </div>
   );
 }
+
 
