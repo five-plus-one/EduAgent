@@ -65,6 +65,11 @@ export default function Workspace() {
     window.addEventListener('mouseup', onMouseUp);
   }, [chatWidth]);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const messageStreamRef = useRef<HTMLDivElement>(null);
+  const filesTabRef = useRef<HTMLDivElement>(null);
+  const pptTabRef = useRef<HTMLDivElement>(null);
+  const wordTabRef = useRef<HTMLDivElement>(null);
+  const gamesTabRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
   const kbFileInputRef = useRef<HTMLInputElement>(null);
@@ -199,6 +204,22 @@ export default function Workspace() {
       setMobilePane('more');
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    const tabMap: Record<string, HTMLDivElement | null> = {
+      files: filesTabRef.current,
+      ppt: pptTabRef.current,
+      word: wordTabRef.current,
+      games: gamesTabRef.current,
+    };
+
+    const target = tabMap[activeTab];
+    if (!target) return;
+
+    requestAnimationFrame(() => {
+      target.scrollTo({ top: 0, behavior: 'auto' });
+    });
+  }, [activeTab, filesSubTab]);
 
   /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
   const handleOpenFiles = () => {
@@ -518,7 +539,10 @@ export default function Workspace() {
 
   useEffect(() => {
     if (shouldAutoScroll.current) {
-      streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = messageStreamRef.current;
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
     }
   }, [messages]);
 
@@ -750,7 +774,7 @@ export default function Workspace() {
           </div>
         ) : (
           <>
-            <div className={styles.messageStream} onScroll={handleScroll}>
+            <div ref={messageStreamRef} className={styles.messageStream} onScroll={handleScroll}>
               {messages.length === 0 && !isSynthesizing ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
@@ -964,7 +988,7 @@ export default function Workspace() {
             </div>
           </header>
 
-          <Tabs.Content className={styles.tabsContent} value="files">
+          <Tabs.Content ref={filesTabRef} className={styles.tabsContent} value="files">
             <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 瀛?Tab 鍒囨崲锛堢煡璇嗗簱鏂囨。 / 鍥剧墖绱犳潗锛?*/}
               <div className={styles.subTabBar}>
@@ -1106,7 +1130,7 @@ export default function Workspace() {
             </div>
           </Tabs.Content>
           
-          <Tabs.Content className={styles.tabsContent} value="ppt">
+          <Tabs.Content ref={pptTabRef} className={styles.tabsContent} value="ppt">
             <div
               className={styles.canvasArea}
               style={appliedThemeColors ? {
@@ -1264,7 +1288,7 @@ export default function Workspace() {
             </div>
           </Tabs.Content>
           
-          <Tabs.Content className={styles.tabsContent} value="word">
+          <Tabs.Content ref={wordTabRef} className={styles.tabsContent} value="word">
             {(persistedWordDoc || wordDirty) && (
               <div className={styles.stickyTopbarShell}>
                 <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarWord)}>
@@ -1370,7 +1394,7 @@ export default function Workspace() {
           </Tabs.Content>
 
           {/* 鈹€鈹€ 浜掑姩灏忔父鎴?Tab 鈹€鈹€ */}
-          <Tabs.Content className={styles.tabsContent} value="games">
+          <Tabs.Content ref={gamesTabRef} className={styles.tabsContent} value="games">
             {sessionId !== 'new' && (
               <GamePanel
                 sessionId={sessionId}

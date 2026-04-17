@@ -1,6 +1,7 @@
 ﻿.layout {
   display: flex;
   width: 100vw;
+  height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
   position: relative;
@@ -31,6 +32,7 @@
   flex-shrink: 0;
   width: var(--layout-sidebar);
   max-width: var(--layout-sidebar);
+  height: 100%;
   min-width: 0;
   overflow: hidden;
   transition:
@@ -91,7 +93,8 @@
 .mainContent {
   flex: 1;
   min-width: 0;
-  min-height: 100dvh;
+  height: 100%;
+  min-height: 0;
   position: relative;
   display: flex;
   flex-direction: column;
