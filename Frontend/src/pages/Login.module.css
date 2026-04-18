@@ -6,7 +6,8 @@
   justify-content: center;
   padding: 32px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .blob1,
@@ -241,24 +242,81 @@
 
 @media (max-width: 900px) {
   .loginContainer {
-    padding: 16px;
+    padding: 12px;
     align-items: stretch;
   }
 
   .shell {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 12px;
   }
 
   .heroPanel {
-    padding: 28px 24px;
+    padding: 18px 18px 16px;
   }
 
   .formPanel {
-    padding: 28px 20px;
+    padding: 24px 18px;
   }
 
   .inputRow {
     grid-template-columns: 1fr;
+  }
+
+  .heroEyebrow {
+    margin-bottom: 8px;
+    font-size: 0.64rem;
+  }
+
+  .heroTitle {
+    max-width: 100%;
+    font-size: 1.5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .heroDesc {
+    margin-top: 8px;
+    max-width: 100%;
+    font-size: 0.88rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .heroList {
+    display: none;
+  }
+
+  .brandWrapper {
+    margin-bottom: 20px;
+  }
+
+  .logoIcon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 14px;
+  }
+
+  .brandTitle {
+    font-size: 1.55rem;
+  }
+
+  .loginForm {
+    gap: 14px;
+  }
+
+  .input {
+    min-height: 48px;
+  }
+
+  .loginBtn {
+    min-height: 48px;
+  }
+
+  .loginFooter {
+    margin-top: 16px;
   }
 }
