@@ -22,7 +22,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
@@ -77,11 +77,34 @@ export default function Workspace() {
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
+  const [isMicPressed, setIsMicPressed] = useState(false);
 
-  const { isRecording, isSupported: isSpeechSupported, startRecording, stopRecording, error: speechError } =
-    useSpeechRecognition((text) => {
-      setInputText(prev => prev ? prev + ' ' + text : text);
-    });
+  const {
+    isSupported: isSpeechSupported,
+    isTranscribing,
+    startRecording,
+    stopRecording,
+    error: speechError,
+  } = useSpeechRecognition(sessionId, (text) => {
+    setInputText(prev => prev.trim() ? `${prev.trim()} ${text}` : text);
+  });
+
+  useEffect(() => {
+    if (!isMicPressed) return;
+
+    const handlePointerRelease = () => {
+      setIsMicPressed(false);
+      stopRecording();
+    };
+
+    window.addEventListener('pointerup', handlePointerRelease);
+    window.addEventListener('pointercancel', handlePointerRelease);
+
+    return () => {
+      window.removeEventListener('pointerup', handlePointerRelease);
+      window.removeEventListener('pointercancel', handlePointerRelease);
+    };
+  }, [isMicPressed, stopRecording]);
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, saveWordDoc, resolveImageInPage } = useCourseware(sessionId);
@@ -830,16 +853,31 @@ export default function Workspace() {
                   disabled={isGenerating}
                 />
                 <div className={styles.actionsBox}>
-                  <button 
-                    className={clsx(styles.micButton, isRecording && styles.recording)}
-                    onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
-                    onTouchStart={startRecording}
-                    onTouchEnd={stopRecording}
-                    title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
-                    disabled={!isSpeechSupported || isGenerating}
+                  <button
+                    type="button"
+                    className={clsx(
+                      styles.micButton,
+                      isMicPressed && styles.micButtonActive,
+                    )}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      setIsMicPressed(true);
+                      void startRecording();
+                    }}
+                    title={
+                      sessionId === 'new'
+                        ? '请先创建会话'
+                        : !isSpeechSupported
+                          ? '当前浏览器不支持语音录制'
+                          : isGenerating
+                            ? '生成期间禁用语音'
+                            : isTranscribing
+                              ? '语音转写中'
+                              : '按住录音，松开发送转写'
+                    }
+                    disabled={!isSpeechSupported || isGenerating || isTranscribing || sessionId === 'new'}
                   >
-                    {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                    <Mic size={20} />
                   </button>
                   {isSynthesizing || isStreaming ? (
                     <button
@@ -864,6 +902,9 @@ export default function Workspace() {
                   )}
                 </div>
               </div>
+              {isTranscribing && !speechError && (
+                <p className={clsx(styles.speechError, styles.speechInfo)}>提示：语音转写中，请稍候...</p>
+              )}
               {speechError && (
                 <p className={styles.speechError}>提示：{speechError}</p>
               )}

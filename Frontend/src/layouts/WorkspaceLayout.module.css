@@ -169,6 +169,8 @@
     top: 0;
     bottom: 0;
     left: 0;
+    display: flex;
+    flex-direction: column;
     width: min(86vw, 360px);
     max-width: min(86vw, 360px);
     transform: translateX(-100%);
@@ -183,6 +185,7 @@
 
   .mobileSidebarHead {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: space-between;
     gap: 12px;

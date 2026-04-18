@@ -297,27 +297,42 @@
 }
 
 .micButton {
-  background: var(--bg-secondary);
-  border: none;
-  color: var(--text-secondary);
-  padding: 8px;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  color: #5b708d;
+  padding: 0;
   border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
 }
 
 .micButton:hover {
-  background: var(--bg-glass-hover);
-  color: var(--accent-primary);
+  background: rgba(239, 246, 255, 0.96);
+  color: #2563eb;
 }
 
-.micButton.recording {
-  background: var(--accent-primary);
+.micButtonActive {
+  background: #2563eb;
   color: white;
   animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  border-color: rgba(37, 99, 235, 0.32);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+}
+
+.micButton:disabled {
+  opacity: 1;
+  background: rgba(241, 245, 249, 0.96);
+  color: #94a3b8;
+  border-color: rgba(148, 163, 184, 0.2);
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .sendButton {
@@ -1229,6 +1244,12 @@
   background: hsla(340, 80%, 96%, 0.8);
   border-radius: var(--radius-sm);
   border-left: 3px solid hsl(340, 80%, 50%);
+}
+
+.speechInfo {
+  color: #1d4ed8;
+  background: rgba(219, 234, 254, 0.78);
+  border-left-color: rgba(37, 99, 235, 0.9);
 }
 
 /* ---------------- PPT CARD ---------------- */
