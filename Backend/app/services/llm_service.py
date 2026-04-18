@@ -265,6 +265,10 @@ async def stream_chat_response(
         import asyncio
         cw_json = await asyncio.to_thread(_get_cw)
         if cw_json:
+            # 限制课件 JSON 注入大小，防止大课件耗尽 context window
+            _cw_limit = 12000
+            if len(cw_json) > _cw_limit:
+                cw_json = cw_json[:_cw_limit] + "\n...(课件内容过长，已截断，完整内容请通过工具获取)"
             messages.append({
                 "role": "system",
                 "content": f"【当前已有课件全局状态（JSON数组，包含所有幻灯片与元素）】：\n{cw_json}\n\n注意：你要基于以上全局视角进行精确工具修改操作！"

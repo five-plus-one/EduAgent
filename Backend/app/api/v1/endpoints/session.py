@@ -296,8 +296,15 @@ async def chat_with_session(
     if not session_ctx:
         raise HTTPException(status_code=404, detail="Session not found")
         
-    # Retrieve chat history
-    history = db.query(Message).filter(Message.session_id == session_id).order_by(Message.created_at).all()
+    # Retrieve chat history — 只取最近 30 条，防止历史过长撞上模型 context window 上限
+    # 30 条 ≈ 15 轮对话，足够维持上下文连贯性
+    history = (
+        db.query(Message)
+        .filter(Message.session_id == session_id)
+        .order_by(Message.created_at.desc())   # 取最新的
+        .limit(30)
+        .all()
+    )[::-1]   # 翻转回时间正序
     
     # Append new user message to local DB synchronously
     user_msg_db = Message(
@@ -393,31 +400,161 @@ async def audio_chat(
 ):
     """
     1.3 语音输入转文本
-    Reads bytes and streams to ASR endpoint.
+    将音频文件发送到 ASR 端点，返回识别文本。
     """
+    import logging
     import requests
+    from fastapi.concurrency import run_in_threadpool
     from app.core.config import settings
-    
+
+    log = logging.getLogger(__name__)
+
+    # ── 1. 校验 session 归属 ─────────────────────────────────────────────
+    session_ctx = db.query(SessionContext).filter(
+        SessionContext.id == session_id,
+        SessionContext.user_id == current_user.id,
+    ).first()
+    if not session_ctx:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # ── 2. 检查 ASR 是否启用 ─────────────────────────────────────────────
+    model = settings.WHISPER_MODEL
+    if not model:
+        raise HTTPException(
+            status_code=501,
+            detail="ASR 未配置（WHISPER_MODEL 为空），请联系管理员启用语音识别。"
+        )
+
+    # ── 3. 读取音频字节（在 async 上下文中安全）────────────────────────────
+    audio_bytes = await audio_file.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="上传的音频文件为空")
+
+    content_type = (audio_file.content_type or "").lower()
+    original_name = audio_file.filename or "audio.wav"
+
+    # ── 4. WebM → WAV 转码（浏览器 MediaRecorder 输出 webm/opus，上游不支持）──
+    # 用 ffmpeg 管道：stdin 传 webm 字节，stdout 收 wav 字节，无需临时文件
+    send_bytes    = audio_bytes
+    send_filename = original_name
+    send_mime     = content_type or "audio/wav"
+
+    if "webm" in content_type or original_name.lower().endswith(".webm"):
+        def _convert_webm():
+            import subprocess
+            try:
+                # 优先 imageio-ffmpeg，回退到系统 ffmpeg
+                try:
+                    import imageio_ffmpeg
+                    ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+                except Exception:
+                    import shutil
+                    ffmpeg_bin = shutil.which("ffmpeg") or "ffmpeg"
+
+                proc = subprocess.run(
+                    [
+                        ffmpeg_bin,
+                        "-hide_banner", "-loglevel", "warning",
+                        "-i", "pipe:0",
+                        "-ar", "16000",
+                        "-ac", "1",
+                        "-q:a", "2",    # MP3 VBR 质量
+                        "-f", "mp3",   # MP3 帧格式，管道输出无需文件大小头（WAV 有此问题）
+                        "pipe:1",
+                    ],
+                    input=audio_bytes,
+                    capture_output=True,
+                    timeout=30,
+                )
+                if proc.returncode != 0:
+                    log.warning(
+                        f"[audio-chat] ffmpeg 转码失败 returncode={proc.returncode} "
+                        f"stderr={proc.stderr.decode(errors='replace')[:300]}"
+                    )
+                    return None
+                if not proc.stdout:
+                    log.warning("[audio-chat] ffmpeg 输出为空")
+                    return None
+                return proc.stdout
+            except Exception as conv_err:
+                log.warning(f"[audio-chat] WebM 转码异常，将直接上传原始字节: {conv_err}")
+            return None
+
+        converted = await run_in_threadpool(_convert_webm)
+        if converted:
+            send_bytes    = converted
+            send_filename = original_name.rsplit(".", 1)[0] + ".mp3"
+            send_mime     = "audio/mpeg"
+            log.info(f"[audio-chat] WebM→MP3 转码完成 {len(audio_bytes)}→{len(send_bytes)} bytes")
+        else:
+            log.warning(f"[audio-chat] 转码失败，直接上传 {content_type} 原始字节")
+
     url = f"{settings.OPENAI_API_BASE.rstrip('/')}/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {settings.OPENAI_API_KEY}"}
-    
+    req_headers = {
+        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+        "Connection":    "close",   # 禁用 keep-alive，避免连接状态复用
+    }
+    data = {
+        "model":           model,
+        "language":        "zh",
+        "response_format": "json",
+    }
+
+    log.info(
+        f"[audio-chat] 准备上传 session={session_id} "
+        f"filename={send_filename} mime={send_mime} size={len(send_bytes)}"
+    )
+
+    # ── 5. 写入临时文件后通过文件句柄发送 ─────────────────────────────────────
+    # 不直接传内存 bytes：requests 无法对内存 bytes 做 seek，在某些情况下
+    # 无法正确设置 Content-Length，导致上游看到不完整的 multipart body（NextPart: EOF）。
+    # 用文件句柄后 requests 会 seek() 精确算出长度，始终发出正确的 Content-Length。
+    import tempfile, os as _os
+
+    def _do_asr():
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix=f"_{send_filename}")
+        try:
+            with _os.fdopen(tmp_fd, "wb") as f:
+                f.write(send_bytes)
+            sess = requests.Session()
+            try:
+                with open(tmp_path, "rb") as audio_fp:
+                    _files = {"file": (send_filename, audio_fp, send_mime or "audio/wav")}
+                    return sess.post(url, headers=req_headers, files=_files, data=data, timeout=30)
+            finally:
+                sess.close()
+        finally:
+            try:
+                _os.unlink(tmp_path)
+            except OSError:
+                pass
+
     try:
-        audio_bytes = await audio_file.read()
-        files = {
-            "file": (audio_file.filename or "audio.wav", audio_bytes, audio_file.content_type or "audio/wav")
-        }
-        data = {
-            "model": "whisper-1" # Generic representation, will be proxy-mapped usually
-        }
-        resp = requests.post(url, headers=headers, files=files, data=data, timeout=30)
-        resp.raise_for_status()
-        text = resp.json().get("text", "")
-        return {"text": text}
+        resp = await run_in_threadpool(_do_asr)
     except Exception as e:
-        # Fallback to mock text indicating ASR isn't configured at upstream
-        return {
-            "text": f"(ASR组件上游调用失败: {str(e)}。无法识别真实的语音内容，请检查大模型通道是否支持 Whisper 协议)"
-        }
+        log.error(
+            f"[audio-chat] ASR 上游请求异常 session={session_id} url={url} "
+            f"exc_type={type(e).__name__} exc={e}"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"ASR 上游连接失败（{type(e).__name__}），请检查代理网关是否支持 Whisper 协议。"
+        )
+
+    if resp.status_code != 200:
+        log.warning(
+            f"[audio-chat] ASR 上游返回错误 session={session_id} "
+            f"status={resp.status_code} body={resp.text[:300]}"
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"ASR 上游返回 {resp.status_code}：{resp.text[:200]}"
+        )
+
+    text = resp.json().get("text", "")
+    log.info(f"[audio-chat] ASR 成功 session={session_id} chars={len(text)}")
+    return {"text": text}
+
 
 @router.post("/{session_id}/files")
 async def upload_session_file(
