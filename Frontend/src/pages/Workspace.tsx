@@ -1133,7 +1133,10 @@ export default function Workspace() {
 
           {activeTab === 'files' && (
           <div className={styles.tabsContent}>
-            <div ref={filesTabRef} className={styles.tabViewport}>
+            <div
+              ref={filesTabRef}
+              className={clsx(styles.tabViewport, filesSubTab === 'images' && styles.tabViewportLocked)}
+            >
             <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 瀛?Tab 鍒囨崲锛堢煡璇嗗簱鏂囨。 / 鍥剧墖绱犳潗锛?*/}
               <div className={styles.subTabBar}>

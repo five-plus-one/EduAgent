@@ -214,7 +214,7 @@
 }
 
 .newSessionActions {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -2333,6 +2333,7 @@
   }
 
   .newSessionActions {
+    display: flex;
     width: 100%;
   }
 
