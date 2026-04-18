@@ -41,15 +41,21 @@ export function useCourseware(sessionId: string) {
 
   const fetchPreview = useCallback(async (withPolling = false) => {
     if (sessionId === 'new') return;
+    setPreviewStatus(prev => (prev === 'ready' ? prev : 'loading'));
     try {
-      const resp = await getCoursewarePreview(sessionId);
+      let resp = await getCoursewarePreview(sessionId);
       if (resp) {
-        const pptData = resp.ppt_data || resp.pages;
-        const hasData = Array.isArray(pptData) && pptData.length > 0;
+        let pptData = resp.ppt_data || resp.pages;
+        let hasData = Array.isArray(pptData) && pptData.length > 0;
 
         if (!hasData && withPolling) {
           // Backend is still processing — keep polling every 3s (up to 120s)
-          return; // caller handles the retry loop
+          for (let attempt = 0; attempt < 7 && !hasData; attempt += 1) {
+            await new Promise(r => setTimeout(r, 1200));
+            resp = await getCoursewarePreview(sessionId);
+            pptData = resp?.ppt_data || resp?.pages;
+            hasData = Array.isArray(pptData) && pptData.length > 0;
+          }
         }
         
         // --- DEFENSIVE DATA RECOVERY FROM LOCAL STORAGE ---
@@ -205,7 +211,7 @@ export function useCourseware(sessionId: string) {
       if (ev.detail?.sessionId === sessionId) {
         // Backend commits every page to DB before yielding the SSE event,
         // but there might be a slight delay. Polling/timeout gives it time.
-        setTimeout(() => fetchPreview(), 1500);
+        setTimeout(() => fetchPreview(true), 1500);
       }
     };
 
@@ -234,7 +240,7 @@ export function useCourseware(sessionId: string) {
       // This allows the UI to stay responsive during incremental tool updates.
       // 延迟 1.5s 给后端落库的时间窗口，避免读取到旧数据
       setTimeout(() => {
-        fetchPreview().finally(() => {
+        fetchPreview(true).finally(() => {
           if (typeof actualPageIndex === 'number') {
             setUpdatingPages(prev => {
               const next = new Set(prev);

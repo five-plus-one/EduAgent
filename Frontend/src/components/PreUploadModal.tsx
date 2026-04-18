@@ -8,6 +8,8 @@ import { uploadUserImage, updateImageTags } from '../utils/api';
 import type { UserImage } from '../utils/api';
 import styles from './PreUploadModal.module.css';
 
+const EXIT_DURATION_MS = 220;
+
 // ── 每张图片的本地编辑状态 ──────────────────────────────────
 interface FileMetadata {
   label: string;
@@ -25,6 +27,7 @@ interface Props {
 }
 
 export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
+  const [closing, setClosing] = useState(false);
   // ── 当前选中的图片下标 ──────────────────────────────────
   const [currentIdx, setCurrentIdx] = useState(0);
   // ── 每张图片的 label / tags 草稿 ───────────────────────
@@ -50,7 +53,14 @@ export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
   useEffect(() => {
     setMetaMap(files.map(() => makeDefault()));
     setCurrentIdx(0);
+    setClosing(false);
   }, [files]);
+
+  const requestClose = () => {
+    if (uploading || closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, EXIT_DURATION_MS);
+  };
 
   const current = metaMap[currentIdx];
   const setCurrent = (patch: Partial<FileMetadata>) => {
@@ -97,7 +107,8 @@ export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
         setUploadProgress(Math.round(((i + 1) / files.length) * 100));
       }
       onUploaded(results);
-      onClose();
+      setClosing(true);
+      window.setTimeout(onClose, EXIT_DURATION_MS);
     } catch (e: any) {
       setError(
         `第 ${results.length + 1} 张图片上传失败：${e?.response?.data?.detail || e?.message || '未知错误'}`
@@ -112,8 +123,8 @@ export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
   const canNext = currentIdx < totalFiles - 1;
 
   return (
-    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && !uploading && onClose()}>
-      <aside className={styles.drawer}>
+    <div className={clsx(styles.overlay, closing && styles.overlayClosing)} onClick={e => e.target === e.currentTarget && requestClose()}>
+      <aside className={clsx(styles.drawer, closing && styles.drawerClosing)}>
 
         {/* ── Header ───────────────────────────────────────── */}
         <header className={styles.header}>
@@ -126,7 +137,7 @@ export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
           </div>
           <button
             className={styles.closeBtn}
-            onClick={onClose}
+            onClick={requestClose}
             disabled={uploading}
             title="取消"
           >
@@ -302,7 +313,7 @@ export default function PreUploadModal({ files, onClose, onUploaded }: Props) {
           <div className={styles.footerActions}>
             <button
               className={styles.cancelBtn}
-              onClick={onClose}
+              onClick={requestClose}
               disabled={uploading}
             >
               取消

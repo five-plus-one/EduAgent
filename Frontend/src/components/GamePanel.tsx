@@ -1,12 +1,12 @@
-/**
- * GamePanel v3 — 互动小游戏面板（流式生成版）
+﻿/**
+ * GamePanel v3 鈥?浜掑姩灏忔父鎴忛潰鏉匡紙娴佸紡鐢熸垚鐗堬級
  *
- * 核心升级：
- * - 真实 HTML 代码流式渲染（SSE → fetchEventSource → 自动降级轮询）
- * - StreamingCodeWindow：实时展示 LLM 输出的 HTML token
- * - AbortController：组件卸载时安全中断流
- * - 侧边栏折叠 / 全屏模式
- * - Agent 工具调用后自动刷新列表
+ * 鏍稿績鍗囩骇锛?
+ * - 鐪熷疄 HTML 浠ｇ爜娴佸紡娓叉煋锛圫SE 鈫?fetchEventSource 鈫?鑷姩闄嶇骇杞锛?
+ * - StreamingCodeWindow锛氬疄鏃跺睍绀?LLM 杈撳嚭鐨?HTML token
+ * - AbortController锛氱粍浠跺嵏杞芥椂瀹夊叏涓柇娴?
+ * - 渚ц竟鏍忔姌鍙?/ 鍏ㄥ睆妯″紡
+ * - Agent 宸ュ叿璋冪敤鍚庤嚜鍔ㄥ埛鏂板垪行
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { clsx } from 'clsx';
@@ -24,9 +24,9 @@ import {
 import { useGameStore } from '../store/useGameStore';
 import styles from './GamePanel.module.css';
 
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Types & Constants
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 interface GamePanelProps {
   sessionId: string;
   pendingSuggest: GameSuggestData | null;
@@ -38,10 +38,10 @@ interface GamePanelProps {
 
 const STAGES = ['pending', 'preparing', 'generating', 'writing'];
 const STAGE_LABELS: Record<string, string> = {
-  pending:    '等待开始',
-  preparing:  '准备素材',
+  pending: '等待开始',
+  preparing: '准备素材',
   generating: 'AI 生成中',
-  writing:    '写入文件',
+  writing: '写入文件',
 };
 
 function fmtDate(iso: string): string {
@@ -53,9 +53,9 @@ function fmtDate(iso: string): string {
   } catch { return iso; }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Sub: 游戏类型卡
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Sub: 游戏类型鍗?
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 function GameTypeCard({ label, hint, active, onClick }: {
   label: string; hint: string; active: boolean; onClick: () => void;
 }) {
@@ -70,16 +70,16 @@ function GameTypeCard({ label, hint, active, onClick }: {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Sub: 真实流式代码窗口
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// Sub: 鐪熷疄娴佸紡浠ｇ爜绐楀彛
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 interface StreamingCodeWindowProps {
   stage: string;
   progress: number;
   stageMessage?: string;
-  code: string;         // 实时累积的 HTML 代码
-  thinking?: string;    // 深度思考记录
-  isStreaming: boolean; // true = SSE 中，false = 轮询降级
+  code: string;         // 瀹炴椂绱Н鐨?HTML 浠ｇ爜
+  thinking?: string;    // 娣卞害鎬濊€冭褰?
+  isStreaming: boolean; // true = SSE 涓紝false = 杞闄嶇骇
 }
 
 function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, isStreaming }: StreamingCodeWindowProps) {
@@ -88,13 +88,13 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
   const stageIdx = STAGES.indexOf(stage);
   const pct = Math.max(0, Math.min(100, progress));
 
-  // 自动滚动到代码底部
+  // 鑷姩婊氬姩鍒颁唬鐮佸簳閮?
   useEffect(() => {
     const el = codeBodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [code]);
 
-  // 自动滚动深度思考的底部
+  // 鑷姩婊氬姩娣卞害鎬濊€冪殑搴曢儴
   useEffect(() => {
     const el = thinkingBodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -104,7 +104,7 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
 
   return (
     <div className={styles.typingWrap}>
-      {/* 阶段步骤 */}
+      {/* 闃舵姝ラ */}
       <div className={styles.stageRow}>
         {STAGES.map((s, i) => (
           <div key={s} className={clsx(styles.stageStep, i <= stageIdx && styles.stageStepDone)}>
@@ -114,23 +114,23 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
         ))}
       </div>
 
-      {/* 进度条 */}
+      {/* 杩涘害鏉?*/}
       <div className={styles.progressBarWrap}>
         <div className={styles.progressBar} style={{ width: `${pct}%` }} />
         <span className={styles.progressPct}>{pct}%</span>
       </div>
 
-      {/* 深度思考框 */}
+      {/* 娣卞害鎬濊€冩 */}
       {thinking && (
         <div className={styles.thinkingBox} ref={thinkingBodyRef}>
           <div className={styles.thinkingHeader}>
-            <Brain size={12} /> 第 {STAGE_LABELS[stage] ?? '处理'} 阶段思考中...
+            <Brain size={12} /> {STAGE_LABELS[stage] ?? '处理中'} 阶段思考中...
           </div>
           <div className={styles.thinkingText}>{thinking}</div>
         </div>
       )}
 
-      {/* 代码窗口 */}
+      {/* 浠ｇ爜绐楀彛 */}
       <div className={styles.codeWindow}>
         <div className={styles.codeWindowBar}>
           <span className={styles.codeDot} style={{ background: '#ff5f57' }} />
@@ -139,8 +139,8 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
           <span className={styles.codeWindowTitle}>
             game.html
             {isStreaming
-              ? <span className={styles.streamingBadge}>● LIVE</span>
-              : <span className={styles.pollingBadge}>↻ 轮询</span>}
+              ? <span className={styles.streamingBadge}>LIVE</span>
+              : <span className={styles.pollingBadge}>轮询</span>}
           </span>
         </div>
         <div className={styles.codeBody} ref={codeBodyRef}>
@@ -157,7 +157,7 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
               </div>
             ))
           )}
-          {/* 最后一行的光标 */}
+          {/* 鏈€鍚庝竴琛岀殑鍏夋爣 */}
           {lines.length > 0 && (
             <div className={styles.codeLine}>
               <span className={styles.codeLineNum}></span>
@@ -168,7 +168,7 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
           )}
         </div>
 
-        {/* 代码字符数统计 */}
+        {/* 浠ｇ爜瀛楃鏁扮粺璁?*/}
         {code.length > 0 && (
           <div className={styles.codeStats}>
             {code.length.toLocaleString()} 字符 · {lines.length} 行
@@ -184,19 +184,20 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 // Main: GamePanel
-// ─────────────────────────────────────────────────────────────────
+// 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 export default function GamePanel({
   sessionId, pendingSuggest, pendingTrigger,
   onClearSuggest, onClearTrigger, onActiveGameChange,
 }: GamePanelProps) {
+  const MANUAL_MODAL_EXIT_MS = 220;
 
-  // ── 布局 ────────────────────────────────────────────
+  // 鈹€鈹€ 甯冨眬 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // ── 全局游戏生成状态（从 store 读） ───────────────────────
+  // 鈹€鈹€ 鍏ㄥ眬娓告垙鐢熸垚鐘舵€侊紙浠?store 璇伙級 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const {
     gameLists, generating, generatingSessionId, generatingRefineId, genStage, genProgress, genStageMsg,
     streamedCode, genThinking, isLiveStream, genError, refreshingList, completedGameId,
@@ -206,8 +207,7 @@ export default function GamePanel({
 
   const isCurrentGenerating = generating && generatingSessionId === sessionId;
   const games: GameMeta[] = gameLists[sessionId] ?? [];
-
-  // ── 本地 UI 状态 ────────────────────────────────────────
+  // 鈹€鈹€ 鏈湴 UI 鐘舵€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [loadingList, setLoadingList]     = useState(false);
   const [deletingIds, setDeletingIds]     = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId]       = useState<string | null>(null);
@@ -216,7 +216,7 @@ export default function GamePanel({
   const [previewHtml, setPreviewHtml]     = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError]   = useState<string | null>(null);
-  // ref 追踪「当前已为哪个 gameId 发起/完成了 preview 请求」，避免重复 fetch
+  // ref 杩借釜銆屽綋鍓嶅凡涓哄摢涓?gameId 鍙戣捣/瀹屾垚浜?preview 璇锋眰銆嶏紝閬垮厤閲嶅 fetch
   const previewLoadedForRef = useRef<string | null>(null);
   const [sourceLoading, setSourceLoading]   = useState(false);
   const [sourceCode, setSourceCode]         = useState<string | null>(null);
@@ -227,31 +227,46 @@ export default function GamePanel({
   const [shareError, setShareError]         = useState<string | null>(null);
   
   const [showManualPanel, setShowManualPanel] = useState(false);
+  const [manualModalClosing, setManualModalClosing] = useState(false);
   const [manualType, setManualType]           = useState(GAME_TYPE_DEFAULTS[0].key);
   const [manualTitle, setManualTitle]         = useState('');
   const [manualTopics, setManualTopics]       = useState('');
   const [manualRequirements, setManualRequirements] = useState('');
 
-  // 重命名状态
+  // 閲嶅懡鍚嶇姸鎬?
   const [renamingId,  setRenamingId]  = useState<string | null>(null);
   const [renameVal,   setRenameVal]   = useState('');
   const [, setRenameSaving] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  // ── 通知父组件 ───────────────────────────────────────────
+  // 鈹€鈹€ 閫氱煡鐖剁粍浠?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => { onActiveGameChange(selectedId === 'generating' ? null : selectedId); }, [selectedId, onActiveGameChange]);
 
-  // ── 生成完成后自动选中新游戏 ────────────────────────────────────────
+  // 鈹€鈹€ 鐢熸垚瀹屾垚鍚庤嚜鍔ㄩ€変腑鏂版父鎴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => {
     if (completedGameId && generatingSessionId === sessionId) {
-      // 标记已为该 gameId 发起请求，配合 Effect B 的去重逻辑
-      previewLoadedForRef.current = completedGameId;
+      // 鏍囪宸蹭负璇?gameId 鍙戣捣璇锋眰锛岄厤鍚?Effect B 鐨勫幓閲嶉€昏緫
+      setPreviewHtml(null);
       setPreviewLoading(true);
       setPreviewError(null);
-      fetchGameHtml(completedGameId)
-        .then(html => setPreviewHtml(html))
-        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
-        .finally(() => setPreviewLoading(false));
+      (async () => {
+        try {
+          let html = await fetchGameHtml(completedGameId);
+          if (!html || !html.trim()) {
+            await new Promise(r => setTimeout(r, 800));
+            html = await fetchGameHtml(completedGameId);
+          }
+          if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+          previewLoadedForRef.current = completedGameId;
+          setPreviewHtml(html);
+        } catch (err: any) {
+          previewLoadedForRef.current = null;
+          setPreviewHtml(null);
+          setPreviewError(err?.message ?? 'Preview load failed');
+        } finally {
+          setPreviewLoading(false);
+        }
+      })();
 
       setSelectedId(completedGameId);
       setPreviewTab('preview');
@@ -260,14 +275,14 @@ export default function GamePanel({
     }
   }, [completedGameId, generatingSessionId, sessionId, clearCompletedGameId]);
 
-  // 当回到组件时，如果正在生成且没有选中项，自动选中 generating
+  // 褰撳洖鍒扮粍浠舵椂锛屽鏋滄鍦ㄧ敓鎴愪笖娌℃湁閫変腑椤癸紝鑷姩閫変腑 generating
   useEffect(() => {
     if (isCurrentGenerating && !selectedId) {
       setSelectedId('generating');
     }
   }, [isCurrentGenerating, selectedId]);
 
-  // 自动重连后台生成流：如果点击了正在生成但未在当前流中运行的卡片，自动发出恢复流请求
+  // 鑷姩閲嶈繛鍚庡彴鐢熸垚娴侊細濡傛灉鐐瑰嚮浜嗘鍦ㄧ敓鎴愪絾鏈湪褰撳墠娴佷腑杩愯鐨勫崱鐗囷紝鑷姩鍙戝嚭鎭㈠娴佽姹?
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     const g = games.find(x => x.game_id === selectedId);
@@ -278,7 +293,7 @@ export default function GamePanel({
     }
   }, [selectedId, games, isCurrentGenerating, generatingRefineId, sessionId, resumeGenerate]);
 
-  // ── 拉取游戏列表 ─────────────────────────────────────────
+  // 鈹€鈹€ 鎷夊彇娓告垙鍒楄〃 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const fetchGames = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true);
     try {
@@ -294,7 +309,7 @@ export default function GamePanel({
     }
   }, [sessionId, fetchGames, gameLists]);
 
-  // ── Agent 工具调用后自动刷新 ──────────────────────────
+  // 鈹€鈹€ Agent 宸ュ叿璋冪敤鍚庤嚜鍔ㄥ埛鏂?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => {
     const handler = (e: Event) => {
       const ev = e as CustomEvent;
@@ -306,7 +321,7 @@ export default function GamePanel({
     return () => window.removeEventListener('EduAgent_Generate_End', handler);
   }, [sessionId, refreshGames]);
 
-  // ── ESC 退出全屏 ───────────────────────────────────────
+  // 鈹€鈹€ ESC 閫€鍑哄叏灞?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isFullscreen) setIsFullscreen(false);
@@ -315,9 +330,15 @@ export default function GamePanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
-  // ─────────────────────────────────────────────────────
-  // 触发生成
-  // ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!showManualPanel) {
+      setManualModalClosing(false);
+    }
+  }, [showManualPanel]);
+
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // 瑙﹀彂鐢熸垚
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const triggerGenerate = useCallback((spec: GameSpec, refineId?: string | null) => {
     storeTrigger(sessionId, spec, refineId);
     setSelectedId('generating');
@@ -326,37 +347,57 @@ export default function GamePanel({
   const handleConfirmTrigger = useCallback(() => {
     if (!pendingTrigger) return;
     if (pendingTrigger.task_id) {
-      // 后端 game_trigger 事件携带了 task_id：后端已经在生成了
-      // 直接接管流监听进度，不重新调 generateGame（避免重复生成）
+      // 鍚庣 game_trigger 浜嬩欢鎼哄甫浜?task_id锛氬悗绔凡缁忓湪鐢熸垚浜?
+      // 鐩存帴鎺ョ娴佺洃鍚繘搴︼紝涓嶉噸鏂拌皟 generateGame锛堥伩鍏嶉噸澶嶇敓鎴愶級
       const refineId = pendingTrigger.is_refinement
         ? (pendingTrigger.game_id ?? selectedId)
         : null;
-      // 重置 UI 状态
+      // 閲嶇疆 UI 鐘舵€?
       setSelectedId('generating');
-      resumeGenerate(sessionId, refineId ?? pendingTrigger.task_id, pendingTrigger.task_id);
+      resumeGenerate(sessionId, refineId, pendingTrigger.task_id);
     } else {
-      // 手动创建 / 无 task_id：前端发起生成请求
+      // 手动创建 / 鏃?task_id锛氬墠绔彂璧风敓鎴愯姹?
       triggerGenerate(pendingTrigger, pendingTrigger.is_refinement ? selectedId : null);
     }
     onClearTrigger();
     onClearSuggest();
   }, [pendingTrigger, selectedId, triggerGenerate, resumeGenerate, sessionId, onClearTrigger, onClearSuggest]);
 
+  useEffect(() => {
+    if (!pendingTrigger?.task_id || generating) return;
+    handleConfirmTrigger();
+  }, [pendingTrigger, generating, handleConfirmTrigger]);
+
   const handleManualGenerate = () => {
     const spec: GameSpec = {
       game_type: manualType,
       title: manualTitle || (GAME_TYPE_DEFAULTS.find(t => t.key === manualType)?.label ?? '互动游戏'),
-      key_topics: manualTopics.split(/[，,、\n]/).map(s => s.trim()).filter(Boolean),
+      key_topics: manualTopics.split(/[锛?銆乗n]/).map(s => s.trim()).filter(Boolean),
       custom_requirements: manualRequirements,
       is_refinement: false,
     };
     triggerGenerate(spec, null);
+    setManualModalClosing(false);
     setShowManualPanel(false);
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // 重命名
-  // ─────────────────────────────────────────────────────────────
+  const openManualPanel = () => {
+    setManualModalClosing(false);
+    setShowManualPanel(true);
+  };
+
+  const closeManualPanel = () => {
+    if (manualModalClosing) return;
+    setManualModalClosing(true);
+    window.setTimeout(() => {
+      setShowManualPanel(false);
+      setManualModalClosing(false);
+    }, MANUAL_MODAL_EXIT_MS);
+  };
+
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // 閲嶅懡鍚?
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const startRename = (gameId: string, currentTitle: string) => {
     setRenamingId(gameId);
     setRenameVal(currentTitle);
@@ -370,28 +411,28 @@ export default function GamePanel({
     const originalTitle = games.find(g => g.game_id === renamingId)?.title ?? trimmed;
     if (trimmed === originalTitle) { setRenamingId(null); return; }
     setRenameSaving(true);
-    // 居观先更新，失败再回滚
+    // 灞呰鍏堟洿鏂帮紝澶辫触鍐嶅洖婊?
     renameGameInStore(sessionId, renamingId, trimmed);
     setRenamingId(null);
     try {
       await renameGame(renamingId, trimmed);
     } catch {
-      // 回滚
+      // 鍥炴粴
       renameGameInStore(sessionId, renamingId ?? '', originalTitle);
     } finally {
       setRenameSaving(false);
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   // 删除
-  // ─────────────────────────────────────────────────────────────
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const handleDelete = async (gameId: string) => {
     if (!confirm('确认删除该游戏？此操作不可撤销。')) return;
     setDeletingIds(prev => new Set(prev).add(gameId));
     try {
       await deleteGame(gameId);
-      // 从 store 同步删除
+      // 浠?store 鍚屾删除
       setGameList(sessionId, games.filter(g => g.game_id !== gameId));
       if (selectedId === gameId) { setSelectedId(null); setSourceCode(null); }
     } catch { alert('删除失败，请重试'); }
@@ -400,38 +441,65 @@ export default function GamePanel({
     }
   };
 
-  // ─────────────────────────────────────────────────────────────
-  // 源码加载
-  // ─────────────────────────────────────────────────────────────
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // 婧愮爜鍔犺浇
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const loadSource = useCallback(async (gameId: string) => {
     setSourceLoading(true); setSourceCode(null);
     try {
       const d = await getGameSource(gameId);
-      // API 返回结构: { html_content } 或 { content } 或 { html_code }
+      // API 杩斿洖缁撴瀯: { html_content } 鎴?{ content } 鎴?{ html_code }
       setSourceCode(d.html_content ?? d.content ?? d.html_code ?? '// 源码为空');
     }
     catch { setSourceCode('// 源码加载失败'); }
     finally { setSourceLoading(false); }
   }, []);
 
-  // ── 选中游戏 / Tab 切换时加载内容 ────────────────────────────────────
+  const loadPreviewHtml = useCallback(async (gameId: string, retry = false) => {
+    setPreviewError(null);
+    setPreviewLoading(true);
+    try {
+      const html = await fetchGameHtml(gameId);
+      if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+      previewLoadedForRef.current = gameId;
+      setPreviewHtml(html);
+    } catch (err: any) {
+      if (retry) {
+        try {
+          await new Promise(r => setTimeout(r, 800));
+          const html = await fetchGameHtml(gameId);
+          if (!html || !html.trim()) throw new Error('Preview HTML is empty');
+          previewLoadedForRef.current = gameId;
+          setPreviewHtml(html);
+          setPreviewError(null);
+          return;
+        } catch (retryErr: any) {
+          previewLoadedForRef.current = null;
+          setPreviewHtml(null);
+          setPreviewError(retryErr?.message ?? 'Preview load failed');
+          return;
+        }
+      }
+      previewLoadedForRef.current = null;
+      setPreviewHtml(null);
+      setPreviewError(err?.message ?? 'Preview load failed');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
+  // 鈹€鈹€ 閫変腑娓告垙 / Tab 鍒囨崲鏃跺姞杞藉唴瀹?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   useEffect(() => {
     if (!selectedId || selectedId === 'generating') return;
     if (previewTab === 'preview') {
-      // 已经在级漏为该 gameId（生成完成时提前拉取或已缓存），跳过
-      if (previewLoadedForRef.current === selectedId) return;
-      previewLoadedForRef.current = selectedId;
+      // 宸茬粡鍦ㄧ骇婕忎负璇?gameId锛堢敓鎴愬畬鎴愭椂鎻愬墠鎷夊彇鎴栧凡缂撳瓨锛夛紝璺宠繃
+      if (previewLoadedForRef.current === selectedId && previewHtml) return;
       setPreviewHtml(null);
-      setPreviewError(null);
-      setPreviewLoading(true);
-      fetchGameHtml(selectedId)
-        .then(html => setPreviewHtml(html))
-        .catch(err => setPreviewError(err?.message ?? '预览加载失败'))
-        .finally(() => setPreviewLoading(false));
+      loadPreviewHtml(selectedId, true);
     } else if (previewTab === 'source' && !sourceCode) {
       loadSource(selectedId);
     }
-  }, [selectedId, previewTab, loadSource]);
+  }, [selectedId, previewTab, previewHtml, loadPreviewHtml, loadSource, sourceCode]);
 
   const handleCopy = () => {
     if (!sourceCode) return;
@@ -440,7 +508,7 @@ export default function GamePanel({
     });
   };
 
-  // ── 分享链接复制 ─────────────────────────────────────────────────
+  // 鈹€鈹€ 分享链接澶嶅埗 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const handleCopyShareLink = async () => {
     if (!effectiveGameId || sharingLoading) return;
     setSharingLoading(true);
@@ -449,26 +517,26 @@ export default function GamePanel({
     let url: string;
     try {
       const link = await createShareLink(effectiveGameId);
-      // full_short_url 如果带域名用域名；都不带则拼当前页面 origin
+      // full_short_url 濡傛灉甯﹀煙鍚嶇敤鍩熷悕锛涢兘涓嶅甫鍒欐嫾褰撳墠椤甸潰 origin
       url = link.full_short_url
         || `${window.location.origin}${link.short_url}`
         || `${window.location.origin}/play/${link.code}`;
     } catch {
-      // 只有 API 真正失败才报错
+      // 鍙湁 API 鐪熸澶辫触鎵嶆姤閿?
       setShareError('生成分享链接失败');
       setTimeout(() => setShareError(null), 3000);
       setSharingLoading(false);
       return;
     }
 
-    // API 成功，尝试写入剪贴板
-    // iframe 占有焦点时 clipboard API 会抛 "Document is not focused"，用 execCommand 降级
+    // API 鎴愬姛锛屽皾璇曞啓鍏ュ壀璐存澘
+    // iframe 鍗犳湁鐒︾偣鏃?clipboard API 浼氭姏 "Document is not focused"锛岀敤 execCommand 闄嶇骇
     let copied = false;
     try {
       await navigator.clipboard.writeText(url);
       copied = true;
     } catch {
-      // 降级：创建临时 textarea，模拟 Ctrl+C
+      // 闄嶇骇锛氬垱寤轰复鏃?textarea锛屾ā鎷?Ctrl+C
       try {
         const ta = document.createElement('textarea');
         ta.value = url;
@@ -485,7 +553,7 @@ export default function GamePanel({
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2500);
     } else {
-      // 两种方法都失败：提示用户手动复制（URL 已获取，不报"失败"）
+      // 涓ょ鏂规硶閮藉け璐ワ細鎻愮ず鐢ㄦ埛鎵嬪姩澶嶅埗锛圲RL 宸茶幏鍙栵紝涓嶆姤"澶辫触"锛?
       setShareError(`链接已生成，请手动复制：${url}`);
       setTimeout(() => setShareError(null), 8000);
     }
@@ -493,29 +561,29 @@ export default function GamePanel({
     setSharingLoading(false);
   };
 
-  // previewLoadedForRef.current 在 selectedId 还没切换时也能找到游戏元数据
+  // previewLoadedForRef.current 鍦?selectedId 杩樻病鍒囨崲鏃朵篃鑳芥壘鍒版父鎴忓厓鏁版嵁
   const effectiveGameId = selectedId === 'generating' ? (previewLoadedForRef.current ?? null) : selectedId;
   const selectedGame = games.find(g => g.game_id === effectiveGameId);
 
-  // ─────────────────────────────────────────────────────────────
-  // 渲染
-  // ─────────────────────────────────────────────────────────────
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+  // 娓叉煋
+  // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   return (
-    <div className={clsx(styles.root, isFullscreen && styles.rootFullscreen)}>
+    <div className={clsx(styles.root, !sidebarOpen && styles.rootSidebarCollapsed, isFullscreen && styles.rootFullscreen)}>
 
-      {/* ─── 左栏 ─── */}
+      {/* 鈹€鈹€鈹€ 宸︽爮 鈹€鈹€鈹€ */}
       <div className={clsx(styles.sidebar, !sidebarOpen && styles.sidebarCollapsed)}>
         <button
           className={styles.collapseBtn}
           onClick={() => setSidebarOpen(v => !v)}
-          title={sidebarOpen ? '折叠侧边栏' : '展开侧边栏'}
+          title={sidebarOpen ? '折叠侧栏' : '展开侧栏'}
         >
           {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
         </button>
 
         {sidebarOpen && (
           <>
-            {/* AI 建议横幅 */}
+            {/* AI 寤鸿妯箙 */}
             {pendingSuggest && (
               <div className={styles.suggestBanner}>
                 <div className={styles.suggestHeader}>
@@ -538,8 +606,8 @@ export default function GamePanel({
               </div>
             )}
 
-            {/* AI 触发横幅 */}
-            {pendingTrigger && (
+            {/* AI 瑙﹀彂妯箙 */}
+            {pendingTrigger && !pendingTrigger.task_id && (
               <div className={styles.triggerBanner}>
                 <div className={styles.triggerHeader}>
                   <Zap size={13} className={styles.triggerIcon} />
@@ -559,12 +627,12 @@ export default function GamePanel({
                 )}
                 <button className={styles.confirmBtn} onClick={handleConfirmTrigger} disabled={generating}>
                   {generating ? <Loader2 size={13} className={styles.spin} /> : <Zap size={13} />}
-                  {pendingTrigger.is_refinement ? '应用修改 🎮' : '生成游戏 🎮'}
+                  {pendingTrigger.is_refinement ? '应用修改' : '生成游戏'}
                 </button>
               </div>
             )}
 
-            {/* 错误提示 */}
+            {/* 閿欒鎻愮ず */}
             {isCurrentGenerating && genError && (
               <div className={styles.errorBar}>
                 <AlertCircle size={13} />
@@ -573,55 +641,35 @@ export default function GamePanel({
               </div>
             )}
 
-            {/* 操作栏 */}
-            <div className={styles.listActions}>
+            {/* 鎿嶄綔鏍?*/}
+            <div className={styles.listToolbar}>
+              <span className={styles.listCount}>{games.length} 个</span>
+              <div className={styles.listActions}>
               <button
                 className={styles.newGameBtn}
-                onClick={() => setShowManualPanel(v => !v)}
+                onClick={openManualPanel}
                 disabled={generating || sessionId === 'new'}
               >
-                <Gamepad2 size={13} /> 手动创建
+                <Gamepad2 size={13} /> 创建游戏
               </button>
               <button className={styles.refreshBtn} onClick={() => fetchGames()} disabled={loadingList} title="刷新列表">
                 <RefreshCw size={13} className={clsx(loadingList && styles.spin)} />
               </button>
+              </div>
             </div>
 
-            {/* 手动创建面板 */}
-            {showManualPanel && (
-              <div className={styles.manualPanel}>
-                <p className={styles.manualLabel}>游戏类型</p>
-                <div className={styles.typeGrid}>
-                  {GAME_TYPE_DEFAULTS.map(t => (
-                    <GameTypeCard key={t.key} label={t.label} hint={t.hint}
-                      active={manualType === t.key} onClick={() => setManualType(t.key)} />
-                  ))}
-                </div>
-                <input className={styles.manualInput} placeholder="游戏标题（可选）"
-                  value={manualTitle} onChange={e => setManualTitle(e.target.value)} />
-                <input className={styles.manualInput} placeholder="知识点，用逗号分隔"
-                  value={manualTopics} onChange={e => setManualTopics(e.target.value)} />
-                <textarea className={clsx(styles.manualInput, styles.manualTextarea)}
-                  placeholder="自定义要求（可选）" rows={2}
-                  value={manualRequirements} onChange={e => setManualRequirements(e.target.value)} />
-                <button className={styles.confirmBtn} onClick={handleManualGenerate} disabled={isCurrentGenerating}>
-                  <Gamepad2 size={13} /> 开始生成
-                </button>
-              </div>
-            )}
-
-            {/* 游戏列表 */}
+            {/* 娓告垙鍒楄〃 */}
             {loadingList && games.length === 0 ? (
               <div className={styles.listLoading}><Loader2 size={18} className={styles.spin} /></div>
             ) : games.length === 0 && !isCurrentGenerating ? (
               <div className={styles.emptyList}>
                 <Gamepad2 size={26} className={styles.emptyIcon} />
                 <p>暂无游戏</p>
-                <small>告诉 AI 你想生成什么游戏，或点击「手动创建」</small>
+                <small>告诉 AI 你想生成什么游戏，或点击“手动创建”。</small>
               </div>
             ) : (
               <div className={styles.gameList}>
-                {/* 独立生成中骨架卡（仅当全新生成时显示） */}
+                {/* 鐙珛鐢熸垚涓鏋跺崱锛堜粎褰撳叏鏂扮敓鎴愭椂鏄剧ず锛?*/}
                 {isCurrentGenerating && !generatingRefineId && (
                   <div
                     className={clsx(styles.gameItem, styles.gameItemGenerating, selectedId === 'generating' && styles.gameItemActive)}
@@ -630,14 +678,14 @@ export default function GamePanel({
                     <div className={styles.generatingPulse} />
                     <div className={styles.gameItemMain}>
                       <span className={styles.gameItemTitle}>
-                        {isLiveStream ? '⚡ 实时生成中...' : '⏳ 生成中...'}
+                        {isLiveStream ? '实时生成中...' : '生成中...'}
                       </span>
                       <span className={styles.gameItemMeta}>
                         {STAGE_LABELS[genStage] ?? '处理中'} · {genProgress}%
                         {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
                       </span>
                     </div>
-                    {/* 右侧小箭头 */}
+                    {/* 鍙充晶灏忕澶?*/}
                     <div className={styles.gameItemRight}>
                       {selectedId === 'generating' && <ChevronRight size={13} className={styles.chevron} />}
                       <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
@@ -667,14 +715,14 @@ export default function GamePanel({
                         <div className={styles.generatingPulse} />
                         <div className={styles.gameItemMain}>
                           <span className={styles.gameItemTitle}>
-                            {isLiveStream ? '⚡ 实时修改中...' : '⏳ 修改中...'}
+                            {isLiveStream ? '实时修改中...' : '修改中...'}
                           </span>
                           <span className={styles.gameItemMeta}>
                             {STAGE_LABELS[genStage] ?? '处理中'} · {genProgress}%
                             {streamedCode && ` · ${streamedCode.length.toLocaleString()} 字符`}
                           </span>
                         </div>
-                        {/* 右侧小箭头 */}
+                        {/* 鍙充晶灏忕澶?*/}
                         <div className={styles.gameItemRight}>
                           {selectedId === 'generating' && <ChevronRight size={13} className={styles.chevron} />}
                           <Loader2 size={13} className={clsx(styles.spin, styles.statusGen)} />
@@ -732,10 +780,10 @@ export default function GamePanel({
         )}
       </div>
 
-      {/* ─── 右栏：预览 ─── */}
+      {/* 鈹€鈹€鈹€ 鍙虫爮锛氶瑙?鈹€鈹€鈹€ */}
       <div className={styles.preview}>
         {(selectedId === 'generating' || selectedId === generatingRefineId) && isCurrentGenerating ? (
-          /* 实时流式代码窗口 */
+          /* 瀹炴椂娴佸紡浠ｇ爜绐楀彛 */
           <StreamingCodeWindow
             stage={genStage}
             progress={genProgress}
@@ -745,36 +793,111 @@ export default function GamePanel({
             isStreaming={isLiveStream}
           />
         ) : refreshingList && selectedId === 'generating' && !previewHtml ? (
-          /* 生成完成，正在拉取列表的过渡态（HTML还未就绪时才显示） */
+          /* 鐢熸垚瀹屾垚锛屾鍦ㄦ媺鍙栧垪琛ㄧ殑杩囨浮鎬侊紙HTML杩樻湭灏辩华鏃舵墠鏄剧ず锛?*/
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>正在加载游戏...</p>
             <small>马上就好，游戏即将可以运行</small>
           </div>
         ) : selectedGame?.status === 'generating' ? (
-          /* 未完成或后台生成中的挂起状态 */
+          /* 鏈畬鎴愭垨鍚庡彴鐢熸垚涓殑鎸傝捣鐘舵€?*/
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
             <p>后台正在生成中...</p>
-            <small>由于页面刷新等原因未连接实时进度，生成完毕后方可预览</small>
+            <small>由于页面刷新等原因暂未连上实时进度，生成完成后即可预览</small>
           </div>
         ) : selectedId === 'generating' && (completedGameId || previewLoading) ? (
-          /* 过渡帧：completedGameId 已设置但本地 Effect 尚未切换 selectedId，或 HTML 正在加载 */
+          /* 杩囨浮甯э細completedGameId 宸茶缃絾鏈湴 Effect 灏氭湭鍒囨崲 selectedId锛屾垨 HTML 姝ｅ湪鍔犺浇 */
           <div className={styles.previewEmpty}>
             <Loader2 size={36} className={clsx(styles.spin, styles.emptyIcon)} />
-            <p>游戏生成完成，加载预览中...</p>
+            <p>游戏生成完成，正在加载预览...</p>
             <small>马上就好</small>
           </div>
         ) : (!selectedId || selectedId === 'generating') ? (
           <div className={styles.previewEmpty}>
             <Gamepad2 size={40} className={styles.emptyIcon} />
             <p>选择左侧游戏进行预览</p>
-            <small>游戏以完全自含 HTML 形式运行，无网络请求</small>
+            <small>游戏以完全自包含 HTML 形式运行，无网络请求</small>
           </div>
         ) : (
           <>
-            {/* 预览工具栏 */}
+            {/* 棰勮宸ュ叿鏍?*/}
             <div className={styles.previewHeader}>
+              <div className={styles.previewTopbar}>
+                <div className={styles.previewMeta}>
+                  <div className={styles.previewHeading}>
+                    {selectedGame && renamingId === selectedGame.game_id ? (
+                      <input
+                        ref={renameInputRef}
+                        className={styles.previewTitleInput}
+                        value={renameVal}
+                        onChange={e => setRenameVal(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') setRenamingId(null);
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className={styles.previewTitle}
+                        title="点击重命名"
+                        onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
+                      >{selectedGame?.title}</span>
+                    )}
+                    {selectedGame && <span className={styles.previewDetail}>{selectedGame.type_label} · v{selectedGame.version} · {fmtDate(selectedGame.updated_at)}</span>}
+                  </div>
+                </div>
+
+                <div className={styles.previewActions}>
+                  {shareError && (
+                    <span className={styles.shareErrorTip}>{shareError}</span>
+                  )}
+                  {previewTab === 'source' && (
+                    <button className={styles.iconActionBtn} onClick={handleCopy} disabled={!sourceCode} title="复制代码">
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  )}
+                  <button
+                    className={clsx(styles.previewLinkBtn, shareCopied && styles.shareBtnCopied)}
+                    onClick={handleCopyShareLink}
+                    disabled={sharingLoading || !effectiveGameId}
+                    title="生成短链接并复制到剪贴板，可嵌入 PPT"
+                  >
+                    {sharingLoading
+                      ? <Loader2 size={13} className={styles.spin} />
+                      : shareCopied
+                        ? <><Check size={13} /> 已复制</>
+                        : <><Share2 size={13} /> 分享</>
+                    }
+                  </button>
+                  <a
+                    href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.iconActionBtn}
+                    title="在新标签页打开"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                  <button
+                    className={styles.iconActionBtn}
+                    onClick={() => setSidebarOpen(v => !v)}
+                    title={sidebarOpen ? '隐藏侧栏，专注预览' : '显示侧栏'}
+                  >
+                    {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+                  </button>
+                  <button
+                    className={styles.iconActionBtn}
+                    onClick={() => setIsFullscreen(v => !v)}
+                    title={isFullscreen ? '退出全屏 (Esc)' : '全屏预览'}
+                  >
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                </div>
+              </div>
+
               <div className={styles.previewTabs}>
                 <button
                   className={clsx(styles.previewTab, previewTab === 'preview' && styles.previewTabActive)}
@@ -789,83 +912,9 @@ export default function GamePanel({
                   <Code2 size={13} /> HTML 源码
                 </button>
               </div>
-
-              <div className={styles.previewMeta}>
-                {selectedGame && renamingId === selectedGame.game_id ? (
-                  <input
-                    ref={renameInputRef}
-                    className={styles.previewTitleInput}
-                    value={renameVal}
-                    onChange={e => setRenameVal(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') commitRename();
-                      if (e.key === 'Escape') setRenamingId(null);
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    className={styles.previewTitle}
-                    title="点击重命名"
-                    onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
-                  >{selectedGame?.title}</span>
-                )}
-                {selectedGame && <span className={styles.previewVersion}>v{selectedGame.version}</span>}
-              </div>
-
-              <div className={styles.previewActions}>
-                {/* 分享错误提示 */}
-                {shareError && (
-                  <span className={styles.shareErrorTip}>{shareError}</span>
-                )}
-                {previewTab === 'source' && (
-                  <button className={styles.iconActionBtn} onClick={handleCopy} disabled={!sourceCode} title="复制代码">
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                )}
-                {/* 复制分享链接 */}
-                <button
-                  className={clsx(styles.shareBtn, shareCopied && styles.shareBtnCopied)}
-                  onClick={handleCopyShareLink}
-                  disabled={sharingLoading || !effectiveGameId}
-                  title="生成短链接并复制到剪贴板，可嵌入PPT"
-                >
-                  {sharingLoading
-                    ? <Loader2 size={13} className={styles.spin} />
-                    : shareCopied
-                      ? <><Check size={13} /> 已复制</>
-                      : <><Share2 size={13} /> 分享链接</>
-                  }
-                </button>
-                {/* 新标签页打开 */}
-                <a
-                  href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.iconActionBtn}
-                  title="在新标签页用原始链接打开"
-                >
-                  <ExternalLink size={14} />
-                </a>
-                <button
-                  className={styles.iconActionBtn}
-                  onClick={() => setSidebarOpen(v => !v)}
-                  title={sidebarOpen ? '隐藏侧边栏，专注游戏' : '显示侧边栏'}
-                >
-                  {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-                </button>
-                <button
-                  className={styles.iconActionBtn}
-                  onClick={() => setIsFullscreen(v => !v)}
-                  title={isFullscreen ? '退出全屏 (Esc)' : '全屏预览'}
-                >
-                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                </button>
-              </div>
             </div>
 
-            {/* 内容区 */}
+            {/* 鍐呭鍖?*/}
             {previewTab === 'preview' ? (
               <div className={styles.iframeWrap}>
                 {previewLoading && (
@@ -882,12 +931,7 @@ export default function GamePanel({
                       className={styles.retryBtn}
                       onClick={() => {
                         if (!effectiveGameId) return;
-                        setPreviewError(null);
-                        setPreviewLoading(true);
-                        fetchGameHtml(effectiveGameId)
-                          .then(setPreviewHtml)
-                          .catch(e => setPreviewError(e?.message ?? '加载失败'))
-                          .finally(() => setPreviewLoading(false));
+                        loadPreviewHtml(effectiveGameId, true);
                       }}
                     >
                       <RefreshCw size={12} /> 重试
@@ -927,6 +971,77 @@ export default function GamePanel({
           </>
         )}
       </div>
+
+      {showManualPanel && (
+        <div
+          className={clsx(styles.manualModalOverlay, manualModalClosing && styles.manualModalOverlayClosing)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeManualPanel();
+            }
+          }}
+        >
+          <div className={clsx(styles.manualModal, manualModalClosing && styles.manualModalClosing)}>
+            <div className={styles.manualModalHeader}>
+              <div>
+                <p className={styles.manualModalEyebrow}>Game Builder</p>
+                <h3 className={styles.manualModalTitle}>手动创建游戏</h3>
+                <p className={styles.manualModalSubtitle}>先选玩法，再补充标题、知识点和生成要求。</p>
+              </div>
+              <button className={styles.iconActionBtn} type="button" onClick={closeManualPanel} title="关闭">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className={styles.manualModalBody}>
+              <div className={styles.typeGrid}>
+                {GAME_TYPE_DEFAULTS.map(t => (
+                  <GameTypeCard
+                    key={t.key}
+                    label={t.label}
+                    hint={t.hint}
+                    active={manualType === t.key}
+                    onClick={() => setManualType(t.key)}
+                  />
+                ))}
+              </div>
+
+              <div className={styles.manualFieldGroup}>
+                <input
+                  className={styles.manualInput}
+                  placeholder="游戏标题（可选）"
+                  value={manualTitle}
+                  onChange={e => setManualTitle(e.target.value)}
+                />
+                <input
+                  className={styles.manualInput}
+                  placeholder="知识点，使用逗号分隔"
+                  value={manualTopics}
+                  onChange={e => setManualTopics(e.target.value)}
+                />
+                <textarea
+                  className={clsx(styles.manualInput, styles.manualTextarea)}
+                  placeholder="自定义要求（可选）"
+                  rows={3}
+                  value={manualRequirements}
+                  onChange={e => setManualRequirements(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className={styles.manualModalFooter}>
+              <button className={styles.secondaryBtn} type="button" onClick={closeManualPanel}>
+                取消
+              </button>
+              <button className={styles.confirmBtn} type="button" onClick={handleManualGenerate} disabled={isCurrentGenerating}>
+                <Gamepad2 size={13} /> 开始生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+

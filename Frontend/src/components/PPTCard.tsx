@@ -555,7 +555,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div className={styles.skeletonOverlay}>
             <div className={styles.scanLine} />
             <Loader2 className={styles.spinner} size={32} />
-            <span className={styles.updatingText}>AI 正在针对此页执行局部重塑...</span>
+            <span className={styles.updatingText}>AI 正在重排这一页的内容与版式，请稍候...</span>
           </div>
         )}
 
@@ -564,7 +564,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div className={clsx(styles.iterateBar, 'glass-panel')}>
             <input 
               type="text" 
-              placeholder="例如：少一点文字，加一个公式推导动图..."
+              placeholder="例如：精简文字、强化重点结论，补一段公式推导动画"
               className={styles.iterateInput}
               value={instruction}
               onChange={e => setInstruction(e.target.value)}
@@ -576,6 +576,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
               onClick={handleSubmit}
             >
               <Send size={14} />
+              <span>应用修改</span>
             </button>
           </div>
         )}
@@ -586,7 +587,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
             <div className={styles.scanLine} />
             <div className={styles.updatingBadge}>
               <Loader2 size={14} className={styles.spinner} />
-              <span>AI 修改中...</span>
+              <span>AI 正在改写本页</span>
             </div>
           </div>
         )}

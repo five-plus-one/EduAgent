@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { X, Library, Image as ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { KnowledgeBasePanel } from '../pages/KnowledgeBase';
@@ -15,37 +15,33 @@ interface AssetDrawerProps {
 }
 
 const TABS: { key: AssetTab; label: string; icon: typeof Library }[] = [
-  { key: 'knowledge', label: '知识库',   icon: Library   },
-  { key: 'images',    label: '图片素材', icon: ImageIcon },
+  { key: 'knowledge', label: '知识库文档', icon: Library },
+  { key: 'images', label: '图片素材', icon: ImageIcon },
 ];
 
 export default function AssetDrawer({ open, tab, onClose, onTabChange }: AssetDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
-  // Trap scroll: prevent body from scrolling under the backdrop
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className={clsx(styles.backdrop, open && styles.backdropVisible)}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className={clsx(styles.backdrop, open && styles.backdropVisible)} onClick={onClose} aria-hidden="true" />
 
-      {/* Drawer panel */}
       <div
         ref={drawerRef}
         className={clsx(styles.drawer, open && styles.drawerOpen)}
@@ -53,9 +49,7 @@ export default function AssetDrawer({ open, tab, onClose, onTabChange }: AssetDr
         aria-modal="true"
         aria-label="素材管理"
       >
-        {/* Header */}
         <div className={styles.header}>
-          {/* Tab Bar */}
           <nav className={styles.tabBar} role="tablist">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button
@@ -71,16 +65,14 @@ export default function AssetDrawer({ open, tab, onClose, onTabChange }: AssetDr
             ))}
           </nav>
 
-          {/* Close */}
           <button className={styles.closeBtn} onClick={onClose} aria-label="关闭素材管理">
             <X size={18} />
           </button>
         </div>
 
-        {/* Content */}
         <div className={styles.content} role="tabpanel">
           {tab === 'knowledge' && <KnowledgeBasePanel compact />}
-          {tab === 'images'    && <ImageUploadPanel />}
+          {tab === 'images' && <ImageUploadPanel />}
         </div>
       </div>
     </>
