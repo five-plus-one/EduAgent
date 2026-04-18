@@ -83,6 +83,22 @@ export default function Workspace() {
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
   const [isMicPressed, setIsMicPressed] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 900 : false,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const media = window.matchMedia('(max-width: 900px)');
+    const syncViewport = () => setIsMobileViewport(media.matches);
+    syncViewport();
+
+    media.addEventListener('change', syncViewport);
+    return () => media.removeEventListener('change', syncViewport);
+  }, []);
 
   const {
     isSupported: isSpeechSupported,
@@ -1571,7 +1587,7 @@ export default function Workspace() {
                 onClearSuggest={() => setPendingSuggest(null)}
                 onClearTrigger={() => setPendingTrigger(null)}
                 onActiveGameChange={setActiveGameId}
-                mobileImmersive
+                mobileImmersive={isMobileViewport}
               />
             )}
             {sessionId === 'new' && (
@@ -1624,7 +1640,7 @@ export default function Workspace() {
         />
       )}
 
-      {sessionId !== 'new' && !(activeTab === 'games' && activeGameId) && (
+      {sessionId !== 'new' && !(isMobileViewport && activeTab === 'games' && activeGameId) && (
         <nav className={styles.mobileWorkspaceNav}>
           <button
             className={styles.mobileWorkspaceNavBtn}

@@ -927,21 +927,6 @@
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 1100px) {
-  .root {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebarCollapsed {
-    width: 100%;
-    align-items: stretch;
-  }
-
-  .sidebarCollapsed > :not(.collapseBtn) {
-    display: none !important;
-  }
-}
-
 @media (max-width: 900px) {
   .root,
   .rootFullscreen {
