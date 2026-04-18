@@ -105,7 +105,7 @@
     display: flex;
     min-height: 100dvh;
     padding-top: var(--layout-mobile-topbar);
-    padding-bottom: calc(var(--layout-mobile-nav) + env(safe-area-inset-bottom));
+    padding-bottom: 0;
     transition: none;
   }
 

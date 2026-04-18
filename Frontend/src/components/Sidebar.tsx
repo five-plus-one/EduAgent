@@ -62,7 +62,6 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const [isCreating, setIsCreating] = useState(false);
 
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -210,11 +209,10 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     }
   };
 
-  const openMenu = (e: MouseEvent, sessionId: string) => {
+  const toggleSessionActions = (e: MouseEvent<HTMLButtonElement>, sessionId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenuSessionId(sessionId);
-    setMenuPos({ x: e.clientX, y: e.clientY });
+    setMenuSessionId((prev) => (prev === sessionId ? null : sessionId));
   };
 
   const startRename = (session: SessionItem) => {
@@ -421,11 +419,12 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                         </button>
                       </div>
                     ) : (
-                      <div className={clsx(styles.sessionRow, collapsed && styles.sessionRowCollapsed)}>
+                      <div className={clsx(styles.sessionCard, collapsed && styles.sessionRowCollapsed)}>
                         <NavLink
                           to={`/chat/${session.session_id}`}
                           className={({ isActive }) => clsx(
                             styles.sessionItem,
+                            styles.sessionItemWithMenu,
                             collapsed && styles.sessionItemCollapsed,
                             isActive && styles.active,
                           )}
@@ -441,11 +440,33 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                         {!collapsed && (
                           <button
                             className={styles.menuTrigger}
-                            onClick={(e) => openMenu(e, session.session_id)}
-                            title="更多操作"
+                            onClick={(e) => toggleSessionActions(e, session.session_id)}
+                            title="会话操作"
+                            aria-expanded={menuSessionId === session.session_id}
+                            aria-label="展开会话操作"
                           >
-                            <MoreHorizontal size={14} />
+                            <MoreHorizontal size={12} />
                           </button>
+                        )}
+                        {!collapsed && menuSessionId === session.session_id && (
+                          <div className={styles.contextMenu} onClick={(e) => e.stopPropagation()}>
+                            <button
+                              className={styles.contextMenuItem}
+                              onClick={() => startRename(session)}
+                            >
+                              <Pencil size={13} /> 重命名
+                            </button>
+                            <div className={styles.contextDivider} />
+                            <button
+                              className={clsx(styles.contextMenuItem, styles.contextDanger)}
+                              onClick={() => {
+                                setDeleteConfirmId(session.session_id);
+                                setMenuSessionId(null);
+                              }}
+                            >
+                              <Trash2 size={13} /> 删除会话
+                            </button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -581,30 +602,6 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {menuSessionId && (
-        <div className={styles.contextMenu} style={{ top: menuPos.y, left: menuPos.x }} onClick={(e) => e.stopPropagation()}>
-          <button
-            className={styles.contextMenuItem}
-            onClick={() => {
-              const session = sessions.find((s) => s.session_id === menuSessionId);
-              if (session) startRename(session);
-            }}
-          >
-            <Pencil size={13} /> 重命名
-          </button>
-          <div className={styles.contextDivider} />
-          <button
-            className={clsx(styles.contextMenuItem, styles.contextDanger)}
-            onClick={() => {
-              setDeleteConfirmId(menuSessionId);
-              setMenuSessionId(null);
-            }}
-          >
-            <Trash2 size={13} /> 删除会话
-          </button>
         </div>
       )}
 

@@ -169,14 +169,8 @@
   list-style: none;
 }
 
-.sessionRow {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.sessionRowCollapsed {
-  justify-content: center;
+.sessionCard {
+  position: relative;
 }
 
 .sessionItem {
@@ -192,6 +186,10 @@
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid transparent;
   transition: background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast), box-shadow var(--motion-fast), color var(--motion-fast);
+}
+
+.sessionItemWithMenu {
+  padding-right: 42px;
 }
 
 .sessionItemCollapsed {
@@ -240,11 +238,16 @@
 }
 
 .menuTrigger {
-  width: 38px;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   border: 1px solid rgba(121, 164, 255, 0.18);
   background: rgba(255, 255, 255, 0.78);
   color: var(--text-muted);
-  border-radius: 14px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -253,8 +256,8 @@
   transition: opacity var(--motion-fast), transform var(--motion-fast), background var(--motion-fast), color var(--motion-fast);
 }
 
-.sessionRow:hover .menuTrigger,
-.active + .menuTrigger {
+.sessionCard:hover .menuTrigger,
+.sessionCard:focus-within .menuTrigger {
   opacity: 1;
 }
 
@@ -262,6 +265,10 @@
   color: var(--brand-strong);
   background: #fff;
   transform: translateY(-1px);
+}
+
+.sessionRowCollapsed {
+  justify-content: center;
 }
 
 .renameRow {
@@ -541,8 +548,10 @@
 }
 
 .contextMenu {
-  position: fixed;
-  z-index: 9999;
+  position: absolute;
+  top: calc(100% - 6px);
+  right: 8px;
+  z-index: 20;
   min-width: 156px;
   padding: 6px;
   border-radius: 16px;
@@ -809,6 +818,12 @@
 
   .menuTrigger {
     opacity: 1;
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    border-radius: 10px;
+    top: 8px;
+    right: 8px;
   }
 
   .modal {
