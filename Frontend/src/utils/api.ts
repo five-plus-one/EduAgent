@@ -24,11 +24,17 @@ const API_MESSAGE_TRANSLATIONS: Record<string, string> = {
   'Not authenticated': '请先登录后再继续',
   'Invalid or expired token': '登录已过期，请重新登录',
   'The user with this username already exists in the system.': '该用户名已存在，请更换后重试',
+  'Speech transcription service is missing API key': '语音转写服务未配置，请联系管理员。',
+  'Speech transcription service is unavailable': '语音转写服务当前不可用，请稍后重试。',
+  'Uploaded audio file is empty': '没有录到有效声音，请按住说话后再松开。',
 };
 
 const localizeApiMessage = (message: string) => {
   const trimmed = message.trim();
   if (!trimmed) return trimmed;
+  if (trimmed.startsWith('ASR upstream request failed:')) return '语音转写上游服务调用失败，请稍后重试。';
+  if (trimmed.startsWith('ASR service connection failed:')) return '语音转写服务连接失败，请检查网络后重试。';
+  if (trimmed.startsWith('Speech transcription failed:')) return '语音转写失败，请稍后重试。';
   return API_MESSAGE_TRANSLATIONS[trimmed] ?? trimmed;
 };
 
