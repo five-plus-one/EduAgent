@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef, useState, useCallback, type MouseEvent } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import {
   MessageSquarePlus,
   History,
@@ -80,6 +81,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
   const listContainerRef = useRef<HTMLUListElement>(null);
   const sentinelRef = useRef<HTMLLIElement>(null);
+  const modalRoot = typeof document !== 'undefined' ? document.body : null;
 
   useEffect(() => {
     const handleGlobalNew = () => openNewModal();
@@ -566,104 +568,109 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         </div>
       </aside>
 
-      {(showNewModal || closingNewModal) && (
-        <div className={clsx(styles.modalOverlay, closingNewModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeNewModal()}>
-          <div className={clsx(styles.modal, closingNewModal && styles.modalClosing)}>
-            <div className={styles.modalHeader}>
-              <div className={styles.modalIcon}><Sparkles size={22} /></div>
-              <h2 className={styles.modalTitle}>新建课件会话</h2>
-              <p className={styles.modalSubtitle}>先起一个名字，后面仍然可以随时修改。</p>
-            </div>
+      {modalRoot && createPortal(
+        <>
+          {(showNewModal || closingNewModal) && (
+            <div className={clsx(styles.modalOverlay, closingNewModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeNewModal()}>
+              <div className={clsx(styles.modal, closingNewModal && styles.modalClosing)}>
+                <div className={styles.modalHeader}>
+                  <div className={styles.modalIcon}><Sparkles size={22} /></div>
+                  <h2 className={styles.modalTitle}>新建课件会话</h2>
+                  <p className={styles.modalSubtitle}>先起一个名字，后面仍然可以随时修改。</p>
+                </div>
 
-            <div className={styles.modalBody}>
-              <label className={styles.modalLabel}>
-                <BookOpen size={14} /> 课件名称
-              </label>
-              <input
-                autoFocus
-                className={styles.modalInput}
-                placeholder="例如：牛顿第二定律、细胞呼吸、离散数学导论"
-                value={newSessionName}
-                onChange={(e) => setNewSessionName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleCreateSession();
-                  if (e.key === 'Escape') closeNewModal();
-                }}
-                disabled={isCreating}
-                maxLength={60}
-              />
-              <p className={styles.modalHint}>新会话会直接进入工作台，并沿用当前统一的设计系统与编辑流程。</p>
-            </div>
+                <div className={styles.modalBody}>
+                  <label className={styles.modalLabel}>
+                    <BookOpen size={14} /> 课件名称
+                  </label>
+                  <input
+                    autoFocus
+                    className={styles.modalInput}
+                    placeholder="例如：牛顿第二定律、细胞呼吸、离散数学导论"
+                    value={newSessionName}
+                    onChange={(e) => setNewSessionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleCreateSession();
+                      if (e.key === 'Escape') closeNewModal();
+                    }}
+                    disabled={isCreating}
+                    maxLength={60}
+                  />
+                  <p className={styles.modalHint}>新会话会直接进入工作台，并沿用当前统一的设计系统与编辑流程。</p>
+                </div>
 
-            <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={closeNewModal} disabled={isCreating}>取消</button>
-              <button className={styles.modalSubmitBtn} onClick={handleCreateSession} disabled={isCreating}>
-                {isCreating ? <><Loader2 size={15} className={styles.spinner} /> 创建中...</> : <><Sparkles size={15} /> 开始备课</>}
-              </button>
+                <div className={styles.modalFooter}>
+                  <button className={styles.modalCancelBtn} onClick={closeNewModal} disabled={isCreating}>取消</button>
+                  <button className={styles.modalSubmitBtn} onClick={handleCreateSession} disabled={isCreating}>
+                    {isCreating ? <><Loader2 size={15} className={styles.spinner} /> 创建中...</> : <><Sparkles size={15} /> 开始备课</>}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {(deleteConfirmId || closingDeleteModal) && (
-        <div className={clsx(styles.modalOverlay, closingDeleteModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeDeleteModal()}>
-          <div className={clsx(styles.modal, styles.modalSmall, closingDeleteModal && styles.modalClosing)}>
-            <div className={styles.modalHeader}>
-              <div className={clsx(styles.modalIcon, styles.modalIconDanger)}><Trash2 size={20} /></div>
-              <h2 className={styles.modalTitle}>删除会话</h2>
-              <p className={styles.modalSubtitle}>删除后，当前会话的对话、课件和讲义记录都会被永久移除，无法恢复。</p>
+          {(deleteConfirmId || closingDeleteModal) && (
+            <div className={clsx(styles.modalOverlay, closingDeleteModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeDeleteModal()}>
+              <div className={clsx(styles.modal, styles.modalSmall, closingDeleteModal && styles.modalClosing)}>
+                <div className={styles.modalHeader}>
+                  <div className={clsx(styles.modalIcon, styles.modalIconDanger)}><Trash2 size={20} /></div>
+                  <h2 className={styles.modalTitle}>删除会话</h2>
+                  <p className={styles.modalSubtitle}>删除后，当前会话的对话、课件和讲义记录都会被永久移除，无法恢复。</p>
+                </div>
+                <div className={styles.modalFooter}>
+                  <button className={styles.modalCancelBtn} onClick={closeDeleteModal} disabled={isDeletingSession}>取消</button>
+                  <button className={clsx(styles.modalSubmitBtn, styles.modalSubmitDanger)} onClick={handleDeleteSession} disabled={isDeletingSession}>
+                    {isDeletingSession ? <><Loader2 size={15} className={styles.spinner} /> 删除中...</> : <><Trash2 size={15} /> 确认删除</>}
+                  </button>
+                </div>
+              </div>
             </div>
-            <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={closeDeleteModal} disabled={isDeletingSession}>取消</button>
-              <button className={clsx(styles.modalSubmitBtn, styles.modalSubmitDanger)} onClick={handleDeleteSession} disabled={isDeletingSession}>
-                {isDeletingSession ? <><Loader2 size={15} className={styles.spinner} /> 删除中...</> : <><Trash2 size={15} /> 确认删除</>}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      {(showProfileModal || closingProfileModal) && (
-        <div className={clsx(styles.modalOverlay, closingProfileModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeProfileModal()}>
-          <div className={clsx(styles.modal, styles.modalSmall, closingProfileModal && styles.modalClosing)}>
-            <div className={styles.modalHeader}>
-              <div className={styles.modalIcon}><UserCircle size={22} /></div>
-              <h2 className={styles.modalTitle}>个人信息</h2>
-              <p className={styles.modalSubtitle}>用于侧栏展示，也会帮助 AI 理解你的教学身份与场景。</p>
-            </div>
+          {(showProfileModal || closingProfileModal) && (
+            <div className={clsx(styles.modalOverlay, closingProfileModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeProfileModal()}>
+              <div className={clsx(styles.modal, styles.modalSmall, closingProfileModal && styles.modalClosing)}>
+                <div className={styles.modalHeader}>
+                  <div className={styles.modalIcon}><UserCircle size={22} /></div>
+                  <h2 className={styles.modalTitle}>个人信息</h2>
+                  <p className={styles.modalSubtitle}>用于侧栏展示，也会帮助 AI 理解你的教学身份与场景。</p>
+                </div>
 
-            <div className={styles.modalBody}>
-              <label className={styles.modalLabel}><User size={13} /> 显示名称</label>
-              <input
-                autoFocus
-                className={styles.modalInput}
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-                placeholder="例如：王老师"
-                disabled={isSavingProfile}
-                maxLength={30}
-              />
+                <div className={styles.modalBody}>
+                  <label className={styles.modalLabel}><User size={13} /> 显示名称</label>
+                  <input
+                    autoFocus
+                    className={styles.modalInput}
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    placeholder="例如：王老师"
+                    disabled={isSavingProfile}
+                    maxLength={30}
+                  />
 
-              <label className={styles.modalLabel} style={{ marginTop: 12 }}><Building2 size={13} /> 院系 / 单位</label>
-              <input
-                className={styles.modalInput}
-                value={profileDept}
-                onChange={(e) => setProfileDept(e.target.value)}
-                placeholder="例如：物理学院"
-                disabled={isSavingProfile}
-                maxLength={30}
-                onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
-              />
-            </div>
+                  <label className={styles.modalLabel} style={{ marginTop: 12 }}><Building2 size={13} /> 院系 / 单位</label>
+                  <input
+                    className={styles.modalInput}
+                    value={profileDept}
+                    onChange={(e) => setProfileDept(e.target.value)}
+                    placeholder="例如：物理学院"
+                    disabled={isSavingProfile}
+                    maxLength={30}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
+                  />
+                </div>
 
-            <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={closeProfileModal} disabled={isSavingProfile}>取消</button>
-              <button className={styles.modalSubmitBtn} onClick={handleSaveProfile} disabled={isSavingProfile}>
-                {isSavingProfile ? <><Loader2 size={15} className={styles.spinner} /> 保存中...</> : <><Check size={15} /> 保存</>}
-              </button>
+                <div className={styles.modalFooter}>
+                  <button className={styles.modalCancelBtn} onClick={closeProfileModal} disabled={isSavingProfile}>取消</button>
+                  <button className={styles.modalSubmitBtn} onClick={handleSaveProfile} disabled={isSavingProfile}>
+                    {isSavingProfile ? <><Loader2 size={15} className={styles.spinner} /> 保存中...</> : <><Check size={15} /> 保存</>}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>,
+        modalRoot,
       )}
     </>
   );

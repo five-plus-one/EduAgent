@@ -325,6 +325,67 @@
 
 .textarea:disabled { opacity: 0.5; }
 
+@media (max-width: 900px) {
+  .overlay {
+    justify-content: center;
+    align-items: flex-end;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+  }
+
+  .drawer {
+    width: 100%;
+    max-width: none;
+    height: min(92dvh, 920px);
+    border-left: none;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.24);
+  }
+
+  .header,
+  .filmstrip,
+  .previewSection,
+  .body,
+  .footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .previewWrap {
+    height: 220px;
+    border-radius: 12px;
+  }
+
+  .filmThumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  .footerActions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .drawer {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .previewWrap {
+    height: 190px;
+  }
+
+  .body {
+    gap: 16px;
+  }
+}
+
 /* ── 标签区 ─────────────────────────────────────────────────── */
 .tagsArea {
   display: flex;

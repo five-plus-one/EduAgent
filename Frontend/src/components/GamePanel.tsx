@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { clsx } from 'clsx';
 import {
   Gamepad2, Loader2, Trash2, Code2, Eye, RefreshCw,
-  ChevronRight, Sparkles, CheckCircle, AlertCircle, Copy, Check,
+  ChevronRight, Sparkles, CheckCircle, AlertCircle, Copy, Check, ArrowLeft,
   X, Zap, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Share2, ExternalLink, Brain,
 } from 'lucide-react';
 import {
@@ -34,6 +34,7 @@ interface GamePanelProps {
   onClearSuggest: () => void;
   onClearTrigger: () => void;
   onActiveGameChange: (gameId: string | null) => void;
+  mobileImmersive?: boolean;
 }
 
 const STAGES = ['pending', 'preparing', 'generating', 'writing'];
@@ -189,7 +190,7 @@ function StreamingCodeWindow({ stage, progress, stageMessage, code, thinking, is
 // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 export default function GamePanel({
   sessionId, pendingSuggest, pendingTrigger,
-  onClearSuggest, onClearTrigger, onActiveGameChange,
+  onClearSuggest, onClearTrigger, onActiveGameChange, mobileImmersive = false,
 }: GamePanelProps) {
   const MANUAL_MODAL_EXIT_MS = 220;
 
@@ -564,22 +565,42 @@ export default function GamePanel({
   // previewLoadedForRef.current 鍦?selectedId 杩樻病鍒囨崲鏃朵篃鑳芥壘鍒版父鎴忓厓鏁版嵁
   const effectiveGameId = selectedId === 'generating' ? (previewLoadedForRef.current ?? null) : selectedId;
   const selectedGame = games.find(g => g.game_id === effectiveGameId);
+  const isMobileListMode = mobileImmersive && !selectedId;
+  const isMobilePreviewMode = mobileImmersive && Boolean(selectedId) && selectedId !== 'generating';
+
+  const handleExitMobilePreview = () => {
+    setSelectedId(null);
+    setPreviewTab('preview');
+    setSidebarOpen(true);
+  };
 
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   // 娓叉煋
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   return (
-    <div className={clsx(styles.root, !sidebarOpen && styles.rootSidebarCollapsed, isFullscreen && styles.rootFullscreen)}>
+    <div className={clsx(
+      styles.root,
+      !sidebarOpen && styles.rootSidebarCollapsed,
+      isFullscreen && styles.rootFullscreen,
+      isMobilePreviewMode && styles.rootMobilePreview,
+    )}>
 
       {/* 鈹€鈹€鈹€ 宸︽爮 鈹€鈹€鈹€ */}
-      <div className={clsx(styles.sidebar, !sidebarOpen && styles.sidebarCollapsed)}>
-        <button
-          className={styles.collapseBtn}
-          onClick={() => setSidebarOpen(v => !v)}
-          title={sidebarOpen ? '折叠侧栏' : '展开侧栏'}
-        >
-          {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
-        </button>
+      <div className={clsx(
+        styles.sidebar,
+        !sidebarOpen && styles.sidebarCollapsed,
+        isMobileListMode && styles.sidebarMobilePrimary,
+        isMobilePreviewMode && styles.sidebarMobileHidden,
+      )}>
+        {!mobileImmersive && (
+          <button
+            className={styles.collapseBtn}
+            onClick={() => setSidebarOpen(v => !v)}
+            title={sidebarOpen ? '折叠侧栏' : '展开侧栏'}
+          >
+            {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
+          </button>
+        )}
 
         {sidebarOpen && (
           <>
@@ -781,7 +802,7 @@ export default function GamePanel({
       </div>
 
       {/* 鈹€鈹€鈹€ 鍙虫爮锛氶瑙?鈹€鈹€鈹€ */}
-      <div className={styles.preview}>
+      <div className={clsx(styles.preview, isMobileListMode && styles.previewMobileHidden)}>
         {(selectedId === 'generating' || selectedId === generatingRefineId) && isCurrentGenerating ? (
           /* 瀹炴椂娴佸紡浠ｇ爜绐楀彛 */
           <StreamingCodeWindow
@@ -823,6 +844,16 @@ export default function GamePanel({
           <>
             {/* 棰勮宸ュ叿鏍?*/}
             <div className={styles.previewHeader}>
+              {isMobilePreviewMode && (
+                <button
+                  className={styles.mobileBackBtn}
+                  onClick={handleExitMobilePreview}
+                  title="返回游戏列表"
+                >
+                  <ArrowLeft size={15} />
+                  <span>返回游戏列表</span>
+                </button>
+              )}
               <div className={styles.previewTopbar}>
                 <div className={styles.previewMeta}>
                   <div className={styles.previewHeading}>

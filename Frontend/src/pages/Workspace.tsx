@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
@@ -20,12 +20,14 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu, FolderOpen } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
+  const navigate = useNavigate();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const visualPanelRef = useRef<HTMLElement>(null);
   const [inputText, setInputText] = useState('');
@@ -74,14 +76,119 @@ export default function Workspace() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
   const kbFileInputRef = useRef<HTMLInputElement>(null);
+  const micPointerIdRef = useRef<number | null>(null);
+  const isMicPressActiveRef = useRef(false);
+  const lastSpeechErrorRef = useRef<string | null>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
+  const [isMicPressed, setIsMicPressed] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth <= 900 : false,
+  );
 
-  const { isRecording, isSupported: isSpeechSupported, startRecording, stopRecording, error: speechError } =
-    useSpeechRecognition((text) => {
-      setInputText(prev => prev ? prev + ' ' + text : text);
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const media = window.matchMedia('(max-width: 900px)');
+    const syncViewport = () => setIsMobileViewport(media.matches);
+    syncViewport();
+
+    media.addEventListener('change', syncViewport);
+    return () => media.removeEventListener('change', syncViewport);
+  }, []);
+
+  const {
+    isSupported: isSpeechSupported,
+    isTranscribing,
+    startRecording,
+    stopRecording,
+    error: speechError,
+  } = useSpeechRecognition(sessionId, (text) => {
+    setInputText(prev => prev.trim() ? `${prev.trim()} ${text}` : text);
+  });
+  const pushNotification = useNotificationStore((state) => state.pushNotification);
+
+  useEffect(() => {
+    if (!speechError) {
+      lastSpeechErrorRef.current = null;
+      return;
+    }
+
+    if (lastSpeechErrorRef.current === speechError) {
+      return;
+    }
+
+    lastSpeechErrorRef.current = speechError;
+    pushNotification({
+      tone: 'error',
+      title: '语音转写失败',
+      message: speechError,
     });
+  }, [pushNotification, speechError]);
+
+  const beginMicPress = useCallback((reason: string, pointerId?: number) => {
+    if (isMicPressActiveRef.current) {
+      return;
+    }
+
+    isMicPressActiveRef.current = true;
+    micPointerIdRef.current = pointerId ?? null;
+    console.log('[voice] press mic', { reason, pointerId });
+    setIsMicPressed(true);
+    void startRecording();
+  }, [startRecording]);
+
+  const releaseMicPress = useCallback((reason: string, pointerId?: number) => {
+    if (!isMicPressActiveRef.current) {
+      return;
+    }
+
+    if (pointerId != null && micPointerIdRef.current != null && pointerId !== micPointerIdRef.current) {
+      return;
+    }
+
+    isMicPressActiveRef.current = false;
+    console.log('[voice] release mic', { reason, pointerId });
+    micPointerIdRef.current = null;
+    setIsMicPressed(false);
+    stopRecording();
+  }, [stopRecording]);
+
+  useEffect(() => {
+    if (!isMicPressed) return;
+
+    const handlePointerRelease = (event: PointerEvent) => {
+      releaseMicPress('window', event.pointerId);
+    };
+    const handleMouseUp = () => {
+      releaseMicPress('window-mouse');
+    };
+    const handleTouchEnd = () => {
+      releaseMicPress('window-touch');
+    };
+    const handleWindowBlur = () => {
+      releaseMicPress('blur');
+    };
+
+    window.addEventListener('pointerup', handlePointerRelease);
+    window.addEventListener('pointercancel', handlePointerRelease);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      window.removeEventListener('pointerup', handlePointerRelease);
+      window.removeEventListener('pointercancel', handlePointerRelease);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [isMicPressed, releaseMicPress]);
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, saveWordDoc, resolveImageInPage } = useCourseware(sessionId);
@@ -150,7 +257,7 @@ export default function Workspace() {
   // 鈹€鈹€ 浜掑姩灏忔父鎴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
-  const [, setActiveGameId] = useState<string | null>(null);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const lastGameTriggerSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -222,19 +329,20 @@ export default function Workspace() {
   }, [activeTab, filesSubTab, sessionId, pages.length, persistedWordDoc]);
 
   /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
-  const handleOpenFiles = () => {
+  const handleOpenFiles = (subTab: 'docs' | 'images' = 'docs') => {
     setActiveTab('files');
     setMobilePane('files');
-    setFilesSubTab('docs');
+    setFilesSubTab(subTab);
     setFilesHighlight(true);
     setTimeout(() => setFilesHighlight(false), 1800);
   };
 
   useEffect(() => {
-    const handleOpenAssetsPanel = () => {
+    const handleOpenAssetsPanel = (event: Event) => {
+      const detail = (event as CustomEvent<{ subTab?: 'docs' | 'images' }>).detail;
       setActiveTab('files');
       setMobilePane('files');
-      setFilesSubTab('docs');
+      setFilesSubTab(detail?.subTab === 'images' ? 'images' : 'docs');
       setFilesHighlight(true);
       setTimeout(() => setFilesHighlight(false), 1800);
     };
@@ -748,15 +856,22 @@ export default function Workspace() {
               新建一个会话，告诉 AI 你想设计什么课程，<br />
               即可开启协作备课之旅。
             </p>
-            <button
-              className={clsx('button-primary', styles.newSessionCta)}
-              onClick={() => {
-                // 瑙﹀彂 Sidebar 鐨勬柊寤哄脊绐楋紝閫氳繃鍏ㄥ眬浜嬩欢浼犻€?
-                window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
-              }}
-            >
-              <Sparkles size={16} /> 新建课件会话
-            </button>
+            <div className={styles.newSessionActions}>
+              <button
+                className={clsx('button-primary', styles.newSessionCta)}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
+                }}
+              >
+                <Sparkles size={16} /> 新建课件会话
+              </button>
+              <button
+                className={styles.newSessionGhostBtn}
+                onClick={() => window.dispatchEvent(new CustomEvent('EduAgent_Open_MobileSidebar'))}
+              >
+                <Menu size={16} /> 查看以前的会话
+              </button>
+            </div>
           </div>
         ) : isLoadingHistory ? (
           /* 鈹€鈹€ 鍘嗗彶璁板綍鍔犺浇楠ㄦ灦灞?鈹€鈹€ */
@@ -815,7 +930,7 @@ export default function Workspace() {
                   className={clsx(styles.iconButton, styles.paperclipBtn)}
                   title="上传参考资料"
                   disabled={isGenerating || sessionId === 'new'}
-                  onClick={handleOpenFiles}
+                  onClick={() => handleOpenFiles('docs')}
                 >
                   <Paperclip size={20} />
                 </button>
@@ -830,16 +945,58 @@ export default function Workspace() {
                   disabled={isGenerating}
                 />
                 <div className={styles.actionsBox}>
-                  <button 
-                    className={clsx(styles.micButton, isRecording && styles.recording)}
-                    onMouseDown={startRecording}
-                    onMouseUp={stopRecording}
-                    onTouchStart={startRecording}
-                    onTouchEnd={stopRecording}
-                    title={!isSpeechSupported ? '您的浏览器不支持语音识别' : isGenerating ? '生成期间禁用语音' : '长按说话'}
-                    disabled={!isSpeechSupported || isGenerating}
+                  <button
+                    type="button"
+                    className={clsx(
+                      styles.micButton,
+                      isMicPressed && styles.micButtonActive,
+                    )}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      beginMicPress('pointer-down', event.pointerId);
+                    }}
+                    onPointerUp={(event) => {
+                      releaseMicPress('button-up', event.pointerId);
+                    }}
+                    onPointerCancel={(event) => {
+                      releaseMicPress('button-cancel', event.pointerId);
+                    }}
+                    onTouchStart={(event) => {
+                      event.preventDefault();
+                      beginMicPress('touch-start');
+                    }}
+                    onTouchEnd={(event) => {
+                      event.preventDefault();
+                      releaseMicPress('touch-end');
+                    }}
+                    onTouchCancel={(event) => {
+                      event.preventDefault();
+                      releaseMicPress('touch-cancel');
+                    }}
+                    onMouseDown={() => {
+                      beginMicPress('mouse-down');
+                    }}
+                    onMouseUp={() => {
+                      releaseMicPress('mouse-up');
+                    }}
+                    onLostPointerCapture={() => {
+                      releaseMicPress('lost-capture');
+                    }}
+                    title={
+                      sessionId === 'new'
+                        ? '请先创建会话'
+                        : !isSpeechSupported
+                          ? '当前浏览器不支持语音录制'
+                          : isGenerating
+                            ? '生成期间禁用语音'
+                            : isTranscribing
+                              ? '语音转写中'
+                              : '按住录音，松开发送转写'
+                    }
+                    disabled={!isSpeechSupported || isGenerating || isTranscribing || sessionId === 'new'}
                   >
-                    {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+                    <Mic size={20} />
                   </button>
                   {isSynthesizing || isStreaming ? (
                     <button
@@ -864,8 +1021,8 @@ export default function Workspace() {
                   )}
                 </div>
               </div>
-              {speechError && (
-                <p className={styles.speechError}>提示：{speechError}</p>
+              {isTranscribing && (
+                <p className={clsx(styles.speechError, styles.speechInfo)}>提示：语音转写中，请稍候...</p>
               )}
             </div>
           </>
@@ -992,7 +1149,10 @@ export default function Workspace() {
 
           {activeTab === 'files' && (
           <div className={styles.tabsContent}>
-            <div ref={filesTabRef} className={styles.tabViewport}>
+            <div
+              ref={filesTabRef}
+              className={clsx(styles.tabViewport, filesSubTab === 'images' && styles.tabViewportLocked)}
+            >
             <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 瀛?Tab 鍒囨崲锛堢煡璇嗗簱鏂囨。 / 鍥剧墖绱犳潗锛?*/}
               <div className={styles.subTabBar}>
@@ -1007,6 +1167,12 @@ export default function Workspace() {
                   onClick={() => setFilesSubTab('images')}
                 >
                   <ImageIcon size={14} /> 图片
+                </button>
+                <button
+                  className={styles.manageAssetsBtn}
+                  onClick={() => navigate('/assets', { state: { fromWorkspace: true, sessionId, subTab: filesSubTab } })}
+                >
+                  <FolderOpen size={14} /> 管理素材
                 </button>
               </div>
 
@@ -1129,7 +1295,9 @@ export default function Workspace() {
 
               {/* 鍥剧墖绱犳潗闈㈡澘 */}
               {filesSubTab === 'images' && (
-                <ImageUploadPanel />
+                <div className={styles.filesImagePanel}>
+                  <ImageUploadPanel />
+                </div>
               )}
             </div>
             </div>
@@ -1203,7 +1371,7 @@ export default function Workspace() {
                   </div>
                 </div>
               )}
-              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
+              {isGenerating && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -1278,11 +1446,11 @@ export default function Workspace() {
                   )}
 
                   {/* Empty State */}
-                  {pages.length === 0 && !isStreaming && previewStatus !== 'loading' && (
+                  {pages.length === 0 && !isStreaming && !isGenerating && (
                     <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                       <Sparkles size={48} style={{ marginBottom: '16px' }} />
                       <h3>课件待生成</h3>
-                      <p>请点击右上角“AI 一键生成课件”开始</p>
+                      <p>请打开对话界面，让智能体帮您生成课件</p>
                     </div>
                   )}
                   
@@ -1419,6 +1587,7 @@ export default function Workspace() {
                 onClearSuggest={() => setPendingSuggest(null)}
                 onClearTrigger={() => setPendingTrigger(null)}
                 onActiveGameChange={setActiveGameId}
+                mobileImmersive={isMobileViewport}
               />
             )}
             {sessionId === 'new' && (
@@ -1471,7 +1640,7 @@ export default function Workspace() {
         />
       )}
 
-      {sessionId !== 'new' && (
+      {sessionId !== 'new' && !(isMobileViewport && activeTab === 'games' && activeGameId) && (
         <nav className={styles.mobileWorkspaceNav}>
           <button
             className={styles.mobileWorkspaceNavBtn}
@@ -1492,6 +1661,7 @@ export default function Workspace() {
             onClick={() => {
               setActiveTab('files');
               setMobilePane('files');
+              setFilesSubTab('docs');
             }}
           >
             <Library size={16} />
@@ -1506,18 +1676,6 @@ export default function Workspace() {
           >
             <Palette size={16} />
             <span>课件</span>
-          </button>
-          <button
-            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'more' && styles.mobileWorkspaceNavBtnActive)}
-            onClick={() => {
-              if (activeTab !== 'word' && activeTab !== 'games') {
-                setActiveTab('word');
-              }
-              setMobilePane('more');
-            }}
-          >
-            <FileText size={16} />
-            <span>更多</span>
           </button>
         </nav>
       )}
