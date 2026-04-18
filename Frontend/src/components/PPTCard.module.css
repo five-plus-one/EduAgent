@@ -613,10 +613,11 @@
 
 .updatingText {
   font-family: 'Outfit', sans-serif;
-  font-size: calc(14 * var(--pt));
+  font-size: calc(12 * var(--pt));
   font-weight: 600;
   color: var(--ppt-text, #1e293b);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .iterateBar {
@@ -649,27 +650,32 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: calc(18 * var(--pt));
+  font-size: calc(15 * var(--pt));
   color: var(--ppt-text);
   font-family: inherit;
 }
 
 .iterateInput::placeholder {
   color: var(--ppt-text);
-  opacity: 0.45;
+  opacity: 0.54;
 }
 
 .iterateBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  min-width: 110px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   background: var(--ppt-primary);
   color: var(--ppt-bg);
   border: none;
   cursor: pointer;
+  font-size: calc(12 * var(--pt));
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* 图库来源徽章（演示用，叠在图片右上角） */
@@ -778,7 +784,7 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: #fff;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;

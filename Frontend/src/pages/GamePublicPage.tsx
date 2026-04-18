@@ -1,21 +1,7 @@
-/**
- * GamePublicPage — 互动游戏公开落地页
- *
- * 路由: /play/:code
- * 特点:
- * - 无需登录，完全公开
- * - 仅展示游戏标题 + iframe 游戏内容
- * - 极简品牌 header / footer
- * - 游戏 HTML 通过 srcdoc 注入（规避 X-Frame-Options）
- */
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPublicGame, type PublicGameInfo } from '../utils/gamesApi';
 import styles from './GamePublicPage.module.css';
-
-// ─────────────────────────────────────────────────────────────────
-// Error States
-// ─────────────────────────────────────────────────────────────────
 
 type PageState =
   | { status: 'loading' }
@@ -34,15 +20,10 @@ function ErrorCard({ emoji, title, subtitle }: { emoji: string; title: string; s
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────────
-
 export default function GamePublicPage() {
   const { code } = useParams<{ code: string }>();
   const [state, setState] = useState<PageState>({ status: 'loading' });
 
-  // 锁定 body 滚动，防止游戏 iframe 高度计算被干扰
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -50,9 +31,12 @@ export default function GamePublicPage() {
   }, []);
 
   useEffect(() => {
-    if (!code) { setState({ status: 'not_found' }); return; }
-    setState({ status: 'loading' });
+    if (!code) {
+      setState({ status: 'not_found' });
+      return;
+    }
 
+    setState({ status: 'loading' });
     getPublicGame(code)
       .then(game => {
         document.title = `${game.title} · EduAgent 互动游戏`;
@@ -71,8 +55,6 @@ export default function GamePublicPage() {
 
   return (
     <div className={styles.page}>
-
-      {/* ── 极简 Header ── */}
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brand}>
@@ -82,7 +64,7 @@ export default function GamePublicPage() {
               <path d="M2 12l10 5 10-5" />
             </svg>
             <span className={styles.brandName}>EduAgent</span>
-            <span className={styles.brandTag}>互动教学</span>
+            <span className={styles.brandTag}>互动游戏</span>
           </div>
 
           {state.status === 'ok' && (
@@ -93,7 +75,6 @@ export default function GamePublicPage() {
         </div>
       </header>
 
-      {/* ── 内容区 ── */}
       <main className={styles.main}>
         {state.status === 'loading' && (
           <div className={styles.loadingWrap}>
@@ -103,27 +84,15 @@ export default function GamePublicPage() {
         )}
 
         {state.status === 'not_found' && (
-          <ErrorCard
-            emoji="🔍"
-            title="链接不存在"
-            subtitle="该分享链接可能已失效或从未存在，请联系分享者获取新链接"
-          />
+          <ErrorCard emoji="📭" title="链接不存在" subtitle="分享链接可能已失效，或对应游戏已经被移除。" />
         )}
 
         {state.status === 'expired' && (
-          <ErrorCard
-            emoji="⏰"
-            title="链接已过期"
-            subtitle="此分享链接的有效期已结束，请联系分享者重新生成"
-          />
+          <ErrorCard emoji="⏳" title="链接已过期" subtitle="这个分享链接已经超过有效期，请联系分享者重新生成。" />
         )}
 
         {state.status === 'error' && (
-          <ErrorCard
-            emoji="⚠️"
-            title="加载失败"
-            subtitle={`出现了一点问题（${state.message}），请稍后刷新重试`}
-          />
+          <ErrorCard emoji="⚠️" title="加载失败" subtitle={`出现了一个问题：${state.message}`} />
         )}
 
         {state.status === 'ok' && (
@@ -139,17 +108,11 @@ export default function GamePublicPage() {
         )}
       </main>
 
-      {/* ── 极简 Footer ── */}
       <footer className={styles.footer}>
-        <span>由 <strong>EduAgent</strong> 生成 · 互动教学平台</span>
-        {state.status === 'ok' && (
-          <span className={styles.footerDot}>·</span>
-        )}
-        {state.status === 'ok' && (
-          <span>使用键盘和鼠标与游戏互动</span>
-        )}
+        <span>由 <strong>EduAgent</strong> 生成</span>
+        {state.status === 'ok' && <span className={styles.footerDot}>·</span>}
+        {state.status === 'ok' && <span>建议使用鼠标或触控进行互动</span>}
       </footer>
-
     </div>
   );
 }

@@ -1,19 +1,27 @@
-.workspace {
+﻿.workspace {
   display: flex;
   height: 100%;
   width: 100%;
   overflow: hidden;
   position: relative;
+  min-height: 0;
+}
+
+.mobileWorkspaceNav {
+  display: none;
 }
 
 /* ---------------- LEFT PANEL ---------------- */
 .chatPanel {
-  /* width 由 JS chatWidth state 控制，CSS 只负责约束和样式 */
+  /* width 鐢?JS chatWidth state 鎺у埗锛孋SS 鍙礋璐ｇ害鏉熷拰鏍峰紡 */
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   position: relative;
   border-right: 1px solid var(--border-glass);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chatHeader {
@@ -47,7 +55,7 @@
   max-width: 240px;
 }
 
-/* 铅笔按钮：默认隐藏，hover 标题时显示 */
+/* 閾呯瑪鎸夐挳锛氶粯璁ら殣钘忥紝hover 鏍囬鏃舵樉绀?*/
 .titleEditBtn {
   flex-shrink: 0;
   display: flex;
@@ -74,7 +82,7 @@
   color: var(--accent-primary);
 }
 
-/* 内联编辑行 */
+/* 鍐呰仈缂栬緫琛?*/
 .titleEditRow {
   display: flex;
   align-items: center;
@@ -129,9 +137,13 @@
 .messageStream {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
   padding: 24px;
   display: flex;
   flex-direction: column;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
 }
 
 .emptyState {
@@ -222,6 +234,7 @@
 /* ---------------- OMNI-DOCK INPUT ---------------- */
 .inputDockContainer {
   padding: 0 24px 24px;
+  flex-shrink: 0;
 }
 
 .omniDock {
@@ -340,7 +353,7 @@
 
 /* ---------------- DRAG DIVIDER ---------------- */
 .divider {
-  /* 视觉宽度 1px，但 hit-area 通过 padding 加宽到 8px */
+  /* 瑙嗚瀹藉害 1px锛屼絾 hit-area 閫氳繃 padding 鍔犲鍒?8px */
   width: 1px;
   flex-shrink: 0;
   position: relative;
@@ -350,7 +363,7 @@
   transition: background-color 0.15s;
 }
 
-/* 透明 hit-area 扩展（两侧各加 4px） */
+/* 閫忔槑 hit-area 鎵╁睍锛堜袱渚у悇鍔?4px锛?*/
 .divider::before {
   content: '';
   position: absolute;
@@ -358,7 +371,7 @@
   cursor: col-resize;
 }
 
-/* 拖拽手柄指示器（居中小圆点） */
+/* 鎷栨嫿鎵嬫焺鎸囩ず鍣紙灞呬腑灏忓渾鐐癸級 */
 .divider::after {
   content: '';
   position: absolute;
@@ -390,7 +403,10 @@
   flex-direction: column;
   position: relative;
   background-color: transparent;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .tabsRoot {
@@ -398,14 +414,16 @@
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .visualHeader {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
-  padding: 10px 24px 8px;
+  gap: 4px;
+  padding: 8px 20px 6px;
   border-bottom: 1px solid var(--border-glass);
   background-color: hsla(var(--hue), 20%, 98%, 0.8);
   backdrop-filter: blur(12px);
@@ -417,7 +435,7 @@
 .tabsList {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -435,10 +453,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  min-height: 38px;
   flex-wrap: wrap;
   padding-top: 2px;
-  border-top: 1px solid rgba(15, 23, 42, 0.05);
 }
 
 .visualHeaderBadge {
@@ -556,9 +572,9 @@
 .tabsTrigger {
   background: transparent;
   border: none;
-  padding: 12px 0;
-  font-size: 0.95rem;
-  font-weight: 500;
+  padding: 10px 0;
+  font-size: 0.92rem;
+  font-weight: 600;
   color: var(--text-tertiary);
   cursor: pointer;
   position: relative;
@@ -570,11 +586,11 @@
   flex-shrink: 0;
 }
 
-.tabsTrigger[data-state='active'] {
+.tabsTriggerActive {
   color: var(--text-primary);
 }
 
-.tabsTrigger[data-state='active']::after {
+.tabsTriggerActive::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -585,7 +601,7 @@
   border-radius: 2px 2px 0 0;
 }
 
-/* ── 游戏 Tab 特化样式 ── */
+/* 鈹€鈹€ 娓告垙 Tab 鐗瑰寲鏍峰紡 鈹€鈹€ */
 .gameTrigger {
   display: inline-flex !important;
   align-items: center;
@@ -610,7 +626,7 @@
   50%       { transform: scale(1.3); opacity: 0.7; }
 }
 
-/* ── 切换主题按钮：带渐变边框与高亮色彩 ── */
+/* 鈹€鈹€ 鍒囨崲涓婚鎸夐挳锛氬甫娓愬彉杈规涓庨珮浜壊褰?鈹€鈹€ */
 .themeBtn {
   border-color: rgba(99, 102, 241, 0.35) !important;
   background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04)) !important;
@@ -636,10 +652,20 @@
 
 .tabsContent {
   flex: 1;
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tabViewport {
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 24px 24px;
-  min-width: 0;
+  overscroll-behavior: contain;
 }
 
 .stickyTopbarShell {
@@ -874,7 +900,7 @@
   padding-bottom: 64px;
 }
 
-/* ── PPT 预览内部工具栏 ─────────────────────────────────── */
+/* 鈹€鈹€ PPT 棰勮鍐呴儴宸ュ叿鏍?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .pptToolbar {
   width: 100%;
   max-width: 960px;
@@ -1396,7 +1422,7 @@
   margin: 2.5em 0;
 }
 
-/* ── KaTeX 公式渲染适配 ────────────────────────────────── */
+/* 鈹€鈹€ KaTeX 鍏紡娓叉煋閫傞厤 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .markdownWrapper .katex-display {
   margin: 1.4em 0;
   overflow-x: auto;
@@ -1405,10 +1431,10 @@
 }
 
 .markdownWrapper .katex {
-  font-size: 1.05em; /* 与正文字号保持一致，不放大 */
+  font-size: 1.05em; /* 涓庢鏂囧瓧鍙蜂繚鎸佷竴鑷达紝涓嶆斁澶?*/
 }
 
-/* 块级公式加淡底色，视觉层次分开 */
+/* 鍧楃骇鍏紡鍔犳贰搴曡壊锛岃瑙夊眰娆″垎寮€ */
 .markdownWrapper .katex-display > .katex {
   display: block;
   padding: 12px 20px;
@@ -1433,9 +1459,11 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* ── 子 Tab 切换器（知识库文档 / 图片素材）─────────────── */
+/* 鈹€鈹€ 瀛?Tab 鍒囨崲鍣紙鐭ヨ瘑搴撴枃妗?/ 鍥剧墖绱犳潗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .subTabBar {
   display: flex;
   gap: 4px;
@@ -1523,7 +1551,7 @@
   cursor: not-allowed;
 }
 
-/* ── KB 文档拖拽上传区 ─────────────────────────────────── */
+/* 鈹€鈹€ KB 鏂囨。鎷栨嫿涓婁紶鍖?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .kbDropzone {
   display: flex;
   align-items: center;
@@ -1573,6 +1601,10 @@
   flex-direction: column;
   gap: 10px;
   padding-bottom: 32px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .kbListItem {
@@ -1592,7 +1624,7 @@
   background: var(--bg-glass-hover);
   border-color: hsla(var(--hue), 85%, 55%, 0.4);
   box-shadow: 0 4px 12px hsla(0, 0%, 0%, 0.06);
-  /* translateY removed — causes mouse jitter on rapid movement */
+  /* translateY removed 鈥?causes mouse jitter on rapid movement */
 }
 
 .kbItemInfo {
@@ -1648,7 +1680,7 @@
   flex-wrap: wrap;
 }
 
-/* ── Vectorization status badges ── */
+/* 鈹€鈹€ Vectorization status badges 鈹€鈹€ */
 .docStatusBadge {
   display: inline-flex;
   align-items: center;
@@ -1865,9 +1897,9 @@
   line-height: 1.6;
 }
 
-/* ════════════════════════════════════════════════════════
-   历史记录加载骨架屏
-   ════════════════════════════════════════════════════════ */
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   鍘嗗彶璁板綍鍔犺浇楠ㄦ灦灞?
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
 .historyLoadingWrapper {
   flex: 1;
   display: flex;
@@ -1907,7 +1939,7 @@
   margin: 0;
 }
 
-/* 骨架屏消息条 */
+/* 楠ㄦ灦灞忔秷鎭潯 */
 .loadingSkeletonGroup {
   display: flex;
   flex-direction: column;
@@ -1938,7 +1970,7 @@
   100% { background-position: -200% 0; }
 }
 
-/* ── AI 等待响应（三个跳动圆） ──────────────────────────── */
+/* 鈹€鈹€ AI 绛夊緟鍝嶅簲锛堜笁涓烦鍔ㄥ渾锛?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .awaitingResponseWrapper {
   margin: auto;
   display: flex;
@@ -1976,7 +2008,7 @@
   margin: 0;
 }
 
-/* ── 新建会话 CTA 按钮（引导页） ─────────────────────────── */
+/* 鈹€鈹€ 鏂板缓浼氳瘽 CTA 鎸夐挳锛堝紩瀵奸〉锛?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .newSessionCta {
   margin-top: 8px;
   padding: 12px 28px !important;
@@ -1994,9 +2026,9 @@
   box-shadow: 0 10px 28px rgba(99, 102, 241, 0.45) !important;
 }
 
-/* ════════════════════════════════════════════════════════
-   教案手动编辑工具栏
-   ════════════════════════════════════════════════════════ */
+/* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+   鏁欐鎵嬪姩缂栬緫宸ュ叿鏍?
+   鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲 */
 .wordToolbar {
   display: flex;
   align-items: center;
@@ -2020,7 +2052,7 @@
   gap: 6px;
 }
 
-/* 预览/编辑 toggle 按钮 */
+/* 棰勮/缂栬緫 toggle 鎸夐挳 */
 .wordModeBtn {
   display: inline-flex;
   align-items: center;
@@ -2046,7 +2078,7 @@
   font-weight: 700;
 }
 
-/* 保存按钮（编辑模式） */
+/* 淇濆瓨鎸夐挳锛堢紪杈戞ā寮忥級 */
 .wordSaveBtn {
   display: inline-flex;
   align-items: center;
@@ -2065,7 +2097,7 @@
 }
 .wordSaveBtn:hover { opacity: 0.9; transform: translateY(-1px); }
 
-/* 导出 Word 按钮（挤入工具栏） */
+/* 瀵煎嚭 Word 鎸夐挳锛堟尋鍏ュ伐鍏锋爮锛?*/
 .exportWordBtn {
   font-size: 12px !important;
   padding: 5px 14px !important;
@@ -2075,7 +2107,7 @@
   border-radius: 8px !important;
 }
 
-/* Markdown 编辑 textarea */
+/* Markdown 缂栬緫 textarea */
 .wordEditTextarea {
   width: 100%;
   height: 100%;
@@ -2091,7 +2123,7 @@
   background: transparent;
   caret-color: var(--accent-primary);
   box-sizing: border-box;
-  /* 内部滚动 */
+  /* 鍐呴儴婊氬姩 */
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(15,23,42,0.1) transparent;
@@ -2102,25 +2134,121 @@
 .wordEditTextarea::placeholder { color: rgba(15,23,42,0.28); font-style: italic; }
 
 @media (max-width: 900px) {
+  .workspace {
+    display: block;
+    height: 100%;
+  }
+
+  .chatPanel,
+  .visualPanel {
+    display: none;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 100%;
+    border-right: none;
+  }
+
+  .mobilePaneActive {
+    display: flex;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .chatHeader {
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px);
+  }
+
+  .messageStream {
+    padding: 16px 16px 108px;
+  }
+
+  .inputDockContainer {
+    padding: 0 12px calc(12px + env(safe-area-inset-bottom) + 84px);
+  }
+
+  .omniDock {
+    border-radius: 24px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm);
+  }
+
   .tabsContent {
-    padding: 16px;
+    padding: 0;
+  }
+
+  .tabViewport {
+    padding: 16px 16px 112px;
   }
 
   .visualHeader {
-    padding: 10px 16px 8px;
+    padding: 12px 16px 10px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
   }
 
   .tabsList {
-    gap: 18px;
+    gap: 16px;
   }
 
   .visualHeaderTools {
     justify-content: flex-start;
+    padding-top: 8px;
   }
 
   .visualHeaderThemeChip {
     display: none;
   }
+
+  .workspaceTopbar,
+  .wordDoc,
+  .kbPanel,
+  .canvasArea {
+    border-radius: 24px;
+  }
+
+  .mobileWorkspaceNav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 45;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    padding: 8px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.94);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-md);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobileWorkspaceNavBtn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 54px;
+    border-radius: 18px;
+    color: var(--text-tertiary);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .mobileWorkspaceNavBtnActive {
+    background: var(--brand-soft);
+    color: var(--brand);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+  }
 }
+
 
 

@@ -1,9 +1,8 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
-import * as Tabs from '@radix-ui/react-tabs';
 import { useChatSession } from '../hooks/useChatSession';
 import MessageBubble from '../components/MessageBubble';
 import { useCourseware } from '../hooks/useCourseware';
@@ -23,10 +22,12 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, MicOff, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const visualPanelRef = useRef<HTMLElement>(null);
   const [inputText, setInputText] = useState('');
 
   // 鈹€鈹€ 鍙嫋鎷藉垎鍓茬嚎 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -65,6 +66,11 @@ export default function Workspace() {
     window.addEventListener('mouseup', onMouseUp);
   }, [chatWidth]);
   const streamEndRef = useRef<HTMLDivElement>(null);
+  const messageStreamRef = useRef<HTMLDivElement>(null);
+  const filesTabRef = useRef<HTMLDivElement>(null);
+  const pptTabRef = useRef<HTMLDivElement>(null);
+  const wordTabRef = useRef<HTMLDivElement>(null);
+  const gamesTabRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
   const kbFileInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +110,7 @@ export default function Workspace() {
   const [linkingDocs, setLinkingDocs] = useState<Set<string>>(new Set());
   const [hoveredLinkDoc, setHoveredLinkDoc] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('files');
+  const [mobilePane, setMobilePane] = useState<'chat' | 'files' | 'ppt' | 'more'>('chat');
   /** 鍙傝€冭祫鏂?Tab 鐨勫瓙闈㈡澘鍒囨崲锛歞ocs锛堢煡璇嗗簱鏂囦欢锛?| images锛堜細璇濆浘鐗囷級 */
   const [filesSubTab, setFilesSubTab] = useState<'docs' | 'images'>('docs');
   const [isUploadingKb, setIsUploadingKb] = useState(false);
@@ -173,6 +180,9 @@ export default function Workspace() {
   const currentThemeDisplayName = isCustomThemeActive
     ? '自定义'
     : resolveThemeDisplayName(pendingThemeKey, false);
+  const hasVisualTools =
+    (activeTab === 'ppt' && pages.length > 0) ||
+    (activeTab === 'word' && (persistedWordDoc || wordDirty));
 
   useEffect(() => {
     let alive = true;
@@ -185,13 +195,53 @@ export default function Workspace() {
     return () => { alive = false; };
   }, []);
 
+  useLayoutEffect(() => {
+    const tabMap: Record<string, HTMLDivElement | null> = {
+      files: filesTabRef.current,
+      ppt: pptTabRef.current,
+      word: wordTabRef.current,
+      games: gamesTabRef.current,
+    };
+
+    const target = tabMap[activeTab];
+
+    const resetScroll = () => {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      workspaceRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      visualPanelRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+      target?.scrollTo({ top: 0, behavior: 'auto' });
+    };
+
+    resetScroll();
+    requestAnimationFrame(() => {
+      resetScroll();
+      requestAnimationFrame(resetScroll);
+    });
+  }, [activeTab, filesSubTab, sessionId, pages.length, persistedWordDoc]);
+
   /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
   const handleOpenFiles = () => {
     setActiveTab('files');
+    setMobilePane('files');
     setFilesSubTab('docs');
     setFilesHighlight(true);
     setTimeout(() => setFilesHighlight(false), 1800);
   };
+
+  useEffect(() => {
+    const handleOpenAssetsPanel = () => {
+      setActiveTab('files');
+      setMobilePane('files');
+      setFilesSubTab('docs');
+      setFilesHighlight(true);
+      setTimeout(() => setFilesHighlight(false), 1800);
+    };
+
+    window.addEventListener('EduAgent_Open_AssetsPanel', handleOpenAssetsPanel);
+    return () => window.removeEventListener('EduAgent_Open_AssetsPanel', handleOpenAssetsPanel);
+  }, []);
 
   const handleExportWord = async () => {
     if (!wordDoc || isExportingWord || sessionId === 'new') return;
@@ -365,7 +415,7 @@ export default function Workspace() {
     const valid = Array.from(files).filter(f =>
       ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.txt', '.md'].some(ext => f.name.toLowerCase().endsWith(ext))
     );
-    if (!valid.length) { alert('浠呮敮鎸?PDF / DOCX / PPTX / TXT / MD 鏍煎紡鏂囦欢'); return; }
+    if (!valid.length) { alert('仅支持 PDF / DOCX / PPTX / TXT / MD 格式文件'); return; }
     setIsUploadingKb(true);
     try {
       await Promise.all(valid.map(f => uploadKnowledgeDoc(f, { subject: '閫氱敤绫荤洰' })));
@@ -489,7 +539,10 @@ export default function Workspace() {
 
   useEffect(() => {
     if (shouldAutoScroll.current) {
-      streamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      const el = messageStreamRef.current;
+      if (el) {
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      }
     }
   }, [messages]);
 
@@ -627,10 +680,13 @@ export default function Workspace() {
   };
 
   return (
-    <div className={styles.workspace}>
+    <div ref={workspaceRef} className={styles.workspace}>
       
       {/* LEFT PANEL: Chat Interaction */}
-      <section className={styles.chatPanel} style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}>
+      <section
+        className={clsx(styles.chatPanel, mobilePane === 'chat' && styles.mobilePaneActive)}
+        style={{ width: chatWidth, minWidth: CHAT_MIN, maxWidth: CHAT_MAX }}
+      >
         <header className={styles.chatHeader}>
           <div className={styles.sessionInfo}>
             {sessionId === 'new' ? (
@@ -718,7 +774,7 @@ export default function Workspace() {
           </div>
         ) : (
           <>
-            <div className={styles.messageStream} onScroll={handleScroll}>
+            <div ref={messageStreamRef} className={styles.messageStream} onScroll={handleScroll}>
               {messages.length === 0 && !isSynthesizing ? (
                 <div className={styles.emptyState}>
                   <div className={styles.emptyIconWrapper}>
@@ -824,7 +880,7 @@ export default function Workspace() {
       />
 
       {/* RIGHT PANEL: Visual WorkSpace */}
-      <section className={styles.visualPanel}>
+      <section ref={visualPanelRef} className={clsx(styles.visualPanel, mobilePane !== 'chat' && styles.mobilePaneActive)}>
         {sessionId === 'new' ? (
           <div className={styles.welcomeHero}>
             <div className={styles.heroContent}>
@@ -854,20 +910,21 @@ export default function Workspace() {
             </div>
           </div>
         ) : (
-        <Tabs.Root className={styles.tabsRoot} value={activeTab} onValueChange={setActiveTab}>
+        <div className={styles.tabsRoot}>
           <header className={styles.visualHeader}>
-            <Tabs.List className={styles.tabsList}>
-              <Tabs.Trigger className={styles.tabsTrigger} value="files">参考资料</Tabs.Trigger>
-              <Tabs.Trigger className={styles.tabsTrigger} value="ppt">课件预览 (PPT)</Tabs.Trigger>
-              <Tabs.Trigger className={styles.tabsTrigger} value="word">讲义 (Word)</Tabs.Trigger>
-              <Tabs.Trigger className={clsx(styles.tabsTrigger, styles.gameTrigger)} value="games">
+            <div className={styles.tabsList} role="tablist" aria-label="工作区标签">
+              <button className={clsx(styles.tabsTrigger, activeTab === 'files' && styles.tabsTriggerActive)} onClick={() => { setActiveTab('files'); setMobilePane('files'); }}>资料</button>
+              <button className={clsx(styles.tabsTrigger, activeTab === 'ppt' && styles.tabsTriggerActive)} onClick={() => { setActiveTab('ppt'); setMobilePane('ppt'); }}>课件</button>
+              <button className={clsx(styles.tabsTrigger, activeTab === 'word' && styles.tabsTriggerActive)} onClick={() => { setActiveTab('word'); setMobilePane('more'); }}>讲义</button>
+              <button className={clsx(styles.tabsTrigger, styles.gameTrigger, activeTab === 'games' && styles.tabsTriggerActive)} onClick={() => { setActiveTab('games'); setMobilePane('more'); }}>
                 <Gamepad2 size={13} />
-                互动游戏
+                游戏
                 {(pendingSuggest || pendingTrigger) && (
                   <span className={styles.gameTabDot} />
                 )}
-              </Tabs.Trigger>
-            </Tabs.List>
+              </button>
+            </div>
+            {hasVisualTools && (
             <div className={styles.visualHeaderTools}>
               {activeTab === 'ppt' && pages.length > 0 && (
                 <>
@@ -930,9 +987,12 @@ export default function Workspace() {
                 </>
               )}
             </div>
+            )}
           </header>
 
-          <Tabs.Content className={styles.tabsContent} value="files">
+          {activeTab === 'files' && (
+          <div className={styles.tabsContent}>
+            <div ref={filesTabRef} className={styles.tabViewport}>
             <div className={clsx(styles.kbPanel, filesHighlight && styles.kbPanelHighlight)}>
               {/* 瀛?Tab 鍒囨崲锛堢煡璇嗗簱鏂囨。 / 鍥剧墖绱犳潗锛?*/}
               <div className={styles.subTabBar}>
@@ -940,13 +1000,13 @@ export default function Workspace() {
                   className={clsx(styles.subTabBtn, filesSubTab === 'docs' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('docs')}
                 >
-                  <Library size={14} /> 知识库文档
+                  <Library size={14} /> 文档库
                 </button>
                 <button
                   className={clsx(styles.subTabBtn, filesSubTab === 'images' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('images')}
                 >
-                  <ImageIcon size={14} /> 图片素材
+                  <ImageIcon size={14} /> 图片
                 </button>
               </div>
 
@@ -1072,9 +1132,13 @@ export default function Workspace() {
                 <ImageUploadPanel />
               )}
             </div>
-          </Tabs.Content>
+            </div>
+          </div>
+          )}
           
-          <Tabs.Content className={styles.tabsContent} value="ppt">
+          {activeTab === 'ppt' && (
+          <div className={styles.tabsContent}>
+            <div ref={pptTabRef} className={styles.tabViewport}>
             <div
               className={styles.canvasArea}
               style={appliedThemeColors ? {
@@ -1230,9 +1294,13 @@ export default function Workspace() {
                 </>
               )}
             </div>
-          </Tabs.Content>
+            </div>
+          </div>
+          )}
           
-          <Tabs.Content className={styles.tabsContent} value="word">
+          {activeTab === 'word' && (
+          <div className={styles.tabsContent}>
+            <div ref={wordTabRef} className={styles.tabViewport}>
             {(persistedWordDoc || wordDirty) && (
               <div className={styles.stickyTopbarShell}>
                 <div className={clsx(styles.workspaceTopbar, styles.workspaceTopbarWord)}>
@@ -1335,10 +1403,14 @@ export default function Workspace() {
                 针对此划词发起修改
               </button>
             )}
-          </Tabs.Content>
+            </div>
+          </div>
+          )}
 
           {/* 鈹€鈹€ 浜掑姩灏忔父鎴?Tab 鈹€鈹€ */}
-          <Tabs.Content className={styles.tabsContent} value="games">
+          {activeTab === 'games' && (
+          <div className={styles.tabsContent}>
+            <div ref={gamesTabRef} className={styles.tabViewport}>
             {sessionId !== 'new' && (
               <GamePanel
                 sessionId={sessionId}
@@ -1362,8 +1434,10 @@ export default function Workspace() {
                   <small style={{ fontSize: 12 }}>互动游戏功能需要在活跃会话中使用</small>
               </div>
             )}
-          </Tabs.Content>
-        </Tabs.Root>
+            </div>
+          </div>
+          )}
+        </div>
         )}
       </section>
 
@@ -1397,7 +1471,59 @@ export default function Workspace() {
         />
       )}
 
+      {sessionId !== 'new' && (
+        <nav className={styles.mobileWorkspaceNav}>
+          <button
+            className={styles.mobileWorkspaceNavBtn}
+            onClick={() => window.dispatchEvent(new CustomEvent('EduAgent_Open_MobileSidebar'))}
+          >
+            <Menu size={16} />
+            <span>会话</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'chat' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => setMobilePane('chat')}
+          >
+            <Sparkles size={16} />
+            <span>对话</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'files' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              setActiveTab('files');
+              setMobilePane('files');
+            }}
+          >
+            <Library size={16} />
+            <span>资料</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'ppt' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              setActiveTab('ppt');
+              setMobilePane('ppt');
+            }}
+          >
+            <Palette size={16} />
+            <span>课件</span>
+          </button>
+          <button
+            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'more' && styles.mobileWorkspaceNavBtnActive)}
+            onClick={() => {
+              if (activeTab !== 'word' && activeTab !== 'games') {
+                setActiveTab('word');
+              }
+              setMobilePane('more');
+            }}
+          >
+            <FileText size={16} />
+            <span>更多</span>
+          </button>
+        </nav>
+      )}
+
     </div>
   );
 }
+
 

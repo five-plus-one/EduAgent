@@ -10,6 +10,49 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
+
+            if (id.includes('react') || id.includes('scheduler')) {
+              return 'react-vendor'
+            }
+
+            if (id.includes('react-router')) {
+              return 'router-vendor'
+            }
+
+            if (
+              id.includes('katex')
+            ) {
+              return 'katex-vendor'
+            }
+
+            if (
+              id.includes('react-markdown') ||
+              id.includes('remark-gfm') ||
+              id.includes('remark-math') ||
+              id.includes('rehype-katex') ||
+              id.includes('rehype-raw')
+            ) {
+              return 'markdown-vendor'
+            }
+
+            if (id.includes('@radix-ui')) {
+              return 'radix-vendor'
+            }
+
+            if (id.includes('lucide-react')) {
+              return 'icons-vendor'
+            }
+
+            return 'vendor'
+          },
+        },
+      },
+    },
     server: {
       host: true, // 监听 0.0.0.0，对局域网开放
       proxy: {
