@@ -287,6 +287,12 @@
   border-top: 1px solid rgba(191, 205, 229, 0.8);
 }
 
+.assetEntryGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .assetButtonRow {
   display: flex;
   align-items: center;
@@ -315,6 +321,26 @@
   font-size: 0.72rem;
   color: var(--text-muted);
   background: rgba(255, 255, 255, 0.86);
+}
+
+.assetQuickBtn {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 14px;
+  border: 1px solid rgba(191, 205, 229, 0.72);
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+
+.assetQuickBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(76, 132, 255, 0.22);
+  color: var(--text-primary);
 }
 
 .profileBtn {

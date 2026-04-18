@@ -400,17 +400,27 @@ export default function Sidebar() {
         </nav>
 
         <div className={styles.footer}>
-          <button
-            type="button"
-            id="sidebar-asset-btn"
-            className={styles.assetButtonRow}
-            aria-label="在工作台中打开素材管理"
-            onClick={handleOpenAssetsInWorkspace}
-          >
-            <LayoutGrid size={16} />
-            <span>素材管理</span>
-            <span className={styles.assetBadge}>文档与图片</span>
-          </button>
+          <div className={styles.assetEntryGroup}>
+            <NavLink
+              to="/assets"
+              id="sidebar-asset-btn"
+              className={({ isActive }) => clsx(styles.assetButtonRow, isActive && styles.assetButtonRowActive)}
+              aria-label="打开素材管理"
+            >
+              <LayoutGrid size={16} />
+              <span>素材管理</span>
+              <span className={styles.assetBadge}>文档与图片</span>
+            </NavLink>
+
+            <button
+              type="button"
+              className={styles.assetQuickBtn}
+              aria-label="在当前会话中打开参考资料"
+              onClick={handleOpenAssetsInWorkspace}
+            >
+              当前会话资料
+            </button>
+          </div>
 
           <button className={styles.profileBtn} onClick={openProfileModal}>
             <UserCircle size={24} />
