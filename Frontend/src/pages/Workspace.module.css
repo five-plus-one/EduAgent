@@ -2391,6 +2391,10 @@
     margin-right: -6px;
   }
 
+  .subTabBar {
+    padding-bottom: 0;
+  }
+
   .mobileWorkspaceNavBtnPrimary {
     background: linear-gradient(135deg, #2563eb, #3b82f6);
     color: white;

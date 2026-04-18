@@ -46,6 +46,19 @@
   color: var(--text-tertiary);
 }
 
+.dropzoneText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dropzoneWorkspace {
+  margin-top: -2px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 .dropzoneAsset {
   position: static;
   min-height: 0;
@@ -354,8 +367,9 @@
     box-sizing: border-box;
     min-height: 0;
     flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
     padding: 10px 18px;
     gap: 8px;
     border-radius: 0 0 16px 16px;
@@ -363,13 +377,35 @@
     box-shadow: none;
   }
 
+  .dropzoneWorkspace {
+    margin-top: -2px;
+  }
+
   .dropzoneAsset {
     position: static;
     top: auto;
     z-index: auto;
+    flex-wrap: wrap;
+    justify-content: center;
     padding: 9px 16px;
     gap: 8px;
     box-shadow: none;
+  }
+
+  .dropzoneText {
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .dropzoneTitle,
+  .dropzoneHint {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
   }
 
   .grid {
@@ -457,6 +493,10 @@
 
   .dropzoneHint {
     font-size: 0.68rem;
+  }
+
+  .dropzoneText {
+    gap: 0;
   }
 
   .dropzoneAsset {

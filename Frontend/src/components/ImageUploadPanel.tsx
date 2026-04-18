@@ -159,6 +159,7 @@ export default function ImageUploadPanel({ variant = 'workspace' }: ImageUploadP
         <div
           className={clsx(
             styles.dropzone,
+            variant === 'workspace' && styles.dropzoneWorkspace,
             variant === 'asset' && styles.dropzoneAsset,
             'app-dropzone',
             isDragging && styles.dragging,
@@ -180,8 +181,10 @@ export default function ImageUploadPanel({ variant = 'workspace' }: ImageUploadP
             onChange={e => e.target.files && handleFiles(e.target.files)}
           />
           <Upload size={28} className={styles.uploadIcon} />
-          <span className={styles.dropzoneTitle}>拖拽或点击上传图片素材</span>
-          <span className={styles.dropzoneHint}>支持 jpg / png / webp，单张最大 10 MB</span>
+          <div className={styles.dropzoneText}>
+            <span className={styles.dropzoneTitle}>拖拽或点击上传图片素材</span>
+            <span className={styles.dropzoneHint}>支持 jpg / png / webp，单张最大 10 MB</span>
+          </div>
         </div>
 
         {uploadError && (
