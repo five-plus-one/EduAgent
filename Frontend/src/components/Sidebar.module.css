@@ -51,13 +51,19 @@
   width: 42px;
   height: 42px;
   border-radius: 14px;
-  display: grid;
-  place-items: center;
-  font-size: 0.84rem;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-strong);
+  background: linear-gradient(135deg, rgba(225, 238, 255, 0.98), rgba(243, 248, 255, 0.94));
   box-shadow: var(--shadow-md);
+  border: 1px solid rgba(121, 164, 255, 0.2);
+}
+
+.logoMark {
+  width: 24px;
+  height: 24px;
+  display: block;
 }
 
 .logoText {

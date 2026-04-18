@@ -20,6 +20,7 @@ import {
 import { clsx } from 'clsx';
 import styles from './Sidebar.module.css';
 import { useAppStore } from '../store/useAppStore';
+import BrandMark from './BrandMark';
 import {
   logout,
   listSessions,
@@ -300,7 +301,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
       <aside className={clsx(styles.sidebar, 'glass-panel', collapsed && styles.sidebarCollapsed)}>
         <div className={clsx(styles.header, collapsed && styles.headerCollapsed)}>
           <div className={clsx(styles.logoRow, collapsed && styles.logoRowCollapsed)} title="EduAgent 教学工作台">
-            <div className={styles.logoIcon}>EA</div>
+            <div className={styles.logoIcon}>
+              <BrandMark className={styles.logoMark} />
+            </div>
             <div className={clsx(collapsed && styles.compactHidden)}>
               <div className={styles.logoText}>EduAgent</div>
               <div className={styles.logoSubtext}>教学工作台</div>

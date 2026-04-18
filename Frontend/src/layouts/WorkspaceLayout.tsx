@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useParams } from 'react-router-dom';
 import { FolderOpen, Menu, PanelLeftClose, Sparkles, X } from 'lucide-react';
 import { clsx } from 'clsx';
 import Sidebar from '../components/Sidebar';
+import BrandMark from '../components/BrandMark';
 import styles from './WorkspaceLayout.module.css';
 
 export default function WorkspaceLayout() {
@@ -11,13 +12,20 @@ export default function WorkspaceLayout() {
   const location = useLocation();
   const { sessionId = 'new' } = useParams();
   const sidebarWidth = sidebarCollapsed ? 'var(--layout-sidebar-collapsed)' : 'var(--layout-sidebar)';
+  const isWorkspaceRoute = location.pathname.startsWith('/chat/');
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith('/assets')) {
-      return { title: '素材中心', subtitle: '统一管理知识库与图片素材' };
+      return { title: 'Assets', subtitle: 'Knowledge and image materials' };
     }
-    return { title: '智能工作台', subtitle: '对话、资料与课件协同工作' };
+    return { title: 'EduAgent', subtitle: 'Chat, references, and courseware' };
   }, [location.pathname]);
+
+  useEffect(() => {
+    const handleOpenSidebar = () => setMobileSidebarOpen(true);
+    window.addEventListener('EduAgent_Open_MobileSidebar', handleOpenSidebar);
+    return () => window.removeEventListener('EduAgent_Open_MobileSidebar', handleOpenSidebar);
+  }, []);
 
   return (
     <div
@@ -33,8 +41,8 @@ export default function WorkspaceLayout() {
         <button
           className={styles.mobileTopbarBtn}
           onClick={() => setMobileSidebarOpen(true)}
-          title="打开会话栏"
-          aria-label="打开会话栏"
+          title="Open sessions"
+          aria-label="Open sessions"
         >
           <Menu size={18} />
         </button>
@@ -47,8 +55,8 @@ export default function WorkspaceLayout() {
         <NavLink
           to={`/chat/${sessionId}`}
           className={styles.mobileTopbarBtn}
-          title="返回工作台"
-          aria-label="返回工作台"
+          title="Back to workspace"
+          aria-label="Back to workspace"
         >
           <Sparkles size={18} />
         </NavLink>
@@ -62,17 +70,19 @@ export default function WorkspaceLayout() {
       >
         <div className={styles.mobileSidebarHead}>
           <div className={styles.mobileSidebarBrand}>
-            <div className={styles.mobileSidebarLogo}>EA</div>
+            <div className={styles.mobileSidebarLogo}>
+              <BrandMark className={styles.mobileSidebarLogoMark} />
+            </div>
             <div>
               <strong>EduAgent</strong>
-              <span>教学工作台</span>
+              <span>Teaching workspace</span>
             </div>
           </div>
           <button
             className={styles.mobileTopbarBtn}
             onClick={() => setMobileSidebarOpen(false)}
-            title="关闭会话栏"
-            aria-label="关闭会话栏"
+            title="Close sessions"
+            aria-label="Close sessions"
           >
             <X size={18} />
           </button>
@@ -83,8 +93,8 @@ export default function WorkspaceLayout() {
       <button
         className={styles.collapseBtn}
         onClick={() => setSidebarCollapsed(v => !v)}
-        title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
-        aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         <PanelLeftClose size={16} className={clsx(sidebarCollapsed && styles.collapseBtnIconCollapsed)} />
       </button>
@@ -93,26 +103,28 @@ export default function WorkspaceLayout() {
         <Outlet />
       </main>
 
-      <nav className={styles.mobileBottomNav}>
-        <NavLink
-          to={`/chat/${sessionId}`}
-          className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
-        >
-          <Sparkles size={18} />
-          <span>工作台</span>
-        </NavLink>
-        <button className={styles.mobileNavItem} onClick={() => setMobileSidebarOpen(true)}>
-          <Menu size={18} />
-          <span>会话</span>
-        </button>
-        <NavLink
-          to="/assets"
-          className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
-        >
-          <FolderOpen size={18} />
-          <span>素材</span>
-        </NavLink>
-      </nav>
+      {!isWorkspaceRoute && (
+        <nav className={styles.mobileBottomNav}>
+          <NavLink
+            to={`/chat/${sessionId}`}
+            className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
+          >
+            <Sparkles size={18} />
+            <span>Workspace</span>
+          </NavLink>
+          <button className={styles.mobileNavItem} onClick={() => setMobileSidebarOpen(true)}>
+            <Menu size={18} />
+            <span>Sessions</span>
+          </button>
+          <NavLink
+            to="/assets"
+            className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
+          >
+            <FolderOpen size={18} />
+            <span>Assets</span>
+          </NavLink>
+        </nav>
+      )}
     </div>
   );
 }
