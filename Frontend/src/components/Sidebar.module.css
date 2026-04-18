@@ -8,6 +8,17 @@
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 249, 255, 0.84)),
     radial-gradient(circle at top left, rgba(76, 132, 255, 0.14), transparent 38%);
+  transition:
+    padding var(--duration-slow) var(--ease-standard),
+    background var(--duration-base) var(--ease-standard);
+}
+
+.sidebarCollapsed {
+  padding: 20px 10px 16px;
+}
+
+.compactHidden {
+  display: none !important;
 }
 
 .header {
@@ -15,12 +26,25 @@
   flex-direction: column;
   gap: 18px;
   margin-bottom: 18px;
+  transition: gap var(--duration-slow) var(--ease-standard), margin var(--duration-slow) var(--ease-standard);
+}
+
+.headerCollapsed {
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .logoRow {
   display: flex;
   align-items: center;
   gap: 14px;
+  transition: gap var(--duration-slow) var(--ease-standard), justify-content var(--duration-slow) var(--ease-standard);
+}
+
+.logoRowCollapsed {
+  width: 100%;
+  justify-content: center;
 }
 
 .logoIcon {
@@ -52,6 +76,18 @@
 .newSessionBtn {
   width: 100%;
   justify-content: center;
+  transition:
+    width var(--duration-slow) var(--ease-standard),
+    min-height var(--duration-slow) var(--ease-standard),
+    padding var(--duration-slow) var(--ease-standard),
+    border-radius var(--duration-slow) var(--ease-standard);
+}
+
+.newSessionBtnCollapsed {
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border-radius: 18px;
 }
 
 .nav {
@@ -61,12 +97,23 @@
   flex-direction: column;
 }
 
+.navCollapsed {
+  align-items: center;
+}
+
 .navHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
   padding: 0 4px;
+  transition: margin var(--duration-slow) var(--ease-standard), padding var(--duration-slow) var(--ease-standard);
+}
+
+.navHeaderCollapsed {
+  justify-content: center;
+  margin-bottom: 8px;
+  padding: 0;
 }
 
 .navTitle {
@@ -102,6 +149,14 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  transition: gap var(--duration-slow) var(--ease-standard), padding var(--duration-slow) var(--ease-standard);
+}
+
+.sessionListCollapsed {
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
 }
 
 .sessionLi {
@@ -112,6 +167,10 @@
   display: flex;
   align-items: stretch;
   gap: 8px;
+}
+
+.sessionRowCollapsed {
+  justify-content: center;
 }
 
 .sessionItem {
@@ -127,6 +186,16 @@
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid transparent;
   transition: background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast), box-shadow var(--motion-fast), color var(--motion-fast);
+}
+
+.sessionItemCollapsed {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  flex: none;
+  justify-content: center;
+  padding: 0;
+  border-radius: 18px;
 }
 
 .sessionItem:hover {
@@ -285,12 +354,25 @@
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(191, 205, 229, 0.8);
+  transition: gap var(--duration-slow) var(--ease-standard), padding var(--duration-slow) var(--ease-standard), margin var(--duration-slow) var(--ease-standard);
+}
+
+.footerCollapsed {
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 12px;
 }
 
 .assetEntryGroup {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.assetEntryGroupCollapsed {
+  width: 100%;
+  align-items: center;
 }
 
 .assetButtonRow {
@@ -305,6 +387,17 @@
   border: 1px solid rgba(76, 132, 255, 0.18);
   box-shadow: var(--shadow-xs);
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast);
+}
+
+.assetButtonRowCollapsed,
+.assetQuickBtnCollapsed,
+.compactProfileBtn {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 18px;
 }
 
 .assetButtonRow:hover,
@@ -336,6 +429,12 @@
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
 }
 
+.assetQuickBtnCollapsed {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+}
+
 .assetQuickBtn:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
@@ -356,6 +455,32 @@
   text-align: left;
   color: var(--text-primary);
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast);
+}
+
+.compactProfileActions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.compactProfileBtn {
+  border: 1px solid rgba(191, 205, 229, 0.72);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast), background var(--motion-fast);
+}
+
+.compactProfileBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: rgba(76, 132, 255, 0.2);
+  color: var(--brand-strong);
 }
 
 .profileBtn:hover {

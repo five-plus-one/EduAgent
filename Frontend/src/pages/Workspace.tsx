@@ -924,12 +924,12 @@ export default function Workspace() {
         <div className={styles.tabsRoot}>
           <header className={styles.visualHeader}>
             <div className={styles.tabsList} role="tablist" aria-label="工作区标签">
-              <button className={clsx(styles.tabsTrigger, activeTab === 'files' && styles.tabsTriggerActive)} onClick={() => setActiveTab('files')}>参考资料</button>
-              <button className={clsx(styles.tabsTrigger, activeTab === 'ppt' && styles.tabsTriggerActive)} onClick={() => setActiveTab('ppt')}>课件预览 (PPT)</button>
-              <button className={clsx(styles.tabsTrigger, activeTab === 'word' && styles.tabsTriggerActive)} onClick={() => setActiveTab('word')}>讲义 (Word)</button>
+              <button className={clsx(styles.tabsTrigger, activeTab === 'files' && styles.tabsTriggerActive)} onClick={() => setActiveTab('files')}>资料</button>
+              <button className={clsx(styles.tabsTrigger, activeTab === 'ppt' && styles.tabsTriggerActive)} onClick={() => setActiveTab('ppt')}>课件</button>
+              <button className={clsx(styles.tabsTrigger, activeTab === 'word' && styles.tabsTriggerActive)} onClick={() => setActiveTab('word')}>讲义</button>
               <button className={clsx(styles.tabsTrigger, styles.gameTrigger, activeTab === 'games' && styles.tabsTriggerActive)} onClick={() => setActiveTab('games')}>
                 <Gamepad2 size={13} />
-                互动游戏
+                游戏
                 {(pendingSuggest || pendingTrigger) && (
                   <span className={styles.gameTabDot} />
                 )}
@@ -1009,13 +1009,13 @@ export default function Workspace() {
                   className={clsx(styles.subTabBtn, filesSubTab === 'docs' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('docs')}
                 >
-                  <Library size={14} /> 知识库文档
+                  <Library size={14} /> 文档库
                 </button>
                 <button
                   className={clsx(styles.subTabBtn, filesSubTab === 'images' && styles.subTabActive)}
                   onClick={() => setFilesSubTab('images')}
                 >
-                  <ImageIcon size={14} /> 图片素材
+                  <ImageIcon size={14} /> 图片
                 </button>
               </div>
 

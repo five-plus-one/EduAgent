@@ -422,8 +422,8 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
-  padding: 10px 24px 8px;
+  gap: 6px;
+  padding: 10px 20px 6px;
   border-bottom: 1px solid var(--border-glass);
   background-color: hsla(var(--hue), 20%, 98%, 0.8);
   backdrop-filter: blur(12px);
@@ -435,7 +435,7 @@
 .tabsList {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 18px;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -574,9 +574,9 @@
 .tabsTrigger {
   background: transparent;
   border: none;
-  padding: 12px 0;
-  font-size: 0.95rem;
-  font-weight: 500;
+  padding: 10px 0;
+  font-size: 0.92rem;
+  font-weight: 600;
   color: var(--text-tertiary);
   cursor: pointer;
   position: relative;

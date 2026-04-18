@@ -10,6 +10,7 @@ export default function WorkspaceLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const location = useLocation();
   const { sessionId = 'new' } = useParams();
+  const sidebarWidth = sidebarCollapsed ? 'var(--layout-sidebar-collapsed)' : 'var(--layout-sidebar)';
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith('/assets')) {
@@ -19,7 +20,10 @@ export default function WorkspaceLayout() {
   }, [location.pathname]);
 
   return (
-    <div className={styles.layout}>
+    <div
+      className={styles.layout}
+      style={{ ['--workspace-sidebar-width' as any]: sidebarWidth }}
+    >
       <div
         className={clsx(styles.mobileBackdrop, mobileSidebarOpen && styles.mobileBackdropVisible)}
         onClick={() => setMobileSidebarOpen(false)}
@@ -53,7 +57,6 @@ export default function WorkspaceLayout() {
       <div
         className={clsx(
           styles.sidebarWrap,
-          sidebarCollapsed && styles.sidebarCollapsed,
           mobileSidebarOpen && styles.sidebarMobileOpen,
         )}
       >
@@ -74,11 +77,11 @@ export default function WorkspaceLayout() {
             <X size={18} />
           </button>
         </div>
-        <Sidebar />
+        <Sidebar collapsed={sidebarCollapsed} />
       </div>
 
       <button
-        className={clsx(styles.collapseBtn, sidebarCollapsed && styles.collapseBtnCollapsed)}
+        className={styles.collapseBtn}
         onClick={() => setSidebarCollapsed(v => !v)}
         title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
         aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}

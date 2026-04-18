@@ -37,7 +37,11 @@ interface SessionItem {
 
 const PAGE_SIZE = 20;
 
-export default function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+}
+
+export default function Sidebar({ collapsed = false }: SidebarProps) {
   const navigate = useNavigate();
   const { sessionId: currentSessionId } = useParams();
   const user = useAppStore((state) => state.user);
@@ -293,38 +297,43 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className={clsx(styles.sidebar, 'glass-panel')}>
-        <div className={styles.header}>
-          <div className={styles.logoRow}>
+      <aside className={clsx(styles.sidebar, 'glass-panel', collapsed && styles.sidebarCollapsed)}>
+        <div className={clsx(styles.header, collapsed && styles.headerCollapsed)}>
+          <div className={clsx(styles.logoRow, collapsed && styles.logoRowCollapsed)} title="EduAgent 教学工作台">
             <div className={styles.logoIcon}>EA</div>
-            <div>
+            <div className={clsx(collapsed && styles.compactHidden)}>
               <div className={styles.logoText}>EduAgent</div>
               <div className={styles.logoSubtext}>教学工作台</div>
             </div>
           </div>
 
-          <button onClick={openNewModal} className={clsx('button-primary', styles.newSessionBtn)}>
+          <button
+            onClick={openNewModal}
+            className={clsx('button-primary', styles.newSessionBtn, collapsed && styles.newSessionBtnCollapsed)}
+            title="新建课件"
+            aria-label="新建课件"
+          >
             <MessageSquarePlus size={18} />
-            <span>新建课件</span>
+            {!collapsed && <span>新建课件</span>}
           </button>
         </div>
 
-        <nav className={styles.nav}>
-          <div className={styles.navHeader}>
-            <h3 className={styles.navTitle}>最近会话</h3>
+        <nav className={clsx(styles.nav, collapsed && styles.navCollapsed)}>
+          <div className={clsx(styles.navHeader, collapsed && styles.navHeaderCollapsed)}>
+            {!collapsed && <h3 className={styles.navTitle}>最近会话</h3>}
             <span className={styles.navCount}>{sessions.length}</span>
           </div>
 
-          <ul className={styles.sessionList} ref={listContainerRef}>
+          <ul className={clsx(styles.sessionList, collapsed && styles.sessionListCollapsed)} ref={listContainerRef}>
             {loadingSessions ? (
               <li className={styles.feedbackRow}>
                 <Loader2 size={14} className={styles.spinner} />
-                <span>正在加载会话...</span>
+                {!collapsed && <span>正在加载会话...</span>}
               </li>
             ) : sessions.length === 0 ? (
               <li className={styles.emptyState}>
                 <Sparkles size={16} />
-                <span>还没有会话，先创建一个课件吧。</span>
+                {!collapsed && <span>还没有会话，先创建一个课件吧。</span>}
               </li>
             ) : (
               <>
@@ -361,24 +370,32 @@ export default function Sidebar() {
                         </button>
                       </div>
                     ) : (
-                      <div className={styles.sessionRow}>
+                      <div className={clsx(styles.sessionRow, collapsed && styles.sessionRowCollapsed)}>
                         <NavLink
                           to={`/chat/${session.session_id}`}
-                          className={({ isActive }) => clsx(styles.sessionItem, isActive && styles.active)}
+                          className={({ isActive }) => clsx(
+                            styles.sessionItem,
+                            collapsed && styles.sessionItemCollapsed,
+                            isActive && styles.active,
+                          )}
+                          title={session.course_name ?? '未命名课件'}
+                          aria-label={session.course_name ?? '未命名课件'}
                         >
                           <History size={15} />
-                          <div className={styles.sessionMeta}>
+                          <div className={clsx(styles.sessionMeta, collapsed && styles.compactHidden)}>
                             <span className={styles.truncate}>{session.course_name ?? '未命名课件'}</span>
                             <span className={styles.sessionTime}>{new Date(session.updated_at).toLocaleDateString('zh-CN')}</span>
                           </div>
                         </NavLink>
-                        <button
-                          className={styles.menuTrigger}
-                          onClick={(e) => openMenu(e, session.session_id)}
-                          title="更多操作"
-                        >
-                          <MoreHorizontal size={14} />
-                        </button>
+                        {!collapsed && (
+                          <button
+                            className={styles.menuTrigger}
+                            onClick={(e) => openMenu(e, session.session_id)}
+                            title="更多操作"
+                          >
+                            <MoreHorizontal size={14} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </li>
@@ -399,48 +416,81 @@ export default function Sidebar() {
           </ul>
         </nav>
 
-        <div className={styles.footer}>
-          <div className={styles.assetEntryGroup}>
+        <div className={clsx(styles.footer, collapsed && styles.footerCollapsed)}>
+          <div className={clsx(styles.assetEntryGroup, collapsed && styles.assetEntryGroupCollapsed)}>
             <NavLink
               to="/assets"
               id="sidebar-asset-btn"
-              className={({ isActive }) => clsx(styles.assetButtonRow, isActive && styles.assetButtonRowActive)}
+              className={({ isActive }) => clsx(
+                styles.assetButtonRow,
+                collapsed && styles.assetButtonRowCollapsed,
+                isActive && styles.assetButtonRowActive,
+              )}
               aria-label="打开素材管理"
+              title="素材管理"
             >
               <LayoutGrid size={16} />
-              <span>素材管理</span>
-              <span className={styles.assetBadge}>文档与图片</span>
+              {!collapsed && (
+                <>
+                  <span>素材管理</span>
+                  <span className={styles.assetBadge}>文档与图片</span>
+                </>
+              )}
             </NavLink>
 
             <button
               type="button"
-              className={styles.assetQuickBtn}
+              className={clsx(styles.assetQuickBtn, collapsed && styles.assetQuickBtnCollapsed)}
               aria-label="在当前会话中打开参考资料"
               onClick={handleOpenAssetsInWorkspace}
+              title="当前会话资料"
             >
-              当前会话资料
+              {collapsed ? <BookOpen size={16} /> : '当前会话资料'}
             </button>
           </div>
 
-          <button className={styles.profileBtn} onClick={openProfileModal}>
-            <UserCircle size={24} />
-            <div className={styles.profileInfo}>
-              <span className={styles.userName}>{user?.name ?? '未命名教师'}</span>
-              <span className={styles.userRole}>{user?.department ?? '点击完善个人信息'}</span>
+          {collapsed ? (
+            <div className={styles.compactProfileActions}>
+              <button
+                type="button"
+                className={styles.compactProfileBtn}
+                onClick={openProfileModal}
+                title="编辑个人信息"
+                aria-label="编辑个人信息"
+              >
+                <UserCircle size={20} />
+              </button>
+              <button
+                type="button"
+                className={styles.compactProfileBtn}
+                onClick={handleLogout}
+                title="退出登录"
+                aria-label="退出登录"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
-            <span className={styles.profileHint}>编辑</span>
-            <span
-              className={styles.logoutBtn}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleLogout();
-              }}
-              title="退出登录"
-              role="button"
-            >
-              <LogOut size={16} />
-            </span>
-          </button>
+          ) : (
+            <button className={styles.profileBtn} onClick={openProfileModal}>
+              <UserCircle size={24} />
+              <div className={styles.profileInfo}>
+                <span className={styles.userName}>{user?.name ?? '未命名教师'}</span>
+                <span className={styles.userRole}>{user?.department ?? '点击完善个人信息'}</span>
+              </div>
+              <span className={styles.profileHint}>编辑</span>
+              <span
+                className={styles.logoutBtn}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleLogout();
+                }}
+                title="退出登录"
+                role="button"
+              >
+                <LogOut size={16} />
+              </span>
+            </button>
+          )}
         </div>
       </aside>
 

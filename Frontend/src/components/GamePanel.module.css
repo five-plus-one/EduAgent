@@ -1,11 +1,17 @@
 ﻿.root {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: var(--game-sidebar-width) minmax(0, 1fr);
+  gap: 10px;
   height: 100%;
   min-height: 0;
-  padding: 12px;
+  padding: 8px;
   background: linear-gradient(180deg, rgba(250, 252, 255, 0.92), rgba(242, 247, 255, 0.78));
+}
+
+.root {
+  --game-sidebar-width: 276px;
+  --game-sidebar-collapsed-width: 72px;
+  transition: grid-template-columns var(--duration-slow) var(--ease-standard), gap var(--duration-slow) var(--ease-standard);
 }
 
 .rootFullscreen {
@@ -16,22 +22,30 @@
   background: linear-gradient(180deg, #f8fbff, #eef5ff);
 }
 
+.rootSidebarCollapsed {
+  grid-template-columns: var(--game-sidebar-collapsed-width) minmax(0, 1fr);
+}
+
 .sidebar {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px;
-  border-radius: 26px;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 20px;
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,250,255,0.94));
   border: 1px solid rgba(191, 205, 229, 0.86);
   box-shadow: var(--shadow-md);
   overflow-y: auto;
+  transition:
+    padding var(--duration-slow) var(--ease-standard),
+    gap var(--duration-slow) var(--ease-standard),
+    border-radius var(--duration-slow) var(--ease-standard);
 }
 
 .sidebarCollapsed {
-  width: 76px;
-  padding: 16px 10px;
+  width: var(--game-sidebar-collapsed-width);
+  padding: 10px 8px;
   align-items: center;
 }
 
@@ -44,9 +58,9 @@
 .iconActionBtn,
 .deleteBtn,
 .bannerClose {
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
   border: 1px solid rgba(191, 205, 229, 0.9);
   background: rgba(255,255,255,0.88);
   color: var(--text-secondary);
@@ -71,8 +85,8 @@
 .suggestBanner,
 .triggerBanner,
 .manualPanel {
-  padding: 16px;
-  border-radius: 20px;
+  padding: 12px;
+  border-radius: 16px;
   border: 1px solid rgba(191, 205, 229, 0.78);
   box-shadow: var(--shadow-xs);
 }
@@ -113,16 +127,36 @@
 
 .suggestChips,
 .triggerTopics,
+.listToolbar,
 .listActions,
 .previewActions,
 .previewTabs,
 .gameList {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .suggestChips {
   flex-direction: column;
+}
+
+.listToolbar {
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2px;
+}
+
+.listCount {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: rgba(241, 246, 255, 0.9);
+  border: 1px solid rgba(191, 205, 229, 0.72);
 }
 
 .suggestChip {
@@ -181,11 +215,12 @@
 .confirmBtn,
 .newGameBtn,
 .shareBtn,
+.previewLinkBtn,
 .retryBtn,
 .secondaryBtn {
-  min-height: 42px;
-  padding: 0 16px;
-  border-radius: 14px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
   border: none;
   display: inline-flex;
   align-items: center;
@@ -202,6 +237,12 @@
   color: #fff;
   background: linear-gradient(135deg, var(--brand), var(--brand-strong));
   box-shadow: var(--shadow-sm);
+}
+
+.previewLinkBtn {
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(191, 205, 229, 0.9);
 }
 
 .newGameBtn,
@@ -310,9 +351,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 20px;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
   border: 1px solid rgba(191, 205, 229, 0.78);
   background: rgba(255,255,255,0.84);
   cursor: pointer;
@@ -359,7 +400,7 @@
 }
 
 .gameItemMeta {
-  font-size: 0.8rem;
+  font-size: 0.76rem;
 }
 
 .gameItemRight,
@@ -386,7 +427,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: 26px;
+  border-radius: 20px;
   background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245,250,255,0.94));
   border: 1px solid rgba(191, 205, 229, 0.86);
   box-shadow: var(--shadow-md);
@@ -395,20 +436,32 @@
 
 .previewHeader {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 18px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
   border-bottom: 1px solid rgba(191, 205, 229, 0.84);
   background: rgba(247, 250, 255, 0.88);
 }
 
-.previewTabs {
+.previewTopbar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
   flex-wrap: wrap;
 }
 
+.previewTabs {
+  width: 100%;
+  flex-wrap: wrap;
+  padding-top: 0;
+}
+
 .previewTab {
-  min-height: 38px;
-  padding: 0 14px;
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
@@ -430,6 +483,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+}
+
+.previewHeading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .previewTitle {
@@ -437,6 +498,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
+}
+
+.previewDetail {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 .iframeWrap,

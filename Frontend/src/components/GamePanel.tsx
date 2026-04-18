@@ -206,7 +206,6 @@ export default function GamePanel({
 
   const isCurrentGenerating = generating && generatingSessionId === sessionId;
   const games: GameMeta[] = gameLists[sessionId] ?? [];
-
   // 鈹€鈹€ 鏈湴 UI 鐘舵€?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [loadingList, setLoadingList]     = useState(false);
   const [deletingIds, setDeletingIds]     = useState<Set<string>>(new Set());
@@ -547,7 +546,7 @@ export default function GamePanel({
   // 娓叉煋
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   return (
-    <div className={clsx(styles.root, isFullscreen && styles.rootFullscreen)}>
+    <div className={clsx(styles.root, !sidebarOpen && styles.rootSidebarCollapsed, isFullscreen && styles.rootFullscreen)}>
 
       {/* 鈹€鈹€鈹€ 宸︽爮 鈹€鈹€鈹€ */}
       <div className={clsx(styles.sidebar, !sidebarOpen && styles.sidebarCollapsed)}>
@@ -620,17 +619,20 @@ export default function GamePanel({
             )}
 
             {/* 鎿嶄綔鏍?*/}
-            <div className={styles.listActions}>
+            <div className={styles.listToolbar}>
+              <span className={styles.listCount}>{games.length} 个</span>
+              <div className={styles.listActions}>
               <button
                 className={styles.newGameBtn}
                 onClick={() => setShowManualPanel(v => !v)}
                 disabled={generating || sessionId === 'new'}
               >
-                <Gamepad2 size={13} /> 手动创建
+                <Gamepad2 size={13} /> 创建游戏
               </button>
               <button className={styles.refreshBtn} onClick={() => fetchGames()} disabled={loadingList} title="刷新列表">
                 <RefreshCw size={13} className={clsx(loadingList && styles.spin)} />
               </button>
+              </div>
             </div>
 
             {/* 手动创建闈㈡澘 */}
@@ -821,6 +823,81 @@ export default function GamePanel({
           <>
             {/* 棰勮宸ュ叿鏍?*/}
             <div className={styles.previewHeader}>
+              <div className={styles.previewTopbar}>
+                <div className={styles.previewMeta}>
+                  <div className={styles.previewHeading}>
+                    {selectedGame && renamingId === selectedGame.game_id ? (
+                      <input
+                        ref={renameInputRef}
+                        className={styles.previewTitleInput}
+                        value={renameVal}
+                        onChange={e => setRenameVal(e.target.value)}
+                        onBlur={commitRename}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') commitRename();
+                          if (e.key === 'Escape') setRenamingId(null);
+                        }}
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className={styles.previewTitle}
+                        title="点击重命名"
+                        onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
+                      >{selectedGame?.title}</span>
+                    )}
+                    {selectedGame && <span className={styles.previewDetail}>{selectedGame.type_label} · v{selectedGame.version} · {fmtDate(selectedGame.updated_at)}</span>}
+                  </div>
+                </div>
+
+                <div className={styles.previewActions}>
+                  {shareError && (
+                    <span className={styles.shareErrorTip}>{shareError}</span>
+                  )}
+                  {previewTab === 'source' && (
+                    <button className={styles.iconActionBtn} onClick={handleCopy} disabled={!sourceCode} title="复制代码">
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  )}
+                  <button
+                    className={clsx(styles.previewLinkBtn, shareCopied && styles.shareBtnCopied)}
+                    onClick={handleCopyShareLink}
+                    disabled={sharingLoading || !effectiveGameId}
+                    title="生成短链接并复制到剪贴板，可嵌入 PPT"
+                  >
+                    {sharingLoading
+                      ? <Loader2 size={13} className={styles.spin} />
+                      : shareCopied
+                        ? <><Check size={13} /> 已复制</>
+                        : <><Share2 size={13} /> 分享</>
+                    }
+                  </button>
+                  <a
+                    href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.iconActionBtn}
+                    title="在新标签页打开"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                  <button
+                    className={styles.iconActionBtn}
+                    onClick={() => setSidebarOpen(v => !v)}
+                    title={sidebarOpen ? '隐藏侧栏，专注预览' : '显示侧栏'}
+                  >
+                    {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+                  </button>
+                  <button
+                    className={styles.iconActionBtn}
+                    onClick={() => setIsFullscreen(v => !v)}
+                    title={isFullscreen ? '退出全屏 (Esc)' : '全屏预览'}
+                  >
+                    {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                  </button>
+                </div>
+              </div>
+
               <div className={styles.previewTabs}>
                 <button
                   className={clsx(styles.previewTab, previewTab === 'preview' && styles.previewTabActive)}
@@ -833,80 +910,6 @@ export default function GamePanel({
                   onClick={() => setPreviewTab('source')}
                 >
                   <Code2 size={13} /> HTML 源码
-                </button>
-              </div>
-
-              <div className={styles.previewMeta}>
-                {selectedGame && renamingId === selectedGame.game_id ? (
-                  <input
-                    ref={renameInputRef}
-                    className={styles.previewTitleInput}
-                    value={renameVal}
-                    onChange={e => setRenameVal(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') commitRename();
-                      if (e.key === 'Escape') setRenamingId(null);
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <span
-                    className={styles.previewTitle}
-                    title="点击重命名"
-                    onClick={() => selectedGame && startRename(selectedGame.game_id, selectedGame.title)}
-                  >{selectedGame?.title}</span>
-                )}
-                {selectedGame && <span className={styles.previewVersion}>v{selectedGame.version}</span>}
-              </div>
-
-              <div className={styles.previewActions}>
-                {/* 鍒嗕韩閿欒鎻愮ず */}
-                {shareError && (
-                  <span className={styles.shareErrorTip}>{shareError}</span>
-                )}
-                {previewTab === 'source' && (
-                  <button className={styles.iconActionBtn} onClick={handleCopy} disabled={!sourceCode} title="复制代码">
-                    {copied ? <Check size={14} /> : <Copy size={14} />}
-                  </button>
-                )}
-                {/* 澶嶅埗分享链接 */}
-                <button
-                  className={clsx(styles.shareBtn, shareCopied && styles.shareBtnCopied)}
-                  onClick={handleCopyShareLink}
-                  disabled={sharingLoading || !effectiveGameId}
-                  title="生成短链接并复制到剪贴板，可嵌入 PPT"
-                >
-                  {sharingLoading
-                    ? <Loader2 size={13} className={styles.spin} />
-                    : shareCopied
-                      ? <><Check size={13} /> 已复制</>
-                      : <><Share2 size={13} /> 分享链接</>
-                  }
-                </button>
-                {/* 鏂版爣绛鹃〉鎵撳紑 */}
-                <a
-                  href={effectiveGameId ? gameShareUrl(effectiveGameId) : '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={styles.iconActionBtn}
-                  title="在新标签页打开"
-                >
-                  <ExternalLink size={14} />
-                </a>
-                <button
-                  className={styles.iconActionBtn}
-                  onClick={() => setSidebarOpen(v => !v)}
-                  title={sidebarOpen ? '隐藏侧栏，专注预览' : '显示侧栏'}
-                >
-                  {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-                </button>
-                <button
-                  className={styles.iconActionBtn}
-                  onClick={() => setIsFullscreen(v => !v)}
-                  title={isFullscreen ? '退出全屏 (Esc)' : '全屏预览'}
-                >
-                  {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                 </button>
               </div>
             </div>

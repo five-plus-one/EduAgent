@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Markdown from 'react-markdown';
-import { Sparkles, UserCircle, ChevronDown, ChevronUp, Brain, Wrench } from 'lucide-react';
-import styles from './message-bubble.module.css';
+import { Brain, ChevronDown, ChevronUp, Sparkles, UserCircle, Wrench } from 'lucide-react';
 import { clsx } from 'clsx';
+import styles from './message-bubble.module.css';
 
 export interface MessageProps {
   id: string;
@@ -16,45 +16,35 @@ export interface MessageProps {
 
 export default function MessageBubble({ id, role, content, toolLog, thinking, isThinking, isTyping }: MessageProps) {
   const isAI = role === 'ai';
-
-  // 思考进行中（isThinking=true）→ 展开；历史消息/已完成 → 默认折叠
   const [thinkExpanded, setThinkExpanded] = useState(() => !!isThinking);
-  const [toolExpanded, setToolExpanded] = useState(true);
+  const [toolExpanded, setToolExpanded] = useState(false);
 
-  // thinkBody 的真实高度，用于 max-height 动画
   const thinkBodyRef = useRef<HTMLDivElement>(null);
-  const [thinkBodyHeight, setThinkBodyHeight] = useState<number>(0);
-  // 滚动容器（流式输出期间限高 + 内部滚动）
   const thinkScrollRef = useRef<HTMLDivElement>(null);
+  const [thinkBodyHeight, setThinkBodyHeight] = useState<number>(0);
 
   const hasThinking = !!thinking;
   const hasToolLog = !!toolLog;
   const hasAnyData = !!content || !!thinking || !!toolLog || isThinking || isTyping;
 
-  // ── 【修复1】isThinking 变为 true 时主动展开（解决流式输出默认折叠问题）────
   useEffect(() => {
     if (isThinking) setThinkExpanded(true);
   }, [isThinking]);
 
-  // ── 关键逻辑：思考完成时自动折叠 ────────────────────────────
   const prevIsThinkingRef = useRef(isThinking);
   useEffect(() => {
     const wasThinking = prevIsThinkingRef.current;
     prevIsThinkingRef.current = isThinking;
 
-    // isThinking: true → false  表示刚完成
     if (wasThinking && !isThinking && hasThinking) {
-      // 延迟 400ms 让用户感知到"完成了"再折叠
       const timer = setTimeout(() => setThinkExpanded(false), 400);
       return () => clearTimeout(timer);
     }
   }, [isThinking, hasThinking]);
 
-  // ── 测量 thinkBody 高度，支持 max-height 过渡 ─────────────────
   useEffect(() => {
     if (!thinkBodyRef.current) return;
     const el = thinkBodyRef.current;
-    // ResizeObserver 跟踪内容撑高（流式输出时内容在增长）
     const ro = new ResizeObserver(() => {
       setThinkBodyHeight(el.scrollHeight);
     });
@@ -63,7 +53,6 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
     return () => ro.disconnect();
   }, []);
 
-  // ── 【修复3】流式输出时自动滚动到最新内容 ──────────────────────
   useEffect(() => {
     if (isThinking && thinkScrollRef.current) {
       const el = thinkScrollRef.current;
@@ -73,11 +62,8 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
 
   if (!hasAnyData) return null;
 
-  // 折叠时在 header 末尾显示思考字数，让用户知道有内容
   const thinkingWordCount = thinking ? thinking.length : 0;
-  const thinkingSummary = !isThinking && thinkingWordCount > 0
-    ? `（${thinkingWordCount} 字）`
-    : '';
+  const thinkingSummary = !isThinking && thinkingWordCount > 0 ? `（${thinkingWordCount} 字）` : '';
 
   return (
     <div
@@ -94,29 +80,21 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
       <div className={clsx(styles.bubble, isAI ? styles.bubbleAI : styles.bubbleTeacher)} style={{ minWidth: '40px' }}>
         {isAI ? (
           <div className={styles.markdownWrapper}>
-
-            {/* 1. Tool Execution Logs */}
-            {hasToolLog && (
-              <div className={clsx(styles.thinkBlock, styles.toolBlock)}>
-                <button type="button" className={styles.thinkHeader} onClick={() => setToolExpanded(v => !v)}>
-                  <Wrench size={14} className={styles.thinkIcon} />
-                  <span className={styles.thinkLabel}>工具执行日志</span>
-                  <span className={styles.thinkChevron}>
-                    {toolExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  </span>
-                </button>
-                <div
-                  className={styles.thinkBodyWrap}
-                  style={{ maxHeight: toolExpanded ? '9999px' : '0' }}
-                >
-                  <div className={styles.thinkBody} style={{ color: '#92400e' }}>
-                    <Markdown>{toolLog || ''}</Markdown>
+            <div className={styles.textContent} style={{ color: '#1e293b' }}>
+              {content ? (
+                <>
+                  <Markdown>{content}</Markdown>
+                  {isTyping && !isThinking && <span className={styles.cursor} />}
+                </>
+              ) : (
+                isTyping && !isThinking && !hasThinking && !hasToolLog && (
+                  <div className={styles.thinkingDots}>
+                    <span /><span /><span />
                   </div>
-                </div>
-              </div>
-            )}
+                )
+              )}
+            </div>
 
-            {/* 2. Thinking Process ───────────────────────────── */}
             {(hasThinking || isThinking) && (
               <div className={clsx(styles.thinkBlock, isThinking && styles.thinkBlockActive)}>
                 <button
@@ -136,17 +114,8 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
                   </span>
                 </button>
 
-                {/* max-height 过渡，不使用条件渲染避免内容跳变 */}
-                {/*
-                  【修复2】流式输出期间：固定 220px 限高 + 内部滚动（thinkScrollRef）;
-                  完成后：恢复 max-height accordion 动画。
-                */}
                 {isThinking ? (
-                  /* ── 流式输出中：固定高度容器 + 内部滚动 ── */
-                  <div
-                    ref={thinkScrollRef}
-                    className={styles.thinkBodyWrapStreaming}
-                  >
+                  <div ref={thinkScrollRef} className={styles.thinkBodyWrapStreaming}>
                     <div
                       ref={thinkBodyRef}
                       className={styles.thinkBody}
@@ -154,20 +123,14 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
                     >
                       {thinking
                         ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div>
-                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>
-                      }
+                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>}
                       <span className={styles.thinkCursor} />
                     </div>
                   </div>
                 ) : (
-                  /* ── 完成后：折叠/展开动画容器 ── */
                   <div
                     className={styles.thinkBodyWrap}
-                    style={{
-                      maxHeight: thinkExpanded
-                        ? `${Math.max(thinkBodyHeight, 200)}px`
-                        : '0',
-                    }}
+                    style={{ maxHeight: thinkExpanded ? `${Math.max(thinkBodyHeight, 200)}px` : '0' }}
                   >
                     <div
                       ref={thinkBodyRef}
@@ -176,29 +139,32 @@ export default function MessageBubble({ id, role, content, toolLog, thinking, is
                     >
                       {thinking
                         ? <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{thinking}</div>
-                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>
-                      }
+                        : <span className={styles.thinkPlaceholder}>思考脉络生成中...</span>}
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* 3. Conversational Response */}
-            <div className={styles.textContent} style={{ color: '#1e293b' }}>
-              {content ? (
-                <>
-                  <Markdown>{content}</Markdown>
-                  {isTyping && !isThinking && <span className={styles.cursor} />}
-                </>
-              ) : (
-                isTyping && !isThinking && !hasThinking && !hasToolLog && (
-                  <div className={styles.thinkingDots}>
-                    <span /><span /><span />
+            {hasToolLog && (
+              <div className={clsx(styles.thinkBlock, styles.toolBlock)}>
+                <button type="button" className={styles.thinkHeader} onClick={() => setToolExpanded(v => !v)}>
+                  <Wrench size={14} className={styles.thinkIcon} />
+                  <span className={styles.thinkLabel}>工具执行日志</span>
+                  <span className={styles.thinkChevron}>
+                    {toolExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </span>
+                </button>
+                <div
+                  className={styles.thinkBodyWrap}
+                  style={{ maxHeight: toolExpanded ? '9999px' : '0' }}
+                >
+                  <div className={styles.thinkBody} style={{ color: '#92400e' }}>
+                    <Markdown>{toolLog || ''}</Markdown>
                   </div>
-                )
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className={styles.textContent} style={{ color: '#ffffff' }}>

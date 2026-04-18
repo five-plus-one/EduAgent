@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  Eye,
   FileText,
   FileVideo,
   Loader2,
@@ -397,19 +398,19 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   }, [documents]);
 
   return (
-    <div className={clsx(styles.panelRoot, compact && styles.panelCompact, selectedDoc && styles.panelSplit)}>
+    <div className={clsx(styles.panelRoot, compact && styles.panelCompact)}>
       <section className={styles.panelMain}>
         {!compact && (
           <header className={styles.pageHeader}>
             <div>
               <div className={styles.eyebrow}>Asset Center</div>
               <h1 className={styles.title}>知识库文档</h1>
-              <p className={styles.subtitle}>统一管理文档与视频素材，自动解析摘要、字幕与关键帧，供工作台随时调用。</p>
+              <p className={styles.subtitle}>把上传、处理状态和解析结果收进一条主流程里，避免主列表和详情面板长期并排争抢注意力。</p>
             </div>
-            <div className={styles.headerStats}>
-              <div className={styles.statCard}><span>已完成</span><strong>{summary.completed}</strong></div>
-              <div className={styles.statCard}><span>处理中</span><strong>{summary.processing}</strong></div>
-              <div className={styles.statCard}><span>失败</span><strong>{summary.failed}</strong></div>
+            <div className={styles.summaryStrip}>
+              <span className={styles.summaryChip}>已完成 {summary.completed}</span>
+              <span className={styles.summaryChip}>处理中 {summary.processing}</span>
+              <span className={styles.summaryChip}>失败 {summary.failed}</span>
             </div>
           </header>
         )}
@@ -511,7 +512,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                             </button>
                           )}
                           <button className={styles.iconBtn} onClick={() => setSelectedDoc(doc)} title="查看详情">
-                            <Pencil size={14} />
+                            <Eye size={14} />
                           </button>
                           <button
                             className={clsx(styles.iconBtn, styles.iconBtnDanger)}
@@ -531,17 +532,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
         </div>
       </section>
 
-      {selectedDoc && !compact && (
-        <PreviewPanel
-          doc={selectedDoc}
-          onClose={() => setSelectedDoc(null)}
-          onDelete={(id) => setConfirmDelete({ id, name: getTitle(selectedDoc), phase: 'confirm' })}
-          onRetry={handleRetry}
-          onRename={handleRename}
-        />
-      )}
-
-      {selectedDoc && compact && (
+      {selectedDoc && (
         <div className={styles.mobilePreviewOverlay} onClick={() => setSelectedDoc(null)}>
           <div className={styles.mobilePreviewCard} onClick={(e) => e.stopPropagation()}>
             <PreviewPanel
