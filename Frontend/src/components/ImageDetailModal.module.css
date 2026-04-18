@@ -298,10 +298,10 @@
 .saveBtn:disabled {
   opacity: 1;
   cursor: not-allowed;
-  color: rgba(71, 85, 105, 0.9);
-  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
-  border-color: rgba(191, 205, 229, 0.9);
-  box-shadow: none;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
+  border-color: rgba(148, 163, 184, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 /* ── 标签 ───────────────────────────────────────────────────── */
@@ -552,9 +552,15 @@
 
 .saveBtn {
   padding: 0 14px;
-  border: 1px solid rgba(76, 132, 255, 0.22);
-  background: rgba(239,246,255,0.96);
-  color: var(--brand-strong);
+  border: 1px solid rgba(47, 108, 239, 0.2);
+  background: linear-gradient(135deg, #2f6cef, #1f4ddb 52%, #173fb9);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(47, 108, 239, 0.22);
+}
+
+.saveBtn:hover:not(:disabled) {
+  box-shadow: 0 16px 28px rgba(47, 108, 239, 0.28);
+  filter: saturate(1.04);
 }
 
 .tagChip {

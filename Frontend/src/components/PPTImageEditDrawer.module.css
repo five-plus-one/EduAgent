@@ -487,7 +487,15 @@
 }
 
 .customSubmitBtn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-.customSubmitBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.customSubmitBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  transform: none;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
 
 /* ── 共用旋转动画 ───────────────────────────────────────── */
 .spin { animation: spinning 0.85s linear infinite; }

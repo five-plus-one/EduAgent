@@ -43,6 +43,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed = false }: SidebarProps) {
+  const MODAL_EXIT_MS = 220;
   const navigate = useNavigate();
   const { sessionId: currentSessionId } = useParams();
   const user = useAppStore((state) => state.user);
@@ -56,6 +57,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const [hasMore, setHasMore] = useState(true);
 
   const [showNewModal, setShowNewModal] = useState(false);
+  const [closingNewModal, setClosingNewModal] = useState(false);
   const [newSessionName, setNewSessionName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -68,9 +70,11 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [closingDeleteModal, setClosingDeleteModal] = useState(false);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [closingProfileModal, setClosingProfileModal] = useState(false);
   const [profileName, setProfileName] = useState('');
   const [profileDept, setProfileDept] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -169,7 +173,17 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
 
   const openNewModal = () => {
     setNewSessionName('');
+    setClosingNewModal(false);
     setShowNewModal(true);
+  };
+
+  const closeNewModal = () => {
+    if (isCreating || closingNewModal) return;
+    setClosingNewModal(true);
+    window.setTimeout(() => {
+      setShowNewModal(false);
+      setClosingNewModal(false);
+    }, MODAL_EXIT_MS);
   };
 
   const handleCreateSession = async () => {
@@ -183,8 +197,12 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         course_name: name,
         updated_at: new Date().toISOString(),
       }, ...prev]);
-      setShowNewModal(false);
-      navigate(`/chat/${newId}`);
+      setClosingNewModal(true);
+      window.setTimeout(() => {
+        setShowNewModal(false);
+        setClosingNewModal(false);
+        navigate(`/chat/${newId}`);
+      }, MODAL_EXIT_MS);
     } catch {
       alert('创建会话失败，请稍后重试。');
     } finally {
@@ -232,23 +250,47 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
     if (!deleteConfirmId) return;
     setIsDeletingSession(true);
     try {
+      const deletingId = deleteConfirmId;
       await deleteSession(deleteConfirmId);
       setSessions((prev) => prev.filter((s) => s.session_id !== deleteConfirmId));
-      if (currentSessionId === deleteConfirmId) {
-        navigate('/chat/new');
-      }
+      setClosingDeleteModal(true);
+      window.setTimeout(() => {
+        if (currentSessionId === deletingId) {
+          navigate('/chat/new');
+        }
+        setDeleteConfirmId(null);
+        setClosingDeleteModal(false);
+      }, MODAL_EXIT_MS);
     } catch {
       alert('删除会话失败，请稍后再试。');
     } finally {
       setIsDeletingSession(false);
-      setDeleteConfirmId(null);
     }
+  };
+
+  const closeDeleteModal = () => {
+    if (isDeletingSession || closingDeleteModal) return;
+    setClosingDeleteModal(true);
+    window.setTimeout(() => {
+      setDeleteConfirmId(null);
+      setClosingDeleteModal(false);
+    }, MODAL_EXIT_MS);
   };
 
   const openProfileModal = () => {
     setProfileName(user?.name ?? '');
     setProfileDept(user?.department ?? '');
+    setClosingProfileModal(false);
     setShowProfileModal(true);
+  };
+
+  const closeProfileModal = () => {
+    if (isSavingProfile || closingProfileModal) return;
+    setClosingProfileModal(true);
+    window.setTimeout(() => {
+      setShowProfileModal(false);
+      setClosingProfileModal(false);
+    }, MODAL_EXIT_MS);
   };
 
   const handleOpenAssetsInWorkspace = () => {
@@ -278,7 +320,11 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
           department: profileDept.trim(),
         });
       }
-      setShowProfileModal(false);
+      setClosingProfileModal(true);
+      window.setTimeout(() => {
+        setShowProfileModal(false);
+        setClosingProfileModal(false);
+      }, MODAL_EXIT_MS);
     } catch {
       alert('保存个人信息失败，请稍后再试。');
     } finally {
@@ -499,9 +545,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         </div>
       </aside>
 
-      {showNewModal && (
-        <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && !isCreating && setShowNewModal(false)}>
-          <div className={styles.modal}>
+      {(showNewModal || closingNewModal) && (
+        <div className={clsx(styles.modalOverlay, closingNewModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeNewModal()}>
+          <div className={clsx(styles.modal, closingNewModal && styles.modalClosing)}>
             <div className={styles.modalHeader}>
               <div className={styles.modalIcon}><Sparkles size={22} /></div>
               <h2 className={styles.modalTitle}>新建课件会话</h2>
@@ -520,7 +566,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
                 onChange={(e) => setNewSessionName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreateSession();
-                  if (e.key === 'Escape') setShowNewModal(false);
+                  if (e.key === 'Escape') closeNewModal();
                 }}
                 disabled={isCreating}
                 maxLength={60}
@@ -529,7 +575,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
             </div>
 
             <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={() => setShowNewModal(false)} disabled={isCreating}>取消</button>
+              <button className={styles.modalCancelBtn} onClick={closeNewModal} disabled={isCreating}>取消</button>
               <button className={styles.modalSubmitBtn} onClick={handleCreateSession} disabled={isCreating}>
                 {isCreating ? <><Loader2 size={15} className={styles.spinner} /> 创建中...</> : <><Sparkles size={15} /> 开始备课</>}
               </button>
@@ -562,16 +608,16 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         </div>
       )}
 
-      {deleteConfirmId && (
-        <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && !isDeletingSession && setDeleteConfirmId(null)}>
-          <div className={clsx(styles.modal, styles.modalSmall)}>
+      {(deleteConfirmId || closingDeleteModal) && (
+        <div className={clsx(styles.modalOverlay, closingDeleteModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeDeleteModal()}>
+          <div className={clsx(styles.modal, styles.modalSmall, closingDeleteModal && styles.modalClosing)}>
             <div className={styles.modalHeader}>
               <div className={clsx(styles.modalIcon, styles.modalIconDanger)}><Trash2 size={20} /></div>
               <h2 className={styles.modalTitle}>删除会话</h2>
               <p className={styles.modalSubtitle}>删除后，当前会话的对话、课件和讲义记录都会被永久移除，无法恢复。</p>
             </div>
             <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={() => setDeleteConfirmId(null)} disabled={isDeletingSession}>取消</button>
+              <button className={styles.modalCancelBtn} onClick={closeDeleteModal} disabled={isDeletingSession}>取消</button>
               <button className={clsx(styles.modalSubmitBtn, styles.modalSubmitDanger)} onClick={handleDeleteSession} disabled={isDeletingSession}>
                 {isDeletingSession ? <><Loader2 size={15} className={styles.spinner} /> 删除中...</> : <><Trash2 size={15} /> 确认删除</>}
               </button>
@@ -580,9 +626,9 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         </div>
       )}
 
-      {showProfileModal && (
-        <div className={styles.modalOverlay} onClick={(e) => e.target === e.currentTarget && !isSavingProfile && setShowProfileModal(false)}>
-          <div className={clsx(styles.modal, styles.modalSmall)}>
+      {(showProfileModal || closingProfileModal) && (
+        <div className={clsx(styles.modalOverlay, closingProfileModal && styles.modalOverlayClosing)} onClick={(e) => e.target === e.currentTarget && closeProfileModal()}>
+          <div className={clsx(styles.modal, styles.modalSmall, closingProfileModal && styles.modalClosing)}>
             <div className={styles.modalHeader}>
               <div className={styles.modalIcon}><UserCircle size={22} /></div>
               <h2 className={styles.modalTitle}>个人信息</h2>
@@ -614,7 +660,7 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
             </div>
 
             <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={() => setShowProfileModal(false)} disabled={isSavingProfile}>取消</button>
+              <button className={styles.modalCancelBtn} onClick={closeProfileModal} disabled={isSavingProfile}>取消</button>
               <button className={styles.modalSubmitBtn} onClick={handleSaveProfile} disabled={isSavingProfile}>
                 {isSavingProfile ? <><Loader2 size={15} className={styles.spinner} /> 保存中...</> : <><Check size={15} /> 保存</>}
               </button>

@@ -560,10 +560,10 @@
   opacity: 1;
   cursor: not-allowed;
   transform: none;
-  color: rgba(71, 85, 105, 0.92);
-  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
   box-shadow: none;
-  border: 1px solid rgba(191, 205, 229, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.95);
 }
 
 /* ── 共用动画 ─────────────────────────────────────────────────── */
@@ -775,6 +775,12 @@
 
 .submitBtn {
   border-radius: 14px;
-  background: linear-gradient(135deg, var(--brand), var(--brand-strong));
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(135deg, #2f6cef, #1f4ddb 52%, #173fb9);
+  box-shadow: 0 14px 30px rgba(47, 108, 239, 0.28);
+  border: 1px solid rgba(47, 108, 239, 0.2);
+}
+
+.submitBtn:hover:not(:disabled) {
+  box-shadow: 0 18px 34px rgba(47, 108, 239, 0.34);
+  filter: saturate(1.04);
 }
