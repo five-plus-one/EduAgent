@@ -74,6 +74,8 @@ export default function Workspace() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const wordDocRef = useRef<HTMLDivElement>(null);
   const kbFileInputRef = useRef<HTMLInputElement>(null);
+  const micPointerIdRef = useRef<number | null>(null);
+  const isMicPressActiveRef = useRef(false);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -89,22 +91,66 @@ export default function Workspace() {
     setInputText(prev => prev.trim() ? `${prev.trim()} ${text}` : text);
   });
 
+  const beginMicPress = useCallback((reason: string, pointerId?: number) => {
+    if (isMicPressActiveRef.current) {
+      return;
+    }
+
+    isMicPressActiveRef.current = true;
+    micPointerIdRef.current = pointerId ?? null;
+    console.log('[voice] press mic', { reason, pointerId });
+    setIsMicPressed(true);
+    void startRecording();
+  }, [startRecording]);
+
+  const releaseMicPress = useCallback((reason: string, pointerId?: number) => {
+    if (!isMicPressActiveRef.current) {
+      return;
+    }
+
+    if (pointerId != null && micPointerIdRef.current != null && pointerId !== micPointerIdRef.current) {
+      return;
+    }
+
+    isMicPressActiveRef.current = false;
+    console.log('[voice] release mic', { reason, pointerId });
+    micPointerIdRef.current = null;
+    setIsMicPressed(false);
+    stopRecording();
+  }, [stopRecording]);
+
   useEffect(() => {
     if (!isMicPressed) return;
 
-    const handlePointerRelease = () => {
-      setIsMicPressed(false);
-      stopRecording();
+    const handlePointerRelease = (event: PointerEvent) => {
+      releaseMicPress('window', event.pointerId);
+    };
+    const handleMouseUp = () => {
+      releaseMicPress('window-mouse');
+    };
+    const handleTouchEnd = () => {
+      releaseMicPress('window-touch');
+    };
+    const handleWindowBlur = () => {
+      releaseMicPress('blur');
     };
 
     window.addEventListener('pointerup', handlePointerRelease);
     window.addEventListener('pointercancel', handlePointerRelease);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleTouchEnd);
+    window.addEventListener('touchcancel', handleTouchEnd);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       window.removeEventListener('pointerup', handlePointerRelease);
       window.removeEventListener('pointercancel', handlePointerRelease);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('blur', handleWindowBlur);
     };
-  }, [isMicPressed, stopRecording]);
+  }, [isMicPressed, releaseMicPress]);
 
   const { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration } = useChatSession(sessionId);
   const { pages, wordDoc, updatingPages, iteratePage, isGenerating, previewStatus, fetchPreview, clearPages, updatePageLocally, applyLayoutAndRefresh, saveWordDoc, resolveImageInPage } = useCourseware(sessionId);
@@ -861,8 +907,35 @@ export default function Workspace() {
                     )}
                     onPointerDown={(event) => {
                       event.preventDefault();
-                      setIsMicPressed(true);
-                      void startRecording();
+                      event.currentTarget.setPointerCapture?.(event.pointerId);
+                      beginMicPress('pointer-down', event.pointerId);
+                    }}
+                    onPointerUp={(event) => {
+                      releaseMicPress('button-up', event.pointerId);
+                    }}
+                    onPointerCancel={(event) => {
+                      releaseMicPress('button-cancel', event.pointerId);
+                    }}
+                    onTouchStart={(event) => {
+                      event.preventDefault();
+                      beginMicPress('touch-start');
+                    }}
+                    onTouchEnd={(event) => {
+                      event.preventDefault();
+                      releaseMicPress('touch-end');
+                    }}
+                    onTouchCancel={(event) => {
+                      event.preventDefault();
+                      releaseMicPress('touch-cancel');
+                    }}
+                    onMouseDown={() => {
+                      beginMicPress('mouse-down');
+                    }}
+                    onMouseUp={() => {
+                      releaseMicPress('mouse-up');
+                    }}
+                    onLostPointerCapture={() => {
+                      releaseMicPress('lost-capture');
                     }}
                     title={
                       sessionId === 'new'

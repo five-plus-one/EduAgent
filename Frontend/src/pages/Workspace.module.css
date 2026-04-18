@@ -311,6 +311,9 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .micButton:hover {
