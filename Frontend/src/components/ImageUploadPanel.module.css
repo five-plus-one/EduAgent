@@ -333,17 +333,20 @@
 
   .grid {
     width: 100%;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+    align-items: start;
   }
 
   .card {
     padding: 8px;
     border-radius: 16px;
+    gap: 8px;
+    min-width: 0;
   }
 
   .thumb {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 1 / 1;
     border-radius: 12px;
   }
 
@@ -392,6 +395,11 @@
 }
 
 @media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
   .dropzone {
     padding: 16px 12px;
     gap: 8px;
@@ -416,6 +424,36 @@
   }
 
   .thumb {
-    aspect-ratio: 4 / 3;
+    aspect-ratio: 1 / 1;
+  }
+
+  .card {
+    padding: 7px;
+    gap: 7px;
+  }
+
+  .filename {
+    font-size: 0.76rem;
+  }
+
+  .labelPreview {
+    font-size: 0.7rem;
+  }
+
+  .tagsCount {
+    padding: 3px 6px;
+    font-size: 0.62rem;
+  }
+
+  .actionBtn {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .grid {
+    grid-template-columns: 1fr;
   }
 }

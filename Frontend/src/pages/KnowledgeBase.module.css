@@ -855,17 +855,30 @@
     padding: 12px;
   }
 
-  .docTopRow,
   .listHeader {
     align-items: flex-start;
     flex-direction: column;
   }
 
+  .docBody {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .docTopRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+  }
+
   .docFooterRow {
+    margin-top: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    flex-direction: row;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .dropzoneIcon {
@@ -932,9 +945,10 @@
   }
 
   .docMetaRow {
-    margin-top: 4px;
-    gap: 8px;
+    margin-top: 0;
+    gap: 6px 8px;
     font-size: 0.75rem;
+    align-items: center;
   }
 
   .typeBadge,
@@ -947,10 +961,12 @@
   }
 
   .docActions {
-    margin-left: auto;
+    margin-left: 0;
     width: auto;
     justify-content: flex-end;
     gap: 6px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 
   .iconBtn {
@@ -1009,6 +1025,30 @@
   .docCard,
   .docCardCompact {
     padding: 10px;
+  }
+
+  .docTopRow {
+    gap: 6px;
+  }
+
+  .docMetaRow {
+    gap: 6px;
+    font-size: 0.72rem;
+  }
+
+  .docFooterRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+
+  .docActions {
+    gap: 4px;
+  }
+
+  .iconBtn {
+    width: 32px;
+    height: 32px;
+    border-radius: 11px;
   }
 
   .previewHeader {

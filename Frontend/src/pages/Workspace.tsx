@@ -1429,7 +1429,7 @@ export default function Workspace() {
                     <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                       <Sparkles size={48} style={{ marginBottom: '16px' }} />
                       <h3>课件待生成</h3>
-                      <p>请点击右上角“AI 一键生成课件”开始</p>
+                      <p>请打开对话界面，让智能体帮您生成课件</p>
                     </div>
                   )}
                   
