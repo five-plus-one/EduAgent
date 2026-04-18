@@ -79,6 +79,7 @@ export function useSpeechRecognition(
   sessionId: string,
   onTranscript: (text: string) => void,
 ): UseSpeechRecognitionResult {
+  const preferNativeRecognition = false;
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -434,20 +435,31 @@ export function useSpeechRecognition(
       setError(null);
       setTranscript('');
 
-      if (hasNativeRecognition) {
+      if (preferNativeRecognition && hasNativeRecognition) {
+        await startNativeRecognition();
+      } else if (hasRecorderFallback) {
+        await startRecorderFallback();
+      } else if (hasNativeRecognition) {
         await startNativeRecognition();
       } else {
-        await startRecorderFallback();
+        setError('当前浏览器不支持语音输入，请使用最新版 Chrome 或 Edge。');
       }
     } catch (err) {
       console.log('[voice] failed to start input', err);
 
-      if (hasNativeRecognition && hasRecorderFallback) {
+      if (preferNativeRecognition && hasRecorderFallback) {
         try {
           await startRecorderFallback();
           return;
         } catch (fallbackErr) {
           console.log('[voice] fallback recorder start failed', fallbackErr);
+        }
+      } else if (!preferNativeRecognition && hasNativeRecognition) {
+        try {
+          await startNativeRecognition();
+          return;
+        } catch (fallbackErr) {
+          console.log('[voice] fallback native recognition start failed', fallbackErr);
         }
       }
 
@@ -465,10 +477,10 @@ export function useSpeechRecognition(
   }, [
     hasNativeRecognition,
     hasRecorderFallback,
-    isFinalizingRef,
     isRecording,
     isSupported,
     isTranscribing,
+    preferNativeRecognition,
     sessionId,
     startNativeRecognition,
     startRecorderFallback,

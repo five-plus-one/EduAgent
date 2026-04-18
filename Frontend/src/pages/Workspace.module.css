@@ -2267,6 +2267,12 @@
     font-weight: 700;
   }
 
+  .mobileWorkspaceNavBtnPrimary {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    color: white;
+    box-shadow: 0 14px 26px rgba(37, 99, 235, 0.22);
+  }
+
   .mobileWorkspaceNavBtnActive {
     background: var(--brand-soft);
     color: var(--brand);

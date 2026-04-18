@@ -271,6 +271,7 @@
     font-weight: 700;
   }
 
+
   .mobileNavItemActive {
     background: var(--brand-soft);
     color: var(--brand);

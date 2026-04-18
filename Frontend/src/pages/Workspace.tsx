@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import styles from './Workspace.module.css';
 import { clsx } from 'clsx';
@@ -23,10 +23,11 @@ import { useExport } from '../hooks/useExport';
 import { useNotificationStore } from '../store/useNotificationStore';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
-import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
+import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu, FolderOpen } from 'lucide-react';
 
 export default function Workspace() {
   const { sessionId = 'new' } = useParams();
+  const navigate = useNavigate();
   const workspaceRef = useRef<HTMLDivElement>(null);
   const visualPanelRef = useRef<HTMLElement>(null);
   const [inputText, setInputText] = useState('');
@@ -1335,7 +1336,7 @@ export default function Workspace() {
                   </div>
                 </div>
               )}
-              {(isGenerating || previewStatus === 'loading') && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
+              {isGenerating && !isStreaming && pages.length === 0 && streamPages.length === 0 ? (
                 <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
                   <Loader2 size={48} className={styles.rotating} style={{ marginBottom: '16px', color: 'var(--accent-primary)' }} />
                   <h3 style={{ marginBottom: '12px' }}>AI 正在智能排版课件</h3>
@@ -1410,7 +1411,7 @@ export default function Workspace() {
                   )}
 
                   {/* Empty State */}
-                  {pages.length === 0 && !isStreaming && previewStatus !== 'loading' && (
+                  {pages.length === 0 && !isStreaming && !isGenerating && (
                     <div className={styles.emptyStateContainer} style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-tertiary)', opacity: 0.6 }}>
                       <Sparkles size={48} style={{ marginBottom: '16px' }} />
                       <h3>课件待生成</h3>
@@ -1624,6 +1625,7 @@ export default function Workspace() {
             onClick={() => {
               setActiveTab('files');
               setMobilePane('files');
+              setFilesSubTab('docs');
             }}
           >
             <Library size={16} />
@@ -1640,16 +1642,11 @@ export default function Workspace() {
             <span>课件</span>
           </button>
           <button
-            className={clsx(styles.mobileWorkspaceNavBtn, mobilePane === 'more' && styles.mobileWorkspaceNavBtnActive)}
-            onClick={() => {
-              if (activeTab !== 'word' && activeTab !== 'games') {
-                setActiveTab('word');
-              }
-              setMobilePane('more');
-            }}
+            className={styles.mobileWorkspaceNavBtn}
+            onClick={() => navigate('/assets')}
           >
-            <FileText size={16} />
-            <span>更多</span>
+            <FolderOpen size={16} />
+            <span>素材</span>
           </button>
         </nav>
       )}
