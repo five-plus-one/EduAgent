@@ -24,7 +24,11 @@ const STATUS_CONFIG = {
 
 const POLL_INTERVAL = 3000;
 
-export default function ImageUploadPanel() {
+interface ImageUploadPanelProps {
+  variant?: 'workspace' | 'asset';
+}
+
+export default function ImageUploadPanel({ variant = 'workspace' }: ImageUploadPanelProps) {
   const [images, setImages] = useState<UserImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -151,9 +155,14 @@ export default function ImageUploadPanel() {
 
   return (
     <>
-      <div className={styles.panel}>
+      <div className={clsx(styles.panel, variant === 'asset' && styles.panelAsset)}>
         <div
-          className={clsx(styles.dropzone, 'app-dropzone', isDragging && styles.dragging)}
+          className={clsx(
+            styles.dropzone,
+            variant === 'asset' && styles.dropzoneAsset,
+            'app-dropzone',
+            isDragging && styles.dragging,
+          )}
           onDrop={handleDrop}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
           onDragLeave={() => setIsDragging(false)}

@@ -76,7 +76,7 @@ export default function AssetPage() {
 
       <main className={styles.content}>
         {activeTab === 'knowledge' && <KnowledgeBasePanel compact />}
-        {activeTab === 'images' && <ImageUploadPanel />}
+        {activeTab === 'images' && <ImageUploadPanel variant="asset" />}
       </main>
     </div>
   );

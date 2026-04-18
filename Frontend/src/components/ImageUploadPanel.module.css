@@ -7,6 +7,12 @@
   padding: 4px 2px 10px;
 }
 
+.panelAsset {
+  height: auto;
+  overflow: visible;
+  padding: 0 0 8px;
+}
+
 .dropzone {
   display: flex;
   flex-direction: column;
@@ -38,6 +44,17 @@
 .dropzoneHint {
   font-size: 0.84rem;
   color: var(--text-tertiary);
+}
+
+.dropzoneAsset {
+  position: static;
+  min-height: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
 }
 
 .errorBanner {
@@ -320,15 +337,39 @@
 
 @media (max-width: 900px) {
   .panel {
-    gap: 14px;
-    padding: 2px 0 10px;
+    gap: 10px;
+    padding: 0 0 10px;
+  }
+
+  .panelAsset {
+    gap: 10px;
+    padding: 0 0 6px;
   }
 
   .dropzone {
+    position: static;
+    top: auto;
+    z-index: auto;
     width: 100%;
     box-sizing: border-box;
-    padding: 18px 14px;
-    border-radius: 20px;
+    min-height: 0;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 10px 14px;
+    gap: 8px;
+    border-radius: 0 0 16px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: none;
+  }
+
+  .dropzoneAsset {
+    position: static;
+    top: auto;
+    z-index: auto;
+    padding: 9px 12px;
+    gap: 8px;
+    box-shadow: none;
   }
 
   .grid {
@@ -401,21 +442,27 @@
   }
 
   .dropzone {
-    padding: 16px 12px;
-    gap: 8px;
+    padding: 10px 12px;
+    gap: 6px;
   }
 
   .uploadIcon {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
   }
 
   .dropzoneTitle {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
   }
 
   .dropzoneHint {
-    font-size: 0.76rem;
+    font-size: 0.68rem;
+  }
+
+  .dropzoneAsset {
+    top: auto;
+    padding: 8px 10px;
+    gap: 6px;
   }
 
   .emptyState {
@@ -452,7 +499,7 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 340px) {
   .grid {
     grid-template-columns: 1fr;
   }

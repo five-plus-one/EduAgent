@@ -1276,7 +1276,9 @@ export default function Workspace() {
 
               {/* 鍥剧墖绱犳潗闈㈡澘 */}
               {filesSubTab === 'images' && (
-                <ImageUploadPanel />
+                <div className={styles.filesImagePanel}>
+                  <ImageUploadPanel />
+                </div>
               )}
             </div>
             </div>

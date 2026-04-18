@@ -1521,6 +1521,12 @@
   overflow: hidden;
 }
 
+.filesImagePanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 /* 鈹€鈹€ 瀛?Tab 鍒囨崲鍣紙鐭ヨ瘑搴撴枃妗?/ 鍥剧墖绱犳潗锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .subTabBar {
   display: flex;
@@ -2335,10 +2341,52 @@
     width: 100%;
   }
 
+  .kbPanel {
+    gap: 8px;
+  }
+
+  .subTabBar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0 2px;
+    border: none;
+    border-radius: 0;
+    background: linear-gradient(180deg, rgba(245, 249, 255, 0.98), rgba(245, 249, 255, 0.92) 78%, rgba(245, 249, 255, 0));
+    backdrop-filter: blur(14px);
+  }
+
+  .subTabBtn {
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(191, 205, 229, 0.9);
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+
+  .subTabActive {
+    border-color: rgba(99, 102, 241, 0.22);
+  }
+
   .manageAssetsBtn {
-    width: 100%;
+    width: auto;
+    margin-left: auto;
+    justify-self: end;
     justify-content: center;
-    margin-left: 0;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 14px;
+    font-size: 0.86rem;
+  }
+
+  .filesImagePanel {
+    margin-top: -2px;
   }
 
   .mobileWorkspaceNavBtnPrimary {
