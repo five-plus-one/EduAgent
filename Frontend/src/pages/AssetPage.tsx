@@ -21,7 +21,7 @@ export default function AssetPage() {
     sessionId?: string;
     subTab?: 'docs' | 'images';
   };
-  const [activeTab, setActiveTab] = useState<AssetTab>('knowledge');
+  const [activeTab, setActiveTab] = useState<AssetTab>(routeState.subTab === 'images' ? 'images' : 'knowledge');
   const activeTabMeta = TABS.find((item) => item.key === activeTab) ?? TABS[0];
   const returnSubTab = useMemo(() => routeState.subTab ?? 'docs', [routeState.subTab]);
 
@@ -41,14 +41,6 @@ export default function AssetPage() {
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <div className={styles.headerMeta}>
-          <span className={styles.pageEyebrow}>Asset Center</span>
-          <div className={styles.titleRow}>
-            <h1 className={styles.pageTitle}>素材管理</h1>
-            <span className={styles.activeHint}>{activeTabMeta.desc}</span>
-          </div>
-        </div>
-
-        <div className={styles.headerActions}>
           {routeState.fromWorkspace && (
             <button
               className={styles.backBtn}
@@ -58,7 +50,14 @@ export default function AssetPage() {
               <span>返回资料页</span>
             </button>
           )}
+          <span className={styles.pageEyebrow}>Asset Center</span>
+          <div className={styles.titleRow}>
+            <h1 className={styles.pageTitle}>素材管理</h1>
+            <span className={styles.activeHint}>{activeTabMeta.desc}</span>
+          </div>
+        </div>
 
+        <div className={styles.headerActions}>
           <nav className={styles.tabBar} aria-label="素材类型切换">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button

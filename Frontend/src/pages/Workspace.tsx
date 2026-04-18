@@ -1566,6 +1566,7 @@ export default function Workspace() {
                 onClearSuggest={() => setPendingSuggest(null)}
                 onClearTrigger={() => setPendingTrigger(null)}
                 onActiveGameChange={setActiveGameId}
+                mobileImmersive
               />
             )}
             {sessionId === 'new' && (

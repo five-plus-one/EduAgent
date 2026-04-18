@@ -130,32 +130,74 @@
 
 @media (max-width: 900px) {
   .pageHeader {
-    padding: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 10px 12px 10px;
     align-items: stretch;
     flex-wrap: wrap;
+    background: rgba(248, 251, 255, 0.96);
   }
 
   .headerActions {
     width: 100%;
-    flex-direction: column;
-    align-items: stretch;
+    gap: 8px;
+  }
+
+  .headerMeta {
+    gap: 6px;
+  }
+
+  .pageEyebrow {
+    display: none;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+  }
+
+  .titleRow {
+    gap: 6px;
+    align-items: center;
+  }
+
+  .pageTitle {
+    font-size: 1.36rem;
+    line-height: 1.1;
+  }
+
+  .activeHint {
+    font-size: 0.76rem;
+    line-height: 1.35;
   }
 
   .tabBar {
     display: flex;
     width: 100%;
     justify-content: flex-start;
+    gap: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
 
   .backBtn {
-    justify-content: center;
+    align-self: flex-start;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.78rem;
+    border-radius: 12px;
   }
 
   .tabBtn {
-    min-height: 38px;
+    min-height: 34px;
+    padding: 0 12px;
+    flex: 0 0 auto;
+  }
+
+  .tabLabel {
+    font-size: 0.82rem;
   }
 
   .content {
-    padding: 16px 16px 28px;
+    padding: 8px 10px 108px;
   }
 }

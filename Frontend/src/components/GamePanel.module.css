@@ -22,6 +22,10 @@
   background: linear-gradient(180deg, #f8fbff, #eef5ff);
 }
 
+.rootMobilePreview {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .rootSidebarCollapsed {
   grid-template-columns: var(--game-sidebar-collapsed-width) minmax(0, 1fr);
   gap: 6px;
@@ -57,6 +61,18 @@
   display: none !important;
 }
 
+.sidebarMobileHidden {
+  display: none;
+}
+
+.sidebarMobilePrimary {
+  width: 100%;
+}
+
+.previewMobileHidden {
+  display: none;
+}
+
 .collapseBtn,
 .refreshBtn,
 .iconActionBtn,
@@ -84,6 +100,10 @@
   color: var(--brand-strong);
   border-color: rgba(76, 132, 255, 0.24);
   box-shadow: var(--shadow-xs);
+}
+
+.mobileBackBtn {
+  display: none;
 }
 
 .suggestBanner,
@@ -911,6 +931,16 @@
     gap: 12px;
   }
 
+  .sidebarMobilePrimary {
+    display: flex;
+    width: 100%;
+    padding: 10px;
+  }
+
+  .previewMobileHidden {
+    display: none;
+  }
+
   .sidebar,
   .preview {
     border-radius: 22px;
@@ -918,6 +948,21 @@
 
   .previewHeader {
     flex-wrap: wrap;
+  }
+
+  .mobileBackBtn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(191, 205, 229, 0.9);
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--text-secondary);
+    font-size: 0.84rem;
+    font-weight: 800;
   }
 
   .previewMeta,
@@ -938,6 +983,18 @@
   .root,
   .rootFullscreen {
     padding: 8px;
+  }
+
+  .rootMobilePreview {
+    padding: 0;
+    background: transparent;
+  }
+
+  .sidebarMobilePrimary {
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
 
   .manualModalOverlay {
@@ -979,6 +1036,10 @@
   .typingWrap {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  .preview {
+    min-height: calc(100dvh - 176px);
   }
 
   .codeLine {
