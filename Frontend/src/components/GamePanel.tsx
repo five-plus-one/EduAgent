@@ -191,6 +191,7 @@ export default function GamePanel({
   sessionId, pendingSuggest, pendingTrigger,
   onClearSuggest, onClearTrigger, onActiveGameChange,
 }: GamePanelProps) {
+  const MANUAL_MODAL_EXIT_MS = 220;
 
   // 鈹€鈹€ 甯冨眬 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -226,6 +227,7 @@ export default function GamePanel({
   const [shareError, setShareError]         = useState<string | null>(null);
   
   const [showManualPanel, setShowManualPanel] = useState(false);
+  const [manualModalClosing, setManualModalClosing] = useState(false);
   const [manualType, setManualType]           = useState(GAME_TYPE_DEFAULTS[0].key);
   const [manualTitle, setManualTitle]         = useState('');
   const [manualTopics, setManualTopics]       = useState('');
@@ -328,6 +330,12 @@ export default function GamePanel({
     return () => window.removeEventListener('keydown', onKey);
   }, [isFullscreen]);
 
+  useEffect(() => {
+    if (!showManualPanel) {
+      setManualModalClosing(false);
+    }
+  }, [showManualPanel]);
+
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   // 瑙﹀彂鐢熸垚
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -369,7 +377,22 @@ export default function GamePanel({
       is_refinement: false,
     };
     triggerGenerate(spec, null);
+    setManualModalClosing(false);
     setShowManualPanel(false);
+  };
+
+  const openManualPanel = () => {
+    setManualModalClosing(false);
+    setShowManualPanel(true);
+  };
+
+  const closeManualPanel = () => {
+    if (manualModalClosing) return;
+    setManualModalClosing(true);
+    window.setTimeout(() => {
+      setShowManualPanel(false);
+      setManualModalClosing(false);
+    }, MANUAL_MODAL_EXIT_MS);
   };
 
   // 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
@@ -624,7 +647,7 @@ export default function GamePanel({
               <div className={styles.listActions}>
               <button
                 className={styles.newGameBtn}
-                onClick={() => setShowManualPanel(v => !v)}
+                onClick={openManualPanel}
                 disabled={generating || sessionId === 'new'}
               >
                 <Gamepad2 size={13} /> 创建游戏
@@ -634,29 +657,6 @@ export default function GamePanel({
               </button>
               </div>
             </div>
-
-            {/* 手动创建闈㈡澘 */}
-            {showManualPanel && (
-              <div className={styles.manualPanel}>
-                <p className={styles.manualLabel}>游戏类型</p>
-                <div className={styles.typeGrid}>
-                  {GAME_TYPE_DEFAULTS.map(t => (
-                    <GameTypeCard key={t.key} label={t.label} hint={t.hint}
-                      active={manualType === t.key} onClick={() => setManualType(t.key)} />
-                  ))}
-                </div>
-                <input className={styles.manualInput} placeholder="游戏标题（可选）"
-                  value={manualTitle} onChange={e => setManualTitle(e.target.value)} />
-                <input className={styles.manualInput} placeholder="知识点，使用逗号分隔"
-                  value={manualTopics} onChange={e => setManualTopics(e.target.value)} />
-                <textarea className={clsx(styles.manualInput, styles.manualTextarea)}
-                  placeholder="自定义要求（可选）" rows={2}
-                  value={manualRequirements} onChange={e => setManualRequirements(e.target.value)} />
-                <button className={styles.confirmBtn} onClick={handleManualGenerate} disabled={isCurrentGenerating}>
-                  <Gamepad2 size={13} /> 开始生成
-                </button>
-              </div>
-            )}
 
             {/* 娓告垙鍒楄〃 */}
             {loadingList && games.length === 0 ? (
@@ -971,6 +971,75 @@ export default function GamePanel({
           </>
         )}
       </div>
+
+      {showManualPanel && (
+        <div
+          className={clsx(styles.manualModalOverlay, manualModalClosing && styles.manualModalOverlayClosing)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeManualPanel();
+            }
+          }}
+        >
+          <div className={clsx(styles.manualModal, manualModalClosing && styles.manualModalClosing)}>
+            <div className={styles.manualModalHeader}>
+              <div>
+                <p className={styles.manualModalEyebrow}>Game Builder</p>
+                <h3 className={styles.manualModalTitle}>手动创建游戏</h3>
+                <p className={styles.manualModalSubtitle}>先选玩法，再补充标题、知识点和生成要求。</p>
+              </div>
+              <button className={styles.iconActionBtn} type="button" onClick={closeManualPanel} title="关闭">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className={styles.manualModalBody}>
+              <div className={styles.typeGrid}>
+                {GAME_TYPE_DEFAULTS.map(t => (
+                  <GameTypeCard
+                    key={t.key}
+                    label={t.label}
+                    hint={t.hint}
+                    active={manualType === t.key}
+                    onClick={() => setManualType(t.key)}
+                  />
+                ))}
+              </div>
+
+              <div className={styles.manualFieldGroup}>
+                <input
+                  className={styles.manualInput}
+                  placeholder="游戏标题（可选）"
+                  value={manualTitle}
+                  onChange={e => setManualTitle(e.target.value)}
+                />
+                <input
+                  className={styles.manualInput}
+                  placeholder="知识点，使用逗号分隔"
+                  value={manualTopics}
+                  onChange={e => setManualTopics(e.target.value)}
+                />
+                <textarea
+                  className={clsx(styles.manualInput, styles.manualTextarea)}
+                  placeholder="自定义要求（可选）"
+                  rows={3}
+                  value={manualRequirements}
+                  onChange={e => setManualRequirements(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className={styles.manualModalFooter}>
+              <button className={styles.secondaryBtn} type="button" onClick={closeManualPanel}>
+                取消
+              </button>
+              <button className={styles.confirmBtn} type="button" onClick={handleManualGenerate} disabled={isCurrentGenerating}>
+                <Gamepad2 size={13} /> 开始生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

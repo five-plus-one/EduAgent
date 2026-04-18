@@ -13,7 +13,12 @@
   animation: fadeIn 0.18s ease;
 }
 
+.overlayClosing {
+  animation: fadeOut 0.22s var(--ease-standard, ease) forwards;
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
 .drawer {
   width: min(460px, 92vw);
@@ -27,9 +32,18 @@
   animation: slideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.drawerClosing {
+  animation: slideOut 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(18px); opacity: 0; }
 }
 
 /* ── Header ────────────────────────────────────────────────── */
@@ -161,7 +175,14 @@
   transform: translateY(-1px);
 }
 
-.reannotateHeroBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.reannotateHeroBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(71, 85, 105, 0.9);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border-color: rgba(191, 205, 229, 0.9);
+  transform: none;
+}
 .reannotateHeroBtn.busy { opacity: 0.7; }
 
 /* ── 可滚动内容 ─────────────────────────────────────────────── */
@@ -274,7 +295,14 @@
 }
 
 .saveBtn.disabled,
-.saveBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.saveBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(71, 85, 105, 0.9);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border-color: rgba(191, 205, 229, 0.9);
+  box-shadow: none;
+}
 
 /* ── 标签 ───────────────────────────────────────────────────── */
 .tagsArea {
@@ -368,7 +396,13 @@
   color: var(--accent-primary, #818cf8);
 }
 
-.addTagBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.addTagBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
 
 /* ── 共用旋转动画 ────────────────────────────────────────────── */
 .spinIcon { animation: spin 0.85s linear infinite; }

@@ -2164,11 +2164,11 @@
   }
 
   .messageStream {
-    padding: 16px 16px 12px;
+    padding: 16px 16px 108px;
   }
 
   .inputDockContainer {
-    padding: 0 12px 12px;
+    padding: 0 12px calc(12px + env(safe-area-inset-bottom) + 84px);
   }
 
   .omniDock {
@@ -2184,7 +2184,7 @@
   }
 
   .tabViewport {
-    padding: 16px;
+    padding: 16px 16px 112px;
   }
 
   .visualHeader {

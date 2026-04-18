@@ -10,7 +10,7 @@
 
 .root {
   --game-sidebar-width: 276px;
-  --game-sidebar-collapsed-width: 72px;
+  --game-sidebar-collapsed-width: 52px;
   transition: grid-template-columns var(--duration-slow) var(--ease-standard), gap var(--duration-slow) var(--ease-standard);
 }
 
@@ -24,6 +24,7 @@
 
 .rootSidebarCollapsed {
   grid-template-columns: var(--game-sidebar-collapsed-width) minmax(0, 1fr);
+  gap: 6px;
 }
 
 .sidebar {
@@ -45,8 +46,11 @@
 
 .sidebarCollapsed {
   width: var(--game-sidebar-collapsed-width);
-  padding: 10px 8px;
+  padding: 8px 0;
   align-items: center;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .sidebarCollapsed > :not(.collapseBtn) {
@@ -262,9 +266,16 @@
 
 .confirmBtn:disabled,
 .newGameBtn:disabled,
-.shareBtn:disabled {
-  opacity: 0.55;
+.shareBtn:disabled,
+.previewLinkBtn:disabled,
+.secondaryBtn:disabled {
+  opacity: 1;
   cursor: not-allowed;
+  color: rgba(71, 85, 105, 0.9);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border: 1px solid rgba(191, 205, 229, 0.9);
+  box-shadow: none;
+  transform: none;
 }
 
 .typeGrid {
@@ -325,6 +336,127 @@
   padding-top: 12px;
   padding-bottom: 12px;
   resize: vertical;
+}
+
+.manualFieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.manualModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(8, 15, 30, 0.42);
+  backdrop-filter: blur(10px);
+  animation: modalOverlayIn 180ms var(--ease-standard);
+}
+
+.manualModalOverlayClosing {
+  animation: modalOverlayOut 220ms var(--ease-standard) forwards;
+}
+
+.manualModal {
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(245, 250, 255, 0.95));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-xl);
+  animation: modalCardIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.manualModalClosing {
+  animation: modalCardOut 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.manualModalHeader,
+.manualModalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manualModalHeader {
+  padding-bottom: 2px;
+}
+
+.manualModalEyebrow {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-strong);
+}
+
+.manualModalTitle {
+  margin: 0;
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.manualModalSubtitle {
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.manualModalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.manualModalFooter {
+  justify-content: flex-end;
+}
+
+@keyframes modalOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalOverlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modalCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalCardOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
 }
 
 .manualInput:focus,
@@ -807,6 +939,17 @@
     padding: 8px;
   }
 
+  .manualModalOverlay {
+    padding: 12px;
+  }
+
+  .manualModal {
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    padding: 16px;
+    border-radius: 22px;
+  }
+
   .sidebar,
   .preview,
   .codeWindow,
@@ -818,6 +961,16 @@
   .typeGrid,
   .stageRow {
     grid-template-columns: 1fr;
+  }
+
+  .manualModalHeader,
+  .manualModalFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .manualModalFooter > * {
+    width: 100%;
   }
 
   .gameItem,

@@ -43,7 +43,7 @@
     opacity var(--duration-base) var(--ease-standard),
     transform var(--duration-slow) var(--ease-standard);
   opacity: 1;
-  z-index: 20;
+  z-index: 40;
 }
 
 .mobileSidebarHead {
@@ -54,7 +54,7 @@
   position: absolute;
   left: calc(var(--workspace-sidebar-width, var(--layout-sidebar)) - 12px);
   top: 28px;
-  z-index: 30;
+  z-index: 25;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -169,8 +169,8 @@
     top: 0;
     bottom: 0;
     left: 0;
-    width: min(84vw, 320px);
-    max-width: min(84vw, 320px);
+    width: min(86vw, 360px);
+    max-width: min(86vw, 360px);
     transform: translateX(-100%);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: var(--shadow-lg);
@@ -186,8 +186,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 16px 18px 10px;
+    padding: 16px 18px 14px;
     border-bottom: 1px solid var(--border-subtle);
+    background: rgba(247, 251, 255, 0.94);
+    backdrop-filter: blur(18px);
   }
 
   .mobileSidebarBrand {

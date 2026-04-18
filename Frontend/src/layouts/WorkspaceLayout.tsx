@@ -16,9 +16,9 @@ export default function WorkspaceLayout() {
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith('/assets')) {
-      return { title: 'Assets', subtitle: 'Knowledge and image materials' };
+      return { title: '素材中心', subtitle: '知识库与图片素材' };
     }
-    return { title: 'EduAgent', subtitle: 'Chat, references, and courseware' };
+    return { title: 'EduAgent', subtitle: '对话、资料与课件协同工作' };
   }, [location.pathname]);
 
   useEffect(() => {
@@ -41,8 +41,8 @@ export default function WorkspaceLayout() {
         <button
           className={styles.mobileTopbarBtn}
           onClick={() => setMobileSidebarOpen(true)}
-          title="Open sessions"
-          aria-label="Open sessions"
+          title="打开会话栏"
+          aria-label="打开会话栏"
         >
           <Menu size={18} />
         </button>
@@ -55,8 +55,8 @@ export default function WorkspaceLayout() {
         <NavLink
           to={`/chat/${sessionId}`}
           className={styles.mobileTopbarBtn}
-          title="Back to workspace"
-          aria-label="Back to workspace"
+          title="返回工作台"
+          aria-label="返回工作台"
         >
           <Sparkles size={18} />
         </NavLink>
@@ -75,26 +75,26 @@ export default function WorkspaceLayout() {
             </div>
             <div>
               <strong>EduAgent</strong>
-              <span>Teaching workspace</span>
+              <span>教学工作台</span>
             </div>
           </div>
           <button
             className={styles.mobileTopbarBtn}
             onClick={() => setMobileSidebarOpen(false)}
-            title="Close sessions"
-            aria-label="Close sessions"
+            title="关闭会话栏"
+            aria-label="关闭会话栏"
           >
             <X size={18} />
           </button>
         </div>
-        <Sidebar collapsed={sidebarCollapsed} />
+        <Sidebar collapsed={mobileSidebarOpen ? false : sidebarCollapsed} />
       </div>
 
       <button
         className={styles.collapseBtn}
         onClick={() => setSidebarCollapsed(v => !v)}
-        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+        aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
       >
         <PanelLeftClose size={16} className={clsx(sidebarCollapsed && styles.collapseBtnIconCollapsed)} />
       </button>
@@ -110,18 +110,18 @@ export default function WorkspaceLayout() {
             className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
           >
             <Sparkles size={18} />
-            <span>Workspace</span>
+            <span>工作台</span>
           </NavLink>
           <button className={styles.mobileNavItem} onClick={() => setMobileSidebarOpen(true)}>
             <Menu size={18} />
-            <span>Sessions</span>
+            <span>会话</span>
           </button>
           <NavLink
             to="/assets"
             className={({ isActive }) => clsx(styles.mobileNavItem, isActive && styles.mobileNavItemActive)}
           >
             <FolderOpen size={18} />
-            <span>Assets</span>
+            <span>素材</span>
           </NavLink>
         </nav>
       )}

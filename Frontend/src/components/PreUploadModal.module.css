@@ -14,9 +14,18 @@
   animation: fadeIn 0.18s ease;
 }
 
+.overlayClosing {
+  animation: fadeOut 0.22s var(--ease-standard, ease) forwards;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ── 抽屉 ─────────────────────────────────────────────────── */
@@ -32,9 +41,18 @@
   animation: slideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.drawerClosing {
+  animation: slideOut 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(18px); opacity: 0; }
 }
 
 /* ── Header ────────────────────────────────────────────────── */
@@ -85,7 +103,13 @@
   color: var(--text-primary, #e2e8f0);
 }
 
-.closeBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.closeBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.88);
+  background: rgba(241, 245, 249, 0.92);
+  border-color: rgba(191, 205, 229, 0.82);
+}
 
 /* ── Filmstrip（多图导航条） ────────────────────────────────── */
 .filmstrip {
@@ -388,7 +412,13 @@
   color: var(--accent-primary, #818cf8);
 }
 
-.addTagBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.addTagBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
 
 /* ── 多图提示 ────────────────────────────────────────────────── */
 .multiHint {
@@ -492,7 +522,13 @@
   color: var(--text-primary, #e2e8f0);
 }
 
-.cancelBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cancelBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
 
 /* 主按钮：上传并提交 AI 标注 */
 .submitBtn {
@@ -521,9 +557,13 @@
 }
 
 .submitBtn:disabled {
-  opacity: 0.55;
+  opacity: 1;
   cursor: not-allowed;
   transform: none;
+  color: rgba(71, 85, 105, 0.92);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  box-shadow: none;
+  border: 1px solid rgba(191, 205, 229, 0.9);
 }
 
 /* ── 共用动画 ─────────────────────────────────────────────────── */
