@@ -1068,3 +1068,49 @@
   white-space: nowrap;
   letter-spacing: 0.03em;
 }
+
+@media (max-width: 900px) {
+  .iterateBar {
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .iterateInput {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 14px;
+  }
+
+  .iterateBtn {
+    min-width: 120px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .iterateBar {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .iterateInput {
+    font-size: 16px;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 15px;
+  }
+
+  .iterateBtn {
+    min-width: 112px;
+    height: 42px;
+    font-size: 15px;
+  }
+}

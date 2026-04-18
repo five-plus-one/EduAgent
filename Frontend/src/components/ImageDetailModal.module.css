@@ -576,3 +576,62 @@
   background: rgba(255, 92, 122, 0.12);
   color: var(--danger);
 }
+
+@media (max-width: 900px) {
+  .overlay {
+    justify-content: center;
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .drawer {
+    width: 100%;
+    max-width: none;
+    height: min(92dvh, 920px);
+    margin: 0;
+    border-left: none;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.24);
+  }
+
+  .drawerHeader,
+  .body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .annotateHero {
+    margin: 12px 14px 0;
+  }
+
+  .previewWrap {
+    height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .drawer {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .previewWrap {
+    height: 190px;
+  }
+
+  .annotateHero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reannotateHeroBtn,
+  .saveBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}

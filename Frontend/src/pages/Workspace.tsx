@@ -241,7 +241,7 @@ export default function Workspace() {
   // 鈹€鈹€ 浜掑姩灏忔父鎴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
   const [pendingSuggest, setPendingSuggest] = useState<GameSuggestData | null>(null);
   const [pendingTrigger, setPendingTrigger] = useState<GameSpec | null>(null);
-  const [, setActiveGameId] = useState<string | null>(null);
+  const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const lastGameTriggerSignatureRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -1619,7 +1619,7 @@ export default function Workspace() {
         />
       )}
 
-      {sessionId !== 'new' && (
+      {sessionId !== 'new' && !(activeTab === 'games' && activeGameId) && (
         <nav className={styles.mobileWorkspaceNav}>
           <button
             className={styles.mobileWorkspaceNavBtn}
