@@ -20,6 +20,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useExport } from '../hooks/useExport';
+import { useNotificationStore } from '../store/useNotificationStore';
 import { listKnowledgeDocs, addReferences, removeReference, getSession, uploadKnowledgeDoc, exportWordDocx, renameSession, saveSessionTheme, getThemes } from '../utils/api';
 import type { GameSuggestData, GameSpec } from '../utils/gamesApi';
 import { Gamepad2, FileText, Link, CheckCircle, Loader2, Library, Sparkles, Mic, Paperclip, Send, Square, Download, Unlink, Image as ImageIcon, UploadCloud, AlertCircle, Clock, Pencil, Check, Palette, Eye, Menu } from 'lucide-react';
@@ -76,6 +77,7 @@ export default function Workspace() {
   const kbFileInputRef = useRef<HTMLInputElement>(null);
   const micPointerIdRef = useRef<number | null>(null);
   const isMicPressActiveRef = useRef(false);
+  const lastSpeechErrorRef = useRef<string | null>(null);
 
   const [selectionText, setSelectionText] = useState('');
   const [floatPos, setFloatPos] = useState({ top: 0, left: 0 });
@@ -90,6 +92,25 @@ export default function Workspace() {
   } = useSpeechRecognition(sessionId, (text) => {
     setInputText(prev => prev.trim() ? `${prev.trim()} ${text}` : text);
   });
+  const pushNotification = useNotificationStore((state) => state.pushNotification);
+
+  useEffect(() => {
+    if (!speechError) {
+      lastSpeechErrorRef.current = null;
+      return;
+    }
+
+    if (lastSpeechErrorRef.current === speechError) {
+      return;
+    }
+
+    lastSpeechErrorRef.current = speechError;
+    pushNotification({
+      tone: 'error',
+      title: '语音转写失败',
+      message: speechError,
+    });
+  }, [pushNotification, speechError]);
 
   const beginMicPress = useCallback((reason: string, pointerId?: number) => {
     if (isMicPressActiveRef.current) {
@@ -975,11 +996,8 @@ export default function Workspace() {
                   )}
                 </div>
               </div>
-              {isTranscribing && !speechError && (
+              {isTranscribing && (
                 <p className={clsx(styles.speechError, styles.speechInfo)}>提示：语音转写中，请稍候...</p>
-              )}
-              {speechError && (
-                <p className={styles.speechError}>提示：{speechError}</p>
               )}
             </div>
           </>

@@ -11,6 +11,47 @@ interface UseSpeechRecognitionResult {
   error: string | null;
 }
 
+interface SpeechRecognitionAlternativeLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionResultLike {
+  isFinal: boolean;
+  0: SpeechRecognitionAlternativeLike;
+}
+
+interface SpeechRecognitionEventLike extends Event {
+  resultIndex: number;
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+
+interface SpeechRecognitionErrorEventLike extends Event {
+  error: string;
+  message?: string;
+}
+
+interface SpeechRecognitionLike extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+interface SpeechRecognitionConstructorLike {
+  new (): SpeechRecognitionLike;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructorLike;
+    webkitSpeechRecognition?: SpeechRecognitionConstructorLike;
+  }
+}
+
 const MIME_TYPE_CANDIDATES = [
   'audio/webm;codecs=opus',
   'audio/webm',
@@ -26,6 +67,14 @@ const resolveSupportedMimeType = () => {
   return MIME_TYPE_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
 };
 
+const getSpeechRecognitionConstructor = (): SpeechRecognitionConstructorLike | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+};
+
 export function useSpeechRecognition(
   sessionId: string,
   onTranscript: (text: string) => void,
@@ -35,6 +84,10 @@ export function useSpeechRecognition(
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recognitionFinalTranscriptRef = useRef('');
+  const recognitionTranscriptRef = useRef('');
+  const recognitionStoppingRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -45,12 +98,15 @@ export function useSpeechRecognition(
   const stopRequestedRef = useRef(false);
   const startedAtRef = useRef(0);
 
-  const isSupported = useMemo(() => {
+  const hasNativeRecognition = useMemo(() => !!getSpeechRecognitionConstructor(), []);
+  const hasRecorderFallback = useMemo(() => {
     return typeof window !== 'undefined'
       && typeof navigator !== 'undefined'
       && !!navigator.mediaDevices?.getUserMedia
       && typeof MediaRecorder !== 'undefined';
   }, []);
+
+  const isSupported = hasNativeRecognition || hasRecorderFallback;
 
   const clearStopFallbackTimer = useCallback(() => {
     if (stopFallbackTimerRef.current != null && typeof window !== 'undefined') {
@@ -67,7 +123,30 @@ export function useSpeechRecognition(
     }
   }, []);
 
-  const finalizeRecording = useCallback(async (reason: string, mimeType: string) => {
+  const finishNativeRecognition = useCallback(() => {
+    const finalText = recognitionFinalTranscriptRef.current.trim();
+    const interimText = recognitionTranscriptRef.current.trim();
+    const text = finalText || interimText;
+    recognitionFinalTranscriptRef.current = '';
+    recognitionTranscriptRef.current = '';
+
+    if (!mountedRef.current) {
+      return;
+    }
+
+    setIsRecording(false);
+    setIsTranscribing(false);
+
+    if (!text) {
+      setError('未识别到语音内容，请重试。');
+      return;
+    }
+
+    setTranscript(text);
+    onTranscript(text);
+  }, [onTranscript]);
+
+  const finalizeRecorderUpload = useCallback(async (reason: string, mimeType: string) => {
     console.log('[voice] finalize invoked', {
       reason,
       chunkCount: chunksRef.current.length,
@@ -146,9 +225,18 @@ export function useSpeechRecognition(
   }, [clearStopFallbackTimer, onTranscript, sessionId, stopTracks]);
 
   useEffect(() => {
+    mountedRef.current = true;
+
     return () => {
       mountedRef.current = false;
       clearStopFallbackTimer();
+
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        // noop
+      }
+
       if (recorderRef.current && recorderRef.current.state !== 'inactive') {
         try {
           recorderRef.current.stop();
@@ -156,15 +244,173 @@ export function useSpeechRecognition(
           // noop
         }
       }
+
       stopTracks();
     };
   }, [clearStopFallbackTimer, stopTracks]);
 
+  const startNativeRecognition = useCallback(async () => {
+    const SpeechRecognitionCtor = getSpeechRecognitionConstructor();
+
+    if (!SpeechRecognitionCtor) {
+      throw new Error('SpeechRecognition unavailable');
+    }
+
+    recognitionTranscriptRef.current = '';
+    recognitionFinalTranscriptRef.current = '';
+    recognitionStoppingRef.current = false;
+
+    const recognition = new SpeechRecognitionCtor();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'zh-CN';
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const result = event.results[i];
+        const piece = result?.[0]?.transcript?.trim() ?? '';
+        if (piece) {
+          if (result.isFinal) {
+            recognitionFinalTranscriptRef.current = `${recognitionFinalTranscriptRef.current} ${piece}`.trim();
+          } else {
+            interimTranscript = `${interimTranscript} ${piece}`.trim();
+          }
+        }
+      }
+      recognitionTranscriptRef.current = interimTranscript;
+      console.log('[voice] native transcript updated', {
+        finalLength: recognitionFinalTranscriptRef.current.length,
+        interimLength: interimTranscript.length,
+      });
+    };
+
+    recognition.onerror = (event) => {
+      console.log('[voice] native recognition error', event.error);
+      recognitionRef.current = null;
+      recognitionStoppingRef.current = false;
+      recognitionFinalTranscriptRef.current = '';
+      recognitionTranscriptRef.current = '';
+
+      if (!mountedRef.current) {
+        return;
+      }
+
+      setIsRecording(false);
+      setIsTranscribing(false);
+
+      if (event.error === 'no-speech') {
+        setError('未识别到语音内容，请重试。');
+        return;
+      }
+
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setError('浏览器未授予语音识别权限，请检查麦克风和语音识别权限。');
+        return;
+      }
+
+      setError('浏览器语音识别失败，已停止本次转写。');
+    };
+
+    recognition.onend = () => {
+      console.log('[voice] native recognition ended');
+      recognitionRef.current = null;
+
+      if (!recognitionStoppingRef.current) {
+        if (mountedRef.current) {
+          setIsRecording(false);
+          setIsTranscribing(false);
+        }
+        return;
+      }
+
+      recognitionStoppingRef.current = false;
+      finishNativeRecognition();
+    };
+
+    recognitionRef.current = recognition;
+    setIsRecording(true);
+    recognition.start();
+    console.log('[voice] native recognition started');
+  }, [finishNativeRecognition]);
+
+  const startRecorderFallback = useCallback(async () => {
+    if (!hasRecorderFallback) {
+      setError('当前浏览器既不支持本地语音识别，也不支持录音上传。');
+      return;
+    }
+
+    stopRequestedRef.current = false;
+    clearStopFallbackTimer();
+    chunksRef.current = [];
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    console.log('[voice] media stream granted');
+
+    const mimeType = resolveSupportedMimeType();
+    const recorder = mimeType
+      ? new MediaRecorder(stream, { mimeType })
+      : new MediaRecorder(stream);
+
+    streamRef.current = stream;
+    recorderRef.current = recorder;
+
+    recorder.onstart = () => {
+      if (!mountedRef.current) return;
+      startedAtRef.current = Date.now();
+      setIsRecording(true);
+      console.log('[voice] recorder started', {
+        mimeType: recorder.mimeType || mimeType || 'default',
+      });
+    };
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunksRef.current.push(event.data);
+        console.log('[voice] chunk received', { size: event.data.size });
+      }
+    };
+
+    recorder.onerror = () => {
+      console.log('[voice] recorder error');
+      clearStopFallbackTimer();
+      if (mountedRef.current) {
+        setError('录音过程中发生异常，请重试。');
+        setIsRecording(false);
+        setIsTranscribing(false);
+      }
+      stopTracks();
+    };
+
+    recorder.onstop = () => {
+      console.log('[voice] recorder onstop fired');
+      void finalizeRecorderUpload('onstop', recorder.mimeType || mimeType || 'audio/webm');
+    };
+
+    recorder.start();
+
+    if (stopRequestedRef.current && recorder.state !== 'inactive') {
+      console.log('[voice] stop requested before recorder fully started');
+      try {
+        recorder.requestData();
+      } catch {
+        // noop
+      }
+      recorder.stop();
+    }
+  }, [clearStopFallbackTimer, finalizeRecorderUpload, hasRecorderFallback, stopTracks]);
+
   const startRecording = useCallback(async () => {
-    console.log('[voice] start requested', { sessionId });
+    console.log('[voice] start requested', { sessionId, hasNativeRecognition, hasRecorderFallback });
 
     if (!isSupported) {
-      setError('当前浏览器不支持语音录制，请使用最新版 Chrome 或 Edge。');
+      setError('当前浏览器不支持语音输入，请使用最新版 Chrome 或 Edge。');
       return;
     }
 
@@ -185,95 +431,66 @@ export function useSpeechRecognition(
 
     try {
       isStartingRef.current = true;
-      stopRequestedRef.current = false;
-      clearStopFallbackTimer();
       setError(null);
       setTranscript('');
-      chunksRef.current = [];
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
-      console.log('[voice] media stream granted');
-
-      const mimeType = resolveSupportedMimeType();
-      const recorder = mimeType
-        ? new MediaRecorder(stream, { mimeType })
-        : new MediaRecorder(stream);
-
-      streamRef.current = stream;
-      recorderRef.current = recorder;
-
-      recorder.onstart = () => {
-        if (!mountedRef.current) return;
-        startedAtRef.current = Date.now();
-        setIsRecording(true);
-        console.log('[voice] recorder started', {
-          mimeType: recorder.mimeType || mimeType || 'default',
-        });
-      };
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-          console.log('[voice] chunk received', { size: event.data.size });
-        }
-      };
-
-      recorder.onerror = (event) => {
-        console.log('[voice] recorder error', event);
-        clearStopFallbackTimer();
-        if (mountedRef.current) {
-          setError('录音过程中发生异常，请重试。');
-          setIsRecording(false);
-          setIsTranscribing(false);
-        }
-        stopTracks();
-      };
-
-      recorder.onstop = () => {
-        console.log('[voice] recorder onstop fired');
-        void finalizeRecording('onstop', recorder.mimeType || mimeType || 'audio/webm');
-      };
-
-      recorder.start();
-
-      if (stopRequestedRef.current && recorder.state !== 'inactive') {
-        console.log('[voice] stop requested before recorder fully started');
-        try {
-          recorder.requestData();
-        } catch {
-          // noop
-        }
-        recorder.stop();
+      if (hasNativeRecognition) {
+        await startNativeRecognition();
+      } else {
+        await startRecorderFallback();
       }
     } catch (err) {
-      stopRequestedRef.current = false;
-      stopTracks();
-      recorderRef.current = null;
-      setIsRecording(false);
+      console.log('[voice] failed to start input', err);
+
+      if (hasNativeRecognition && hasRecorderFallback) {
+        try {
+          await startRecorderFallback();
+          return;
+        } catch (fallbackErr) {
+          console.log('[voice] fallback recorder start failed', fallbackErr);
+        }
+      }
 
       const mediaError = err as DOMException | undefined;
-      console.log('[voice] failed to start recorder', { name: mediaError?.name });
-
       if (mediaError?.name === 'NotAllowedError') {
         setError('麦克风权限被拒绝，请在浏览器地址栏中允许麦克风访问。');
       } else if (mediaError?.name === 'NotFoundError') {
         setError('未检测到可用麦克风设备。');
       } else {
-        setError('无法启动录音，请检查浏览器权限或设备状态。');
+        setError('无法启动语音输入，请检查浏览器权限或设备状态。');
       }
     } finally {
       isStartingRef.current = false;
     }
-  }, [clearStopFallbackTimer, finalizeRecording, isRecording, isSupported, isTranscribing, sessionId, stopTracks]);
+  }, [
+    hasNativeRecognition,
+    hasRecorderFallback,
+    isFinalizingRef,
+    isRecording,
+    isSupported,
+    isTranscribing,
+    sessionId,
+    startNativeRecognition,
+    startRecorderFallback,
+  ]);
 
   const stopRecording = useCallback(() => {
     stopRequestedRef.current = true;
+
+    if (recognitionRef.current) {
+      console.log('[voice] stop requested for native recognition');
+      recognitionStoppingRef.current = true;
+      setIsRecording(false);
+      setIsTranscribing(true);
+      try {
+        recognitionRef.current.stop();
+      } catch (err) {
+        console.log('[voice] native recognition stop failed', err);
+        recognitionStoppingRef.current = false;
+        setIsTranscribing(false);
+      }
+      return;
+    }
 
     const recorder = recorderRef.current;
     console.log('[voice] stop requested', { state: recorder?.state ?? 'missing' });
@@ -294,7 +511,7 @@ export function useSpeechRecognition(
       recorder.stop();
     } catch (err) {
       console.log('[voice] recorder.stop failed', err);
-      void finalizeRecording('stop-exception', recorder.mimeType || 'audio/webm');
+      void finalizeRecorderUpload('stop-exception', recorder.mimeType || 'audio/webm');
       return;
     }
 
@@ -303,11 +520,11 @@ export function useSpeechRecognition(
       stopFallbackTimerRef.current = window.setTimeout(() => {
         if (stopRequestedRef.current && !isFinalizingRef.current) {
           console.log('[voice] stop fallback triggered');
-          void finalizeRecording('fallback-timeout', recorder.mimeType || 'audio/webm');
+          void finalizeRecorderUpload('fallback-timeout', recorder.mimeType || 'audio/webm');
         }
       }, 500);
     }
-  }, [clearStopFallbackTimer, finalizeRecording]);
+  }, [clearStopFallbackTimer, finalizeRecorderUpload]);
 
   return {
     isRecording,
