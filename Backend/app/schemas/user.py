@@ -9,9 +9,13 @@ class UserCreate(BaseModel):
     department: Optional[str] = ""
 
 class PreferencesUpdate(BaseModel):
+    # 偏好设置
     theme: Optional[str] = None
     language: Optional[str] = None
     default_ai_model: Optional[str] = None
+    # 个人信息（与偏好共用同一接口更新）
+    name: Optional[str] = None
+    department: Optional[str] = None
 
 # Properties to return to client
 class UserResponse(BaseModel):

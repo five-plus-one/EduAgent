@@ -174,9 +174,10 @@ def run_generation_task(task_id: str, session_id: str, selected_file_ids: list, 
 import asyncio
 from httpx import AsyncClient
 
-async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str):
+async def stream_generation(session_id: str, selected_file_ids: list, generation_mode: str, user_id: str = ""):
     """
     异步流式生成核心函数，输出 NDJSON 格式供 SSE 使用。
+    user_id 用于图片素材库检索（用户个人图库）。
     """
     def _sync_init():
         db_local = SessionLocal()
@@ -203,13 +204,29 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 
     history_str, rag_context = await asyncio.to_thread(_sync_init)
     db = SessionLocal() # Keep local DB instance for async loop
+
+    def _luma(hex_str: str) -> float:
+        """WCAG sRGB luminance, used for contrast gate."""
+        try:
+            h = str(hex_str).lstrip("#")
+            if len(h) == 3: h = "".join(c*2 for c in h)
+            r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+            return (0.2126*r + 0.7152*g + 0.0722*b) / 255.0
+        except Exception:
+            return 0.5
+
     try:
         courseware = db.query(Courseware).filter(Courseware.session_id == session_id).first()
         if courseware:
-            # 清空旧数据防止追加模式下出现脏数据和页数翻倍
+            # 清空旧数据；先 rollback 以防上次被中断的事务留有脏状态
+            try:
+                db.rollback()
+            except Exception:
+                pass
             courseware.ppt_data = {"version": "v1", "ppt_data": []}
             courseware.word_markdown = ""
-            db.commit()
+            await asyncio.to_thread(db.commit)  # 移至线程池，不阻塞事件循环
+
 
         prompt = f"""你是一位专业的 PPT 课件 JSON 生成器。严格按照以下格式输出，不能有任何偏差。
 
@@ -232,20 +249,33 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 （讲义正文 Markdown，可多行）
 {{"__type": "done"}}
 
-# layout_type 对照表
+# layout_type 对照表（仅允许以下5种，严禁自造布局名称）
 - cover：封面（第1页专用）
 - minimal_list：要点页（多段落列表）
 - two_column：双栏对比页（左右各一组 elements）
 - stat_callout：数据强调页（含大号数字）
 - timeline：时间线/流程页
 
+# 重要：方案一致性约束
+如果课程背景中包含用户已确认的 PPT 生成方案（格式如「P1 [cover] ... P2 [minimal_list] ...」），
+必须严格按照该方案的页数、页面顺序和 layout_type 生成，不得自行增减页数或调换布局。
+
 # elements 结构
 每个 element 是一个 JSON 对象，包含：
 - element_id: 字符串，如 "e1" "e2"（每页内唯一）
-- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item"
+- type: "text_block" 或 "list" 或 "huge_number" 或 "subtitle" 或 "timeline_item" 或 "image" 或 "table"
 - position: "left" 或 "right_top" 或 "right_bottom" 或 "center" 或 "full"
-- content: 字符串数组（非空，至少1个元素）
-- is_accent: true 或 false
+- content: 字符串数组（非空，至少1个元素。**仅当 type=image 时可省略 content，改用 query 和 alt 字段**）
+- is_accent: true 或 false（type=image 时填 false）
+
+# image element 特殊字段（type=image 专用）
+- query: 字符串，描述需要什么图片（用于语义检索），如 "牛顿苹果树引力示意图"
+- alt: 字符串，图片说明文字，如 "牛顿引力示意图"
+
+# table element 特殊字段（type=table 专用）
+- headers: 字符串数组，表头列名，如 ["刚体形状", "转轴", "转动惯量"]
+- rows: 二维字符串数组，行列数据，如 [["均质圆柱", "轴心", "$\\frac{{1}}{{2}}mR^2$"]]
+- content: 填 [] （表格数据存在 headers 和 rows 里）
 
 # 完整输出示例（照此结构生成真实内容）：
 {{"__type": "theme", "name": "科技蓝", "bg_color": "#0F172A", "primary": "#38BDF8", "secondary": "#475569", "accent": "#F59E0B", "text_color": "#F1F5F9"}}
@@ -264,7 +294,25 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
 3. 所有字段必须存在，不能缺少 element_id、type、position、content、is_accent
 4. 上面的示例仅供格式参考，请生成关于当前课程主题的真实内容
 5. 主题色板必须根据课程风格选择，不要照抄示例的颜色
-6. 现在开始输出，第一行是 theme JSON"""
+6. 【数学公式规则 - 必须严格遵守】
+   - 所有数学公式、符号、方程必须使用 LaTeX 语法，用 $ ... $ 包裹（行内）或 $$ ... $$ 包裹（块级）
+   - 联立方程组（方程组）必须使用 $\\begin{{cases}} x=x(t)\\\\ y=y(t)\\\\ z=z(t) \\end{{cases}}$ 格式，禁止用分号分隔
+   - 向量必须使用 $\\vec{{r}}$ 或 $\\vec{{v}}$ 格式
+   - 分数使用 $\\frac{{分子}}{{分母}}$，极限使用 $\\lim_{{n \\to \\infty}}$
+   - 示例：正确写法 "$\\vec{{v}} = \\lim_{{\\Delta t \\to 0}} \\frac{{\\Delta \\vec{{r}}}}{{\\Delta t}}$"，禁止写成 "v = Δr/Δt"
+   - 任何涉及上下标的变量（如 $a_n$, $v^2$, $\\omega_0$）都必须用 $ ... $ 包裹
+7. 【图片规则】在 two_column 布局中，可在右侧添加 type:"image" 元素代替纯文字，提升视觉效果。
+   - image element 必须包含 query（描述所需图片内容）和 alt（说明文字），content 字段填 []
+   - 每页最多 1 个 image element；cover 页和 stat_callout 页禁止使用
+   - 示例：{{"element_id": "img1", "type": "image", "position": "right", "query": "热力学第一定律能量守恒示意图", "alt": "能量守恒示意图", "content": [], "is_accent": false}}
+8. 【表格规则】当课程内容包含对比表、属性表、公式列表等，使用 type:"table" element。
+   - 表格 element 必须包含 headers（表头）和 rows（数据行），content 填 []
+   - 每页最多 1 个 table element；推荐在 minimal_list 布局中使用，position 填 "full"
+   - 表格列数建议 2-4 列，行数建议 3-8 行；单元格内公式用 LaTeX 格式
+   - 示例：{{"element_id": "t1", "type": "table", "position": "full", "headers": ["刚体形状", "转轴", "转动惯量"], "rows": [["均质圆柱", "轴心", "$\\frac{{1}}{{2}}mR^2$"], ["均质细杆", "杆中间", "$\\frac{{1}}{{12}}mL^2$"]], "content": [], "is_accent": false}}
+9. 现在开始输出，第一行是 theme JSON
+10. 【讲义Markdown规范】word_start 后的讲义内容：分隔线必须使用 ***，禁止使用 ---。"""
+
 
         def sse(event: str, data: dict):
             return f"data: {json.dumps({'event': event, 'data': data}, ensure_ascii=False)}\n\n"
@@ -288,6 +336,7 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
         page_count = 0
         theme_saved = False
         done_sent = False
+        _raw_llm_output = []  # debug: capture full raw LLM text
 
         import httpx
         timeout_config = httpx.Timeout(connect=15.0, read=600.0, write=15.0, pool=20.0)
@@ -301,30 +350,32 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                             break
                         try:
                             chunk = json.loads(line_content)
-                            # 安全取 choices — 空 choices:[] 时跳过，防止 IndexError
                             _choices = chunk.get("choices", [])
                             if not _choices or not isinstance(_choices, list):
                                 continue
                             chunk_delta = _choices[0].get("delta", {})
-                            
+
                             reasoning = chunk_delta.get("reasoning_content", "") or chunk_delta.get("thinking", "")
                             delta = chunk_delta.get("content", "")
-                            
-                            # 透传大模型思考过程给前端渲染 Loading Animation
+
                             if reasoning:
                                 yield sse("thinking_chunk", {"text": reasoning})
-                                
+
                             if not delta:
                                 continue
                             
+                            _raw_llm_output.append(delta)  # debug log
+
                             if word_mode:
                                 word_lines.append(delta)
                                 word_buffer = "".join(word_lines)
-                                if '{"__type": "done"}' in word_buffer or '{"__type":"done"}' in word_buffer:
-                                    # Write word markdown
-                                    clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+                                done_markers = ['{"__type": "done"}', '{"__type":"done"}']
+                                if any(m in word_buffer for m in done_markers):
+                                    for m in done_markers:
+                                        word_buffer = word_buffer.replace(m, "")
+                                    clean_word = word_buffer.strip()
                                     courseware.word_markdown = clean_word
-                                    db.commit()
+                                    await asyncio.to_thread(db.commit)
                                     yield sse("word_ready", {"word_markdown": clean_word})
                                     yield sse("generate_done", {"total_pages": page_count})
                                     done_sent = True
@@ -332,102 +383,169 @@ async def stream_generation(session_id: str, selected_file_ids: list, generation
                                 continue
 
                             buffer += delta
-                            decoder = json.JSONDecoder()
-                            while buffer:
-                                buffer = buffer.lstrip()
-                                if not buffer:
-                                    break
-                                
+                            decoder = json.JSONDecoder(strict=False)
+                            # Key fix: scan for '{' before raw_decode, skipping any
+                            # natural-language preamble the LLM may output between JSON objects.
+                            while True:
+                                brace_pos = buffer.find('{')
+                                if brace_pos == -1:
+                                    break  # no JSON start yet, wait for more chunks
+                                if brace_pos > 0:
+                                    skipped = buffer[:brace_pos]
+                                    if skipped.strip():
+                                        print(f"[parser] skip preamble: {repr(skipped[:60])}")
+                                    buffer = buffer[brace_pos:]
                                 try:
-                                    obj, idx = decoder.raw_decode(buffer)
-                                    t = obj.get("__type")
-                                    from sqlalchemy.orm.attributes import flag_modified
+                                    import re
+                                    def _escape_fixer(m):
+                                        val = m.group(0)
+                                        if val in ['\\"', '\\\\', '\\n'] or val.startswith('\\u'):
+                                            return val
+                                        return '\\\\' + val[1:]
                                     
+                                    # Fix invalid escapes (like \vec, \Delta) but keep valid ones (like \\, \n, \")
+                                    sanitized_buffer = re.sub(r'\\.', _escape_fixer, buffer)
+                                    
+                                    obj, idx = decoder.raw_decode(sanitized_buffer)
+                                    buffer = sanitized_buffer
+                                    
+                                    t = obj.get("__type")
+                                    print(f"[parser] parsed __type={t!r} buffer_len={len(buffer)} idx={idx}")
+                                    from sqlalchemy.orm.attributes import flag_modified
+
                                     if t == "theme":
                                         obj.pop("__type", None)
-
-                                        # ── 后端配色安全门 ──────────────────────────
-                                        # 用 WCAG 亮度公式检验 bg / text 对比，
-                                        # 低于 3:1 时自动注入安全 fallback，防止"白字白底"上线
-                                        def _luma(hex_str: str) -> float:
-                                            try:
-                                                h = str(hex_str).lstrip("#")
-                                                if len(h) == 3: h = "".join(c*2 for c in h)
-                                                r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-                                                return (0.2126*r + 0.7152*g + 0.0722*b) / 255.0
-                                            except Exception:
-                                                return 0.5
-
-                                        bg_luma  = _luma(obj.get("bg_color",  "#ffffff"))
-                                        txt_luma = _luma(obj.get("text_color","#000000"))
-                                        L1, L2 = max(bg_luma, txt_luma), min(bg_luma, txt_luma)
-                                        contrast_ratio = (L1 + 0.05) / (L2 + 0.05)
-
-                                        if contrast_ratio < 3.0:
-                                            # 低对比度：按 bg 亮度翻转 text 颜色
-                                            if bg_luma > 0.5:
-                                                obj["text_color"] = "#1E293B"   # 亮背景 → 深字
+                                        bg_l  = _luma(obj.get("bg_color",  "#ffffff"))
+                                        txt_l = _luma(obj.get("text_color","#000000"))
+                                        L1, L2 = max(bg_l, txt_l), min(bg_l, txt_l)
+                                        if (L1 + 0.05) / (L2 + 0.05) < 3.0:
+                                            if bg_l > 0.5:
+                                                obj["text_color"] = "#1E293B"
                                                 obj["primary"]    = "#0F172A"
                                             else:
-                                                obj["text_color"] = "#F8FAFC"   # 暗背景 → 亮字
+                                                obj["text_color"] = "#F8FAFC"
                                                 obj["primary"]    = "#E2E8F0"
-                                        # ─────────────────────────────────────────────
-
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
-                                        if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
                                         ppt_dict["theme"] = obj
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         theme_saved = True
                                         yield sse("generate_start", {"theme": obj, "total_hint": 8})
+
                                     elif t == "page":
                                         obj.pop("__type", None)
+
+                                        # ── 图片过滤必须在 db.commit() 前完成 ──
+                                        # 若先 commit 再过滤，DB 存的是未过滤版本（含 image 占位，无 resolved），
+                                        # PPT 导出时会读到未过滤数据，导致空占位框。
+                                        from app.services.image_service import search_image_by_query
+                                        filtered_elements = []
+                                        for elem in obj.get("elements", []):
+                                            if elem.get("type") == "image":
+                                                # 同时支持 query 和 alt 字段作为搜索词
+                                                query = elem.get("query", "") or elem.get("alt", "")
+                                                if not query:
+                                                    print(f"[image_resolve] dropped (no query): {elem.get('alt','')[:30]}")
+                                                    continue
+                                                resolved = None
+                                                try:
+                                                    resolved = await asyncio.to_thread(
+                                                        search_image_by_query, query, user_id or session_id
+                                                    )
+                                                except Exception as _img_err:
+                                                    print(f"[image_resolve] search error '{query[:30]}': {_img_err}")
+                                                if resolved is not None:
+                                                    elem["resolved"] = resolved
+                                                    filtered_elements.append(elem)
+                                                    print(f"[image_resolve] matched: {query[:30]} → {resolved.get('image_id','')}")
+                                                else:
+                                                    print(f"[image_resolve] no match, dropped: {query[:30]}")
+
+                                            elif elem.get("type") == "table":
+                                                # 校验表格必须包含 headers 和 rows
+                                                headers = elem.get("headers")
+                                                rows    = elem.get("rows")
+                                                if not isinstance(headers, list) or not headers:
+                                                    print(f"[table_validate] dropped (missing headers): eid={elem.get('element_id','?')}")
+                                                    continue
+                                                if not isinstance(rows, list) or not rows:
+                                                    print(f"[table_validate] dropped (missing rows): eid={elem.get('element_id','?')}")
+                                                    continue
+                                                # 确保 content 是 [] 而非 null
+                                                elem["content"] = []
+                                                filtered_elements.append(elem)
+
+                                            else:
+                                                filtered_elements.append(elem)
+                                        obj["elements"] = filtered_elements  # 始终赋值，确保 ppt_data 干净
+
+                                        # ── 存入 DB（此时已是过滤后的干净数据）──
                                         ppt_dict = dict(courseware.ppt_data) if isinstance(courseware.ppt_data, dict) else {}
-                                        if isinstance(courseware.ppt_data, list):
-                                            ppt_dict["ppt_data"] = list(courseware.ppt_data)
-                                        current_pages = list(ppt_dict.get("ppt_data", []))
-                                        if not isinstance(current_pages, list):
-                                            current_pages = []
-                                        current_pages.append(obj)
-                                        ppt_dict["ppt_data"] = current_pages
+                                        pages = list(ppt_dict.get("ppt_data", []))
+                                        pages.append(obj)
+                                        ppt_dict["ppt_data"] = pages
                                         courseware.ppt_data = ppt_dict
                                         flag_modified(courseware, "ppt_data")
-                                        db.commit()
+                                        await asyncio.to_thread(db.commit)
                                         page_count += 1
+                                        print(f"[parser] page {page_count}: {obj.get('title','')}")
+
                                         yield sse("page_chunk", obj)
+
+
+
                                     elif t == "word_start":
                                         word_mode = True
-                                        
+
+                                    # Advance buffer past consumed object
                                     buffer = buffer[idx:]
-                                    
                                     if word_mode:
                                         if buffer:
                                             word_lines.append(buffer)
                                             buffer = ""
                                         break
-                                        
-                                except json.JSONDecodeError:
-                                    # Need more chunks to complete JSON object
+
+                                except json.JSONDecodeError as jde:
+                                    # Incomplete JSON — wait for more stream chunks
+                                    # Failsafe: if the buffer is insanely large, the LLM probably emitted
+                                    # unescaped quotes or fatal JSON syntax inside this object.
+                                    if len(buffer) > 4000:
+                                        print(f"[parser] fatal JSON structure detected, skipping to next brace. error: {jde}")
+                                        buffer = buffer[1:] # Drop the starting '{' so we can find the NEXT one
+                                        continue
                                     break
+
                         except json.JSONDecodeError:
                             continue
-                            
-        # Final cleanup for word markdown if it didn't cleanly hit done
+
+        # Write raw LLM output to debug file
+        with open("debug_llm.log", "w", encoding="utf-8") as _f:
+            _f.write("".join(_raw_llm_output))
+        print(f"[debug] raw LLM output written to debug_llm.log ({len(_raw_llm_output)} chunks)")
+
         if word_mode and word_lines and not done_sent:
             word_buffer = "".join(word_lines)
-            clean_word = word_buffer.replace('{"__type": "done"}', '').replace('{"__type":"done"}', '').strip()
+            for m in ['{"__type": "done"}', '{"__type":"done"}']:
+                word_buffer = word_buffer.replace(m, "")
+            clean_word = word_buffer.strip()
+            # 将所有单行 "---" 分隔线替换为 "***"
+            import re as _re
+            clean_word = _re.sub(r'(?m)^-{3,}\s*$', '***', clean_word)
             courseware.word_markdown = clean_word
-            db.commit()
+            await asyncio.to_thread(db.commit)
             yield sse("word_ready", {"word_markdown": clean_word})
             yield sse("generate_done", {"total_pages": page_count})
-            
+
     except asyncio.CancelledError:
         print("[SSE] Client disconnected in stream")
     except Exception as e:
-        print(f"[SSE Error] {e}")
+        import traceback
+        err_msg = f"[SSE Error] {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        with open("debug_sse.log", "a", encoding="utf-8") as f:
+            f.write(err_msg + "\n")
+        traceback.print_exc()
         yield f"data: {json.dumps({'event': 'generate_error', 'data': {'message': str(e)}})}\n\n"
     finally:
         db.close()
-

@@ -70,9 +70,9 @@ export const safeApplyTheme = (sessionId: string, theme: PPTTheme) => {
   root.style.setProperty('--ppt-secondary', selectedTheme.secondary);
   root.style.setProperty('--ppt-accent', selectedTheme.accent);
   
-  // 4. Apply adaptive glassmorphism variables to prevent unreadable text on dark themes
-  root.style.setProperty('--ppt-glass-bg', isLight ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.3)');
-  root.style.setProperty('--ppt-glass-border', isLight ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.1)');
+  // 4. Apply adaptive glassmorphism variables - dark themes need deep dark cards for contrast
+  root.style.setProperty('--ppt-glass-bg', isLight ? 'rgba(255, 255, 255, 0.4)' : 'rgba(0, 0, 0, 0.42)');
+  root.style.setProperty('--ppt-glass-border', isLight ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.12)');
 };
 // -------------------------------------------------------------
 
@@ -95,6 +95,10 @@ class PPTStreamManagerClass {
   }>();
 
   private sessionListeners = new Map<string, Set<PPTStreamListener>>();
+  // Prevent duplicate re-trigger within 10s of last successful generation
+  private lastCompletionTime = new Map<string, number>();
+  // Throttle counter for thinking chunks per session
+  private _thinkCounter = new Map<string, number>();
 
   public subscribe(sessionId: string, listener: PPTStreamListener): () => void {
     if (!this.sessionListeners.has(sessionId)) {
@@ -181,8 +185,24 @@ class PPTStreamManagerClass {
     });
   }
 
-  public async startStream(sessionId: string, selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast') {
+  public async startStream(sessionId: string, selectedFileIds: string[], mode: 'fast' | 'depth' = 'fast', force = false) {
+    // Guard: block re-trigger within 10 seconds of last successful completion (unless forced)
+    if (!force) {
+      const lastDone = this.lastCompletionTime.get(sessionId) ?? 0;
+      if (Date.now() - lastDone < 10000) {
+        console.warn(`[PPTStream] Blocking duplicate startStream for ${sessionId} — last completed ${Date.now() - lastDone}ms ago. Use force=true to override.`);
+        return;
+      }
+    }
+
     if (this.activeStreams.has(sessionId)) {
+      // Only interrupt an existing stream when the caller explicitly forces it.
+      // Non-forced calls (e.g. auto-triggers from useEffect) must NOT kill an
+      // in-progress generation — that's what causes the "stuck after page 1" bug.
+      if (!force) {
+        console.warn(`[PPTStream] startStream ignored — already streaming for ${sessionId}. Pass force=true to restart.`);
+        return;
+      }
       this.stopStream(sessionId);
     }
 
@@ -227,10 +247,14 @@ class PPTStreamManagerClass {
           },
           onThinking: (chunk: string) => {
             state.streamThinking += chunk;
-            this.notify(sessionId, state);
+            // Throttle: notify every 6 chunks to avoid flooding React with re-renders
+            const n = (this._thinkCounter.get(sessionId) ?? 0) + 1;
+            this._thinkCounter.set(sessionId, n);
+            if (n % 6 === 0) this.notify(sessionId, state);
           },
           onDone: () => {
             state.isStreaming = false;
+            this.lastCompletionTime.set(sessionId, Date.now()); // record for cooldown guard
             
             // Final backup
             this.saveFallback(sessionId, state);

@@ -10,6 +10,7 @@ export function useChatSession(sessionId: string) {
   const [messages, setMessages] = useState<MessageProps[]>([]);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [latestIntent, setLatestIntent] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const navigate = useNavigate();
 
   const stopGeneration = useCallback(() => {
@@ -37,6 +38,7 @@ export function useChatSession(sessionId: string) {
 
     const loadHistory = async () => {
       if (!sessionId || sessionId === 'new') return;
+      setIsLoadingHistory(true);
       try {
         console.log(`[UseChatSession] Loading data for session ${sessionId}`);
         const res = await getSession(sessionId);
@@ -127,6 +129,8 @@ export function useChatSession(sessionId: string) {
         }
       } catch (err) {
         console.error('[History Healing] Error:', err);
+      } finally {
+        if (active) setIsLoadingHistory(false);
       }
     };
 
@@ -165,5 +169,5 @@ export function useChatSession(sessionId: string) {
     };
   }, [sessionId]);
 
-  return { messages, isSynthesizing, latestIntent, sendMessage, stopGeneration, clearIntent: () => setLatestIntent(null) };
+  return { messages, isSynthesizing, latestIntent, isLoadingHistory, sendMessage, stopGeneration, clearIntent: () => setLatestIntent(null) };
 }

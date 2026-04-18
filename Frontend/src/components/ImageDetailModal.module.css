@@ -1,0 +1,637 @@
+/* ============================================================
+   ImageDetailModal — 图片详情右侧抽屉（已上传图片编辑）
+   ============================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.18s ease;
+}
+
+.overlayClosing {
+  animation: fadeOut 0.22s var(--ease-standard, ease) forwards;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+.drawer {
+  width: min(460px, 92vw);
+  height: 100%;
+  background: var(--bg-secondary, #1a1f2e);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -8px 0 48px rgba(0, 0, 0, 0.4);
+  animation: slideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.drawerClosing {
+  animation: slideOut 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(18px); opacity: 0; }
+}
+
+/* ── Header ────────────────────────────────────────────────── */
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #94a3b8);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.closeBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary, #e2e8f0);
+}
+
+/* ── 图片预览 ───────────────────────────────────────────────── */
+.previewWrap {
+  flex-shrink: 0;
+  position: relative;
+  height: 200px;
+  background: rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.previewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.previewMeta {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 14px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+}
+
+.filename {
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+/* ══ AI 重新标注 Hero 区域 ═══════════════════════════════════ */
+.annotateHero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+  transition: background 0.3s ease;
+}
+
+.annotateHeroLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.annotateHeroDesc {
+  font-size: 11.5px;
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Hero 按钮 */
+.reannotateHeroBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.reannotateHeroBtn:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.22);
+  border-color: rgba(16, 185, 129, 0.55);
+  transform: translateY(-1px);
+}
+
+.reannotateHeroBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(71, 85, 105, 0.9);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.96), rgba(226, 232, 240, 0.92));
+  border-color: rgba(191, 205, 229, 0.9);
+  transform: none;
+}
+.reannotateHeroBtn.busy { opacity: 0.7; }
+
+/* ── 可滚动内容 ─────────────────────────────────────────────── */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.body::-webkit-scrollbar { width: 3px; }
+.body::-webkit-scrollbar-track { background: transparent; }
+.body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── Section ────────────────────────────────────────────────── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sectionHint {
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.6;
+  color: var(--text-tertiary, #64748b);
+}
+
+/* ── AI 描述只读 ────────────────────────────────────────────── */
+.aiDescription {
+  font-size: 12.5px;
+  color: var(--text-primary, #e2e8f0);
+  line-height: 1.65;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 10px;
+}
+
+/* ── Textarea ───────────────────────────────── */
+.textarea {
+  width: 100%;
+  background: transparent;
+  /* slate-400 中性灰色，亮色/暗色主题均可被看见 */
+  border: 1.5px solid rgba(148, 163, 184, 0.6);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text-primary, #e2e8f0);
+  resize: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+  line-height: 1.6;
+  min-height: 82px;
+}
+
+.textarea:hover {
+  border-color: rgba(148, 163, 184, 0.9);
+}
+
+.textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+/* 中性灰，亮/暗主题均可读 */
+.textarea::placeholder { color: rgba(148, 163, 184, 0.85); font-size: 12.5px; }
+
+/* ── 保存按钮 ────────────────────────────────────────────────── */
+.saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--accent-primary, #818cf8);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.6);
+  color: #a5b4fc;
+}
+
+.saveBtn.disabled,
+.saveBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
+  border-color: rgba(148, 163, 184, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+/* ── 标签 ───────────────────────────────────────────────────── */
+.tagsArea {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+}
+
+.tagsEmpty {
+  font-size: 12px;
+  color: var(--text-tertiary, #64748b);
+  font-style: italic;
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px 3px 9px;
+  border-radius: 100px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  color: var(--accent-primary, #818cf8);
+}
+
+.removeTagBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  padding: 1px;
+  border-radius: 50%;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.removeTagBtn:hover { opacity: 1; background: rgba(239,68,68,0.2); color: #fca5a5; }
+
+.tagInputRow {
+  display: flex;
+  gap: 6px;
+}
+
+.tagInput {
+  flex: 1;
+  background: transparent;
+  border: 1.5px solid rgba(148, 163, 184, 0.6);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--text-primary, #e2e8f0);
+  transition: border-color 0.2s;
+  font-family: inherit;
+}
+
+.tagInput:hover { border-color: rgba(148, 163, 184, 0.9); }
+
+.tagInput:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+.tagInput::placeholder { color: rgba(148, 163, 184, 0.85); }
+
+.addTagBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.addTagBtn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--accent-primary, #818cf8);
+}
+
+.addTagBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
+
+/* ── 共用旋转动画 ────────────────────────────────────────────── */
+.spinIcon { animation: spin 0.85s linear infinite; }
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Modernized visual pass */
+.overlay {
+  background: rgba(8, 15, 30, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.drawer {
+  width: min(520px, 94vw);
+  height: calc(100% - 24px);
+  margin: 12px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.95));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-xl);
+}
+
+.drawerHeader {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(191, 205, 229, 0.76);
+}
+
+.headerLeft {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.closeBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(191, 205, 229, 0.82);
+  background: rgba(255,255,255,0.78);
+  color: var(--text-muted);
+}
+
+.closeBtn:hover {
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.previewWrap {
+  margin: 0 20px;
+  height: 240px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(239,246,255,0.8), rgba(225,238,255,0.64));
+  border: 1px solid rgba(191, 205, 229, 0.76);
+}
+
+.previewMeta {
+  padding: 12px 14px;
+  background: linear-gradient(180deg, transparent, rgba(8, 15, 30, 0.62));
+}
+
+.filename {
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.92);
+}
+
+.annotateHero {
+  margin: 16px 20px 0;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(191, 205, 229, 0.78);
+}
+
+.annotateHeroDesc,
+.sectionHint,
+.tagsEmpty {
+  color: var(--text-muted);
+}
+
+.statusPill {
+  font-size: 0.72rem;
+}
+
+.reannotateHeroBtn,
+.saveBtn,
+.addTagBtn {
+  min-height: 36px;
+  border-radius: 12px;
+}
+
+.reannotateHeroBtn {
+  border-color: rgba(76, 132, 255, 0.22);
+  background: rgba(239,246,255,0.96);
+  color: var(--brand-strong);
+}
+
+.body {
+  padding: 18px 20px 20px;
+  gap: 18px;
+}
+
+.section {
+  gap: 10px;
+}
+
+.sectionLabel {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.aiDescription,
+.tagsArea {
+  border-radius: 16px;
+  border: 1px solid rgba(191, 205, 229, 0.76);
+  background: rgba(255,255,255,0.82);
+}
+
+.aiDescription {
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  padding: 14px 15px;
+}
+
+.textarea,
+.tagInput {
+  border-radius: 16px;
+  border: 1px solid rgba(191, 205, 229, 0.92);
+  background: rgba(255,255,255,0.9);
+  color: var(--text-primary);
+}
+
+.textarea:hover,
+.tagInput:hover {
+  border-color: rgba(121, 164, 255, 0.42);
+}
+
+.textarea:focus,
+.tagInput:focus {
+  border-color: rgba(76, 132, 255, 0.42);
+  box-shadow: 0 0 0 4px rgba(76, 132, 255, 0.12);
+}
+
+.textarea::placeholder,
+.tagInput::placeholder {
+  color: var(--text-muted);
+}
+
+.saveBtn {
+  padding: 0 14px;
+  border: 1px solid rgba(47, 108, 239, 0.2);
+  background: linear-gradient(135deg, #2f6cef, #1f4ddb 52%, #173fb9);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(47, 108, 239, 0.22);
+}
+
+.saveBtn:hover:not(:disabled) {
+  box-shadow: 0 16px 28px rgba(47, 108, 239, 0.28);
+  filter: saturate(1.04);
+}
+
+.tagChip {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(239,246,255,0.96);
+  border-color: rgba(121, 164, 255, 0.3);
+  color: var(--brand-strong);
+}
+
+.removeTagBtn:hover {
+  background: rgba(255, 92, 122, 0.12);
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .overlay {
+    justify-content: center;
+    align-items: flex-end;
+    padding: 8px;
+  }
+
+  .drawer {
+    width: 100%;
+    max-width: none;
+    height: min(92dvh, 920px);
+    margin: 0;
+    border-left: none;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.24);
+  }
+
+  .drawerHeader,
+  .body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .annotateHero {
+    margin: 12px 14px 0;
+  }
+
+  .previewWrap {
+    height: 220px;
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .drawer {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .previewWrap {
+    height: 190px;
+  }
+
+  .annotateHero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .reannotateHeroBtn,
+  .saveBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}

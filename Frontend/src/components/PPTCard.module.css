@@ -18,6 +18,10 @@
   --margin-left: calc(0.55 * var(--in));
   --margin-right: calc(0.55 * var(--in));
   --margin-top: calc(0.5 * var(--in));
+  --ppt-panel-bg: color-mix(in srgb, var(--ppt-bg, #ffffff) 88%, var(--ppt-text, #0f172a) 12%);
+  --ppt-panel-border: color-mix(in srgb, var(--ppt-bg, #ffffff) 72%, var(--ppt-text, #0f172a) 28%);
+  --ppt-panel-shadow: color-mix(in srgb, var(--ppt-text, #0f172a) 12%, transparent);
+  --ppt-panel-highlight: color-mix(in srgb, white 70%, var(--ppt-bg, #ffffff) 30%);
   
   padding: var(--margin-top) var(--margin-right) 0 var(--margin-left);
   display: flex;
@@ -35,7 +39,7 @@
     0 40px 100px -20px rgba(0, 0, 0, 0.15), 
     0 0 0 1px rgba(255, 255, 255, 0.3) inset;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow 0.25s ease;
 }
 
 .pptCard::before {
@@ -49,8 +53,9 @@
 }
 
 .pptCard:hover {
-  transform: translateY(-4px) scale(1.005);
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 60px 120px -20px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.35) inset;
 }
 
 .cardHeader {
@@ -79,7 +84,119 @@
   margin: 0;
   letter-spacing: -0.02em;
   font-family: 'Outfit', system-ui, sans-serif;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+/* 手动编辑按钮（铅笔） */
+.editPageBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(2.8 * var(--in));
+  height: calc(2.8 * var(--in));
+  max-width: 36px;
+  max-height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(99,102,241,0.1);
+  color: rgba(99,102,241,0.7);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, background 0.18s, color 0.18s;
+  margin-left: auto;
+}
+
+.pptCard:hover .editPageBtn {
+  opacity: 1;
+}
+
+.editPageBtn:hover {
+  background: rgba(99,102,241,0.2);
+  color: #6366f1;
+}
+
+/* ══════════════════════════════════════════════════════════
+   外层包裹 + 悬浮编辑按钮（幻灯片外部右上角）
+   ══════════════════════════════════════════════════════════ */
+
+/* 包裹整个卡片与外置操作轨道 */
+.cardShell {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.cardToolbar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* 卡片本体容器 */
+.cardWrap {
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
+}
+
+.floatEditBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(244,247,251,0.92));
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Outfit', system-ui, sans-serif;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  box-shadow:
+    0 10px 24px -16px rgba(15, 23, 42, 0.3),
+    0 1px 0 rgba(255,255,255,0.75) inset;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
+  white-space: nowrap;
+}
+
+.floatEditBtn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(59, 130, 246, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,1), rgba(239,246,255,0.96));
+  color: #1d4ed8;
+  box-shadow:
+    0 14px 28px -18px rgba(29, 78, 216, 0.28),
+    0 1px 0 rgba(255,255,255,0.85) inset;
+}
+
+.floatEditBtn:active {
+  transform: translateY(0);
+}
+
+.floatEditBtn span {
+  letter-spacing: 0.015em;
+}
+
+
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
 .stage {
@@ -89,6 +206,8 @@
   z-index: 2;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* prevent content from exceeding slide height */
+  min-height: 0;   /* allow flex children to shrink */
 }
 
 /* 1. Cover Layout Matrix */
@@ -157,14 +276,17 @@
   grid-template-columns: repeat(var(--col-count, 2), 1fr);
   gap: calc(0.5 * var(--in));
   align-items: start;
+  overflow: hidden;
 }
 
 /* Logical Grouping Columns */
 .columnLeft, .columnRight {
   display: flex;
   flex-direction: column;
-  gap: calc(0.15 * var(--in));
+  gap: calc(0.12 * var(--in));
   height: min-content;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .layout_two_column::before, .layout_minimal_list::before {
@@ -322,21 +444,21 @@
 
 .contentList li {
   position: relative;
-  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
+  background: var(--ppt-panel-bg);
   border-left: 3px solid var(--ppt-accent, #3b82f6);
-  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  padding: calc(0.12 * var(--in)) calc(0.2 * var(--in));
+  border-top: 1px solid var(--ppt-panel-border);
+  border-right: 1px solid var(--ppt-panel-border);
+  border-bottom: 1px solid var(--ppt-panel-border);
+  padding: calc(0.10 * var(--in)) calc(0.18 * var(--in));
   border-radius: 0 8px 8px 0;
-  margin-bottom: calc(0.08 * var(--in));
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  margin-bottom: calc(0.06 * var(--in));
+  box-shadow:
+    inset 0 1px 0 var(--ppt-panel-highlight),
+    0 4px 15px var(--ppt-panel-shadow);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
-  font-size: calc(22 * var(--pt)); /* Unify with textBlock */
-  line-height: 1.6;
+  font-size: calc(min(20, var(--dynamic-font, 20)) * var(--pt));
+  line-height: 1.5;
 }
 
 .contentList li p,
@@ -344,28 +466,42 @@
   margin: 0;
 }
 
+/* Allow KaTeX math blocks (cases, aligned, etc.) to display properly */
+.contentList li .katex-display,
+.textBlock .katex-display {
+  margin: 0.2em 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.contentList li .katex,
+.textBlock .katex {
+  font-size: 1em; /* match surrounding text size */
+}
+
+
 .contentList li p:not(:last-child),
 .textBlock p:not(:last-child) {
   margin-bottom: 0.5em;
 }
 
 .textBlock {
-  font-size: calc(22 * var(--pt)); /* Increased from 16pt for PPT scale readability */
-  line-height: 1.6;
+  font-size: calc(20 * var(--pt));
+  line-height: 1.5;
   font-weight: 400;
-  margin-bottom: calc(0.1 * var(--in));
+  margin-bottom: calc(0.08 * var(--in));
   
   /* Glassmorphism Structural Upgrade */
-  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
+  background: var(--ppt-panel-bg);
   border-left: 3px solid var(--ppt-primary, #1e293b);
-  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  padding: calc(0.15 * var(--in)) calc(0.25 * var(--in));
+  border-top: 1px solid var(--ppt-panel-border);
+  border-right: 1px solid var(--ppt-panel-border);
+  border-bottom: 1px solid var(--ppt-panel-border);
+  padding: calc(0.12 * var(--in)) calc(0.22 * var(--in));
   border-radius: 0 8px 8px 0;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 1px 0 var(--ppt-panel-highlight),
+    0 4px 15px var(--ppt-panel-shadow);
   color: var(--ppt-text, #334155);
 }
 
@@ -477,10 +613,11 @@
 
 .updatingText {
   font-family: 'Outfit', sans-serif;
-  font-size: calc(14 * var(--pt));
+  font-size: calc(12 * var(--pt));
   font-weight: 600;
   color: var(--ppt-text, #1e293b);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .iterateBar {
@@ -489,13 +626,23 @@
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  width: 80%;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  width: 82%;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
   background: var(--ppt-bg);
   z-index: 20;
+
+  /* Hidden by default — shown via CSS :hover, zero JS overhead */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.pptCard:hover .iterateBar {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .iterateInput {
@@ -503,19 +650,467 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: calc(14 * var(--pt));
+  font-size: calc(15 * var(--pt));
   color: var(--ppt-text);
+  font-family: inherit;
+}
+
+.iterateInput::placeholder {
+  color: var(--ppt-text);
+  opacity: 0.54;
 }
 
 .iterateBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  min-width: 110px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   background: var(--ppt-primary);
   color: var(--ppt-bg);
   border: none;
   cursor: pointer;
+  font-size: calc(12 * var(--pt));
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 图库来源徽章（演示用，叠在图片右上角） */
+.libraryBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}
+
+/* imageWrapper 需要 position:relative 以便徽章绝对定位 */
+.imageWrapper {
+  position: relative;
+}
+
+/* 单卡错误降级展示 */
+.errorFallback {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  border-radius: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px dashed rgba(239, 68, 68, 0.3);
+  color: var(--text-secondary, #64748b);
+  font-size: 14px;
+}
+
+/* 图片占位文本 */
+.placeholderText {
+  font-size: calc(14 * var(--pt, 1px));
+  color: var(--ppt-text);
+  opacity: 0.5;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.placeholderIcon {
+  opacity: 0.3;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   AI 修改中 — 覆盖层动画
+   ─────────────────────────────────────────────────────────── */
+.updatingOverlay {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  /* 半透明紫色蒙层 */
+  background: rgba(99, 102, 241, 0.05);
+  border: 2px solid rgba(99, 102, 241, 0.45);
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* 扫光线：从上到下扫过整张卡片 */
+.scanLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.6) 30%,
+    rgba(139, 92, 246, 0.9) 50%,
+    rgba(99, 102, 241, 0.6) 70%,
+    transparent 100%
+  );
+  filter: blur(2px);
+  animation: pptScan 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pptScan {
+  0%   { top: -4px; opacity: 0; }
+  8%   { opacity: 1; }
+  92%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* 底部"AI 修改中"胶囊标签 */
+.updatingBadge {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow:
+    0 4px 16px rgba(99, 102, 241, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45), 0 0 0 1px rgba(255,255,255,0.15) inset; }
+  50%       { box-shadow: 0 6px 24px rgba(99, 102, 241, 0.65), 0 0 0 1px rgba(255,255,255,0.2) inset; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   图片点击交互
+   ═══════════════════════════════════════════════════════════ */
+
+/* 可点击图片容器 */
+.imageClickable {
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+}
+
+.imageClickable:hover {
+  transform: scale(1.015);
+  box-shadow:
+    0 0 0 2.5px var(--ppt-accent, #6366f1),
+    0 12px 32px rgba(99, 102, 241, 0.25) !important;
+}
+
+/* 悬停遮罩层 */
+.imageEditOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(99, 102, 241, 0.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: white;
+  font-size: calc(14 * var(--pt, 1px));
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.imageClickable:hover .imageEditOverlay {
+  opacity: 1;
+}
+
+/* 占位图点击提示 */
+.imageEditHint {
+  font-size: calc(12 * var(--pt, 1px));
+  color: var(--ppt-accent, #6366f1);
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Table Element — 主题色表头 + 斑马纹 + LaTeX 支持
+   ═══════════════════════════════════════════════════════════ */
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  margin-bottom: calc(0.08 * var(--in));
+}
+
+.tableElement {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: calc(min(16, var(--dynamic-font, 16)) * var(--pt));
+}
+
+.tableElement thead tr {
+  background: var(--ppt-accent, #3b82f6);
+}
+
+.tableElement thead th {
+  padding: calc(0.10 * var(--in)) calc(0.14 * var(--in));
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  font-size: calc(14 * var(--pt));
+  letter-spacing: 0.02em;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  word-break: break-word;
+}
+
+.tableElement thead th:last-child { border-right: none; }
+.tableElement thead th:first-child { text-align: left; }
+
+.tableElement tbody tr:nth-child(even) {
+  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.35));
+}
+.tableElement tbody tr:nth-child(odd) { background: transparent; }
+.tableElement tbody tr:hover { background: rgba(99, 102, 241, 0.06); }
+
+.tableElement tbody td {
+  padding: calc(0.08 * var(--in)) calc(0.14 * var(--in));
+  border-bottom: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.06));
+  border-right: 1px solid var(--ppt-glass-border, rgba(0, 0, 0, 0.04));
+  text-align: center;
+  color: var(--ppt-text, #1e293b);
+  font-size: calc(14 * var(--pt));
+  line-height: 1.45;
+  word-break: break-word;
+  vertical-align: middle;
+}
+
+.tableElement tbody td:first-child {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ppt-primary, #0f172a);
+}
+
+.tableElement tbody td:last-child  { border-right: none; }
+.tableElement tbody tr:last-child td { border-bottom: none; }
+
+.tableElement td .katex,
+.tableElement th .katex { font-size: 1em; }
+
+.tableElement td p,
+.tableElement th p { margin: 0; }
+
+/* ── 游戏卡片（幻灯片内） ── */
+.gameCard {
+  display: flex;
+  align-items: center;
+  gap: calc(0.4 * var(--in));
+  padding: calc(0.25 * var(--in)) calc(0.4 * var(--in));
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(139,92,246,0.04));
+  border: 1.5px solid rgba(99,102,241,0.2);
+  border-radius: calc(0.6 * var(--in));
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+}
+.gameCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 60%, rgba(99,102,241,0.06));
+  pointer-events: none;
+}
+.gameCardIcon {
+  font-size: calc(40 * var(--pt));
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(99,102,241,0.3));
+}
+.gameCardBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.06 * var(--in));
+}
+.gameCardTitle {
+  font-size: calc(22 * var(--pt));
+  font-weight: 800;
+  color: #4f46e5;
+  letter-spacing: -0.02em;
+  font-family: 'Outfit', sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gameCardLink {
+  font-size: calc(11 * var(--pt));
+  font-family: 'JetBrains Mono', monospace;
+  color: rgba(99,102,241,0.55);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+.gameCardBadge {
+  flex-shrink: 0;
+  padding: calc(0.06 * var(--in)) calc(0.2 * var(--in));
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  border-radius: calc(0.3 * var(--in));
+  font-size: calc(12 * var(--pt));
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   game_placeholder 元素 — 幻灯片内游戏卡片渲染
+   供 PPTCard renderElement 使用；与后端导出效果对齐
+   ═══════════════════════════════════════════════════════════ */
+.gamePlaceholderCard {
+  width: 100%;
+  margin: calc(0.04 * var(--in)) 0;
+  border-radius: calc(0.42 * var(--in));
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0.12)),
+    rgba(255,255,255,0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    0 8px 24px rgba(15, 23, 42, 0.05);
+  position: relative;
+}
+.gamePlaceholderCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent 28%, transparent 72%, rgba(255,255,255,0.06));
+  pointer-events: none;
+}
+
+.gamePlaceholderInner {
+  display: flex;
+  align-items: center;
+  gap: calc(0.24 * var(--in));
+  padding: calc(0.16 * var(--in)) calc(0.22 * var(--in));
+}
+
+.gamePlaceholderIcon {
+  width: calc(0.5 * var(--in));
+  height: calc(0.5 * var(--in));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(22 * var(--pt));
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.14), rgba(245, 158, 11, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
+  line-height: 1;
+}
+
+.gamePlaceholderContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(0.05 * var(--in));
+}
+
+.gamePlaceholderTitle {
+  display: block;
+  font-size: calc(17 * var(--pt));
+  font-weight: 750;
+  color: var(--ppt-primary, #334155);
+  letter-spacing: -0.01em;
+  font-family: 'Outfit', system-ui, sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gamePlaceholderLink {
+  color: inherit;
+  text-decoration: none;
+}
+.gamePlaceholderLink:hover {
+  text-decoration: none;
+}
+
+.gamePlaceholderBadge {
+  align-self: flex-start;
+  padding: calc(0.025 * var(--in)) calc(0.09 * var(--in));
+  background: rgba(255,255,255,0.38);
+  color: rgba(71, 85, 105, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: calc(0.18 * var(--in));
+  font-size: calc(10 * var(--pt));
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 900px) {
+  .iterateBar {
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .iterateInput {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 14px;
+  }
+
+  .iterateBtn {
+    min-width: 120px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .iterateBar {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .iterateInput {
+    font-size: 16px;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 15px;
+  }
+
+  .iterateBtn {
+    min-width: 112px;
+    height: 42px;
+    font-size: 15px;
+  }
 }

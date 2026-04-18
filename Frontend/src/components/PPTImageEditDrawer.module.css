@@ -1,0 +1,593 @@
+/* ============================================================
+   PPTImageEditDrawer — 图片编辑抽屉（右侧滑入）
+   ============================================================ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.25);
+  display: flex;
+  justify-content: flex-end;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.16s ease;
+}
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.drawer {
+  width: min(420px, 92vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-left: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: -12px 0 48px rgba(15, 23, 42, 0.12);
+  animation: slideIn 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: hidden;
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: white;
+  flex-shrink: 0;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #94a3b8;
+  transition: all 0.15s;
+}
+
+.closeBtn:hover { background: rgba(15, 23, 42, 0.06); color: #0f172a; }
+
+/* ── 当前图片预览 ────────────────────────────────────────── */
+.currentPreview {
+  flex-shrink: 0;
+  height: 180px;
+  background: #e2e8f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.currentPreview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.previewEmpty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.previewMeta {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 12px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.55));
+}
+
+.previewAlt {
+  font-size: 11px;
+  color: rgba(255,255,255,0.9);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Object-Fit 快速切换条 ──────────────────────────────── */
+.fitRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  background: white;
+  flex-shrink: 0;
+}
+
+.fitLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+
+.fitOptions {
+  display: flex;
+  gap: 5px;
+}
+
+.fitBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.03);
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.fitBtn:hover { background: rgba(99, 102, 241, 0.07); border-color: rgba(99,102,241,0.25); color: #6366f1; }
+
+.fitBtnActive {
+  background: rgba(99, 102, 241, 0.12) !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+  color: #6366f1 !important;
+  font-weight: 700;
+}
+
+/* ── Tab 切换 ────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  background: white;
+  flex-shrink: 0;
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 0;
+  border: none;
+  background: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-bottom: 2px solid transparent;
+  font-family: inherit;
+  position: relative;
+  bottom: -1px;
+}
+
+.tab:hover { color: #0f172a; }
+
+.tabActive {
+  color: #6366f1 !important;
+  border-bottom-color: #6366f1 !important;
+}
+
+/* ── Body（可滚动区域）─────────────────────────────────── */
+.body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15,23,42,0.1) transparent;
+}
+
+.body::-webkit-scrollbar { width: 3px; }
+.body::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.1); border-radius: 2px; }
+
+/* ── 搜索换图 ───────────────────────────────────────────── */
+.searchRow {
+  display: flex;
+  gap: 7px;
+}
+
+.searchInput {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: white;
+  font-size: 12.5px;
+  color: #0f172a;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.searchInput:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.searchInput::placeholder { color: rgba(15,23,42,0.3); }
+
+.searchBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.searchBtn:hover:not(:disabled) { background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.5); }
+.searchBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 搜索结果网格 */
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.imageThumb {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 4 / 3;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: #e2e8f0;
+  transition: all 0.15s;
+  padding: 0;
+}
+
+.imageThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s;
+}
+
+.imageThumb:hover img { transform: scale(1.04); }
+
+.imageThumbSelected {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.2);
+}
+
+.imageCheck {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6366f1;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(99,102,241,0.4);
+}
+
+.imageLabel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.55));
+  font-size: 10px;
+  color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchPending,
+.searchEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 0;
+  color: #94a3b8;
+  font-size: 12.5px;
+}
+
+/* 应用换图按钮 */
+.applyRow {
+  position: sticky;
+  bottom: 0;
+  background: #f8fafc;
+  padding-top: 8px;
+}
+
+.applyBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px;
+  border-radius: 11px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  font-family: inherit;
+}
+
+.applyBtn:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(99,102,241,0.42); }
+
+/* ── 布局模板网格 ───────────────────────────────────────── */
+.layoutHint {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.55;
+  padding: 0 2px;
+}
+
+.layoutGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.layoutCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid rgba(15,23,42,0.08);
+  background: white;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.layoutCard:hover {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.04);
+  box-shadow: 0 3px 12px rgba(99,102,241,0.12);
+  transform: translateY(-1px);
+}
+
+.layoutCardIcon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.layoutCardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layoutCardName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.layoutCardDesc {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* ── 自定义指令区域 ─────────────────────────────────────── */
+.customIterateRow {
+  margin-top: 4px;
+  border-top: 1px solid rgba(15,23,42,0.06);
+  padding-top: 14px;
+}
+
+.customIterateLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin: 0 0 8px;
+}
+
+.customBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.customInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(15,23,42,0.1);
+  background: white;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: #0f172a;
+  resize: none;
+  outline: none;
+  transition: border-color 0.18s;
+  box-sizing: border-box;
+  line-height: 1.55;
+}
+
+.customInput:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.1); }
+.customInput::placeholder { color: rgba(15,23,42,0.28); }
+
+.customSubmitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  box-shadow: 0 3px 10px rgba(99,102,241,0.3);
+}
+
+.customSubmitBtn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+.customSubmitBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  transform: none;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
+  border: 1px solid rgba(148, 163, 184, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+/* ── 共用旋转动画 ───────────────────────────────────────── */
+.spin { animation: spinning 0.85s linear infinite; }
+
+@keyframes spinning { 100% { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════
+   换图二级模式切换栏（搜索 / 全部）
+   ═══════════════════════════════════════════════════════════ */
+.imageModeBar {
+  display: flex;
+  gap: 5px;
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.imageModeBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.imageModeBtn:hover { color: #0f172a; }
+
+.imageModeBtnActive {
+  background: white !important;
+  color: #6366f1 !important;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.1);
+}
+
+/* 图片总数徽章 */
+.totalBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 100px;
+  background: rgba(99, 102, 241, 0.15);
+  color: #6366f1;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 1px;
+}
+
+/* ── 加载更多 ─────────────────────────────────────────────── */
+.loadMoreBtn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.06);
+  color: #6366f1;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.loadMoreBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 全部加载完提示 ───────────────────────────────────────── */
+.allLoadedHint {
+  text-align: center;
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin: 0;
+  padding: 4px 0;
+}
+

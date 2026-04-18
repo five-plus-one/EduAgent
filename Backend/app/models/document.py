@@ -13,3 +13,11 @@ class Document(Base):
     summary = Column(Text, nullable=True)
     metadata_json = Column(JSON, default={})
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # ── 视频专用字段 ────────────────────────────────────────────────
+    file_type     = Column(String, default="document")   # "document" | "video"
+    duration_sec  = Column(Integer, nullable=True)        # 视频总时长（秒）
+    process_stage = Column(String, nullable=True)         # 细粒度阶段: transcribing/extracting_frames/...
+    transcript_json  = Column(JSON, nullable=True)        # [{start, end, text}, ...]（Whisper 字幕段）
+    keyframes_json   = Column(JSON, nullable=True)        # [{filename, timestamp, description}, ...]
+    video_summary    = Column(Text, nullable=True)        # LLM 综合摘要

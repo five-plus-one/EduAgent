@@ -18,13 +18,41 @@ except ImportError:
 
 
 def parse_pdf(file_path: str) -> str:
+    """Extract text from a PDF file.
+
+    Raises:
+        ValueError: encrypted PDF, scanned-image PDF (no extractable text), or corrupted file.
+    """
+    try:
+        reader = PdfReader(file_path)
+    except Exception as e:
+        err = str(e).lower()
+        if "encrypt" in err or "password" in err:
+            raise ValueError(
+                "PDF 文件已加密（有密码保护），请先移除密码后重新上传。"
+            )
+        raise ValueError(f"无法读取 PDF 文件（文件可能已损坏）：{e}")
+
+    if reader.is_encrypted:
+        raise ValueError(
+            "PDF 文件已加密（有密码保护），请先移除密码后重新上传。"
+        )
+
     text = ""
-    with open(file_path, "rb") as f:
-        reader = PdfReader(f)
-        for page in reader.pages:
+    for page in reader.pages:
+        try:
             t = page.extract_text()
             if t:
                 text += t + "\n"
+        except Exception:
+            pass  # 跳过无法提取的单页，继续处理其他页
+
+    if not text.strip():
+        raise ValueError(
+            "PDF 不包含可提取的文字（可能是扫描版图片 PDF）。"
+            "请上传含有可复制文字的 PDF 文件，或使用 OCR 工具处理后重新上传。"
+        )
+
     return text
 
 
