@@ -313,19 +313,20 @@ export default function Workspace() {
   }, [activeTab, filesSubTab, sessionId, pages.length, persistedWordDoc]);
 
   /** 鐐瑰嚮 Paperclip 鎸夐挳锛氬垏鎹㈠埌鍙傝€冭祫鏂?Tab 骞惰Е鍙戦珮浜彁绀?*/
-  const handleOpenFiles = () => {
+  const handleOpenFiles = (subTab: 'docs' | 'images' = 'docs') => {
     setActiveTab('files');
     setMobilePane('files');
-    setFilesSubTab('docs');
+    setFilesSubTab(subTab);
     setFilesHighlight(true);
     setTimeout(() => setFilesHighlight(false), 1800);
   };
 
   useEffect(() => {
-    const handleOpenAssetsPanel = () => {
+    const handleOpenAssetsPanel = (event: Event) => {
+      const detail = (event as CustomEvent<{ subTab?: 'docs' | 'images' }>).detail;
       setActiveTab('files');
       setMobilePane('files');
-      setFilesSubTab('docs');
+      setFilesSubTab(detail?.subTab === 'images' ? 'images' : 'docs');
       setFilesHighlight(true);
       setTimeout(() => setFilesHighlight(false), 1800);
     };
@@ -839,15 +840,22 @@ export default function Workspace() {
               新建一个会话，告诉 AI 你想设计什么课程，<br />
               即可开启协作备课之旅。
             </p>
-            <button
-              className={clsx('button-primary', styles.newSessionCta)}
-              onClick={() => {
-                // 瑙﹀彂 Sidebar 鐨勬柊寤哄脊绐楋紝閫氳繃鍏ㄥ眬浜嬩欢浼犻€?
-                window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
-              }}
-            >
-              <Sparkles size={16} /> 新建课件会话
-            </button>
+            <div className={styles.newSessionActions}>
+              <button
+                className={clsx('button-primary', styles.newSessionCta)}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('EduAgent_Open_NewSession'));
+                }}
+              >
+                <Sparkles size={16} /> 新建课件会话
+              </button>
+              <button
+                className={styles.newSessionGhostBtn}
+                onClick={() => window.dispatchEvent(new CustomEvent('EduAgent_Open_MobileSidebar'))}
+              >
+                <Menu size={16} /> 查看以前的会话
+              </button>
+            </div>
           </div>
         ) : isLoadingHistory ? (
           /* 鈹€鈹€ 鍘嗗彶璁板綍鍔犺浇楠ㄦ灦灞?鈹€鈹€ */
@@ -906,7 +914,7 @@ export default function Workspace() {
                   className={clsx(styles.iconButton, styles.paperclipBtn)}
                   title="上传参考资料"
                   disabled={isGenerating || sessionId === 'new'}
-                  onClick={handleOpenFiles}
+                  onClick={() => handleOpenFiles('docs')}
                 >
                   <Paperclip size={20} />
                 </button>
@@ -1140,6 +1148,12 @@ export default function Workspace() {
                   onClick={() => setFilesSubTab('images')}
                 >
                   <ImageIcon size={14} /> 图片
+                </button>
+                <button
+                  className={styles.manageAssetsBtn}
+                  onClick={() => navigate('/assets', { state: { fromWorkspace: true, sessionId, subTab: filesSubTab } })}
+                >
+                  <FolderOpen size={14} /> 管理素材
                 </button>
               </div>
 
@@ -1640,13 +1654,6 @@ export default function Workspace() {
           >
             <Palette size={16} />
             <span>课件</span>
-          </button>
-          <button
-            className={styles.mobileWorkspaceNavBtn}
-            onClick={() => navigate('/assets')}
-          >
-            <FolderOpen size={16} />
-            <span>素材</span>
           </button>
         </nav>
       )}

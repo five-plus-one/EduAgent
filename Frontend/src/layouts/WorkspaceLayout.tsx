@@ -14,6 +14,8 @@ export default function WorkspaceLayout() {
   const { sessionId = 'new' } = useParams();
   const sidebarWidth = sidebarCollapsed ? 'var(--layout-sidebar-collapsed)' : 'var(--layout-sidebar)';
   const isWorkspaceRoute = location.pathname.startsWith('/chat/');
+  const routeState = (location.state ?? {}) as { fromWorkspace?: boolean; sessionId?: string };
+  const hideMobileBottomNav = isWorkspaceRoute || Boolean(location.pathname.startsWith('/assets') && routeState.fromWorkspace);
 
   const pageMeta = useMemo(() => {
     if (location.pathname.startsWith('/assets')) {
@@ -117,7 +119,7 @@ export default function WorkspaceLayout() {
         <Outlet />
       </main>
 
-      {!isWorkspaceRoute && (
+      {!hideMobileBottomNav && (
         <nav className={styles.mobileBottomNav}>
           <button className={styles.mobileNavItem} onClick={() => setMobileSidebarOpen(true)}>
             <Menu size={18} />
