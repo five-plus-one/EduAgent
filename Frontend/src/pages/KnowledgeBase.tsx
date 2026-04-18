@@ -314,7 +314,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       const data = await listKnowledgeDocs(1, 50);
       const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
       setDocuments(items);
-      setSelectedDoc((prev) => (prev ? items.find((item) => item.document_id === prev.document_id) ?? prev : items[0] ?? null));
+      setSelectedDoc((prev) => (prev ? items.find((item) => item.document_id === prev.document_id) ?? null : null));
     } catch {
       // keep previous state
     } finally {
@@ -416,7 +416,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
         )}
 
         <div
-          className={clsx('app-dropzone', styles.dropzone, isDragging && styles.dragging, uploading && styles.uploading)}
+          className={clsx('app-dropzone', styles.dropzone, compact && styles.dropzoneCompact, isDragging && styles.dragging, uploading && styles.uploading)}
           onClick={() => !uploading && fileInputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
@@ -486,7 +486,7 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
                 return (
                   <article
                     key={doc.document_id}
-                    className={clsx(styles.docCard, selected && styles.docCardActive)}
+                    className={clsx(styles.docCard, compact && styles.docCardCompact, selected && styles.docCardActive)}
                     onClick={() => setSelectedDoc(selected ? null : doc)}
                   >
                     <div className={styles.docIcon}>{isVideo ? <FileVideo size={18} /> : <FileText size={18} />}</div>
@@ -533,11 +533,10 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
       </section>
 
       {selectedDoc && (
-        <div className={styles.mobilePreviewOverlay} onClick={() => setSelectedDoc(null)}>
-          <div className={styles.mobilePreviewCard} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.sidePreviewOverlay} onClick={() => setSelectedDoc(null)}>
+          <div className={styles.sidePreviewWrap} onClick={(e) => e.stopPropagation()}>
             <PreviewPanel
               doc={selectedDoc}
-              compact
               onClose={() => setSelectedDoc(null)}
               onDelete={(id) => setConfirmDelete({ id, name: getTitle(selectedDoc), phase: 'confirm' })}
               onRetry={handleRetry}

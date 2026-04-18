@@ -14,40 +14,36 @@ const TABS: { key: AssetTab; label: string; icon: typeof Library; desc: string }
 
 export default function AssetPage() {
   const [activeTab, setActiveTab] = useState<AssetTab>('knowledge');
+  const activeTabMeta = TABS.find((item) => item.key === activeTab) ?? TABS[0];
 
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
-        <div className={styles.headerLeft}>
+        <div className={styles.headerMeta}>
           <span className={styles.pageEyebrow}>Asset Center</span>
-          <h1 className={styles.pageTitle}>素材管理</h1>
-          <p className={styles.pageDesc}>
-            将知识库文档与图片素材收拢到同一套资产中心里，减少跳转，提升备课与生成效率。
-          </p>
+          <div className={styles.titleRow}>
+            <h1 className={styles.pageTitle}>素材管理</h1>
+            <span className={styles.activeHint}>{activeTabMeta.desc}</span>
+          </div>
         </div>
 
         <nav className={styles.tabBar} aria-label="素材类型切换">
-          {TABS.map(({ key, label, icon: Icon, desc }) => (
+          {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               className={clsx(styles.tabBtn, activeTab === key && styles.tabActive)}
               onClick={() => setActiveTab(key)}
               aria-pressed={activeTab === key}
             >
-              <div className={clsx(styles.tabIconWrap, activeTab === key && styles.tabIconActive)}>
-                <Icon size={18} />
-              </div>
-              <div className={styles.tabText}>
-                <span className={styles.tabLabel}>{label}</span>
-                <span className={styles.tabDesc}>{desc}</span>
-              </div>
+              <Icon size={15} />
+              <span className={styles.tabLabel}>{label}</span>
             </button>
           ))}
         </nav>
       </header>
 
       <main className={styles.content}>
-        {activeTab === 'knowledge' && <KnowledgeBasePanel />}
+        {activeTab === 'knowledge' && <KnowledgeBasePanel compact />}
         {activeTab === 'images' && <ImageUploadPanel />}
       </main>
     </div>

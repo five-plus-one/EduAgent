@@ -319,10 +319,12 @@ export default function Sidebar({ collapsed = false }: SidebarProps) {
         </div>
 
         <nav className={clsx(styles.nav, collapsed && styles.navCollapsed)}>
-          <div className={clsx(styles.navHeader, collapsed && styles.navHeaderCollapsed)}>
-            {!collapsed && <h3 className={styles.navTitle}>最近会话</h3>}
-            <span className={styles.navCount}>{sessions.length}</span>
-          </div>
+          {!collapsed && (
+            <div className={styles.navHeader}>
+              <h3 className={styles.navTitle}>最近会话</h3>
+              <span className={styles.navCount}>{sessions.length}</span>
+            </div>
+          )}
 
           <ul className={clsx(styles.sessionList, collapsed && styles.sessionListCollapsed)} ref={listContainerRef}>
             {loadingSessions ? (

@@ -1740,3 +1740,105 @@
   border-top: 1px solid rgba(15,23,42,0.07);
   flex-shrink: 0;
 }
+
+/* Modal refresh pass */
+.pickerOverlay,
+.gameModalOverlay {
+  background: rgba(8, 15, 30, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.pickerDialog,
+.gameModalPanel {
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.95));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-xl);
+}
+
+.pickerDialog {
+  width: min(640px, 94vw);
+  border-radius: 24px;
+}
+
+.gameModalPanel {
+  width: min(480px, 92vw);
+  border-radius: 24px;
+}
+
+.pickerHeader,
+.gameModalHeader,
+.gameModalFooter {
+  border-color: rgba(191, 205, 229, 0.78);
+}
+
+.pickerHeader {
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.62);
+}
+
+.pickerCurrentImg {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  border-color: rgba(191, 205, 229, 0.82);
+  background: rgba(239,246,255,0.86);
+}
+
+.pickerHeaderTitle,
+.gameModalTitle {
+  color: var(--text-primary);
+}
+
+.pickerHeaderSub {
+  color: var(--text-muted);
+}
+
+.pickerCloseBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(191, 205, 229, 0.82);
+  background: rgba(255,255,255,0.84);
+  color: var(--text-muted);
+}
+
+.pickerCloseBtn:hover {
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.pickerBody,
+.gameModalBody {
+  padding: 14px 16px 16px;
+}
+
+.gameModalHeader {
+  padding: 16px 18px 14px;
+  background: rgba(255,255,255,0.62);
+}
+
+.gameModalItem {
+  border-radius: 14px;
+  border-color: rgba(191, 205, 229, 0.76);
+  background: rgba(255,255,255,0.84);
+}
+
+.gameModalItem:hover {
+  border-color: rgba(76, 132, 255, 0.32);
+  background: rgba(239,246,255,0.9);
+}
+
+.gameModalItemActive {
+  box-shadow: 0 0 0 3px rgba(76, 132, 255, 0.12);
+}
+
+.gameModalItemBadge {
+  border-radius: 999px;
+  background: rgba(239,246,255,0.96);
+  color: var(--brand-strong);
+}
+
+.gameModalLoading,
+.gameModalEmpty {
+  color: var(--text-muted);
+}

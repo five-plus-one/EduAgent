@@ -94,6 +94,12 @@
   gap: 16px;
 }
 
+.dropzoneCompact {
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: 20px;
+}
+
 .dragging {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
@@ -119,6 +125,21 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 1.02rem;
+}
+
+.dropzoneCompact .dropzoneIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+}
+
+.dropzoneCompact .dropzoneBody h3 {
+  font-size: 0.96rem;
+}
+
+.dropzoneCompact .dropzoneBody p {
+  margin-top: 4px;
+  font-size: 0.84rem;
 }
 
 .dropzoneBody p {
@@ -214,6 +235,12 @@
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), border-color var(--motion-fast);
 }
 
+.docCardCompact {
+  padding: 12px 14px;
+  gap: 12px;
+  border-radius: 16px;
+}
+
 .docCard:hover,
 .docCardActive {
   transform: translateY(-1px);
@@ -259,6 +286,10 @@
   color: var(--text-primary);
 }
 
+.docCardCompact .docTitle {
+  font-size: 0.94rem;
+}
+
 .docMetaRow {
   margin-top: 6px;
   display: flex;
@@ -268,9 +299,19 @@
   color: var(--text-muted);
 }
 
+.docCardCompact .docMetaRow {
+  margin-top: 4px;
+  gap: 10px;
+  font-size: 0.78rem;
+}
+
 .docFooterRow {
   margin-top: 12px;
   justify-content: space-between;
+}
+
+.docCardCompact .docFooterRow {
+  margin-top: 10px;
 }
 
 .typeBadge,
@@ -340,6 +381,12 @@
   justify-content: center;
   cursor: pointer;
   transition: transform var(--motion-fast), box-shadow var(--motion-fast), color var(--motion-fast), background var(--motion-fast);
+}
+
+.docCardCompact .iconBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 .iconBtn:hover {
@@ -660,21 +707,42 @@
   line-height: 1.7;
 }
 
-.mobilePreviewOverlay,
+.sidePreviewOverlay,
 .dialogOverlay {
   position: fixed;
   inset: 0;
   z-index: 50;
-  padding: 18px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-end;
   background: rgba(8, 15, 30, 0.42);
   backdrop-filter: blur(10px);
 }
 
-.mobilePreviewCard {
-  width: min(960px, 100%);
+.sidePreviewWrap {
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  animation: previewSlideIn var(--duration-slow) var(--ease-standard);
+}
+
+.sidePreviewWrap .previewPanel {
+  width: min(520px, 92vw);
+  min-width: 380px;
+  height: 100%;
+  border-radius: 28px;
+  box-shadow: var(--shadow-xl);
+}
+
+@keyframes previewSlideIn {
+  from { transform: translateX(32px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.dialogOverlay {
+  padding: 18px;
+  align-items: center;
+  justify-content: center;
 }
 
 .dialogCard {
@@ -793,6 +861,16 @@
     justify-content: flex-end;
   }
 
+  .sidePreviewWrap {
+    width: 100%;
+    padding: 12px 10px;
+  }
+
+  .sidePreviewWrap .previewPanel {
+    width: min(100%, 560px);
+    min-width: 0;
+  }
+
   .frameGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -813,6 +891,14 @@
 
   .frameGrid {
     grid-template-columns: 1fr;
+  }
+
+  .sidePreviewWrap {
+    padding: 8px;
+  }
+
+  .sidePreviewWrap .previewPanel {
+    border-radius: 22px;
   }
 
   .dialogActions {
