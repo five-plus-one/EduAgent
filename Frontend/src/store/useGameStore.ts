@@ -55,7 +55,7 @@ export interface GameGenActions {
   /** 重置错误 */
   clearGenError: () => void;
   /** 恢复并监听后台正在生成的任务 */
-  resumeGenerate: (sessionId: string, gameId: string, taskId?: string) => Promise<void>;
+  resumeGenerate: (sessionId: string, gameId?: string | null, taskId?: string) => Promise<void>;
   /** 乐观更新游戏标题（PATCH 成功后调用） */
   renameGameInStore: (sessionId: string, gameId: string, newTitle: string) => void;
 }
@@ -186,10 +186,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  resumeGenerate: async (sessionId: string, gameId: string, taskId?: string) => {
+  resumeGenerate: async (sessionId: string, gameId?: string | null, taskId?: string) => {
     const { generating, generatingRefineId, _abortController } = get();
     // 如果已经在为当前 gameId 恢复或生成，则跳过
-    if (generating && generatingRefineId === gameId) return;
+    const normalizedGameId = gameId ?? null;
+    if (generating && generatingRefineId === normalizedGameId) return;
 
     _abortController?.abort();
     const controller = new AbortController();
@@ -197,7 +198,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     set({
       generating: true,
       generatingSessionId: sessionId,
-      generatingRefineId: gameId,
+      generatingRefineId: normalizedGameId,
       genError: null,
       genStage: 'pending',
       genProgress: 0,
@@ -210,7 +211,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     let sseConnected = false;
     // 使用给定的 taskId，如果没有提供，通常 task_id 对于恢复逻辑会使用 game_id 尝试（降级轮询兼容）
-    const useTaskId = taskId || gameId;
+    const useTaskId = taskId || normalizedGameId;
+    if (!useTaskId) {
+      set({
+        generating: false,
+        genError: 'Failed to resume generation: missing task id',
+        generatingSessionId: null,
+        generatingRefineId: null,
+        _abortController: null,
+      });
+      return;
+    }
 
     try {
       await streamGameTask(
@@ -232,7 +243,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
             try {
               set({ refreshingList: true });
               const list = await listSessionGames(sessionId);
-              const target = list.find(g => g.game_id === gameId) ? gameId : list[0]?.game_id ?? null;
+              const target = normalizedGameId && list.find(g => g.game_id === normalizedGameId)
+                ? normalizedGameId
+                : list[0]?.game_id ?? null;
               set(s => ({
                 gameLists: { ...s.gameLists, [sessionId]: list },
                 completedGameId: target,

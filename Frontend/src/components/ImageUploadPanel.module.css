@@ -1,377 +1,546 @@
-/* ============================================================
-   ImageUploadPanel — 图片素材管理面板样式
-   ============================================================ */
-
-.panel {
+﻿.panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   height: 100%;
   overflow-y: auto;
-  padding: 4px 2px;
+  padding: 4px 2px 10px;
 }
 
-/* ── 拖拽上传区 ─────────────────────────────────────────── */
+.panelAsset {
+  height: auto;
+  overflow: visible;
+  padding: 0 0 8px;
+}
+
 .dropzone {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 28px 20px;
-  border: 2px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
+  gap: 10px;
+  padding: 30px 24px;
+  border-radius: 24px;
   cursor: pointer;
-  transition: all 0.25s ease;
-  color: var(--text-secondary, #94a3b8);
   text-align: center;
-  user-select: none;
-  flex-shrink: 0;
+  color: var(--text-secondary);
 }
 
-.dropzone:hover {
-  border-color: var(--accent-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.06);
-  color: var(--text-primary, #e2e8f0);
-}
-
-.dropzone.dragging {
-  border-color: var(--accent-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.1);
-  transform: scale(1.01);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
-}
-
-.dropzone.uploading {
-  cursor: not-allowed;
-  opacity: 0.7;
+.dragging {
+  transform: translateY(-1px);
 }
 
 .uploadIcon {
-  opacity: 0.5;
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-
-.dropzone:hover .uploadIcon {
-  opacity: 0.9;
-  transform: translateY(-2px);
+  color: var(--brand);
+  opacity: 0.88;
 }
 
 .dropzoneTitle {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary, #e2e8f0);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .dropzoneHint {
-  font-size: 11px;
-  opacity: 0.55;
+  font-size: 0.84rem;
+  color: var(--text-tertiary);
 }
 
-/* ── 错误横幅 ────────────────────────────────────────────── */
+.dropzoneText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dropzoneWorkspace {
+  margin-top: -2px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.dropzoneAsset {
+  position: static;
+  min-height: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+}
+
 .errorBanner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  font-size: 12px;
-  flex-shrink: 0;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(220, 38, 38, 0.14);
+  background: rgba(255, 244, 244, 0.92);
+  color: var(--danger);
+  font-size: 0.84rem;
 }
 
 .closeBannerBtn {
   margin-left: auto;
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.7;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: inherit;
 }
 
-.closeBannerBtn:hover { opacity: 1; }
-
-/* ── 空态 ───────────────────────────────────────────────── */
 .emptyState {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  flex: 1;
-  color: var(--text-tertiary, #64748b);
+  padding: 42px 20px;
   text-align: center;
-  padding: 32px 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 }
 
 .emptyIcon {
-  opacity: 0.3;
-  margin-bottom: 4px;
+  color: var(--brand);
+  opacity: 0.32;
 }
 
 .emptyState p {
-  font-size: 14px;
-  font-weight: 500;
-  margin: 0;
-  color: var(--text-secondary, #94a3b8);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .emptyState small {
-  font-size: 11.5px;
-  opacity: 0.7;
-  line-height: 1.55;
-  max-width: 280px;
+  max-width: 320px;
+  line-height: 1.7;
+  color: var(--text-secondary);
 }
 
-/* ── 网格 ───────────────────────────────────────────────── */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 16px;
 }
 
-/* ── 图片卡片 ────────────────────────────────────────────── */
 .card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 8px;
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  position: relative;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.88));
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-base) var(--ease-standard);
 }
 
 .card:hover {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.065);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
 }
 
-/* 已选中（对应模态框中正在编辑的图片） */
 .cardSelected {
-  border-color: var(--accent-primary, #6366f1);
-  background: rgba(99, 102, 241, 0.08);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  border-color: rgba(37, 99, 235, 0.22);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08), var(--shadow-md);
 }
 
-/* ── 缩略图 ─────────────────────────────────────────────── */
 .thumb {
   position: relative;
   aspect-ratio: 4 / 3;
-  border-radius: 8px;
+  border-radius: 16px;
   overflow: hidden;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.2);
-  flex-shrink: 0;
+  background: rgba(222, 232, 244, 0.9);
 }
 
 .thumbImg {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform var(--duration-base) var(--ease-standard);
 }
 
 .thumb:hover .thumbImg {
   transform: scale(1.04);
 }
 
-/* 悬停时的编辑提示遮罩 */
 .thumbOverlay {
   position: absolute;
   inset: 0;
-  background: rgba(99, 102, 241, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.22));
   color: #fff;
   opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease-standard);
 }
 
 .thumb:hover .thumbOverlay {
   opacity: 1;
 }
 
-/* ── 状态徽章 ────────────────────────────────────────────── */
 .statusBadge {
   position: absolute;
-  bottom: 5px;
-  left: 5px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-size: 9.5px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 0.02em;
-  backdrop-filter: blur(6px);
-  pointer-events: none;
-}
-
-/* ── 文件名 ─────────────────────────────────────────────── */
-.filename {
-  font-size: 11px;
-  color: var(--text-secondary, #94a3b8);
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-
-/* ── 描述/标签预览行 ─────────────────────────────────────── */
-.metaPreview {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.labelPreview {
-  font-size: 10px;
-  color: var(--text-tertiary, #64748b);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-  flex: 1;
-  min-width: 0;
-}
-
-.tagsCount {
-  font-size: 9.5px;
-  padding: 1px 5px;
-  border-radius: 100px;
-  background: rgba(99, 102, 241, 0.12);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  color: var(--accent-primary, #818cf8);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* ── 操作栏 ─────────────────────────────────────────────── */
-.cardActions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: auto;
-}
-
-.actionBtn {
+  left: 8px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-secondary, #94a3b8);
-  cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.16);
 }
 
-.actionBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary, #e2e8f0);
+.filename {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.actionBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.deleteBtn {
-  margin-left: auto;
-}
-
-.deleteBtn:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.25);
-  color: #fca5a5;
-}
-
-.danger {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: rgba(239, 68, 68, 0.3);
-  color: #fca5a5;
-}
-
-.confirmDelete {
+.metaPreview {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--text-secondary, #94a3b8);
+  gap: 8px;
+  min-width: 0;
 }
 
-/* ── 共用动画 ────────────────────────────────────────────── */
-.spinIcon {
-  animation: spin 0.8s linear infinite;
+.labelPreview {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-@keyframes spin {
-  100% { transform: rotate(360deg); }
+.tagsCount {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
-/* ── 骨架屏占位卡 ─────────────────────────────────────────── */
-.skeletonCard {
+.actionsRow {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  padding: 8px;
-  animation: skeletonFade 1.5s ease-in-out infinite;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.actionBtn,
+.modalGhostBtn,
+.modalDangerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.actionBtn,
+.modalGhostBtn {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.actionDanger,
+.modalDangerBtn {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.14);
+  color: var(--danger);
+}
+
+.skeletonCard {
+  padding: 10px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  animation: skeletonPulse 1.4s ease-in-out infinite;
 }
 
 .skeletonThumb {
-  width: 100%;
   aspect-ratio: 4 / 3;
-  border-radius: 8px;
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.10) 50%,
-    rgba(255,255,255,0.04) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(219, 228, 239, 0.72), rgba(241, 245, 251, 0.96), rgba(219, 228, 239, 0.72));
+  margin-bottom: 10px;
 }
 
 .skeletonLine {
   height: 10px;
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.09) 50%,
-    rgba(255,255,255,0.04) 100%
-  );
-  background-size: 200% 100%;
-  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: 999px;
+  background: rgba(208, 219, 232, 0.9);
 }
 
-@keyframes skeletonFade {
+.rotating {
+  animation: rotate 1.2s linear infinite;
+}
+
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(4px);
+}
+
+.confirmCard {
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirmCard h4 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.confirmCard p {
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@keyframes skeletonPulse {
   0%, 100% { opacity: 0.7; }
-  50%       { opacity: 1;   }
+  50% { opacity: 1; }
 }
 
-@keyframes skeletonShimmer {
-  0%   { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 900px) {
+  .panel {
+    gap: 10px;
+    padding: 0 0 10px;
+  }
+
+  .panelAsset {
+    gap: 10px;
+    padding: 0 0 6px;
+  }
+
+  .dropzone {
+    position: static;
+    top: auto;
+    z-index: auto;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 0;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px 18px;
+    gap: 8px;
+    border-radius: 0 0 16px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: none;
+  }
+
+  .dropzoneWorkspace {
+    margin-top: -2px;
+  }
+
+  .dropzoneAsset {
+    position: static;
+    top: auto;
+    z-index: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 9px 16px;
+    gap: 8px;
+    box-shadow: none;
+  }
+
+  .dropzoneText {
+    flex: 1;
+    min-width: 0;
+    gap: 1px;
+  }
+
+  .dropzoneTitle,
+  .dropzoneHint {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    align-items: start;
+  }
+
+  .card {
+    padding: 8px;
+    border-radius: 16px;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .thumb {
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+  }
+
+  .thumbImg {
+    object-fit: cover;
+  }
+
+  .filename {
+    font-size: 0.8rem;
+  }
+
+  .metaPreview {
+    gap: 6px;
+  }
+
+  .labelPreview {
+    font-size: 0.74rem;
+  }
+
+  .actionsRow {
+    gap: 6px;
+  }
+
+  .actionBtn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.72rem;
+  }
+
+  .confirmOverlay {
+    padding: 10px;
+  }
+
+  .confirmCard {
+    width: 100%;
+    max-width: none;
+    padding: 18px 16px;
+    border-radius: 18px;
+  }
+
+  .confirmActions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dropzone {
+    padding: 10px 16px;
+    gap: 6px;
+  }
+
+  .uploadIcon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .dropzoneTitle {
+    font-size: 0.82rem;
+  }
+
+  .dropzoneHint {
+    font-size: 0.68rem;
+  }
+
+  .dropzoneText {
+    gap: 0;
+  }
+
+  .dropzoneAsset {
+    top: auto;
+    padding: 8px 14px;
+    gap: 6px;
+  }
+
+  .emptyState {
+    padding: 28px 14px;
+    border-radius: 18px;
+  }
+
+  .thumb {
+    aspect-ratio: 1 / 1;
+  }
+
+  .card {
+    padding: 7px;
+    gap: 7px;
+  }
+
+  .filename {
+    font-size: 0.76rem;
+  }
+
+  .labelPreview {
+    font-size: 0.7rem;
+  }
+
+  .tagsCount {
+    padding: 3px 6px;
+    font-size: 0.62rem;
+  }
+
+  .actionBtn {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 0.68rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }

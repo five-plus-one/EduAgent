@@ -14,9 +14,18 @@
   animation: fadeIn 0.18s ease;
 }
 
+.overlayClosing {
+  animation: fadeOut 0.22s var(--ease-standard, ease) forwards;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ── 抽屉 ─────────────────────────────────────────────────── */
@@ -32,9 +41,18 @@
   animation: slideIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.drawerClosing {
+  animation: slideOut 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 @keyframes slideIn {
   from { transform: translateX(100%); }
   to   { transform: translateX(0); }
+}
+
+@keyframes slideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(18px); opacity: 0; }
 }
 
 /* ── Header ────────────────────────────────────────────────── */
@@ -85,7 +103,13 @@
   color: var(--text-primary, #e2e8f0);
 }
 
-.closeBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.closeBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.88);
+  background: rgba(241, 245, 249, 0.92);
+  border-color: rgba(191, 205, 229, 0.82);
+}
 
 /* ── Filmstrip（多图导航条） ────────────────────────────────── */
 .filmstrip {
@@ -301,6 +325,67 @@
 
 .textarea:disabled { opacity: 0.5; }
 
+@media (max-width: 900px) {
+  .overlay {
+    justify-content: center;
+    align-items: flex-end;
+    padding: 8px;
+    backdrop-filter: blur(8px);
+  }
+
+  .drawer {
+    width: 100%;
+    max-width: none;
+    height: min(92dvh, 920px);
+    border-left: none;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.24);
+  }
+
+  .header,
+  .filmstrip,
+  .previewSection,
+  .body,
+  .footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .previewWrap {
+    height: 220px;
+    border-radius: 12px;
+  }
+
+  .filmThumb {
+    width: 52px;
+    height: 52px;
+  }
+
+  .footerActions {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 0;
+  }
+
+  .drawer {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .previewWrap {
+    height: 190px;
+  }
+
+  .body {
+    gap: 16px;
+  }
+}
+
 /* ── 标签区 ─────────────────────────────────────────────────── */
 .tagsArea {
   display: flex;
@@ -388,7 +473,13 @@
   color: var(--accent-primary, #818cf8);
 }
 
-.addTagBtn:disabled { opacity: 0.3; cursor: not-allowed; }
+.addTagBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
 
 /* ── 多图提示 ────────────────────────────────────────────────── */
 .multiHint {
@@ -492,7 +583,13 @@
   color: var(--text-primary, #e2e8f0);
 }
 
-.cancelBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cancelBtn:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: rgba(148, 163, 184, 0.92);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(191, 205, 229, 0.86);
+}
 
 /* 主按钮：上传并提交 AI 标注 */
 .submitBtn {
@@ -521,12 +618,230 @@
 }
 
 .submitBtn:disabled {
-  opacity: 0.55;
+  opacity: 1;
   cursor: not-allowed;
   transform: none;
+  color: #334155;
+  background: linear-gradient(180deg, rgba(226, 232, 240, 0.98), rgba(203, 213, 225, 0.96));
+  box-shadow: none;
+  border: 1px solid rgba(148, 163, 184, 0.95);
 }
 
 /* ── 共用动画 ─────────────────────────────────────────────────── */
 .spinIcon { animation: spin 0.8s linear infinite; }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Modernized visual pass */
+.overlay {
+  background: rgba(8, 15, 30, 0.42);
+  backdrop-filter: blur(10px);
+}
+
+.drawer {
+  width: min(560px, 94vw);
+  height: calc(100% - 24px);
+  margin: 12px;
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,250,255,0.95));
+  border: 1px solid rgba(191, 205, 229, 0.86);
+  box-shadow: var(--shadow-xl);
+}
+
+.header,
+.filmstrip,
+.previewSection,
+.footer {
+  border-color: rgba(191, 205, 229, 0.76);
+}
+
+.header {
+  padding: 18px 20px 14px;
+}
+
+.headerLeft {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.countBadge {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(239,246,255,0.96);
+  border-color: rgba(121, 164, 255, 0.24);
+  color: var(--brand-strong);
+}
+
+.closeBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(191, 205, 229, 0.82);
+  background: rgba(255,255,255,0.78);
+  color: var(--text-muted);
+}
+
+.closeBtn:hover:not(:disabled) {
+  background: #fff;
+  color: var(--text-primary);
+}
+
+.filmstrip {
+  padding: 12px 20px 10px;
+}
+
+.filmThumb {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  border-width: 1px;
+  background: rgba(239,246,255,0.86);
+}
+
+.filmThumbActive {
+  box-shadow: 0 0 0 3px rgba(76, 132, 255, 0.16);
+}
+
+.previewSection {
+  padding: 12px 20px 14px;
+}
+
+.previewWrap {
+  height: 220px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(239,246,255,0.8), rgba(225,238,255,0.64));
+  border: 1px solid rgba(191, 205, 229, 0.76);
+}
+
+.arrowBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.88);
+  color: var(--text-secondary);
+  border: 1px solid rgba(191, 205, 229, 0.82);
+}
+
+.arrowBtn:hover {
+  background: #fff;
+  color: var(--brand-strong);
+}
+
+.pageIndicator,
+.filename,
+.hint,
+.tagsPlaceholder,
+.progressText {
+  color: var(--text-muted);
+}
+
+.body {
+  padding: 18px 20px 18px;
+  gap: 18px;
+}
+
+.sectionLabel {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+}
+
+.textarea,
+.tagInput {
+  border-radius: 16px;
+  border: 1px solid rgba(191, 205, 229, 0.92);
+  background: rgba(255,255,255,0.9);
+  color: var(--text-primary);
+}
+
+.textarea::placeholder,
+.tagInput::placeholder {
+  color: var(--text-muted);
+}
+
+.textarea:focus,
+.tagInput:focus {
+  border-color: rgba(76, 132, 255, 0.42);
+  box-shadow: 0 0 0 4px rgba(76, 132, 255, 0.12);
+}
+
+.tagsArea,
+.multiHint,
+.errorBanner,
+.annotateInfoBar {
+  border-radius: 16px;
+}
+
+.tagsArea {
+  background: rgba(255,255,255,0.82);
+  border: 1px solid rgba(191, 205, 229, 0.76);
+}
+
+.tagChip {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(239,246,255,0.96);
+  border-color: rgba(121, 164, 255, 0.3);
+  color: var(--brand-strong);
+}
+
+.removeTagBtn:hover {
+  background: rgba(255, 92, 122, 0.12);
+  color: var(--danger);
+}
+
+.addTagBtn,
+.cancelBtn {
+  min-height: 36px;
+  border-radius: 12px;
+}
+
+.addTagBtn {
+  border-color: rgba(191, 205, 229, 0.82);
+  background: rgba(255,255,255,0.88);
+  color: var(--text-secondary);
+}
+
+.annotateInfoBar {
+  padding: 12px 20px;
+  background: rgba(239,246,255,0.96);
+  border-top: 1px solid rgba(121, 164, 255, 0.18);
+  color: var(--brand-strong);
+}
+
+.footer {
+  padding: 14px 20px 18px;
+  background: rgba(255,255,255,0.48);
+}
+
+.progressBar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(221, 230, 245, 0.9);
+}
+
+.progressFill {
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--brand), var(--brand-strong));
+}
+
+.cancelBtn {
+  border: 1px solid rgba(191, 205, 229, 0.9);
+  background: rgba(255,255,255,0.84);
+  color: var(--text-secondary);
+}
+
+.submitBtn {
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2f6cef, #1f4ddb 52%, #173fb9);
+  box-shadow: 0 14px 30px rgba(47, 108, 239, 0.28);
+  border: 1px solid rgba(47, 108, 239, 0.2);
+}
+
+.submitBtn:hover:not(:disabled) {
+  box-shadow: 0 18px 34px rgba(47, 108, 239, 0.34);
+  filter: saturate(1.04);
+}

@@ -418,9 +418,6 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
               </span>
               {typeLabel && <span className={styles.gamePlaceholderBadge}>{typeLabel}</span>}
             </div>
-            {gameUrl && (
-              <span className={styles.gamePlaceholderHint}>点击打开游戏 →</span>
-            )}
           </div>
         </div>
       );
@@ -431,23 +428,24 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
 
   return (
     <>
-      {/* ── 外层包裹：用于将编辑按钮绝对定位到幻灯片右上角外侧 ── */}
-      <div className={styles.cardWrap}>
-        {/* 悬浮编辑按钮 - 始终显示（在幻灯片外部右上角） */}
+      <div className={styles.cardShell}>
         {!isUpdating && !isStreaming && onManualSave && (
-          <button
-            className={styles.floatEditBtn}
-            onClick={handleEditPageClick}
-            title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
-          >
-            <Pencil size={14} />
-            <span>编辑</span>
-          </button>
+          <div className={styles.cardToolbar}>
+            <button
+              className={styles.floatEditBtn}
+              onClick={handleEditPageClick}
+              title={`编辑第 ${page.page_index} 页（内容 / 图片 / 布局 / AI 指令）`}
+            >
+              <Pencil size={12} />
+              <span>编辑</span>
+            </button>
+          </div>
         )}
 
-        <div
-          className={clsx(styles.pptCard, isUpdating && styles.updating)}
-        >
+        <div className={styles.cardWrap}>
+          <div
+            className={clsx(styles.pptCard, isUpdating && styles.updating)}
+          >
           {/* cover 以外的页面保留原有 cardHeader（页码+标题） */}
           {page.layout_type !== 'cover' && (
             <div className={styles.cardHeader}>
@@ -557,7 +555,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div className={styles.skeletonOverlay}>
             <div className={styles.scanLine} />
             <Loader2 className={styles.spinner} size={32} />
-            <span className={styles.updatingText}>AI 正在针对此页执行局部重塑...</span>
+            <span className={styles.updatingText}>AI 正在重排这一页的内容与版式，请稍候...</span>
           </div>
         )}
 
@@ -566,7 +564,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
           <div className={clsx(styles.iterateBar, 'glass-panel')}>
             <input 
               type="text" 
-              placeholder="例如：少一点文字，加一个公式推导动图..."
+              placeholder="例如：精简文字、强化重点结论，补一段公式推导动画"
               className={styles.iterateInput}
               value={instruction}
               onChange={e => setInstruction(e.target.value)}
@@ -578,6 +576,7 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
               onClick={handleSubmit}
             >
               <Send size={14} />
+              <span>应用修改</span>
             </button>
           </div>
         )}
@@ -588,14 +587,14 @@ function PPTCardInner({ page, sessionId, isUpdating, isStreaming = false, onIter
             <div className={styles.scanLine} />
             <div className={styles.updatingBadge}>
               <Loader2 size={14} className={styles.spinner} />
-              <span>AI 修改中...</span>
+              <span>AI 正在改写本页</span>
             </div>
           </div>
         )}
+          </div>
+        </div>
+
       </div>
-      {/* ← pptCard */}
-      </div>
-      {/* ← cardWrap */}
 
       {/* ── 统一页面工作台（合并了图片替换 + 内容编辑 + 布局 + AI 指令） */}
       {onManualSave && (

@@ -474,7 +474,7 @@ export default function PPTPageWorkbench({
         ))}
       </div>
 
-      <div>
+      <div className={styles.mainArea}>
         {/* ══════════════════════════════════════════════
             Tab: 编辑内容
             ══════════════════════════════════════════════ */}

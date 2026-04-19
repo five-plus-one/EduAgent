@@ -1,23 +1,46 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  UploadCloud, FileText, CheckCircle, Clock, Trash2, RefreshCw,
-  FileVideo, AlertCircle, X, Download, RotateCcw, Pencil, Check,
+  AlertCircle,
+  Check,
+  CheckCircle2,
+  Clock3,
+  Download,
+  Eye,
+  FileText,
+  FileVideo,
   Loader2,
+  Pencil,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  UploadCloud,
+  X,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import styles from './KnowledgeBase.module.css';
-import { uploadKnowledgeDoc, listKnowledgeDocs, deleteKnowledgeDoc } from '../utils/api';
+import { deleteKnowledgeDoc, listKnowledgeDocs, uploadKnowledgeDoc } from '../utils/api';
 import {
-  getKeyframeUrl, getDownloadUrl, formatDuration,
-  retryKnowledgeDocument, patchKnowledgeDocument,
-  VIDEO_STAGE_LABELS, type VideoProcessStage,
+  VIDEO_STAGE_LABELS,
+  formatDuration,
+  getDownloadUrl,
+  getKeyframeUrl,
+  patchKnowledgeDocument,
+  retryKnowledgeDocument,
+  type VideoProcessStage,
 } from '../utils/videoKnowledgeApi';
 
-// ── 类型 ───────────────────────────────────────────────────────
+export interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
 
-export interface TranscriptSegment { start: number; end: number; text: string; }
-export interface KeyframeInfo { filename: string; timestamp_est: number; description: string; }
+export interface KeyframeInfo {
+  filename: string;
+  timestamp_est: number;
+  description: string;
+}
 
 export interface KBDocument {
   document_id: string;
@@ -37,14 +60,17 @@ export interface KBDocument {
   video_summary?: string;
 }
 
-// 获取展示标题（display_name 优先 → filename）
 function getTitle(doc: KBDocument): string {
   return doc.display_name?.trim() || doc.filename;
 }
 
-function fmtDate(iso?: string) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', year: 'numeric' });
+function formatDate(iso?: string) {
+  if (!iso) return '未知时间';
+  return new Date(iso).toLocaleDateString('zh-CN', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 function getStageLabel(processStage?: string, progress?: number): string {
@@ -53,8 +79,6 @@ function getStageLabel(processStage?: string, progress?: number): string {
   }
   return `处理中 ${progress ?? 0}%`;
 }
-
-// ── 删除确认弹窗 ───────────────────────────────────────────────
 
 interface DeleteDialogProps {
   docName: string;
@@ -66,24 +90,20 @@ interface DeleteDialogProps {
 function DeleteDialog({ docName, phase, onConfirm, onCancel }: DeleteDialogProps) {
   return (
     <div className={styles.dialogOverlay} onClick={phase === 'confirm' ? onCancel : undefined}>
-      <div className={styles.dialogCard} onClick={e => e.stopPropagation()}>
-        <div className={clsx(styles.dialogIcon, phase === 'deleting' && styles.dialogIconDeleting)}>
-          {phase === 'deleting'
-            ? <Loader2 size={22} className={styles.dialogSpinner} />
-            : <Trash2 size={22} />}
+      <div className={styles.dialogCard} onClick={(e) => e.stopPropagation()}>
+        <div className={clsx(styles.dialogIcon, phase === 'deleting' && styles.dialogIconBusy)}>
+          {phase === 'deleting' ? <Loader2 size={20} className={styles.rotating} /> : <Trash2 size={20} />}
         </div>
-        <p className={styles.dialogTitle}>
-          {phase === 'deleting' ? '正在删除...' : '确认删除'}
-        </p>
+        <h3 className={styles.dialogTitle}>{phase === 'deleting' ? '正在删除文档' : '确认删除文档'}</h3>
         <p className={styles.dialogBody}>
           {phase === 'deleting'
-            ? '请稍候，正在从知识库移除该文件。'
-            : <>将永久删除 <span className={styles.dialogFileName}>「{docName}」</span>，无法恢复。</>}
+            ? '请稍候，系统正在从知识库中移除该文件。'
+            : <>删除 <strong>{docName}</strong> 后将无法恢复。</>}
         </p>
         {phase === 'confirm' && (
           <div className={styles.dialogActions}>
-            <button className={styles.dialogBtnCancel} onClick={onCancel}>取消</button>
-            <button className={styles.dialogBtnConfirm} onClick={onConfirm}>确认删除</button>
+            <button className={styles.dialogGhostBtn} onClick={onCancel}>取消</button>
+            <button className={styles.dialogDangerBtn} onClick={onConfirm}>确认删除</button>
           </div>
         )}
       </div>
@@ -91,528 +111,441 @@ function DeleteDialog({ docName, phase, onConfirm, onCancel }: DeleteDialogProps
   );
 }
 
-// ── 右侧预览抽屉 ────────────────────────────────────────────────
-
 interface PreviewPanelProps {
   doc: KBDocument;
+  compact?: boolean;
   onClose: () => void;
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onRename: (id: string, name: string) => void;
 }
 
-function PreviewPanel({ doc, onClose, onDelete, onRetry, onRename }: PreviewPanelProps) {
+function PreviewPanel({ doc, compact = false, onClose, onDelete, onRetry, onRename }: PreviewPanelProps) {
   const [tab, setTab] = useState<'summary' | 'frames' | 'transcript'>('summary');
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(getTitle(doc));
-  const [selectedFrame, setSelectedFrame] = useState<number | null>(null);
-  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFrame, setSelectedFrame] = useState<number>(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const isVideo = doc.file_type === 'video';
   const isProcessing = doc.status === 'processing' || doc.status === 'pending';
-  const hasFrames = (doc.keyframes_json?.length ?? 0) > 0;
-  const hasTranscript = (doc.transcript_json?.length ?? 0) > 0;
-  const hasSummary = !!(isVideo ? doc.video_summary : doc.summary);
+  const hasFrames = Boolean(doc.keyframes_json?.length);
+  const hasTranscript = Boolean(doc.transcript_json?.length);
 
-  // Sync display name when doc changes
-  useEffect(() => { setNameVal(getTitle(doc)); }, [doc.document_id, doc.display_name, doc.filename]);
-
-  // Auto-select first frame
   useEffect(() => {
-    if (hasFrames && doc.keyframes_json) setSelectedFrame(0);
-  }, [doc.document_id]);
+    setNameVal(getTitle(doc));
+    setTab('summary');
+    setSelectedFrame(0);
+  }, [doc.document_id, doc.display_name, doc.filename]);
 
-  // Pick available tabs for video
+  useEffect(() => {
+    if (editingName) {
+      setTimeout(() => inputRef.current?.select(), 40);
+    }
+  }, [editingName]);
+
+  const stageLabel = doc.stage_label ?? getStageLabel(doc.process_stage, doc.progress);
+
   const tabs = isVideo
     ? [
-        { key: 'summary' as const,    label: 'AI 摘要' },
-        ...(hasFrames     ? [{ key: 'frames'     as const, label: `关键帧 (${doc.keyframes_json!.length})` }] : []),
-        ...(hasTranscript ? [{ key: 'transcript' as const, label: `字幕 (${doc.transcript_json!.length})` }] : []),
+        { key: 'summary' as const, label: 'AI 摘要' },
+        ...(hasFrames ? [{ key: 'frames' as const, label: `关键帧 ${doc.keyframes_json?.length}` }] : []),
+        ...(hasTranscript ? [{ key: 'transcript' as const, label: `字幕 ${doc.transcript_json?.length}` }] : []),
       ]
-    : [{ key: 'summary' as const, label: '摘要' }];
+    : [{ key: 'summary' as const, label: '文档摘要' }];
 
   const commitRename = () => {
-    const trimmed = nameVal.trim();
-    if (trimmed && trimmed !== getTitle(doc)) onRename(doc.document_id, trimmed);
+    const next = nameVal.trim();
+    if (next && next !== getTitle(doc)) {
+      onRename(doc.document_id, next);
+    }
     setEditingName(false);
   };
 
-  const stageLabel =
-    doc.stage_label
-    ?? getStageLabel(doc.process_stage, doc.progress);
+  const summaryText = isVideo ? doc.video_summary : doc.summary;
 
   return (
-    <div className={styles.preview}>
-      {/* ── 头部 ── */}
+    <aside className={clsx(styles.previewPanel, compact && styles.previewPanelCompact)}>
       <div className={styles.previewHeader}>
-        <div className={styles.previewHeaderLeft}>
-          {isVideo
-            ? <span className={styles.previewTypeTag}><FileVideo size={11} /> 视频</span>
-            : <span className={styles.previewTypeTagDoc}><FileText size={11} /> 文档</span>}
-
+        <div className={styles.previewHeaderMain}>
+          <span className={clsx(styles.fileTypePill, isVideo ? styles.fileTypeVideo : styles.fileTypeDoc)}>
+            {isVideo ? <FileVideo size={12} /> : <FileText size={12} />}
+            {isVideo ? '视频' : '文档'}
+          </span>
           {editingName ? (
             <input
-              ref={nameInputRef}
-              className={styles.previewFilenameInput}
+              ref={inputRef}
+              className={styles.previewNameInput}
               value={nameVal}
-              onChange={e => setNameVal(e.target.value)}
+              onChange={(e) => setNameVal(e.target.value)}
               onBlur={commitRename}
-              onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setEditingName(false); }}
-              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') setEditingName(false);
+              }}
             />
           ) : (
-            <span className={styles.previewFilename} title={getTitle(doc)}>{getTitle(doc)}</span>
+            <h3 className={styles.previewTitle} title={getTitle(doc)}>{getTitle(doc)}</h3>
           )}
-
-          {!editingName && (
-            <button
-              className={styles.renameBtn}
-              onClick={() => { setEditingName(true); setTimeout(() => nameInputRef.current?.select(), 30); }}
-              title="重命名"
-            >
-              <Pencil size={13} />
-            </button>
-          )}
-          {editingName && (
-            <button className={styles.renameBtn} style={{opacity:1}} onClick={commitRename} title="确认">
-              <Check size={13} />
-            </button>
-          )}
+          <button className={styles.iconBtn} onClick={() => (editingName ? commitRename() : setEditingName(true))} title={editingName ? '保存名称' : '重命名'}>
+            {editingName ? <Check size={14} /> : <Pencil size={14} />}
+          </button>
         </div>
-        <button className={styles.previewClose} onClick={onClose} title="关闭"><X size={16} /></button>
+        <button className={styles.iconBtn} onClick={onClose} title="关闭预览"><X size={16} /></button>
       </div>
 
-      {/* ── 元信息 ── */}
       <div className={styles.previewMeta}>
-        {doc.status === 'completed' && (
-          <span className={clsx(styles.previewMetaItem, styles.previewMetaSuccess)}>
-            <CheckCircle size={12} /> 已就绪
-          </span>
-        )}
-        {doc.status === 'failed' && (
-          <span className={clsx(styles.previewMetaItem, styles.previewMetaFailed)}>
-            <AlertCircle size={12} /> 处理失败
-          </span>
-        )}
-        {isProcessing && (
-          <span className={clsx(styles.previewMetaItem, styles.previewMetaPending)}>
-            <Loader2 size={12} className={styles.rotating} /> {stageLabel}
-          </span>
-        )}
-        {doc.created_at && (
-          <span className={styles.previewMetaItem}>
-            <Clock size={12} /> {fmtDate(doc.created_at)}
-          </span>
-        )}
-        {isVideo && doc.duration_sec && (
-          <span className={styles.previewMetaItem}>
-            🕐 {formatDuration(doc.duration_sec)}
-          </span>
-        )}
+        {doc.status === 'completed' && <span className={clsx(styles.metaBadge, styles.metaSuccess)}><CheckCircle2 size={12} /> 已完成</span>}
+        {doc.status === 'failed' && <span className={clsx(styles.metaBadge, styles.metaDanger)}><AlertCircle size={12} /> 失败</span>}
+        {isProcessing && <span className={clsx(styles.metaBadge, styles.metaPending)}><Loader2 size={12} className={styles.rotating} /> {stageLabel}</span>}
+        <span className={styles.metaBadge}><Clock3 size={12} /> {formatDate(doc.created_at)}</span>
+        {isVideo && doc.duration_sec ? <span className={styles.metaBadge}>时长 {formatDuration(doc.duration_sec)}</span> : null}
       </div>
 
-      {/* ── 进度条（处理中） ── */}
       {isProcessing && (
         <div className={styles.progressWrap}>
           <div className={styles.progressBar}>
             <div className={styles.progressFill} style={{ width: `${doc.progress ?? 0}%` }} />
           </div>
-          <span className={styles.progressLabel}>{doc.progress ?? 0}%</span>
+          <span className={styles.progressText}>{doc.progress ?? 0}%</span>
         </div>
       )}
 
-      {/* ── 操作栏 ── */}
       <div className={styles.previewActions}>
         {doc.status === 'completed' && (
-          <a
-            href={getDownloadUrl(doc.document_id)}
-            download={doc.filename}
-            className={styles.actionBtnDownload}
-          >
-            <Download size={13} /> 下载
+          <a href={getDownloadUrl(doc.document_id)} download={doc.filename} className={styles.secondaryAction}>
+            <Download size={14} /> 下载原文件
           </a>
         )}
         {(doc.status === 'failed' || doc.status === 'pending') && (
-          <button className={styles.actionBtnRetry} onClick={() => onRetry(doc.document_id)}>
-            <RotateCcw size={13} /> 重试
+          <button className={styles.secondaryAction} onClick={() => onRetry(doc.document_id)}>
+            <RotateCcw size={14} /> 重新处理
           </button>
         )}
-        <button className={styles.actionBtnDanger} onClick={() => onDelete(doc.document_id)}>
-          <Trash2 size={13} /> 删除
+        <button className={styles.dangerAction} onClick={() => onDelete(doc.document_id)}>
+          <Trash2 size={14} /> 删除
         </button>
       </div>
 
-      {/* ── 内容区（视频 Tab / 文档摘要） ── */}
-      {isVideo && doc.status === 'completed' && (
-        <>
-          <div className={styles.previewTabs}>
-            {tabs.map(t => (
-              <button
-                key={t.key}
-                className={clsx(styles.previewTab, tab === t.key && styles.previewTabActive)}
-                onClick={() => setTab(t.key)}
-              >{t.label}</button>
+      {tabs.length > 1 && (
+        <div className={styles.previewTabs}>
+          {tabs.map((item) => (
+            <button
+              key={item.key}
+              className={clsx(styles.previewTab, tab === item.key && styles.previewTabActive)}
+              onClick={() => setTab(item.key)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={styles.previewBody}>
+        {tab === 'summary' && (
+          <>
+            {doc.status === 'completed' && summaryText ? (
+              <div className={styles.markdownBody}><ReactMarkdown>{summaryText}</ReactMarkdown></div>
+            ) : doc.status === 'failed' ? (
+              <div className={styles.previewEmpty}>解析失败，可尝试重新处理。</div>
+            ) : isProcessing ? (
+              <div className={styles.previewEmpty}>文档正在处理中，完成后会在这里展示摘要。</div>
+            ) : (
+              <div className={styles.previewEmpty}>暂时还没有可展示的摘要。</div>
+            )}
+          </>
+        )}
+
+        {tab === 'frames' && hasFrames && doc.keyframes_json && (
+          <div className={styles.framesLayout}>
+            <div className={styles.frameGrid}>
+              {doc.keyframes_json.map((frame, index) => (
+                <button
+                  key={`${frame.filename}-${index}`}
+                  className={clsx(styles.frameThumb, selectedFrame === index && styles.frameThumbActive)}
+                  onClick={() => setSelectedFrame(index)}
+                >
+                  <img src={getKeyframeUrl(doc.document_id, frame.filename)} alt={`关键帧 ${index + 1}`} className={styles.frameThumbImg} />
+                  <span className={styles.frameTime}>{formatDuration(frame.timestamp_est)}</span>
+                </button>
+              ))}
+            </div>
+            {doc.keyframes_json[selectedFrame] && (
+              <div className={styles.frameDetail}>
+                <img
+                  src={getKeyframeUrl(doc.document_id, doc.keyframes_json[selectedFrame].filename)}
+                  alt="当前关键帧"
+                  className={styles.frameDetailImg}
+                />
+                <p className={styles.frameDetailText}>{doc.keyframes_json[selectedFrame].description || '暂无关键帧描述。'}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'transcript' && hasTranscript && doc.transcript_json && (
+          <div className={styles.transcriptList}>
+            {doc.transcript_json.map((segment, index) => (
+              <div key={`${segment.start}-${index}`} className={styles.transcriptRow}>
+                <span className={styles.transcriptTime}>{formatDuration(segment.start)}</span>
+                <span className={styles.transcriptText}>{segment.text}</span>
+              </div>
             ))}
           </div>
-          <div className={styles.previewBody}>
-            {tab === 'summary' && (
-              <div className={styles.summarySection}>
-                {doc.video_summary
-                  ? <div className={styles.markdownBody}><ReactMarkdown>{doc.video_summary}</ReactMarkdown></div>
-                  : <p className={styles.summaryEmpty}>暂无 AI 摘要</p>}
-              </div>
-            )}
-            {tab === 'frames' && hasFrames && (
-              <div className={styles.keyframesSection}>
-                <div className={styles.keyframeGrid}>
-                  {doc.keyframes_json!.map((kf, i) => (
-                    <button
-                      key={i}
-                      className={clsx(styles.keyframeCard, selectedFrame === i && styles.keyframeCardActive)}
-                      onClick={() => setSelectedFrame(i)}
-                    >
-                      <div className={styles.keyframeImgWrap}>
-                        <img src={getKeyframeUrl(doc.document_id, kf.filename)} alt={`帧${i+1}`} className={styles.keyframeImg} />
-                        <span className={styles.keyframeTimestamp}>{formatDuration(kf.timestamp_est)}</span>
-                      </div>
-                      <div className={styles.keyframeIndex}>帧 {i + 1}</div>
-                    </button>
-                  ))}
-                </div>
-                {selectedFrame !== null && doc.keyframes_json![selectedFrame] && (
-                  <div className={styles.keyframeDetail}>
-                    <img
-                      src={getKeyframeUrl(doc.document_id, doc.keyframes_json![selectedFrame].filename)}
-                      alt={`帧${selectedFrame+1} 详情`}
-                      className={styles.keyframeDetailImg}
-                    />
-                    {doc.keyframes_json![selectedFrame].description && (
-                      <p className={styles.keyframeDescription}>{doc.keyframes_json![selectedFrame].description}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {tab === 'transcript' && hasTranscript && (
-              <div className={styles.transcriptSection}>
-                {doc.transcript_json!.map((seg, i) => (
-                  <div key={i} className={styles.transcriptLine}>
-                    <span className={styles.transcriptTime}>{formatDuration(Math.floor(seg.start))}</span>
-                    <span className={styles.transcriptText}>{seg.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* 文档摘要 */}
-      {!isVideo && (
-        <div className={styles.previewBody}>
-          {doc.status === 'completed' ? (
-            hasSummary
-              ? <div className={styles.markdownBody}><ReactMarkdown>{doc.summary!}</ReactMarkdown></div>
-              : <p className={styles.summaryEmpty}>暂无摘要内容</p>
-          ) : isProcessing ? (
-            <p className={styles.summaryEmpty}>⏳ 正在解析文档，完成后将显示摘要...</p>
-          ) : doc.status === 'failed' ? (
-            <p className={styles.summaryEmpty}>❌ 文档解析失败，可点击上方「重试」按钮重试。</p>
-          ) : (
-            <p className={styles.summaryEmpty}>暂无内容</p>
-          )}
-        </div>
-      )}
-
-      {/* 视频处理中占位 */}
-      {isVideo && isProcessing && (
-        <div className={styles.previewBody}>
-          <p className={styles.summaryEmpty}>⏳ 视频正在分析中，完成后将显示摘要、关键帧和字幕...</p>
-        </div>
-      )}
-      {isVideo && doc.status === 'failed' && (
-        <div className={styles.previewBody}>
-          <p className={styles.summaryEmpty}>❌ 视频处理失败，可点击上方「重试」按钮重试。</p>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </aside>
   );
 }
 
-// ── KnowledgeBasePanel ─────────────────────────────────────────
-
 export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
   const [documents, setDocuments] = useState<KBDocument[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploading,  setUploading]  = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<KBDocument | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string; phase: 'confirm' | 'deleting' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── 拉取列表 ──────────────────────────────────────────────────
-  const fetchDocs = useCallback(async (isSilent = false) => {
+  const fetchDocs = useCallback(async (silent = false) => {
     try {
-      if (!isSilent) setLoading(true);
+      if (!silent) setLoading(true);
       const data = await listKnowledgeDocs(1, 50);
       const items: KBDocument[] = data?.items ?? (Array.isArray(data) ? data : []);
       setDocuments(items);
-      // 同步刷新当前预览文档
-      setSelectedDoc(prev => {
-        if (!prev) return null;
-        return items.find(d => d.document_id === prev.document_id) ?? null;
-      });
+      setSelectedDoc((prev) => (prev ? items.find((item) => item.document_id === prev.document_id) ?? null : null));
     } catch {
-      console.error('Failed to fetch knowledge base documents');
+      // keep previous state
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchDocs(); }, [fetchDocs]);
-
-  // 处理中自动轮询
   useEffect(() => {
-    const hasProcessing = documents.some(d => d.status === 'processing' || d.status === 'pending');
+    fetchDocs();
+  }, [fetchDocs]);
+
+  useEffect(() => {
+    const hasProcessing = documents.some((doc) => doc.status === 'processing' || doc.status === 'pending');
     if (!hasProcessing) return;
     const timer = setInterval(() => fetchDocs(true), 3000);
     return () => clearInterval(timer);
   }, [documents, fetchDocs]);
 
-  // ── 上传 ──────────────────────────────────────────────────────
-  const handleDragOver  = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); };
-  const handleDragLeave = (e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); };
-  const handleDrop      = (e: React.DragEvent) => {
-    e.preventDefault(); setIsDragging(false);
-    if (e.dataTransfer.files?.length) handleFiles(Array.from(e.dataTransfer.files));
-  };
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) handleFiles(Array.from(e.target.files));
-  };
-
   const handleFiles = async (files: File[]) => {
     setUploadError(null);
-    for (const f of files) {
-      const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+    for (const file of files) {
+      const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
       const isVideo = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv'].includes(ext);
       const limitMB = isVideo ? 500 : 100;
-      if (f.size > limitMB * 1024 * 1024) {
-        setUploadError(`文件「${f.name}」超过 ${limitMB} MB 限制。`);
+      if (file.size > limitMB * 1024 * 1024) {
+        setUploadError(`文件 ${file.name} 超过 ${limitMB}MB 大小限制。`);
         return;
       }
     }
+
     setUploading(true);
     try {
-      await Promise.all(files.map(f => uploadKnowledgeDoc(f, { filename: f.name })));
+      await Promise.all(files.map((file) => uploadKnowledgeDoc(file, { filename: file.name })));
       await fetchDocs();
-    } catch (err: any) {
-      setUploadError(err?.message ?? '上传失败，请重试。');
+    } catch (error: any) {
+      setUploadError(error?.message ?? '上传失败，请稍后重试。');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // ── 删除 ──────────────────────────────────────────────────────
-  const handleDelete = (documentId: string) => {
-    const doc = documents.find(d => d.document_id === documentId);
-    setConfirmDelete({ id: documentId, name: getTitle(doc ?? { document_id: documentId, filename: documentId, status: '' }), phase: 'confirm' });
-  };
-
-  const performDelete = async () => {
-    if (!confirmDelete) return;
-    const { id } = confirmDelete;
-    setConfirmDelete(prev => prev ? { ...prev, phase: 'deleting' } : null);
-    try {
-      await deleteKnowledgeDoc(id);
-      setDocuments(prev => prev.filter(d => d.document_id !== id));
-      if (selectedDoc?.document_id === id) setSelectedDoc(null);
-      setConfirmDelete(null);
-    } catch {
-      console.error('Delete failed');
-      setConfirmDelete(prev => prev ? { ...prev, phase: 'confirm' } : null);
-    }
-  };
-
-  // ── 重试 ──────────────────────────────────────────────────────
   const handleRetry = async (documentId: string) => {
     try {
       await retryKnowledgeDocument(documentId);
       await fetchDocs(true);
-    } catch (err) {
-      console.error('Retry failed', err);
+    } catch {
+      setUploadError('重新处理失败，请稍后再试。');
     }
   };
 
-  // ── 重命名 ────────────────────────────────────────────────────
   const handleRename = async (documentId: string, newName: string) => {
     try {
       await patchKnowledgeDocument(documentId, { display_name: newName });
-      setDocuments(prev => prev.map(d =>
-        d.document_id === documentId ? { ...d, display_name: newName } : d
-      ));
-      setSelectedDoc(prev =>
-        prev?.document_id === documentId ? { ...prev, display_name: newName } : prev
-      );
-    } catch (err) {
-      console.error('Rename failed', err);
+      setDocuments((prev) => prev.map((doc) => (doc.document_id === documentId ? { ...doc, display_name: newName } : doc)));
+      setSelectedDoc((prev) => (prev?.document_id === documentId ? { ...prev, display_name: newName } : prev));
+    } catch {
+      setUploadError('重命名失败，请稍后再试。');
     }
   };
 
-  // ── 渲染 ──────────────────────────────────────────────────────
-  const hasPreview = !!selectedDoc;
+  const performDelete = async () => {
+    if (!confirmDelete) return;
+    setConfirmDelete((prev) => (prev ? { ...prev, phase: 'deleting' } : null));
+    try {
+      await deleteKnowledgeDoc(confirmDelete.id);
+      setDocuments((prev) => prev.filter((doc) => doc.document_id !== confirmDelete.id));
+      setSelectedDoc((prev) => (prev?.document_id === confirmDelete.id ? null : prev));
+      setConfirmDelete(null);
+    } catch {
+      setUploadError('删除失败，请稍后再试。');
+      setConfirmDelete((prev) => (prev ? { ...prev, phase: 'confirm' } : null));
+    }
+  };
+
+  const summary = useMemo(() => {
+    const completed = documents.filter((doc) => doc.status === 'completed').length;
+    const processing = documents.filter((doc) => doc.status === 'processing' || doc.status === 'pending').length;
+    const failed = documents.filter((doc) => doc.status === 'failed').length;
+    return { completed, processing, failed };
+  }, [documents]);
 
   return (
-    <div className={clsx(styles.panelRoot, hasPreview && styles.panelWithPreview, compact && styles.panelCompact)}>
-      {/* ── 左侧主区 ── */}
-      <div className={styles.panelMain}>
+    <div className={clsx(styles.panelRoot, compact && styles.panelCompact)}>
+      <section className={styles.panelMain}>
         {!compact && (
           <header className={styles.pageHeader}>
             <div>
-              <h1 className={styles.title}>知识库管理</h1>
-              <p className={styles.subtitle}>
-                上传课件、教案或视频，自动解析向量化，强化 AI 领域理解能力。
-              </p>
+              <div className={styles.eyebrow}>Asset Center</div>
+              <h1 className={styles.title}>知识库文档</h1>
+              <p className={styles.subtitle}>把上传、处理状态和解析结果收进一条主流程里，避免主列表和详情面板长期并排争抢注意力。</p>
+            </div>
+            <div className={styles.summaryStrip}>
+              <span className={styles.summaryChip}>已完成 {summary.completed}</span>
+              <span className={styles.summaryChip}>处理中 {summary.processing}</span>
+              <span className={styles.summaryChip}>失败 {summary.failed}</span>
             </div>
           </header>
         )}
 
-        {/* 上传区 */}
         <div
-          className={clsx(styles.uploadZone, 'glass-panel', isDragging && styles.dragging, uploading && styles.uploading)}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          className={clsx('app-dropzone', styles.dropzone, compact && styles.dropzoneCompact, isDragging && styles.dragging, uploading && styles.uploading)}
           onClick={() => !uploading && fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files?.length) handleFiles(Array.from(e.dataTransfer.files));
+          }}
         >
           <input
-            type="file" ref={fileInputRef} style={{ display: 'none' }}
-            onChange={handleFileSelect} multiple
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
             accept=".pdf,.docx,.doc,.pptx,.txt,.md,.json,.csv,.mp4,.mov,.avi,.webm,.mkv,.flv"
+            onChange={(e) => {
+              if (e.target.files?.length) handleFiles(Array.from(e.target.files));
+            }}
           />
-          <div className={styles.uploadContent}>
-            <div className={styles.uploadIconWrapper}>
-              <UploadCloud size={compact ? 28 : 40} className={clsx(uploading && styles.rotating)} />
-            </div>
-            <h3>{uploading ? '上传中，请稍候...' : '点击或拖拽文件上传'}</h3>
-            <p>文档（PDF / Word / PPT，≤ 100 MB）&nbsp;|&nbsp;视频（MP4 / MOV，≤ 500 MB）</p>
+          <div className={styles.dropzoneIcon}><UploadCloud size={28} className={clsx(uploading && styles.rotating)} /></div>
+          <div className={styles.dropzoneBody}>
+            <h3>{uploading ? '素材上传中...' : '上传文档或视频到知识库'}</h3>
+            <p>支持 PDF / Word / PPT / Markdown / 文本 / 视频。文档上限 100MB，视频上限 500MB。</p>
           </div>
         </div>
 
         {uploadError && (
-          <div className={styles.uploadError}>
-            <AlertCircle size={15} /> {uploadError}
+          <div className={styles.errorBanner}>
+            <AlertCircle size={16} />
+            <span>{uploadError}</span>
           </div>
         )}
 
-        {/* 文件列表 */}
-        <div className={clsx(styles.tableContainer, 'glass-panel')}>
-          <div className={styles.tableHeader}>
-            <h3 className={styles.tableTitle}>
-              已入库文件 ({loading ? '…' : documents.length})
-            </h3>
-            <button className={clsx('button-base', styles.refreshBtn)} onClick={() => fetchDocs(false)} title="刷新">
-              <RefreshCw size={14} />
+        <div className={styles.listShell}>
+          <div className={styles.listHeader}>
+            <div>
+              <h2 className={styles.listTitle}>已入库素材</h2>
+              <p className={styles.listHint}>{loading ? '正在同步列表...' : `当前共 ${documents.length} 个素材`}</p>
+            </div>
+            <button className={styles.refreshBtn} onClick={() => fetchDocs(false)}>
+              <RefreshCw size={14} /> 刷新
             </button>
           </div>
-          <div className={styles.tableWrapper}>
-            <table className={styles.dataTable}>
-              <thead>
-                <tr>
-                  <th>文件名</th>
-                  <th>类型</th>
-                  <th>上传日期</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={5} className={styles.emptyTable}>
-                    <Clock size={14} className={styles.rotating} style={{ display: 'inline', marginRight: 6 }} />加载中...
-                  </td></tr>
-                ) : documents.length === 0 ? (
-                  <tr><td colSpan={5} className={styles.emptyTable}>尚未上传任何知识库文件</td></tr>
-                ) : (
-                  documents.map(doc => {
-                    const isVideo = doc.file_type === 'video';
-                    const isProcessing = doc.status === 'processing' || doc.status === 'pending';
-                    const isSelected = selectedDoc?.document_id === doc.document_id;
-                    return (
-                      <tr
-                        key={doc.document_id}
-                        className={clsx(styles.tableRow, isSelected && styles.tableRowSelected)}
-                        onClick={() => setSelectedDoc(isSelected ? null : doc)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td>
-                          <div className={styles.cellFile}>
-                            {isVideo
-                              ? <FileVideo size={16} className={styles.fileIconVideo} />
-                              : <FileText size={16} className={styles.fileIcon} />}
-                            <span className={styles.filename} title={getTitle(doc)}>{getTitle(doc)}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={clsx(styles.typeBadge, isVideo ? styles.typeBadgeVideo : styles.typeBadgeDoc)}>
-                            {isVideo ? '视频' : '文档'}
-                          </span>
-                        </td>
-                        <td className={styles.cellDate}>{fmtDate(doc.created_at)}</td>
-                        <td>
-                          {doc.status === 'completed' ? (
-                            <div className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle size={13} /> 已就绪</div>
-                          ) : doc.status === 'failed' ? (
-                            <div className={clsx(styles.statusBadge, styles.statusFailed)}><AlertCircle size={13} /> 失败</div>
-                          ) : (
-                            <div className={clsx(styles.statusBadge, styles.statusPending)}>
-                              <Loader2 size={13} className={styles.rotating} />
-                              {isProcessing
-                                ? (doc.stage_label ?? getStageLabel(doc.process_stage, doc.progress))
-                                : '等待中'}
-                              {doc.progress != null && ` ${doc.progress}%`}
-                            </div>
+
+          <div className={styles.docList}>
+            {loading ? (
+              <div className={styles.feedbackCard}><Loader2 size={16} className={styles.rotating} /> 正在加载知识库...</div>
+            ) : documents.length === 0 ? (
+              <div className={styles.emptyCard}>
+                <UploadCloud size={20} />
+                <div>
+                  <strong>还没有素材</strong>
+                  <p>先上传文档或视频，系统会自动解析摘要并接入 AI 工作流。</p>
+                </div>
+              </div>
+            ) : (
+              documents.map((doc) => {
+                const isVideo = doc.file_type === 'video';
+                const isProcessing = doc.status === 'processing' || doc.status === 'pending';
+                const selected = selectedDoc?.document_id === doc.document_id;
+                return (
+                  <article
+                    key={doc.document_id}
+                    className={clsx(styles.docCard, compact && styles.docCardCompact, selected && styles.docCardActive)}
+                    onClick={() => setSelectedDoc(selected ? null : doc)}
+                  >
+                    <div className={styles.docIcon}>{isVideo ? <FileVideo size={18} /> : <FileText size={18} />}</div>
+                    <div className={styles.docBody}>
+                      <div className={styles.docTopRow}>
+                        <h3 className={styles.docTitle} title={getTitle(doc)}>{getTitle(doc)}</h3>
+                        <span className={clsx(styles.typeBadge, isVideo ? styles.typeBadgeVideo : styles.typeBadgeDoc)}>
+                          {isVideo ? '视频' : '文档'}
+                        </span>
+                      </div>
+                      <div className={styles.docMetaRow}>
+                        <span>{formatDate(doc.created_at)}</span>
+                        {isVideo && doc.duration_sec ? <span>{formatDuration(doc.duration_sec)}</span> : null}
+                      </div>
+                      <div className={styles.docFooterRow}>
+                        {doc.status === 'completed' && <span className={clsx(styles.statusBadge, styles.statusSuccess)}><CheckCircle2 size={12} /> 已完成</span>}
+                        {doc.status === 'failed' && <span className={clsx(styles.statusBadge, styles.statusDanger)}><AlertCircle size={12} /> 处理失败</span>}
+                        {isProcessing && <span className={clsx(styles.statusBadge, styles.statusPending)}><Loader2 size={12} className={styles.rotating} /> {doc.stage_label ?? getStageLabel(doc.process_stage, doc.progress)}</span>}
+                        <div className={styles.docActions} onClick={(e) => e.stopPropagation()}>
+                          {(doc.status === 'failed' || doc.status === 'pending') && (
+                            <button className={styles.iconBtn} onClick={() => handleRetry(doc.document_id)} title="重新处理">
+                              <RotateCcw size={14} />
+                            </button>
                           )}
-                        </td>
-                        <td>
-                          <div className={styles.cellActions} onClick={e => e.stopPropagation()}>
-                            {(doc.status === 'failed' || doc.status === 'pending') && (
-                              <button
-                                className={styles.actionIconBtn}
-                                title="重试"
-                                onClick={() => handleRetry(doc.document_id)}
-                              ><RotateCcw size={14} /></button>
-                            )}
-                            <button
-                              className={clsx(styles.actionIconBtn, styles.actionIconBtnDanger)}
-                              title="删除"
-                              onClick={() => handleDelete(doc.document_id)}
-                            ><Trash2 size={14} /></button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                          <button className={styles.iconBtn} onClick={() => setSelectedDoc(doc)} title="查看详情">
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            className={clsx(styles.iconBtn, styles.iconBtnDanger)}
+                            onClick={() => setConfirmDelete({ id: doc.document_id, name: getTitle(doc), phase: 'confirm' })}
+                            title="删除"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ── 右侧预览抽屉（非 compact 模式才显示） ── */}
-      {selectedDoc && !compact && (
-        <PreviewPanel
-          doc={selectedDoc}
-          onClose={() => setSelectedDoc(null)}
-          onDelete={handleDelete}
-          onRetry={handleRetry}
-          onRename={handleRename}
-        />
+      {selectedDoc && (
+        <div className={styles.sidePreviewOverlay} onClick={() => setSelectedDoc(null)}>
+          <div className={styles.sidePreviewWrap} onClick={(e) => e.stopPropagation()}>
+            <PreviewPanel
+              doc={selectedDoc}
+              onClose={() => setSelectedDoc(null)}
+              onDelete={(id) => setConfirmDelete({ id, name: getTitle(selectedDoc), phase: 'confirm' })}
+              onRetry={handleRetry}
+              onRename={handleRename}
+            />
+          </div>
+        </div>
       )}
 
-      {/* ── 删除确认弹窗 ── */}
       {confirmDelete && (
         <DeleteDialog
           docName={confirmDelete.name}
@@ -624,8 +557,6 @@ export function KnowledgeBasePanel({ compact = false }: { compact?: boolean }) {
     </div>
   );
 }
-
-// ── 路由页 ─────────────────────────────────────────────────────
 
 export default function KnowledgeBase() {
   return (

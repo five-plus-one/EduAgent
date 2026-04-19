@@ -1,34 +1,21 @@
-/* ══════════════════════════════════════════════════════════
-   GamePublicPage — 互动游戏公开落地页
-   设计原则：游戏 iframe 占满剩余视口，header/footer 极简固定
-   ══════════════════════════════════════════════════════════ */
-
-/* ── 页面容器：严格 100dvh，flex 列布局 ── */
-.page {
-  height: 100dvh;
-  width: 100%;        /* 撑满 #root 的 flex-row 行 */
-  flex: 1 1 0;        /* 防止 flex 收缩 */
-  min-width: 0;
+﻿.page {
+  width: 100%;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  background: #0a0e1a;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  color: #f1f5f9;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef5fb 100%);
+  color: var(--text-primary);
   overflow: hidden;
 }
 
-/* ── Header：固定高度，绝不伸长 ── */
 .header {
-  flex: 0 0 52px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  background: rgba(10, 14, 26, 0.96);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  z-index: 100;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(16px);
 }
 
 .headerInner {
-  height: 52px;
+  height: 64px;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -36,35 +23,31 @@
   gap: 16px;
 }
 
-/* 品牌区 */
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 10px;
 }
 
-.brandIcon { color: #6366f1; }
+.brandIcon,
+.brandName {
+  color: var(--brand);
+}
 
 .brandName {
-  font-size: 15px;
+  font-size: 1rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #818cf8, #6366f1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .brandTag {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.35);
-  padding: 2px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 100px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
-/* 游戏标题（居中） */
 .gameMeta {
   flex: 1;
   display: flex;
@@ -72,123 +55,109 @@
 }
 
 .gameTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.85);
-  max-width: 480px;
+  max-width: 520px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 700;
+  color: var(--text-secondary);
 }
 
-/* ── Main：flex:1 吃掉所有剩余空间 ── */
 .main {
-  flex: 1 1 0;
-  min-height: 0;      /* 关键：允许 flex 子项收缩到 0 */
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
-
-/* ── 游戏 iframe 容器 ── */
-.gameWrap {
-  flex: 1 1 0;
+  flex: 1;
   min-height: 0;
   display: flex;
-  flex-direction: column;
 }
 
-/* iframe 本体：必须同时设 height:100% 和 flex:1 */
+.gameWrap,
+.loadingWrap,
+.errorWrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gameWrap {
+  padding: 18px;
+}
+
 .gameFrame {
-  flex: 1 1 0;
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
-  display: block;
+  border-radius: 24px;
+  background: white;
+  box-shadow: var(--shadow-md);
 }
 
-/* ── 加载状态 ── */
-.loadingWrap {
-  flex: 1 1 0;
-  display: flex;
+.loadingWrap,
+.errorWrap {
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
+  gap: 14px;
+  padding: 32px;
+  text-align: center;
 }
 
 .spinner {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 3px solid rgba(99, 102, 241, 0.2);
-  border-top-color: #6366f1;
-  animation: spinAnim 0.8s linear infinite;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 3px solid rgba(37, 99, 235, 0.16);
+  border-top-color: var(--brand);
+  animation: spinAnim 0.9s linear infinite;
 }
 
-@keyframes spinAnim { to { transform: rotate(360deg); } }
-
-.loadingText {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.45);
-  margin: 0;
-  font-weight: 500;
-}
-
-/* ── 错误状态 ── */
-.errorWrap {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 48px 24px;
+.loadingText,
+.errorSub {
+  color: var(--text-secondary);
 }
 
 .errorEmoji {
   font-size: 56px;
-  line-height: 1;
-  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.3));
 }
 
 .errorTitle {
-  font-size: 22px;
+  font-size: 1.5rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0;
-  text-align: center;
 }
 
-.errorSub {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.45);
-  margin: 0;
-  text-align: center;
-  max-width: 380px;
-  line-height: 1.6;
-}
-
-/* ── Footer：固定高度，绝不伸长 ── */
 .footer {
-  flex: 0 0 40px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-size: 11.5px;
-  color: rgba(255, 255, 255, 0.25);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(10, 14, 26, 0.8);
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
 }
 
-.footer strong { color: rgba(255, 255, 255, 0.4); }
-.footerDot { opacity: 0.3; }
+.footer strong {
+  color: var(--brand);
+}
 
-/* ── 响应式 ── */
+.footerDot {
+  opacity: 0.35;
+}
+
+@keyframes spinAnim {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 640px) {
-  .headerInner { padding: 0 16px; }
-  .gameMeta { display: none; }
-  .brandTag { display: none; }
+  .headerInner {
+    padding: 0 16px;
+  }
+
+  .brandTag,
+  .gameMeta {
+    display: none;
+  }
+
+  .gameWrap {
+    padding: 12px;
+  }
 }

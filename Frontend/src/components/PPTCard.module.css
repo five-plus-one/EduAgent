@@ -18,6 +18,10 @@
   --margin-left: calc(0.55 * var(--in));
   --margin-right: calc(0.55 * var(--in));
   --margin-top: calc(0.5 * var(--in));
+  --ppt-panel-bg: color-mix(in srgb, var(--ppt-bg, #ffffff) 88%, var(--ppt-text, #0f172a) 12%);
+  --ppt-panel-border: color-mix(in srgb, var(--ppt-bg, #ffffff) 72%, var(--ppt-text, #0f172a) 28%);
+  --ppt-panel-shadow: color-mix(in srgb, var(--ppt-text, #0f172a) 12%, transparent);
+  --ppt-panel-highlight: color-mix(in srgb, white 70%, var(--ppt-bg, #ffffff) 30%);
   
   padding: var(--margin-top) var(--margin-right) 0 var(--margin-left);
   display: flex;
@@ -120,46 +124,78 @@
    外层包裹 + 悬浮编辑按钮（幻灯片外部右上角）
    ══════════════════════════════════════════════════════════ */
 
-/* 包裹层：为绝对定位编辑按钮提供相对定位上下文 */
-.cardWrap {
-  position: relative;
+/* 包裹整个卡片与外置操作轨道 */
+.cardShell {
   width: 100%;
   max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
-/* 悬浮编辑按钮：定位在幻灯片卡片右上方，完全在卡片外侧 */
+.cardToolbar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* 卡片本体容器 */
+.cardWrap {
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
+}
+
 .floatEditBtn {
-  position: absolute;
-  top: -14px;
-  right: 0;
-  z-index: 20;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 5px 10px 5px 8px;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid rgba(99,102,241,0.25);
-  border-bottom: none;
-  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.05));
-  color: #6366f1;
-  font-size: 11.5px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(244,247,251,0.92));
+  color: #0f172a;
+  font-size: 11px;
   font-weight: 700;
-  font-family: inherit;
+  font-family: 'Outfit', system-ui, sans-serif;
+  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
-  backdrop-filter: blur(8px);
+  box-shadow:
+    0 10px 24px -16px rgba(15, 23, 42, 0.3),
+    0 1px 0 rgba(255,255,255,0.75) inset;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    color 0.18s ease;
   white-space: nowrap;
 }
 
 .floatEditBtn:hover {
-  background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(139,92,246,0.12));
-  color: #4f46e5;
-  box-shadow: 0 -2px 8px rgba(99,102,241,0.15);
+  transform: translateY(-1px);
+  border-color: rgba(59, 130, 246, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,1), rgba(239,246,255,0.96));
+  color: #1d4ed8;
+  box-shadow:
+    0 14px 28px -18px rgba(29, 78, 216, 0.28),
+    0 1px 0 rgba(255,255,255,0.85) inset;
+}
+
+.floatEditBtn:active {
+  transform: translateY(0);
 }
 
 .floatEditBtn span {
-  letter-spacing: 0.01em;
+  letter-spacing: 0.015em;
 }
+
 
 
 /* ---------------- DYNAMIC STAGE SYSTEM ---------------- */
@@ -408,17 +444,17 @@
 
 .contentList li {
   position: relative;
-  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
+  background: var(--ppt-panel-bg);
   border-left: 3px solid var(--ppt-accent, #3b82f6);
-  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-top: 1px solid var(--ppt-panel-border);
+  border-right: 1px solid var(--ppt-panel-border);
+  border-bottom: 1px solid var(--ppt-panel-border);
   padding: calc(0.10 * var(--in)) calc(0.18 * var(--in));
   border-radius: 0 8px 8px 0;
   margin-bottom: calc(0.06 * var(--in));
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 1px 0 var(--ppt-panel-highlight),
+    0 4px 15px var(--ppt-panel-shadow);
   list-style-type: none; /* remove bullet */
   color: var(--ppt-text, #334155);
   font-size: calc(min(20, var(--dynamic-font, 20)) * var(--pt));
@@ -456,16 +492,16 @@
   margin-bottom: calc(0.08 * var(--in));
   
   /* Glassmorphism Structural Upgrade */
-  background: var(--ppt-glass-bg, rgba(255, 255, 255, 0.4));
+  background: var(--ppt-panel-bg);
   border-left: 3px solid var(--ppt-primary, #1e293b);
-  border-top: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-right: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
-  border-bottom: 1px solid var(--ppt-glass-border, rgba(255, 255, 255, 0.2));
+  border-top: 1px solid var(--ppt-panel-border);
+  border-right: 1px solid var(--ppt-panel-border);
+  border-bottom: 1px solid var(--ppt-panel-border);
   padding: calc(0.12 * var(--in)) calc(0.22 * var(--in));
   border-radius: 0 8px 8px 0;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 1px 0 var(--ppt-panel-highlight),
+    0 4px 15px var(--ppt-panel-shadow);
   color: var(--ppt-text, #334155);
 }
 
@@ -577,10 +613,11 @@
 
 .updatingText {
   font-family: 'Outfit', sans-serif;
-  font-size: calc(14 * var(--pt));
+  font-size: calc(12 * var(--pt));
   font-weight: 600;
   color: var(--ppt-text, #1e293b);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .iterateBar {
@@ -613,27 +650,32 @@
   background: transparent;
   border: none;
   outline: none;
-  font-size: calc(18 * var(--pt));
+  font-size: calc(15 * var(--pt));
   color: var(--ppt-text);
   font-family: inherit;
 }
 
 .iterateInput::placeholder {
   color: var(--ppt-text);
-  opacity: 0.45;
+  opacity: 0.54;
 }
 
 .iterateBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  min-width: 110px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   background: var(--ppt-primary);
   color: var(--ppt-bg);
   border: none;
   cursor: pointer;
+  font-size: calc(12 * var(--pt));
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* 图库来源徽章（演示用，叠在图片右上角） */
@@ -742,7 +784,7 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: #fff;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -946,34 +988,43 @@
 .gamePlaceholderCard {
   width: 100%;
   margin: calc(0.04 * var(--in)) 0;
-  border-radius: calc(0.5 * var(--in));
+  border-radius: calc(0.42 * var(--in));
   overflow: hidden;
-  background: linear-gradient(135deg,
-    rgba(99,102,241,0.08) 0%,
-    rgba(139,92,246,0.05) 100%);
-  border: 1.5px solid rgba(99,102,241,0.22);
-  box-shadow: 0 2px 12px rgba(99,102,241,0.12), 0 1px 3px rgba(0,0,0,0.05);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0.12)),
+    rgba(255,255,255,0.12);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.28),
+    0 8px 24px rgba(15, 23, 42, 0.05);
   position: relative;
 }
 .gamePlaceholderCard::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 50%, rgba(99,102,241,0.04));
+  background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent 28%, transparent 72%, rgba(255,255,255,0.06));
   pointer-events: none;
 }
 
 .gamePlaceholderInner {
   display: flex;
   align-items: center;
-  gap: calc(0.35 * var(--in));
-  padding: calc(0.22 * var(--in)) calc(0.35 * var(--in));
+  gap: calc(0.24 * var(--in));
+  padding: calc(0.16 * var(--in)) calc(0.22 * var(--in));
 }
 
 .gamePlaceholderIcon {
-  font-size: calc(38 * var(--pt));
+  width: calc(0.5 * var(--in));
+  height: calc(0.5 * var(--in));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(22 * var(--pt));
   flex-shrink: 0;
-  filter: drop-shadow(0 2px 6px rgba(99,102,241,0.25));
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.14), rgba(245, 158, 11, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.35);
   line-height: 1;
 }
 
@@ -987,40 +1038,79 @@
 
 .gamePlaceholderTitle {
   display: block;
-  font-size: calc(18 * var(--pt));
-  font-weight: 800;
-  color: #4f46e5;
+  font-size: calc(17 * var(--pt));
+  font-weight: 750;
+  color: var(--ppt-primary, #334155);
   letter-spacing: -0.01em;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .gamePlaceholderLink {
-  color: #4f46e5;
+  color: inherit;
   text-decoration: none;
 }
 .gamePlaceholderLink:hover {
-  text-decoration: underline;
+  text-decoration: none;
 }
 
 .gamePlaceholderBadge {
   align-self: flex-start;
-  padding: calc(0.04 * var(--in)) calc(0.14 * var(--in));
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  border-radius: calc(0.25 * var(--in));
+  padding: calc(0.025 * var(--in)) calc(0.09 * var(--in));
+  background: rgba(255,255,255,0.38);
+  color: rgba(71, 85, 105, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: calc(0.18 * var(--in));
   font-size: calc(10 * var(--pt));
   font-weight: 700;
   white-space: nowrap;
   letter-spacing: 0.03em;
 }
 
-.gamePlaceholderHint {
-  flex-shrink: 0;
-  font-size: calc(11 * var(--pt));
-  color: rgba(99,102,241,0.6);
-  white-space: nowrap;
-  font-style: italic;
+@media (max-width: 900px) {
+  .iterateBar {
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 14px;
+  }
+
+  .iterateInput {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 14px;
+  }
+
+  .iterateBtn {
+    min-width: 120px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .iterateBar {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .iterateInput {
+    font-size: 16px;
+  }
+
+  .iterateInput::placeholder {
+    font-size: 15px;
+  }
+
+  .iterateBtn {
+    min-width: 112px;
+    height: 42px;
+    font-size: 15px;
+  }
 }

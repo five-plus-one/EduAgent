@@ -13,6 +13,8 @@ import {
 } from '../utils/api';
 import styles from './ImageDetailModal.module.css';
 
+const EXIT_DURATION_MS = 220;
+
 interface Props {
   image: UserImage | null;
   onClose: () => void;
@@ -27,6 +29,7 @@ const STATUS_CONFIG = {
 } as const;
 
 export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
+  const [closing, setClosing] = useState(false);
   const [labelDraft, setLabelDraft]   = useState('');
   const [tagsDraft, setTagsDraft]     = useState<string[]>([]);
   const [tagInput, setTagInput]       = useState('');
@@ -41,6 +44,7 @@ export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
 
   useEffect(() => {
     if (!image) return;
+    setClosing(false);
     setLabelDraft(image.label ?? '');
     setTagsDraft(image.tags ?? []);
     setTagInput('');
@@ -51,6 +55,12 @@ export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
   }, [image]);
 
   if (!image) return null;
+
+  const requestClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, EXIT_DURATION_MS);
+  };
 
   const cfg = STATUS_CONFIG[image.annotate_status] ?? STATUS_CONFIG.pending;
   const StatusIcon = cfg.icon;
@@ -127,8 +137,8 @@ export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
   };
 
   return (
-    <div className={styles.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <aside className={styles.drawer}>
+    <div className={clsx(styles.overlay, closing && styles.overlayClosing)} onClick={e => e.target === e.currentTarget && requestClose()}>
+      <aside className={clsx(styles.drawer, closing && styles.drawerClosing)}>
 
         {/* ── Header ──────────────────────────────────────── */}
         <header className={styles.drawerHeader}>
@@ -136,7 +146,7 @@ export default function ImageDetailModal({ image, onClose, onUpdate }: Props) {
             <Edit3 size={15} />
             <span>图片详情</span>
           </div>
-          <button className={styles.closeBtn} onClick={onClose} title="关闭">
+          <button className={styles.closeBtn} onClick={requestClose} title="关闭">
             <X size={18} />
           </button>
         </header>
