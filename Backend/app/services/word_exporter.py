@@ -207,6 +207,74 @@ def _add_horizontal_rule(doc: Document) -> None:
     pPr.append(pBdr)
 
 
+def _render_md_table(doc: Document, table_lines: list) -> None:
+    """
+    将 Markdown 表格行列表渲染为 python-docx 表格。
+
+    支持：
+    - 标准表头 + 分割行 + 数据行
+    - 列宽不均时自动补全（短行末尾补空格）
+    - 单元格内行内 Markdown 格式（加粗、斜体、公式等）
+    - 表头行灰色背景 + 粗体
+    """
+    if not table_lines:
+        return
+
+    def _split_row(raw: str) -> list:
+        """'| A | B | C |'  →  ['A', 'B', 'C']"""
+        parts = raw.strip().strip('|').split('|')
+        return [p.strip() for p in parts]
+
+    def _is_separator(raw: str) -> bool:
+        """检测 '|---|---| 分割行"""
+        return bool(re.match(r'^\|[\s\-:|]+\|', raw.strip()))
+
+    # 解析：跳过分割行
+    rows = []
+    for raw_line in table_lines:
+        if _is_separator(raw_line):
+            continue
+        cells = _split_row(raw_line)
+        if cells:
+            rows.append(cells)
+
+    if not rows:
+        return
+
+    # 规整列数（补全短行）
+    col_count = max(len(r) for r in rows)
+    for r in rows:
+        while len(r) < col_count:
+            r.append('')
+
+    # 创建表格
+    tbl = doc.add_table(rows=len(rows), cols=col_count)
+    try:
+        tbl.style = 'Table Grid'
+    except Exception:
+        pass   # 模板无此样式时跳过
+
+    for i, row_data in enumerate(rows):
+        is_header = (i == 0)
+        tbl_row = tbl.rows[i]
+        for j, cell_text in enumerate(row_data):
+            cell = tbl_row.cells[j]
+            # 清空初始空段落，保留段落对象
+            para = cell.paragraphs[0]
+            for run in para.runs:
+                run.text = ''
+            # 写入内容（复用行内解析，支持公式/加粗/斜体）
+            _parse_inline(para, cell_text, bold=is_header)
+            # 表头行：灰色背景
+            if is_header:
+                tc_pr = cell._tc.get_or_add_tcPr()
+                shd = OxmlElement('w:shd')
+                shd.set(qn('w:val'),   'clear')
+                shd.set(qn('w:color'), 'auto')
+                shd.set(qn('w:fill'),  'D9D9D9')  # 浅灰
+                tc_pr.append(shd)
+
+
 # ──────────────────────────────────────────────
 # 主函数
 # ──────────────────────────────────────────────
@@ -353,7 +421,17 @@ def markdown_to_docx(markdown_text: str, output_path: str, title: str = '课件�
             i += 1
             continue
 
-        # ── 8. 普通段落（含行内公式）──────────────────────────────────────
+        # ── 8. Markdown 表格（| col | col |）────────────────────────────────
+        if stripped.startswith('|'):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i])
+                i += 1
+            _render_md_table(doc, table_lines)
+            in_list = False
+            continue
+
+        # ── 9. 普通段落（含行内公式）──────────────────────────────────────
         in_list = False
         p = doc.add_paragraph()
         _parse_inline(p, stripped)
