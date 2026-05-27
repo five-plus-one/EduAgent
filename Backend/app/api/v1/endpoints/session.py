@@ -316,6 +316,18 @@ async def chat_with_session(
     db.add(user_msg_db)
     db.commit()
 
+    # 加载教师画像（绑定到用户，跨会话共享）
+    from app.models.teacher_profile import TeacherProfile
+    profile_row = db.query(TeacherProfile).filter(TeacherProfile.user_id == current_user.id).first()
+    teacher_profile = None
+    if profile_row:
+        teacher_profile = {
+            "teaching_style_tags": profile_row.teaching_style_tags or [],
+            "preferences": profile_row.preferences or {},
+            "subject_domains": profile_row.subject_domains or [],
+            "needs_summary": profile_row.needs_summary or "",
+        }
+
     # Pre-computation: Retrieve RAG chunks if any session files exist
     rag_context = ""
     session_files = db.query(SessionFile).filter(SessionFile.session_id == session_id, SessionFile.status == "completed").all()
@@ -337,7 +349,7 @@ async def chat_with_session(
     async def sse_generator():
         ai_full_text = ""
         is_thinking = False
-        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, user_id=current_user.id, active_game_id=chat_msg.active_game_id):
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, user_id=current_user.id, active_game_id=chat_msg.active_game_id, teacher_profile=teacher_profile):
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:
@@ -380,6 +392,51 @@ async def chat_with_session(
             )
             db_local.add(ai_msg_db)
             db_local.commit()
+
+            # 异步更新教师画像（不阻塞流式响应）
+            if ai_full_text.strip():
+                import asyncio
+                from app.services.profile_extractor import extract_teacher_preferences, merge_profile
+
+                async def _update_profile():
+                    db_p = SessionLocal()
+                    try:
+                        profile = db_p.query(TeacherProfile).filter(
+                            TeacherProfile.user_id == current_user.id
+                        ).first()
+                        current = {
+                            "teaching_style_tags": profile.teaching_style_tags if profile else [],
+                            "preferences": profile.preferences if profile else {},
+                            "subject_domains": profile.subject_domains if profile else [],
+                            "needs_summary": profile.needs_summary if profile else "",
+                        }
+                        delta = await extract_teacher_preferences(
+                            chat_msg.content, ai_full_text, current
+                        )
+                        if delta:
+                            merged = merge_profile(current, delta)
+                            if profile:
+                                profile.teaching_style_tags = merged["teaching_style_tags"]
+                                profile.preferences = merged["preferences"]
+                                profile.subject_domains = merged["subject_domains"]
+                                profile.needs_summary = merged["needs_summary"]
+                            else:
+                                db_p.add(TeacherProfile(
+                                    id=f"tp_{uuid.uuid4().hex[:12]}",
+                                    user_id=current_user.id,
+                                    teaching_style_tags=merged["teaching_style_tags"],
+                                    preferences=merged["preferences"],
+                                    subject_domains=merged["subject_domains"],
+                                    needs_summary=merged["needs_summary"],
+                                ))
+                            db_p.commit()
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).warning(f"Profile extraction failed: {e}")
+                    finally:
+                        db_p.close()
+
+                asyncio.create_task(_update_profile())
         finally:
             db_local.close()
 

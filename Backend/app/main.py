@@ -15,6 +15,7 @@ from app.models.generation import GenerationTask, Courseware
 from app.models.image import UserImage, ImageLibrary  # 图片系统
 from app.models.game import Game                        # 互动游戏
 from app.models.game_share import GameShare             # 游戏分享短链接
+from app.models.teacher_profile import TeacherProfile   # 教师画像
 from app.core import security
 
 # Create tables
