@@ -283,6 +283,8 @@ async def stream_chat_response(
     user_id: str = None,        # 用于在后端直接创建 Game 记录时关联用户
     active_game_id: str = None,   # 如有已生成游戏，注入其 HTML 以支持精炼
     teacher_profile: dict = None, # 教师画像
+    teaching_intent: dict = None, # 教学意图结构化快照
+    conversation_summary: str = None, # 对话摘要
 ):
     # 构造消息列表
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -305,6 +307,60 @@ async def stream_chat_response(
             f"如果画像中已有相关信息，不要重复询问。"
         )
         messages.append({"role": "system", "content": profile_msg})
+
+    # 注入对话摘要（长对话压缩）
+    if conversation_summary:
+        messages.append({
+            "role": "system",
+            "content": (
+                f"【此前对话摘要】\n{conversation_summary}\n\n"
+                f"以上是更早对话的关键信息摘要，请在此基础上继续。"
+                f"不要重复询问摘要中已包含的信息。"
+            )
+        })
+
+    # 注入教学意图快照
+    if teaching_intent:
+        field_labels = {
+            "subject": "课程主题",
+            "target_audience": "目标受众",
+            "knowledge_points": "知识点",
+            "teaching_logic": "教学逻辑",
+            "key_points": "重点",
+            "difficult_points": "难点",
+            "interaction_design": "互动设计",
+            "duration": "时长",
+            "output_format": "产出格式",
+        }
+        confidence = teaching_intent.get("field_confidence", {})
+        intent_lines = []
+        for field, label in field_labels.items():
+            val = teaching_intent.get(field)
+            conf = confidence.get(field, 0)
+            if val and conf > 0.3:
+                if isinstance(val, list):
+                    val = "、".join(val)
+                intent_lines.append(f"  - {label}：{val}（置信度 {conf:.0%}）")
+
+        if intent_lines:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"【已了解的教学意图】\n" + "\n".join(intent_lines) + "\n\n"
+                    f"以上信息已从之前的对话中提取，不要重复询问已高置信度的字段。"
+                )
+            })
+
+        # 低置信度字段提示追问
+        low_conf = [field_labels[f] for f, c in confidence.items() if c < 0.4 and f in field_labels]
+        if len(low_conf) >= 2:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"【需要补充的信息】以下教学要素尚不明确，"
+                    f"请在合适时机主动询问：{'、'.join(low_conf)}"
+                )
+            })
 
     if rag_context:
         messages.append({

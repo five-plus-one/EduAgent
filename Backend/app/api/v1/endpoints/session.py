@@ -305,7 +305,11 @@ async def chat_with_session(
         .limit(30)
         .all()
     )[::-1]   # 翻转回时间正序
-    
+
+    # 加载教学意图快照和对话摘要
+    teaching_intent = session_ctx.teaching_intent
+    conversation_summary = session_ctx.conversation_summary
+
     # Append new user message to local DB synchronously
     user_msg_db = Message(
         id=f"msg_{uuid.uuid4().hex[:12]}",
@@ -339,8 +343,19 @@ async def chat_with_session(
         
     if file_ids:
         from app.services.vector_store import search_vectors
+        # 意图增强 RAG：用教学意图的关键信息增强检索 query
+        enhanced_query = chat_msg.content
+        if teaching_intent:
+            context_parts = []
+            if teaching_intent.get("subject"):
+                context_parts.append(teaching_intent["subject"])
+            kps = teaching_intent.get("knowledge_points", [])
+            if kps:
+                context_parts.extend(kps[:3])
+            if context_parts:
+                enhanced_query = f"{' '.join(context_parts)} {chat_msg.content}"
         try:
-            docs = search_vectors(query=chat_msg.content, filter_document_ids=file_ids, top_k=6)
+            docs = search_vectors(query=enhanced_query, filter_document_ids=file_ids, top_k=6)
             if docs:
                 rag_context += "【相关文档段落的切片检索结果】\n" + "\n---\n".join([d.page_content for d in docs])
         except Exception:
@@ -349,7 +364,7 @@ async def chat_with_session(
     async def sse_generator():
         ai_full_text = ""
         is_thinking = False
-        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, user_id=current_user.id, active_game_id=chat_msg.active_game_id, teacher_profile=teacher_profile):
+        async for chunk_sse in stream_chat_response(history, chat_msg.content, rag_context=rag_context, session_id=session_id, user_id=current_user.id, active_game_id=chat_msg.active_game_id, teacher_profile=teacher_profile, teaching_intent=teaching_intent, conversation_summary=conversation_summary):
             try:
                 chunk_data_str = chunk_sse.replace("data: ", "").strip()
                 if chunk_data_str:
@@ -437,6 +452,49 @@ async def chat_with_session(
                         db_p.close()
 
                 asyncio.create_task(_update_profile())
+
+                # 异步更新教学意图快照
+                from app.services.intent_extractor import update_teaching_intent
+
+                async def _update_intent():
+                    db_i = SessionLocal()
+                    try:
+                        sess = db_i.query(SessionContext).get(session_id)
+                        if not sess:
+                            return
+                        current_intent = sess.teaching_intent
+                        summary = sess.conversation_summary
+                        new_intent = await update_teaching_intent(
+                            current_intent, chat_msg.content, summary
+                        )
+                        if new_intent and new_intent != current_intent:
+                            sess.teaching_intent = new_intent
+                            db_i.commit()
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).warning(f"Intent extraction failed: {e}")
+                    finally:
+                        db_i.close()
+
+                asyncio.create_task(_update_intent())
+
+                # 异步生成对话摘要（消息数超过阈值时）
+                from app.services.conversation_manager import (
+                    prepare_messages_with_summary, SUMMARY_THRESHOLD
+                )
+                total_msgs = db_local.query(Message).filter(Message.session_id == session_id).count()
+                if total_msgs > SUMMARY_THRESHOLD:
+                    async def _update_summary():
+                        db_s = SessionLocal()
+                        try:
+                            await prepare_messages_with_summary(db_s, session_id)
+                        except Exception as e:
+                            import logging
+                            logging.getLogger(__name__).warning(f"Summary generation failed: {e}")
+                        finally:
+                            db_s.close()
+
+                    asyncio.create_task(_update_summary())
         finally:
             db_local.close()
 
