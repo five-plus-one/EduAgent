@@ -58,6 +58,22 @@ def _migrate_session_theme_columns():
 
 _migrate_session_theme_columns()
 
+# ── 兼容旧数据库：新增深度对话字段 ──────────────────────────────────────────
+def _migrate_deep_dialogue_columns():
+    _dd_cols = [
+        ("teaching_intent",      "TEXT"),       # JSON 存为 TEXT（SQLite 兼容）
+        ("conversation_summary", "TEXT"),
+    ]
+    with engine.connect() as conn:
+        for col, col_def in _dd_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE session_context ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                pass  # 列已存在，忽略
+
+_migrate_deep_dialogue_columns()
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
