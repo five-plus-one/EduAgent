@@ -11,23 +11,42 @@ logger = logging.getLogger(__name__)
 # Premium Theme Dictionary (mirrors frontend PREMIUM_THEMES)
 # ──────────────────────────────────────────────
 PREMIUM_THEMES = {
-    # Light Themes
+    # ── Light Themes ──
     "modern_minimalist":  {"bg_color": "#F8FAFC", "primary": "#0F172A", "secondary": "#64748B", "accent": "#3B82F6", "text_color": "#1E293B"},
     "sunset_boulevard":   {"bg_color": "#FFF7F0", "primary": "#EA580C", "secondary": "#FB923C", "accent": "#FACC15", "text_color": "#431407"},
     "golden_hour":        {"bg_color": "#FEF3C7", "primary": "#B45309", "secondary": "#D97706", "accent": "#F59E0B", "text_color": "#451A03"},
     "forest_canopy":      {"bg_color": "#F0FDF4", "primary": "#15803D", "secondary": "#166534", "accent": "#22C55E", "text_color": "#14532D"},
     "desert_rose":        {"bg_color": "#FFF1F2", "primary": "#BE123C", "secondary": "#E11D48", "accent": "#F43F5E", "text_color": "#4C0519"},
     "arctic_frost":       {"bg_color": "#F0F9FF", "primary": "#0369A1", "secondary": "#0284C7", "accent": "#38BDF8", "text_color": "#082F49"},
-    # Dark Themes
+    "nordic_breeze":      {"bg_color": "#F4F7F6", "primary": "#2C3E50", "secondary": "#7F8C8D", "accent": "#E67E22", "text_color": "#34495E"},
+    "academic_classic":   {"bg_color": "#FFFFFF", "primary": "#1E3A5F", "secondary": "#4A6F8A", "accent": "#E8613C", "text_color": "#1A1A2E"},
+    "cherry_blossom":     {"bg_color": "#FAF5F5", "primary": "#4A2E35", "secondary": "#A37074", "accent": "#E0A9AF", "text_color": "#2B1B1E"},
+    "vintage_editorial":  {"bg_color": "#F5F2EB", "primary": "#1C312E", "secondary": "#8C7A6B", "accent": "#C84B31", "text_color": "#2C2621"},
+    "milky_way_latte":    {"bg_color": "#FAF7F2", "primary": "#4E3629", "secondary": "#8A7968", "accent": "#CD7F32", "text_color": "#2A1E17"},
+    "lavender_mist":      {"bg_color": "#F8F7FA", "primary": "#423F5B", "secondary": "#7A7593", "accent": "#A78BFA", "text_color": "#252331"},
+    # ── Dark Themes ──
     "ocean_depths":       {"bg_color": "#0B192C", "primary": "#38BDF8", "secondary": "#94A3B8", "accent": "#10B981", "text_color": "#F8FAFC"},
     "cyber_neon":         {"bg_color": "#09090B", "primary": "#A855F7", "secondary": "#EC4899", "accent": "#06B6D4", "text_color": "#F1F5F9"},
     "midnight_galaxy":    {"bg_color": "#020617", "primary": "#6366F1", "secondary": "#4F46E5", "accent": "#818CF8", "text_color": "#F8FAFC"},
     "botanical_garden":   {"bg_color": "#064E3B", "primary": "#A7F3D0", "secondary": "#34D399", "accent": "#10B981", "text_color": "#F0FDF4"},
+    "volcanic_ash":       {"bg_color": "#121214", "primary": "#E5E7EB", "secondary": "#9CA3AF", "accent": "#EF4444", "text_color": "#F9FAFB"},
+    "copper_matrix":      {"bg_color": "#111827", "primary": "#38BDF8", "secondary": "#64748B", "accent": "#F59E0B", "text_color": "#F8FAFC"},
+    "emerald_noir":       {"bg_color": "#0A0F0D", "primary": "#ECEFF1", "secondary": "#78909C", "accent": "#00BFA5", "text_color": "#F5F7F8"},
+    "cyber_punk_edge":    {"bg_color": "#0D0E15", "primary": "#00F5FF", "secondary": "#94A3B8", "accent": "#FF3E8E", "text_color": "#E2E8F0"},
 }
 
-LIGHT_THEME_KEYS = ["modern_minimalist", "sunset_boulevard", "golden_hour",
-                     "forest_canopy", "desert_rose", "arctic_frost"]
-DARK_THEME_KEYS  = ["ocean_depths", "cyber_neon", "midnight_galaxy", "botanical_garden"]
+LIGHT_THEME_KEYS = [
+    "modern_minimalist", "sunset_boulevard", "golden_hour",
+    "forest_canopy", "desert_rose", "arctic_frost",
+    "nordic_breeze", "academic_classic", "cherry_blossom",
+    "vintage_editorial", "milky_way_latte", "lavender_mist",
+]
+# forest_canopy 出现概率较低，通过加权列表实现（出现 1 次 vs 其他各 2 次）
+_LIGHT_THEME_WEIGHTED = [k for k in LIGHT_THEME_KEYS if k != "forest_canopy"] * 2 + ["forest_canopy"]
+DARK_THEME_KEYS = [
+    "ocean_depths", "cyber_neon", "midnight_galaxy", "botanical_garden",
+    "volcanic_ash", "copper_matrix", "emerald_noir", "cyber_punk_edge",
+]
 
 # 所有被视为「游戏占位符」的 element type 值（后端用 game_placeholder，前端/AI 会生成 interactive_game）
 _GAME_ELEM_TYPES = {"game_placeholder", "interactive_game"}
@@ -79,7 +98,7 @@ def pick_premium_theme(session_id: str, raw_theme: dict) -> dict:
     else:
         is_light = hex_luma(bg_raw) > 0.5
         
-    keys = LIGHT_THEME_KEYS if is_light else DARK_THEME_KEYS
+    keys = _LIGHT_THEME_WEIGHTED if is_light else DARK_THEME_KEYS
     idx = simple_hash(session_id or "default") % len(keys)
     return PREMIUM_THEMES[keys[idx]]
 
