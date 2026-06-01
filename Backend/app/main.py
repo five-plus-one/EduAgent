@@ -15,6 +15,7 @@ from app.models.generation import GenerationTask, Courseware
 from app.models.image import UserImage, ImageLibrary  # 图片系统
 from app.models.game import Game                        # 互动游戏
 from app.models.game_share import GameShare             # 游戏分享短链接
+from app.models.teacher_profile import TeacherProfile   # 教师画像
 from app.core import security
 
 # Create tables
@@ -56,6 +57,22 @@ def _migrate_session_theme_columns():
                 pass  # 列已存在，忽略
 
 _migrate_session_theme_columns()
+
+# ── 兼容旧数据库：新增深度对话字段 ──────────────────────────────────────────
+def _migrate_deep_dialogue_columns():
+    _dd_cols = [
+        ("teaching_intent",      "TEXT"),       # JSON 存为 TEXT（SQLite 兼容）
+        ("conversation_summary", "TEXT"),
+    ]
+    with engine.connect() as conn:
+        for col, col_def in _dd_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE session_context ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                pass  # 列已存在，忽略
+
+_migrate_deep_dialogue_columns()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

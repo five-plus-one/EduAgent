@@ -7,6 +7,31 @@ from app.services.llm_tools import GenerateFullPPT, UpdateSlide, AddSlide, Delet
 
 logger = logging.getLogger(__name__)
 
+
+async def call_llm_light(prompt: str) -> str:
+    """调用轻量模型，用于画像提取、意图提取、摘要等辅助任务。"""
+    headers = {
+        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": settings.LLM_LIGHT_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
+        "temperature": 0.3,
+        "max_tokens": 500,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{settings.OPENAI_API_BASE.rstrip('/')}/chat/completions",
+            headers=headers,
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+
+
 # Tool schemas for the API request body
 TOOLS_SCHEMA = [
     {
@@ -210,16 +235,43 @@ SYSTEM_PROMPT = (
     "   任何局部调整（修改某页、新增页、删除页）均只能使用 UpdateSlide / AddSlide / DeleteSlide。\n"
     "   违反此规则将导致用户已有的整套课件丢失，是严重错误。\n"
     "\n"
-    "GAME RULES (游戏部分):\n"
-    "7. 当教师表达游戏意图（涉及「游戏」「互动」「小游戏」「激活」「小测测」等词），必须调用 ProposeGameTypes 展示游戏类型供选择。\n"
-    "   对话中同时涉及PPT和游戏时，优先完成当前意图，不要中途切换。\n"
-    "8. ★ 当游戏类型和知识点已明确（教师已选择类型或明确表示'生成'/'开始'/'就这个'等），必须立即调用 GenerateGame 工具。★\n"
-    "   不得用文字描述代替工具调用，不得说'我将为你生成…'而不调用工具，必须直接调用 GenerateGame。\n"
-    "   调用后后台立即开始生成，在对话中简短告知教师游戏生成已启动即可。\n"
-    "9. 如教师要求改进已有游戏（如：'把计时改到60秒''背景改深色''增加难度'），必须立即调用 GenerateGame 并将 is_refinement 设为 true，\n"
-    "   refinement_instruction 详细写明教师的具体要求（越详细越好），系统会在已有 HTML 基础上精确修改。\n"
-    "   ★ 改进游戏时绝对不能创建新游戏，必须使用 is_refinement=true。★\n"
-)
+    "GAME RULES (游戏部分):\n"
+    "7. 当教师表达游戏意图（涉及「游戏」「互动」「小游戏」「激活」「小测测」等词），必须调用 ProposeGameTypes 展示游戏类型供选择。\n"
+    "   对话中同时涉及PPT和游戏时，优先完成当前意图，不要中途切换。\n"
+    "8. ★ 当游戏类型和知识点已明确（教师已选择类型或明确表示'生成'/'开始'/'就这个'等），必须立即调用 GenerateGame 工具。★\n"
+    "   不得用文字描述代替工具调用，不得说'我将为你生成…'而不调用工具，必须直接调用 GenerateGame。\n"
+    "   调用后后台立即开始生成，在对话中简短告知教师游戏生成已启动即可。\n"
+    "9. 如教师要求改进已有游戏（如：'把计时改到60秒''背景改深色''增加难度'），必须立即调用 GenerateGame 并将 is_refinement 设为 true，\n"
+    "   refinement_instruction 详细写明教师的具体要求（越详细越好），系统会在已有 HTML 基础上精确修改。\n"
+    "   ★ 改进游戏时绝对不能创建新游戏，必须使用 is_refinement=true。★\n"
+    "CLARIFICATION RULES (主动澄清规则):\n"
+    "10. 在调用任何生成工具（ProposePPTPlan / GenerateFullPPT / GenerateGame）之前，\n"
+    "    你必须评估以下教学要素的完整性：\n"
+    "\n"
+    "    必需要素（缺一不可，否则必须追问，不得调用生成工具）：\n"
+    "      ① 课程主题/知识点 — 教师要讲什么\n"
+    "      ② 目标受众 — 面向什么年级/基础的学生\n"
+    "\n"
+    "    重要要素（缺失 2 项以上时主动询问，但不强制阻断）：\n"
+    "      ③ 教学目标 — 知识目标、能力目标、情感目标\n"
+    "      ④ 重点难点 — 哪些是核心、哪些是易错点\n"
+    "      ⑤ 教学逻辑 — 先讲什么后讲什么、时间分配\n"
+    "      ⑥ 互动设计 — 是否需要课堂互动、游戏、讨论环节\n"
+    "\n"
+    "11. 判断规则：\n"
+    "    - 如果 ①② 中任何一项缺失，必须主动追问，不得调用生成工具。\n"
+    "    - 如果 ③④⑤⑥ 中缺失 2 项以上，主动询问（可一次问多个），但不强制阻断。\n"
+    "    - 如果教师已在之前的对话中提及过这些信息（检查历史消息），不要重复询问。\n"
+    "    - 追问时使用自然、友好的语气，可一次问 2-3 个相关问题，不要像填表一样逐条问。\n"
+    "    - 如果教师明确表示\"就这样\"、\"你看着办\"、\"不用问了\"，则跳过追问直接生成。\n"
+    "\n"
+    "    示例追问：\n"
+    "    \"在开始制作之前，我想确认几个关键点：\n"
+    "    1. 这节课面向几年级的学生？他们之前学过相关内容吗？\n"
+    "    2. 你希望重点讲解哪些知识点？有没有特别需要强调的难点？\n"
+    "    3. 课堂上需要安排互动环节吗，比如小测验或讨论？\"\n"
+
+)
 
 
 
@@ -230,9 +282,85 @@ async def stream_chat_response(
     session_id: str = None,
     user_id: str = None,        # 用于在后端直接创建 Game 记录时关联用户
     active_game_id: str = None,   # 如有已生成游戏，注入其 HTML 以支持精炼
+    teacher_profile: dict = None, # 教师画像
+    teaching_intent: dict = None, # 教学意图结构化快照
+    conversation_summary: str = None, # 对话摘要
 ):
     # 构造消息列表
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
+    # 注入教师画像上下文
+    if teacher_profile:
+        style_str = "、".join(teacher_profile.get("teaching_style_tags", [])) or "暂无"
+        prefs = teacher_profile.get("preferences", {})
+        prefs_str = "；".join(f"{k}：{v}" for k, v in prefs.items()) if prefs else "暂无"
+        domains_str = "、".join(teacher_profile.get("subject_domains", [])) or "暂无"
+        summary_str = teacher_profile.get("needs_summary", "") or "暂无"
+
+        profile_msg = (
+            f"【教师画像 — 长期记忆】\n"
+            f"- 教学风格偏好：{style_str}\n"
+            f"- 具体偏好：{prefs_str}\n"
+            f"- 常教领域：{domains_str}\n"
+            f"- 历史需求摘要：{summary_str}\n\n"
+            f"请基于以上了解，提供更贴合该教师风格的建议。"
+            f"如果画像中已有相关信息，不要重复询问。"
+        )
+        messages.append({"role": "system", "content": profile_msg})
+
+    # 注入对话摘要（长对话压缩）
+    if conversation_summary:
+        messages.append({
+            "role": "system",
+            "content": (
+                f"【此前对话摘要】\n{conversation_summary}\n\n"
+                f"以上是更早对话的关键信息摘要，请在此基础上继续。"
+                f"不要重复询问摘要中已包含的信息。"
+            )
+        })
+
+    # 注入教学意图快照
+    if teaching_intent:
+        field_labels = {
+            "subject": "课程主题",
+            "target_audience": "目标受众",
+            "knowledge_points": "知识点",
+            "teaching_logic": "教学逻辑",
+            "key_points": "重点",
+            "difficult_points": "难点",
+            "interaction_design": "互动设计",
+            "duration": "时长",
+            "output_format": "产出格式",
+        }
+        confidence = teaching_intent.get("field_confidence", {})
+        intent_lines = []
+        for field, label in field_labels.items():
+            val = teaching_intent.get(field)
+            conf = confidence.get(field, 0)
+            if val and conf > 0.3:
+                if isinstance(val, list):
+                    val = "、".join(val)
+                intent_lines.append(f"  - {label}：{val}（置信度 {conf:.0%}）")
+
+        if intent_lines:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"【已了解的教学意图】\n" + "\n".join(intent_lines) + "\n\n"
+                    f"以上信息已从之前的对话中提取，不要重复询问已高置信度的字段。"
+                )
+            })
+
+        # 低置信度字段提示追问
+        low_conf = [field_labels[f] for f, c in confidence.items() if c < 0.4 and f in field_labels]
+        if len(low_conf) >= 2:
+            messages.append({
+                "role": "system",
+                "content": (
+                    f"【需要补充的信息】以下教学要素尚不明确，"
+                    f"请在合适时机主动询问：{'、'.join(low_conf)}"
+                )
+            })
 
     if rag_context:
         messages.append({
