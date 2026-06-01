@@ -14,6 +14,10 @@ class SessionContext(Base):
     ppt_theme_key        = Column(String,   nullable=True)  # e.g. "ocean_depths"；NULL 表示自动
     ppt_custom_colors    = Column(JSON,     nullable=True)  # 自定义颜色字典；NULL 表示使用预设
     ppt_theme_updated_at = Column(DateTime, nullable=True)  # 最近一次修改的时间
+    # 教学意图结构化快照
+    teaching_intent = Column(JSON, nullable=True)
+    # 对话摘要（长对话压缩用）
+    conversation_summary = Column(Text, nullable=True)
     messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")
 
 class Message(Base):

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     OPENAI_API_BASE: str = "https://api.ai.five-plus-one.com/v1"
     OPENAI_API_KEY: str = ""  # 密钥已移除，通过本地 .env 文件提供
     LLM_MODEL: str = "doubao-seed-2-0-pro-260215"   # 文本生成/摄要用
+    LLM_LIGHT_MODEL: str = "doubao-seed-2-0-pro-260215"  # 轻量任务用（画像提取、意图提取、摘要）
     EMBEDDING_MODEL: str = "text-embedding-3-large"  # 向量嵌入用
     WHISPER_MODEL: str = "whisper-1"                 # 音频转写用；空字符串 = 跳过语音识别阶段
 
