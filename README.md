@@ -437,6 +437,12 @@ Windows 下可手动删除 `node_modules` 后重装。
 - [Backend/app](/d:/5plus1/Projects/dev/EduAgent/Backend/app)
 - [APIDocs](/d:/5plus1/Projects/dev/EduAgent/APIDocs)
 
+## 七、开源协议
+
+本项目采用 [MIT License](LICENSE) 开源发布，版权归 five-plus-one 和 syclzr3074 所有。
+
+你可以在保留版权声明和本协议文本的前提下，自由地使用、复制、修改、合并、发布、分发、再许可以及销售本软件的副本。
+
 ---
 
 如需提交 issue 或参与开发，请基于仓库：
